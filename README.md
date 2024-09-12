@@ -52,7 +52,7 @@ If you open the `.cmd` file inside any text editor, you will see ten parameters,
 3. Speedglitch "Strength"  (Default: `960`)
 4. Freeze/Tab glitch Hotkey  (Default: `Xbutton1`)
 5. Dropless Item Desync Hotkey  (Default: `F5` in slot 5)
-6. Speedglitch Hotkey  (Default: `X`)
+6. Speedglitch Hotkey  (Default: `Z`)
 7. Press D Hotkey  (Default: `D`)
 8. Wallhop Hotkey  (Default: `Xbutton2`)
 9. Walless Lag High Jump Hotkey  (Default: `F6`)
