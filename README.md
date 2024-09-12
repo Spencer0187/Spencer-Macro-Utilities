@@ -7,6 +7,9 @@ Unzip the `.zip` and run the `.cmd` to run the program.
 Head to **[Parameters and Hotkeys](#parameters-and-hotkeys)** for Hotkey Information.
 To Compile, run the project in Visual Studio 2022 and build it.
 
+### Is this detectable???
+No, it's a macro, it doesn't communicate with Roblox memory in any way.
+
 ## Roblox Anti-AFK
 
 If you don't press `W` for fifteen minutes, a `"."` will be sent in the chat. This works even if Roblox is not the currently focused process.
