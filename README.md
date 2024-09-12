@@ -16,6 +16,7 @@ If you use a Center of Mass offset, you can trick the engine into forcing a lot 
 
 - **Non-fixed camera module:** The value for the speed glitch will be `360` divided by your Roblox sensitivity.
 - **Fixed camera module:** The value will be `500` divided by your sensitivity.
+- **For BOTH:** Subtract 2-3 (or more) from the final result before placing it in the .cmd.
 
 **See [Parameters and Hotkeys](#parameters-and-hotkeys) for more information.**
 
