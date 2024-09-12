@@ -47,15 +47,15 @@ Inside the code is also a framework for pasting strings into chat, though it is 
 
 If you open the `.cmd` file inside any text editor, you will see ten parameters, listed in this order:
 
-1. Roblox Process Name  
-2. Wallhop "Strength"  
-3. Speedglitch "Strength"  
-4. Freeze/Tab glitch Hotkey  
-5. Dropless Item Desync Hotkey  
-6. Speedglitch Hotkey  
-7. Press D Hotkey  
-8. Wallhop Hotkey  
-9. Walless Lag High Jump Hotkey  
+1. Roblox Process Name  (Default: RobloxPlayerBeta.exe)
+2. Wallhop "Strength"  (Default: `300`)
+3. Speedglitch "Strength"  (Default: `960`)
+4. Freeze/Tab glitch Hotkey  (Default: `Xbutton1`)
+5. Dropless Item Desync Hotkey  (Default: `F5` in slot 5)
+6. Speedglitch Hotkey  (Default: `X`)
+7. Press D Hotkey  (Default: `D`)
+8. Wallhop Hotkey  (Default: `Xbutton2`)
+9. Walless Lag High Jump Hotkey  (Default: `F6`)
 
 ### Notes:
 - **Numerical Values:** Must be integers.
