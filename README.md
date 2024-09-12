@@ -5,6 +5,7 @@ An open-source Windows C++ Roblox Macro with many features.
 
 Unzip the `.zip` and run the `.cmd` to run the program.  
 Head to **[Parameters and Hotkeys](#parameters-and-hotkeys)** for Hotkey Information.
+To Compile, run the project in Visual Studio 2022 and build it.
 
 ## Roblox Anti-AFK
 
