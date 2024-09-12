@@ -16,7 +16,7 @@ If you don't press `W` for fifteen minutes, a `"."` will be sent in the chat. Th
 
 ## Macro Speedglitch
 
-If you use a Center of Mass offset, you can trick the engine into forcing a lot of forward momentum.
+If you use a Center of Mass offset, you can trick the engine into forcing a lot of forward momentum. (60 FPS only)
 
 - **Non-fixed camera module:** The value for the speed glitch will be `360` divided by your Roblox sensitivity.
 - **Fixed camera module:** The value will be `500` divided by your sensitivity.
