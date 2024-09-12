@@ -1,0 +1,9 @@
+# Ignore the .vs folder (Visual Studio temporary files)
+.vs/
+
+# Ignore everything in the Release folder
+visual studio/x64/Release/*
+
+# Except for suspend.exe and .cmd files
+!visual studio/x64/Release/suspend.exe
+!visual studio/x64/Release/*.cmd
