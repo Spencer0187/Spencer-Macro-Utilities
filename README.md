@@ -20,6 +20,7 @@ Due to recent developments in the glitch community, we have found a way to do la
 This Macro Includes this, and its finally ready for release
 If you offset your center of mass to the left or right, and then get your legs stuck inside of a wall like in the video below, and then activate the macro, you will fly upwards.
 This works best on 120 FPS down to 60 FPS.
+MUST SET SPEEDGLITCH VALUE PROPERLY!!!!
 
 https://github.com/user-attachments/assets/fb6b8f7e-c7f3-476d-a0b3-fc99202e77ef
 
