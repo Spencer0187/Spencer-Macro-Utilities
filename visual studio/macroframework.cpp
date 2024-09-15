@@ -31,6 +31,7 @@ std::string text = "/e dance2"; // INSERT CUSTOM TEXT HERE
 
 std::atomic<bool> isclip2(false); // Set the variable used for the alternate thread
 std::atomic<bool> isspeed(false);
+std::atomic<bool> isHHJ(false);
 
 const DWORD SCAN_CODE_FLAGS = KEYEVENTF_SCANCODE;
 const DWORD RELEASE_FLAGS = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
@@ -42,6 +43,7 @@ INPUT inputrelease = {};
 // Translate all VK's into variables so it's less annoying to debug it
 unsigned int vk_f5 = VK_F5;
 unsigned int vk_f6 = VK_F6;
+unsigned int vk_f8 = VK_F8;
 unsigned int vk_mbutton = VK_MBUTTON;
 unsigned int vk_xbutton1 = VK_XBUTTON1;
 unsigned int vk_xbutton2 = VK_XBUTTON2;
@@ -51,7 +53,9 @@ unsigned int wkey = L'W';
 int wallhop_dx = 300;
 int wallhop_dy = -300;
 int speed_strengthx = 959;
+int speedoffsetx = 0;
 int speed_strengthy = -959;
+int speedoffsety = 0;
 auto suspendStartTime = std::chrono::steady_clock::time_point();
 const int suspendDuration = 9000;
 const int unsuspendTime = 50;
@@ -186,6 +190,21 @@ void Speedglitchloop()
 	}
 }
 
+void SpeedglitchloopHHJ()
+{
+	speedoffsetx = speed_strengthx * 1.04;
+	speedoffsety = speed_strengthy * 1.04;
+	while (true) {
+		while (!isHHJ) {
+			std::this_thread::sleep_for(std::chrono::microseconds(50));
+		}
+		MoveMouse(speedoffsetx, 0);
+		std::this_thread::sleep_for(std::chrono::microseconds(3030));
+		MoveMouse(speedoffsety, 0);
+		std::this_thread::sleep_for(std::chrono::microseconds(3030));
+	}
+}
+
 HWND FindWindowByProcessHandle(HANDLE hProcess)
 {
 	DWORD targetPID = GetProcessId(hProcess);
@@ -281,19 +300,22 @@ int wmain(int argc, wchar_t *__restrict argv[])
 		std::wcout << L"Press F5 to item desync (keep it on for 3-4 seconds and equip your item beforehand in your 5 slot and have it\nactively equipped)" << L"\n";
 		std::wcout << L"Press Z to press the \"D\" key for one frame" << L"\n";
 		std::wcout << L"Press X to speedglitch (must have com offset and 60 fps), configure this value until it is a 180 degree turn\nthen subtract a few pixels from that to let you move forwards instead of backwards" << L"\n";
+		std::wcout << L"Press Xbutton1 to do a Helicopter High Jump, if you offset your center of mass horizontally, and then turn\ninto a wall to get your legs stuck inside of it, and then activate the macro, you will fly upwards" << L"\n";
+		std::wcout << L"However, you need to be on 60-120 FPS (120 seems to work best) and have your speedglitch set up PROPERLY" << L"\n";
 		std::wcout << L"Press Xbutton2 to automatically wallhop" << L"\n";
-		std::wcout << L"Press Xbutton1 to automatically tab glitch (freeze roblox)" << L"\n";
-		std::wcout << L"Press F6 to Walless LHJ (SHIFTLOCK OFF) (REQUIRES A SIDEWAYS COM OFFSET BY EQUIPPING ITEM OR RESPAWN COM AND .5 STUDS OF A FOOT ON A PLATFORM)\n" << L"\n";
-		std::wcout << L"Change the -'s inside of your .cmd file to whatever ALPHABET hotkey or F1-F12 that you want" << L"\n";
-		std::wcout << L"\nThe order of them is: Process name > Wallhop Strength > Speedglitch strength > Freezing > Desync > Speedglitch > Press D > Wallhop > Walless LHJ" << L"\n";
+		std::wcout << L"Press middle mouse button to automatically tab glitch (freeze roblox)" << L"\n";
+		std::wcout << L"Press F6 to Walless LHJ (SHIFTLOCK OFF) (REQUIRES A SIDEWAYS COM OFFSET BY EQUIPPING ITEM OR RESPAWN COM AND .5 STUDS OF A FOOT ON A PLATFORM)" << L"\n";
+		std::wcout << L"Press F8 to automatically /e dance2 and equip and equip the item in your \"3\" slot to get a weaker, but itemless version of the speedglitch." << L"\n";
+		std::wcout << L"Change the -'s inside of your .cmd file to whatever ALPHABET hotkey, F1-F12, or a windows.h key VALUE" << L"\n";
+		std::wcout << L"\nThe order of them is: Process name > Wallhop Strength > Speedglitch strength > Freezing > Item Spam Desync > Helicopter High Jump (HHJ) > Speedglitch > Unequip Speed > Press D > Wallhop > Walless LHJ" << L"\n";
 	}
 	if (!processFound) {
 		std::wcout << "TO ENABLE FREEZING, CREATE A .CMD in the same folder that just does (nameofthisexe).exe RobloxPlayerBeta.exe (or whatever your roblox process is called)" << std::endl;
 		std::wcout << "ALERT! Roblox has NOT been found, run the .cmd file and NOT the .exe file as you need to put the roblox process as your parameter!" << std::endl;
 		std::wcout << "If you did do this, check for spelling and make sure its CASE SENSITIVE AND HAS THE .exe AT THE END!" << std::endl;
 		std::wcout << "The program will still run, but you will not be able to suspend/freeze Roblox at all, so relaunch it properly." << std::endl;
-		std::wcout << L"Change the -'s inside of your .cmd file to whatever ALPHABET hotkey or F1-F12 that you want" << L"\n";
-		std::wcout << L"\nThe order of them is: Process name > Wallhop Strength > Speedglitch strength > Freezing > Desync > Speedglitch > Press D > Wallhop > Walless LHJ" << L"\n";
+		std::wcout << L"Change the -'s inside of your .cmd file to whatever ALPHABET hotkey, F1-F12, or a windows.h key VALUE" << L"\n";
+		std::wcout << L"\nThe order of them is: Process name > Wallhop Strength > Speedglitch strength > Freezing > Item Spam Desync > Helicopter High Jump (HHJ) > Speedglitch > Unequip Speed > Press D > Wallhop > Walless LHJ" << L"\n";
 		std::wcout << "Program will open in 1 second." << std::endl;
 		std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
@@ -302,23 +324,31 @@ int wmain(int argc, wchar_t *__restrict argv[])
 	if (argc > 2) { // If the amount of arguments in the file is greater than two (the list starts at 1, and the .exe name is 2, so your wallhop should be 3, BUT the argv list doesnt include the .exe, so its 2
 		wallhop_dx = std::wcstol(argv[2], nullptr, 10); // Wallhop dx is your wallhop strength, the angle that it rotates
 		wallhop_dy = wallhop_dx * -1;
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
 	
 	if (argc > 3) { 
 		speed_strengthx = std::wcstol(argv[3], nullptr, 10);
 		speed_strengthy = speed_strengthx * -1;
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
+
+
 
 	if (argc > 4) { // Freeze Hotkey (Alphabet or function)
 		std::wstring key = argv[4];
 
-		if (ProcessKey(key, vk_xbutton1)) {
+		if (ProcessKey(key, vk_mbutton)) {
 			std::wcout << L"\nCustom Freeze Hotkey Key Worked: " << argv[4]
 				   << std::endl;
 		} else {
 			std::wcout << L"Using default Freeze Hotkey" << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
 	if (argc > 5) { // Item Desync
@@ -329,51 +359,86 @@ int wmain(int argc, wchar_t *__restrict argv[])
 		} else {
 			std::wcout << L"Using default Desync Hotkey" << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
-	if (argc > 6) { // Speedglitch
+	if (argc > 6) { // HHJ
 		std::wstring key = argv[6];
 
+		if (ProcessKey(key, vk_xbutton1)) {
+			std::wcout << L"Custom HHJ Hotkey Key Worked: " << argv[6] << std::endl;
+		} else {
+			std::wcout << L"Using default HHJ Hotkey" << std::endl;
+		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
+	}
+
+	if (argc > 7) { // Speedglitch
+		std::wstring key = argv[7];
+
 		if (ProcessKey(key, xkey)) {
-			std::wcout << L"Custom Speedglitch Hotkey Key Worked: " << argv[6] << " Current Strength: " << speed_strengthx << std::endl;
+			std::wcout << L"Custom Speedglitch Hotkey Key Worked: " << argv[7] << " Current Strength: " << speed_strengthx << std::endl;
 		} else {
 			std::wcout << L"Using default Speedglitch Hotkey with current Strength: " << speed_strengthx << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
-	if (argc > 7) { // Press D for one frame
-		std::wstring key = argv[7];
+	if (argc > 8) { // Auto-Unequip Speed
+		std::wstring key = argv[8];
+
+		if (ProcessKey(key, vk_f8)) {
+			std::wcout << L"Custom Unequip Speed Hotkey Key Worked: " << argv[8] << std::endl;
+		} else {
+			std::wcout << L"Using default Unequip Speed Hotkey" << std::endl;
+		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
+	}
+
+	if (argc > 9) { // Press D for one frame
+		std::wstring key = argv[9];
 
 		if (ProcessKey(key, zkey)) {
-			std::wcout << L"Custom Press D Hotkey Key Worked: " << argv[7] << std::endl;
+			std::wcout << L"Custom Press D Hotkey Key Worked: " << argv[9] << std::endl;
 		} else {
 			std::wcout << L"Using default D Hotkey" << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
-	if (argc > 8) { // Wallhop
-		std::wstring key = argv[8];
+	if (argc > 10) { // Wallhop
+		std::wstring key = argv[10];
 
 		if (ProcessKey(key, vk_xbutton2)) {
-			std::wcout << L"Custom WallHop Hotkey Key Worked: " << argv[8] << " Current Strength: " << wallhop_dx << std::endl;
+			std::wcout << L"Custom WallHop Hotkey Key Worked: " << argv[10] << " Current Strength: " << wallhop_dx << std::endl;
 		} else {
 			std::wcout << L"Using default WallHop Hotkey with current Strength: " << wallhop_dx << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
-	if (argc > 9) { // Walless LHJ
-		std::wstring key = argv[9];
+	if (argc > 11) { // Walless LHJ
+		std::wstring key = argv[11];
 
 		if (ProcessKey(key, vk_f6)) {
-			std::wcout << L"Custom Walless LHJ Hotkey Key Worked: " << argv[9]
+			std::wcout << L"Custom Walless LHJ Hotkey Key Worked: " << argv[11]
 				   << std::endl;
 		} else {
 			std::wcout << L"Using default LHJ Hotkey" << std::endl;
 		}
+	} else {
+		std::wcout << L"SOME OF YOUR -'s OR HOTKEYS ARE MISSING!" << std::endl;
 	}
 
 	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, ONLY do this for SPAMMERS that need to run ALONGSIDE other functions
 	std::thread actionThread2(ItemClipLoop2);
+	std::thread actionThread3(SpeedglitchloopHHJ);
 
 	bool isdesync = false; // These variables are used for "one-click" functionalies for macros, so you can press a key and it runs every time that key is pressed (without overlapping itself)
 	bool isSuspended = false; 
@@ -381,11 +446,14 @@ int wmain(int argc, wchar_t *__restrict argv[])
 	bool ispressd = false;
 	bool iswallhop = false;
 	bool isspeedglitch = false;
+	bool isspeed2 = false;
+	int speed_slot = 3;
+	bool HHJ = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	HWND hwnd = FindWindowByProcessHandle(hProcess);
 
 	while (true) {
-		if (GetAsyncKeyState(vk_xbutton1) & 0x8000) {
+		if (GetAsyncKeyState(vk_mbutton) & 0x8000) {
 			if (!isSuspended) {
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true); // Suspend the program on press
 				isSuspended = true;
@@ -476,14 +544,58 @@ int wmain(int argc, wchar_t *__restrict argv[])
 			isspeedglitch = false;
 		}
 
-		if (GetAsyncKeyState('W') & 0x8000) { 
+		if (GetAsyncKeyState(vk_f8) & 0x8000) { // Unequip Speed
+			if (!isspeed2) {
+				HoldKey(0x35);
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+				PasteText(text);
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				ReleaseKey(0x35);
+				HoldKey(0x1C);
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+				ReleaseKey(0x1C);
+				std::this_thread::sleep_for(std::chrono::milliseconds(950));
+				HoldKey(speed_slot + 1);
+				ReleaseKey(speed_slot + 1);
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				HoldKey(speed_slot + 1);
+				ReleaseKey(speed_slot + 1);
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+				isspeed2 = true;
+			}
+		} else {
+			isspeed2 = false;
+		}
+
+		if (GetAsyncKeyState(vk_xbutton1) & 0x8000) { // Helicopter High jump
+			if (!HHJ) {
+				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				HoldKey(0x2A);
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				isHHJ = true;
+				ReleaseKey(0x2A);
+				std::this_thread::sleep_for(std::chrono::milliseconds(150));
+				isHHJ = false;
+				HHJ = true;
+			}
+		} else {
+			HHJ = false;
+		}
+
+		if (GetAsyncKeyState('W') & 0x8000) { // Anti AFK (MUST STAY AT THE LOWEST PRIORITY!!!)
 			// W is pressed, update the last press time to now
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
-            // Check if 15 minutes have passed
-            auto now = std::chrono::steady_clock::now();
-            auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - lastPressTime).count();
-            if (elapsedMinutes >= 15) {
+			// Check if 15 minutes have passed
+			auto now = std::chrono::steady_clock::now();
+			auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - lastPressTime).count();
+			if (elapsedMinutes >= 15) {
 				HWND originalHwnd = GetForegroundWindow();
 				INPUT input = {0};
 				input.type = INPUT_MOUSE;
@@ -529,8 +641,8 @@ int wmain(int argc, wchar_t *__restrict argv[])
 					ReleaseKey(0x1C);
 					Sleep(500);
 					lastPressTime = std::chrono::steady_clock::now();
+					}
 				}
-            }
         }
 
 		std::this_thread::sleep_for(std::chrono::microseconds(50)); // Delay between checking for keys (dont touch pls)
