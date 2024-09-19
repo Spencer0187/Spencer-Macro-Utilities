@@ -547,7 +547,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 		if (GetAsyncKeyState(vk_f8) & 0x8000) { // Unequip Speed
 			if (!isspeed2) {
 				HoldKey(0x35);
-				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				ReleaseKey(0x35);
@@ -580,7 +580,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				isHHJ = true;
 				ReleaseKey(0x2A);
-				std::this_thread::sleep_for(std::chrono::milliseconds(150));
+				std::this_thread::sleep_for(std::chrono::milliseconds(220));
 				isHHJ = false;
 				HHJ = true;
 			}
@@ -588,7 +588,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 			HHJ = false;
 		}
 
-		if (GetAsyncKeyState('W') & 0x8000) { // Anti AFK (MUST STAY AT THE LOWEST PRIORITY!!!)
+		if (GetAsyncKeyState('W') & 0x8000 && IsForegroundWindowProcess((nameList[0]))) { // Anti AFK (MUST STAY AT THE LOWEST PRIORITY!!!)
 			// W is pressed, update the last press time to now
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
