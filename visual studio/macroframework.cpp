@@ -47,9 +47,12 @@ unsigned int vk_f8 = VK_F8;
 unsigned int vk_mbutton = VK_MBUTTON;
 unsigned int vk_xbutton1 = VK_XBUTTON1;
 unsigned int vk_xbutton2 = VK_XBUTTON2;
-unsigned int zkey = L'Z';
-unsigned int xkey = L'X';
-unsigned int wkey = L'W';
+unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF; // Use this for alphabet keys so it works across layouts
+unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_slashkeyinit = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_slashkey = MapVirtualKey(vk_slashkeyinit, MAPVK_VK_TO_VSC);
+
 int wallhop_dx = 300;
 int wallhop_dy = -300;
 int speed_strengthx = 959;
@@ -85,7 +88,7 @@ bool ProcessKey(const std::wstring &key, unsigned int &custom_vk)
 	// Check if the key is a single alphabet character
 	if (uppercaseKey.length() == 1 && std::iswalpha(uppercaseKey[0])) {
 		// Convert to uppercase
-		custom_vk = static_cast<unsigned int>(toupper(uppercaseKey[0]));
+		custom_vk = VkKeyScanEx(uppercaseKey[0], GetKeyboardLayout(0)) & 0xFF;
 		return true;
 	}
 	// Check if the key is a function key (F1-F12)
@@ -378,7 +381,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 	if (argc > 7) { // Speedglitch
 		std::wstring key = argv[7];
 
-		if (ProcessKey(key, xkey)) {
+		if (ProcessKey(key, vk_xkey)) {
 			std::wcout << L"Custom Speedglitch Hotkey Key Worked: " << argv[7] << " Current Strength: " << speed_strengthx << std::endl;
 		} else {
 			std::wcout << L"Using default Speedglitch Hotkey with current Strength: " << speed_strengthx << std::endl;
@@ -402,7 +405,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 	if (argc > 9) { // Press D for one frame
 		std::wstring key = argv[9];
 
-		if (ProcessKey(key, zkey)) {
+		if (ProcessKey(key, vk_zkey)) {
 			std::wcout << L"Custom Press D Hotkey Key Worked: " << argv[9] << std::endl;
 		} else {
 			std::wcout << L"Using default D Hotkey" << std::endl;
@@ -490,7 +493,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 			isdesync = false;
 		}
 
-		if (GetAsyncKeyState(zkey) & 0x8000) { // Press D for one frame
+		if (GetAsyncKeyState(vk_zkey) & 0x8000) { // Press D for one frame
 			if (!ispressd) {
 				HoldKey(0x20);
 				std::this_thread::sleep_for(std::chrono::milliseconds(6));
@@ -535,7 +538,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 			islhj = false;
 		}
 
-		if (GetAsyncKeyState(xkey) & 0x8000) { // Speedglitch
+		if (GetAsyncKeyState(vk_xkey) & 0x8000) { // Speedglitch
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -546,15 +549,15 @@ int wmain(int argc, wchar_t *__restrict argv[])
 
 		if (GetAsyncKeyState(vk_f8) & 0x8000) { // Unequip Speed
 			if (!isspeed2) {
-				HoldKey(0x35);
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				HoldKey(vk_slashkey);
+				std::this_thread::sleep_for(std::chrono::milliseconds(300));
 				PasteText(text);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				ReleaseKey(0x35);
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				ReleaseKey(vk_slashkey);
 				HoldKey(0x1C);
-				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				ReleaseKey(0x1C);
-				std::this_thread::sleep_for(std::chrono::milliseconds(950));
+				std::this_thread::sleep_for(std::chrono::milliseconds(920));
 				HoldKey(speed_slot + 1);
 				ReleaseKey(speed_slot + 1);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -573,14 +576,23 @@ int wmain(int argc, wchar_t *__restrict argv[])
 		if (GetAsyncKeyState(vk_xbutton1) & 0x8000) { // Helicopter High jump
 			if (!HHJ) {
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
-				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				INPUT input = {0};
+				input.type = INPUT_MOUSE;
+				input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+				SendInput(1, &input, sizeof(INPUT));
+				std::this_thread::sleep_for(std::chrono::milliseconds(450));
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+				MoveMouse(speed_strengthx, 0);
 				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				HoldKey(0x2A);
-				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				isHHJ = true;
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				ReleaseKey(0x2A);
-				std::this_thread::sleep_for(std::chrono::milliseconds(220));
+				std::this_thread::sleep_for(std::chrono::milliseconds(240));
+				MoveMouse(speed_strengthy, 0);
+				input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+				SendInput(1, &input, sizeof(INPUT));
 				isHHJ = false;
 				HHJ = true;
 			}
@@ -600,7 +612,7 @@ int wmain(int argc, wchar_t *__restrict argv[])
 				INPUT input = {0};
 				input.type = INPUT_MOUSE;
 				input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-				if (IsForegroundWindowProcess(nameList[0]) == 0) { // Extremely long process to simulate going to roblox and pressing w
+				if (IsForegroundWindowProcess(nameList[0]) == 0) { // Extremely long process to simulate going to roblox and typing .
 					SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 					SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 					Sleep(1000);
