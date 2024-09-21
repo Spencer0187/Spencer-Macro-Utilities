@@ -22,7 +22,8 @@ If you offset your center of mass to the left or right, and then get your legs s
 This works best on 120 FPS down to 60 FPS.
 ### MUST SET SPEEDGLITCH VALUE PROPERLY!!!!
 
-https://github.com/user-attachments/assets/fb6b8f7e-c7f3-476d-a0b3-fc99202e77ef
+
+https://github.com/user-attachments/assets/b2616918-4276-4b41-aed6-e7aab9f73599
 
 ## Macro Speedglitch
 
