@@ -35,8 +35,8 @@ https://github.com/user-attachments/assets/b2616918-4276-4b41-aed6-e7aab9f73599
 
 If you use a Center of Mass offset, you can trick the engine into forcing a lot of forward momentum. (60 FPS only)
 
-- **Non-fixed camera module:** The value for the speed glitch will be `360` divided by your Roblox sensitivity.
-- **Fixed camera module:** The value will be `500` divided by your sensitivity.
+- **Games with Non-fixed camera module:** The value for the speed glitch will be `360` divided by your Roblox sensitivity.
+- **Games with Fixed camera module:** The value will be `500` divided by your sensitivity.
 - **For BOTH:** Subtract 2-3 (or more) from the final result before placing it in the .cmd.
 
 **See [Parameters and Hotkeys](#parameters-and-hotkeys) for more information.**
