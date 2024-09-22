@@ -586,13 +586,13 @@ int wmain(int argc, wchar_t *__restrict argv[])
 				MoveMouse(speed_strengthx, 0);
 				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				HoldKey(0x2A);
-				isHHJ = true;
+				input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+				SendInput(1, &input, sizeof(INPUT));
 				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				isHHJ = true;
 				ReleaseKey(0x2A);
 				std::this_thread::sleep_for(std::chrono::milliseconds(240));
 				MoveMouse(speed_strengthy, 0);
-				input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-				SendInput(1, &input, sizeof(INPUT));
 				isHHJ = false;
 				HHJ = true;
 			}
