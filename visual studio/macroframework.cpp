@@ -18,6 +18,10 @@
 #include <algorithm>
 #include <cctype>
 
+HINSTANCE hInstance = GetModuleHandle(nullptr);
+
+
+
 // TO ENABLE FREEZING, CREATE A .CMD in the same folder that just does (nameofthisexe).exe RobloxPlayerBeta.exe (or whatever your roblox process is called)
 
 
@@ -550,9 +554,9 @@ int wmain(int argc, wchar_t *__restrict argv[])
 		if (GetAsyncKeyState(vk_f8) & 0x8000) { // Unequip Speed
 			if (!isspeed2) {
 				HoldKey(vk_slashkey);
-				std::this_thread::sleep_for(std::chrono::milliseconds(300));
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				PasteText(text);
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				ReleaseKey(vk_slashkey);
 				HoldKey(0x1C);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -561,12 +565,8 @@ int wmain(int argc, wchar_t *__restrict argv[])
 				HoldKey(speed_slot + 1);
 				ReleaseKey(speed_slot + 1);
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 				HoldKey(speed_slot + 1);
 				ReleaseKey(speed_slot + 1);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
 				isspeed2 = true;
 			}
 		} else {
