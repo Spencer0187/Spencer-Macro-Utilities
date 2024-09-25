@@ -18,9 +18,6 @@
 #include <algorithm>
 #include <cctype>
 
-HINSTANCE hInstance = GetModuleHandle(nullptr);
-
-
 
 // TO ENABLE FREEZING, CREATE A .CMD in the same folder that just does (nameofthisexe).exe RobloxPlayerBeta.exe (or whatever your roblox process is called)
 
