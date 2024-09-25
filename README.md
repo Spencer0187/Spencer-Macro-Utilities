@@ -4,11 +4,7 @@ An open-source Windows C++ Roblox Macro with many features.
 # Instructions (NEW UPDATE PLEASE READ)
 
 Unzip the `.zip` and run the `.cmd` to run the program.  
-Because Windows Defender wants to ruin my life for using windows.h as a library and I'm not paying to have my program signed you might get the stupid antivirus detection.
-Open Windows Defender, virus and threat protection, manage settings, exclusions, add folder, and create a dummy folder named anything.
 Put the .zip inside of the folder, and then unzip it.
-
-If you don't trust it download vs 2022 and compile it there, you'll get practically the same file (different due to metadata).
 
 Head to **[Parameters and Hotkeys](#parameters-and-hotkeys)** for Hotkey Information.
 To Compile, run the project in Visual Studio 2022 and build it.
