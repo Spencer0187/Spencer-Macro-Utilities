@@ -18,11 +18,11 @@ If you don't press `W` for fifteen minutes, a `"."` will be sent in the chat. Th
 
 ## NEW Helicopter High Jump
 
-Due to recent developments in the glitch community, we have found a way to do lag high jumps from 30-80 studs high.
+Due to recent developments in the glitch community, we have found a way to do lag high jumps from 90-220 studs high.
 This Macro Includes this, and its finally ready for release
 If you offset your center of mass to the left or right, and then get your legs stuck inside of a wall like in the video below, and then activate the macro, you will fly upwards.
-This works best on 120 FPS down to 60 FPS.
-### MUST SET SPEEDGLITCH VALUE PROPERLY!!!!
+This works best on 60 FPS or higher.
+### MUST SET YOUR SPEEDGLITCH VALUE PROPERLY!!!!
 
 
 https://github.com/user-attachments/assets/b2616918-4276-4b41-aed6-e7aab9f73599
