@@ -21,9 +21,10 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
-
 ![image](https://github.com/user-attachments/assets/ff89f8b1-aeea-48a6-a15f-4f0ec7c12cef)
+
 https://github.com/user-attachments/assets/3e08807a-b10d-4e66-92ed-ae1ecde259f7
+
 ![image](https://github.com/user-attachments/assets/e81616cb-5de0-4e32-bf39-8d583f9d1499)
 ![image](https://github.com/user-attachments/assets/c08839eb-f508-4584-b033-89a0a6ee80ae)
 
