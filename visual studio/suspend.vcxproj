@@ -202,7 +202,9 @@
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico" />
   </ItemGroup>
   <ItemGroup>
-    <Font Include="imgui-files\lato-regular.ttf" />
+    <Font Include="x64\Release\LSANS.ttf">
+      <DeploymentContent>true</DeploymentContent>
+    </Font>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

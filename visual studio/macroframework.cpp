@@ -204,8 +204,9 @@ auto rebindtime = std::chrono::high_resolution_clock::now();
 
 static int selected_section = -1;
 
-int screen_width = GetSystemMetrics(SM_CXSCREEN);
-int screen_height = GetSystemMetrics(SM_CYSCREEN);
+int screen_width = GetSystemMetrics(SM_CXSCREEN)/1.5;
+int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5;
+RECT windowRect;
 auto suspendStartTime = std::chrono::steady_clock::time_point();
 bool section_toggles[9] = {true, true, true, true, true, false, true, true, false};
 const int suspendDuration = 9000;
@@ -430,6 +431,7 @@ bool IsForegroundWindowProcess(HWND targetHwnd) // Check if the current active w
     return (hwndtest == targetHwnd);
 }
 
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -437,6 +439,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     switch (msg) {
     case WM_SIZE:
+		screen_width = LOWORD(lParam);;
+		screen_height = HIWORD(lParam);
 		if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED) {
 			CleanupRenderTarget();
 			g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam),
@@ -574,6 +578,8 @@ void SaveSettings(const std::string& filepath) {
     settings["speed_slot"] = speed_slot;
     settings["desync_slot"] = desync_slot;
     settings["spam_delay"] = spam_delay;
+    settings["screen_width"] = screen_width;
+    settings["screen_height"] = screen_height;
 
 
     // Write the settings to file
@@ -612,6 +618,8 @@ void LoadSettings(const std::string& filepath) {
 		speedoffsety = settings["speedoffsety"].get<int>();
 		speed_slot = settings["speed_slot"].get<int>();
 		desync_slot = settings["desync_slot"].get<int>();
+		screen_width = settings["screen_width"].get<int>();
+		screen_height = settings["screen_height"].get<int>();
 
 
         // Load the rest of your settings
@@ -666,7 +674,7 @@ void ChangeSecondSection() {
 
 void ChangeThirdSection() {
     sections[2].title = "Helicopter High Jump";
-    sections[2].description = "Use COM Offset to Catapult Yourself Into The Air by\nAligning your Back Angled to the Wall and Jumping and\nLetting Your Character Turn";
+    sections[2].description = "Use COM Offset to Catapult Yourself Into The Air by\nAligning your Back Angled to the Wall and Jumping and Letting Your Character Turn";
 }
 
 void ChangeFourthSection() {
@@ -676,27 +684,27 @@ void ChangeFourthSection() {
 
 void ChangeFifthSection() {
     sections[4].title = "Item Unequip COM Offset";
-    sections[4].description = "Automatically Do a /e dance2 Item COM Offset Where\nYou Unequip the Item";
+    sections[4].description = "Automatically Do a /e dance2 Item COM Offset Where You Unequip the Item";
 }
 
 void ChangeSixthSection() {
     sections[5].title = "Press a Button";
-    sections[5].description = "Whenever You Press Your Keybind, it Presses the\nOther Button for One Frame";
+    sections[5].description = "Whenever You Press Your Keybind, it Presses the Other Button for One Frame";
 }
 
 void ChangeSeventhSection() {
     sections[6].title = "Wallhop";
-    sections[6].description = "Automatically Flick and Jump to easily Wallhop\nOn All FPS";
+    sections[6].description = "Automatically Flick and Jump to easily Wallhop On All FPS";
 }
 
 void ChangeEighthSection() {
     sections[7].title = "Walless LHJ";
-    sections[7].description = "Lag High Jump Without a Wall by Offsetting COM\nDownwards or to the Right";
+    sections[7].description = "Lag High Jump Without a Wall by Offsetting COM Downwards or to the Right";
 }
 
 void ChangeNinthSection() {
     sections[8].title = "Spam a Key";
-    sections[8].description = "Whenever You Press Your Keybind, it Spams the\nOther Button";
+    sections[8].description = "Whenever You Press Your Keybind, it Spams the Other Button";
 }
 
 
@@ -844,7 +852,7 @@ void RunGUI() {
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Roblox Macro Client"), NULL };
     RegisterClassEx(&wc);
     HWND hwnd = CreateWindow(wc.lpszClassName, _T("Roblox Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
-    SetWindowPos(hwnd, NULL, 0, 0, screen_width/1.5, screen_height/1.5, SWP_NOZORDER | SWP_NOMOVE);
+    SetWindowPos(hwnd, NULL, 0, 0, screen_width, screen_height, SWP_NOZORDER | SWP_NOMOVE);
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd)) {
@@ -862,10 +870,12 @@ void RunGUI() {
     // Initialize ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
+    ImGuiIO& io = ImGui::GetIO();
+	io.IniFilename = NULL;
     (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    ImFont* mainfont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\micross.ttf", 20.0f);
+    char cwd[MAX_PATH];
+    ImFont* mainfont = io.Fonts->AddFontFromFileTTF("LSANS.ttf", 20.0f);
 
     // Initialize ImGui for Win32 and DirectX 11
     ImGui_ImplWin32_Init(hwnd);
@@ -939,23 +949,20 @@ void RunGUI() {
             ImGui::BeginChild("GlobalSettings", ImVec2(display_size.x - 15, settings_panel_height), true);
 
             // Example global settings (replace with your actual settings)
-            ImGui::Text("Global Settings");
-			ImGui::SameLine(ImGui::GetWindowWidth() - 200);
-			ImGui::Text("DISCLAIMER:");
-			ImGui::NewLine();
-			ImGui::SameLine(ImGui::GetWindowWidth() - 600);
-			ImGui::Text("THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
+            ImGui::TextWrapped("Global Settings");
+			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
+			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 			// Create a checkbox for macrotoggled
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
 			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
-			ImGui::Text("The ONLY official source for this is https://github.com/Spencer0187/Roblox-Macro-Utilities");
-			ImGui::Text("Roblox Executable Name:");
+			ImGui::TextWrapped("The ONLY official source for this is https://github.com/Spencer0187/Roblox-Macro-Utilities");
+			ImGui::TextWrapped("Roblox Executable Name:");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
 			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
-			ImGui::Text("SAVE YOUR SETTINGS:");
+			ImGui::TextWrapped("SAVE YOUR SETTINGS:");
 			ImGui::SameLine(ImGui::GetWindowWidth() - 125);
 			if (ImGui::Button("Save Settings")) {
 				SaveSettings("RMCSettings.json");
@@ -965,9 +972,9 @@ void RunGUI() {
 			} else {
 				scancode_shift = 0x2A;
 			}
-			ImGui::Text("If you're editing a textbox, click OUT OF THE TEXTBOX to officially update the value.");
+			ImGui::TextWrapped("If you're editing a textbox, click OUT OF THE TEXTBOX to officially update the value.");
 			ImGui::SameLine(ImGui::GetWindowWidth() - 320);
-			ImGui::Text("AUTOSAVES ON QUIT");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -979,49 +986,83 @@ void RunGUI() {
 
 
             // Scrollable mini-sections (always expanded)
-            for (size_t i = 0; i < sections.size(); ++i) {
-                // Calculate text size to determine button height
-                std::string buttonText = sections[i].title + "\n" + sections[i].description;
-                ImVec2 textSize = ImGui::CalcTextSize(buttonText.c_str(), nullptr, true);
-                float buttonHeight = textSize.y + ImGui::GetStyle().FramePadding.y * 2; // Add padding to height
+			for (size_t i = 0; i < sections.size(); ++i) {
+				// Calculate available button width based on the left panel size (use full width with a small margin)
+				float left_panel_width = ImGui::GetWindowSize().x - 6;
+				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;  // Deduct padding
 
-                // Use PushID to create a unique ID for each button
-                ImGui::PushID(i); // Unique ID based on index
+				// Split the title and description for rendering
+				std::string titleText = sections[i].title;
+				std::string descriptionText = sections[i].description;
 
-				if (i >= 0 && i < section_amounts) {
-					if (section_toggles[i]) {
-						// Light blue for toggled sections
-						ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(39.0f / 255.0f, 73.0f / 255.0f, 114.0f / 255.0f, 1.0f)); // Light blue
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(66.0f / 255.0f, 150.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Lighter blue when hovered
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(15.0f / 255.0f, 135.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Darker blue when active
+				// Manually wrap the description text and calculate height
+				ImVec2 textPos = ImVec2(0, 0);  // Position of text relative to the button
+				ImVec2 titleSize = ImGui::CalcTextSize(titleText.c_str(), nullptr, true);  // Title size
+				ImVec2 descriptionSize = ImGui::CalcTextSize(descriptionText.c_str(), nullptr, true, buttonWidth);  // Wrapped description size
+				float buttonHeight = titleSize.y + descriptionSize.y + ImGui::GetStyle().FramePadding.y * 2;  // Add padding to determine button height
+
+				// Use PushID to create a unique ID for each button
+				ImGui::PushID(i);
+
+				// Set button colors based on toggle state
+				if (section_toggles[i]) {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(39.0f / 255.0f, 73.0f / 255.0f, 114.0f / 255.0f, 1.0f)); // Light blue
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(66.0f / 255.0f, 150.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Lighter blue
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(15.0f / 255.0f, 135.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Darker blue
+				} else {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(114.0f / 255.0f, 73.0f / 255.0f, 39.0f / 255.0f, 1.0f)); // Light red
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(250.0f / 255.0f, 150.0f / 255.0f, 66.0f / 255.0f, 1.0f)); // Lighter red
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(250.0f / 255.0f, 135.0f / 255.0f, 15.0f / 255.0f, 1.0f)); // Darker red
+				}
+
+				// Create the button
+				if (ImGui::Button("", ImVec2(buttonWidth, buttonHeight))) {
+					selected_section = i;  // Update selected section
+				}
+
+				// Get button's position for custom drawing
+				ImVec2 buttonPos = ImGui::GetItemRectMin();
+				textPos = ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y);
+
+				ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+				// Draw the title at the top of the button
+				drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), titleText.c_str());
+				textPos.y += titleSize.y;  // Move position down after the title
+
+				// Manually wrap and draw the description below the title
+				std::stringstream ss(descriptionText);
+				std::string word;
+				std::string currentLine;
+
+				// Perform text-wrapping for the description within button width
+				while (ss >> word) {
+					std::string potentialLine = currentLine + (currentLine.empty() ? "" : " ") + word;
+					ImVec2 potentialLineSize = ImGui::CalcTextSize(potentialLine.c_str());
+
+					if (potentialLineSize.x > buttonWidth) {
+						// Draw the current line and move to the next
+						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
+						textPos.y += potentialLineSize.y;
+						currentLine = word;
 					} else {
-						// Light red for untoggled sections
-						ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(114.0f / 255.0f, 73.0f / 255.0f, 39.0f / 255.0f, 1.0f)); // Light red
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(250.0f / 255.0f, 150.0f / 255.0f, 66.0f / 255.0f, 1.0f)); // Lighter red when hovered
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(250.0f / 255.0f, 135.0f / 255.0f, 15.0f / 255.0f, 1.0f)); // Darker red when active
+						currentLine = potentialLine;
 					}
 				}
-                // Create the button
-                if (ImGui::Button("", ImVec2(-1, buttonHeight))) {  // Create an empty button
-                    selected_section = i; // Store selected section on click
-                }
 
-                // Get the button's position
-                ImVec2 buttonPos = ImGui::GetItemRectMin(); 
+				// Draw the last line
+				if (!currentLine.empty()) {
+					drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
+				}
 
-                // Draw left-aligned text inside the button
-                ImDrawList* drawList = ImGui::GetWindowDrawList();
-                drawList->AddText(ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y),
-                                  IM_COL32(255, 255, 255, 255), // White text color
-                                  buttonText.c_str()); // The button text
-
+				// Reset styles and pop ID
 				ImGui::PopStyleColor(3);
-                // Pop the ID to revert back to the previous ID stack
-                ImGui::PopID(); 
+				ImGui::PopID();
 
-                // Optional separator between sections
-                ImGui::Separator(); 
-            }
+				// Optional separator between buttons
+				ImGui::Separator();
+			}
+
 
             // End left scroll section
             ImGui::EndChild();
@@ -1035,10 +1076,10 @@ void RunGUI() {
             // Display different content based on the selected mini-section
             if (selected_section >= 0 && selected_section < sections.size()) {
 
-                ImGui::Text("Settings for %s", sections[selected_section].title.c_str());
+                ImGui::TextWrapped("Settings for %s", sections[selected_section].title.c_str());
 				ImGui::Separator(); 
 				ImGui::NewLine();
-                ImGui::Text("Keybind:");
+                ImGui::TextWrapped("Keybind:");
 				ImGui::SameLine();
 				if (ImGui::Button(KeyButtonText.c_str())) {
 					notbinding = false;
@@ -1106,7 +1147,7 @@ void RunGUI() {
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(50.0f);
 				ImGui::InputText("Key Binding (Hexadecimal)", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
-				ImGui::Text("Toggle Macro:");
+				ImGui::TextWrapped("Toggle Macro:");
 				ImGui::SameLine();
 				if (selected_section >= 0 && selected_section < section_amounts) {
 					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), &section_toggles[selected_section]);
@@ -1114,48 +1155,52 @@ void RunGUI() {
 
 				if (selected_section == 0) { // Freeze Macro
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses");
-					ImGui::Text("ALL network and physics activity that the server sends or recieves from you.");
+					ImGui::TextWrapped("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses"
+										"ALL network and physics activity that the server sends or recieves from you.");
 				}
 
 				if (selected_section == 1) { // Item Desync
-					ImGui::Text("Gear Slot:");
+					ImGui::TextWrapped("Gear Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					ImGui::InputText("", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					desync_slot = std::stoi(ItemDesyncSlot);
+					try {
+						desync_slot = std::stoi(ItemDesyncSlot);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("Equip your item inside of the slot you have picked here, then hold the keybind for 4-7 seconds.");
-					ImGui::Text("This Macro rapidly sends number inputs to your roblox client, enough that the server begins to throttle");
-					ImGui::Text("you. The item that you're holding must not make a serverside sound, else desyncing yourself will be");
-					ImGui::Text("very buggy, and you will be unable to send any physics data to the server. Once you have desynced,");
-					ImGui::Text("the server will assume you're not holding an item, but your client will, which permanently enables");
-					ImGui::Text("client-side collision on the item.");
-					ImGui::Text("Also, for convenience sake, you cannot activate desync unless you're tabbed into roblox.");
-					ImGui::Text("You will most likely crash any other program if you activate it in there.");
+					ImGui::TextWrapped("Equip your item inside of the slot you have picked here, then hold the keybind for 4-7 seconds "
+										"This Macro rapidly sends number inputs to your roblox client, enough that the server begins to throttle "
+										"you. The item that you're holding must not make a serverside sound, else desyncing yourself will be "
+										"very buggy, and you will be unable to send any physics data to the server. Once you have desynced, "
+										"the server will assume you're not holding an item, but your client will, which permanently enables "
+										"client-side collision on the item.");
+					ImGui::TextWrapped("Also, for convenience sake, you cannot activate desync unless you're tabbed into roblox, You will "
+										"most likely crash any other program if you activate it in there.");
 				}
 
 				if (selected_section == 2) { // HHJ
 					ImGui::Separator();
-					ImGui::Text("IMPORTANT:");
-					ImGui::Text("FOR MOST OPTIMAL RESULTS GO TO THE SPEEDGLITCH MENU, AND PROPERLY SET YOUR SPEEDGLITCH PIXEL VALUE!");
+					ImGui::TextWrapped("IMPORTANT:");
+					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS GO TO THE SPEEDGLITCH MENU, AND PROPERLY SET YOUR SPEEDGLITCH PIXEL VALUE!");
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("This macro abuses Roblox's conversion from angular velocity to regular velocity. If you put your");
-					ImGui::Text("back against a wall, rotate left 20-30 degrees, turn around 180 degrees, hold jump, and press W");
-					ImGui::Text("as you land on the floor, then, activate the macro, and let go of W, if you did it correctly,");
-					ImGui::Text("you will rotate into the wall, and get your feet stuck inside of it, the macro freezes the game");
-					ImGui::Text("during this process, and you will be catapulted up DEPENDANT ON YOUR CENTER OF MASS OFFSET");
-					ImGui::Text("Bigger COM offset = Easier to perform and higher height");
+					ImGui::TextWrapped("This macro abuses Roblox's conversion from angular velocity to regular velocity. If you put your "
+										"back against a wall, rotate left 20-30 degrees, turn around 180 degrees, hold jump, and press W "
+										"as you land on the floor, then, activate the macro, and let go of W, if you did it correctly, "
+										"you will rotate into the wall, and get your feet stuck inside of it, the macro freezes the game "
+										"during this process, and you will be catapulted up DEPENDANT ON YOUR CENTER OF MASS OFFSET "
+										"Bigger COM offset = Easier to perform and higher height");
 				}
 
 				if (selected_section == 3) { // Speedglitch
-					ImGui::Text("Roblox Sensitivity (0-4):");
+					ImGui::TextWrapped("Roblox Sensitivity (0-4):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
 					float CurrentSensValue = atof(RobloxSensValue);
@@ -1164,53 +1209,73 @@ void RunGUI() {
 
 					if (CurrentSensValue != PreviousSensValue) {
 						if (camfixtoggle) {
-							RobloxPixelValue = static_cast<int>(((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
+							try {
+								RobloxPixelValue = static_cast<int>(((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
+							} catch (const std::invalid_argument &e) {
+							} catch (const std::out_of_range &e) {
+							}
+							
 						} else {
-							RobloxPixelValue = static_cast<int>(((360.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
+							try {
+								RobloxPixelValue = static_cast<int>(((360.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
+							} catch (const std::invalid_argument &e) {
+							} catch (const std::out_of_range &e) {
+							}
 						}
 						PreviousSensValue = CurrentSensValue;
 						sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
 					}
 
-					ImGui::Text("Corresponding Pixel Value:");
+					ImGui::TextWrapped("Corresponding Pixel Value:");
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					if (ImGui::Checkbox("Game Uses Cam-Fix", &camfixtoggle)) {
 						PreviousSensValue -= 1; // Update value is the checkbox is pressed
 					}
-					speed_strengthx = std::stoi(RobloxPixelValueChar);
-					speed_strengthy = -std::stoi(RobloxPixelValueChar);
+
+					try { // Error Handling
+						speed_strengthx = std::stoi(RobloxPixelValueChar);
+						speed_strengthy = -std::stoi(RobloxPixelValueChar);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+
 					ImGui::Separator();
-					ImGui::Text("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
-					ImGui::Text("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT.");
-					ImGui::Text("If you don't know, do BOTH and check which one provides you with a 180 degree rotation.");
-					ImGui::Text("Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
+					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!"
+										"TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT."
+										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation."
+										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("This macro uses the way a changed center of mass affects your movement. If you offset your COM");
-					ImGui::Text("in any way, and then toggle the macro, you will rotate 180 degrees every frame, holding W and");
-					ImGui::Text("jump during this will catapult you forward.");
+					ImGui::TextWrapped("This macro uses the way a changed center of mass affects your movement. If you offset your COM"
+										"in any way, and then toggle the macro, you will rotate 180 degrees every frame, holding W and"
+										"jump during this will catapult you forward.");
 				}
 
 				if (selected_section == 4) { // Gear Unequip speed
-					ImGui::Text("Gear Slot:");
+					ImGui::TextWrapped("Gear Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					ImGui::InputText("", ItemSpeedSlot, sizeof(ItemSpeedSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					speed_slot = std::stoi(ItemSpeedSlot);
+					try { // Error Handling
+						speed_slot = std::stoi(ItemSpeedSlot);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("R6 ONLY!");
-					ImGui::Text("Performs a weaker version of the /e dance2 equip speedglitch, however, you unequip your gear.");
-					ImGui::Text("Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion,");
-					ImGui::Text("AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
+					ImGui::TextWrapped("R6 ONLY!");
+					ImGui::TextWrapped("HAVE THE ITEM UNEQUIPPED BEFORE DOING THIS!!!");
+					ImGui::TextWrapped("Performs a weaker version of the /e dance2 equip speedglitch, however, you unequip your gear."
+										"Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion,"
+										"AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
 				}
 
 				if (selected_section == 5) { // Button Press
-					ImGui::Text("Key to Press:");
+					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
 					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
 						notbinding = false;
@@ -1226,44 +1291,48 @@ void RunGUI() {
 					ImGui::SetNextItemWidth(50.0f);
 					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("It will press the second keybind for a single frame whenever you press the first keybind.");
-					ImGui::Text("This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
+					ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind."
+										"This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
 				}
 
 				if (selected_section == 6) { // Wallhop
-					ImGui::Text("Flick Pixel Amount:");
+					ImGui::TextWrapped("Flick Pixel Amount:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::InputText("", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					wallhop_dx = std::stoi(WallhopPixels);
-					wallhop_dy = -std::stoi(WallhopPixels);
+					try { // Error Handling
+						wallhop_dx = std::stoi(WallhopPixels);
+						wallhop_dy = -std::stoi(WallhopPixels);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
 					ImGui::Separator();
-					ImGui::Text("IMPORTANT:");
-					ImGui::Text("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY");
-					ImGui::Text("If you want to pick a SPECIFIC ANGLE, heres how.");
-					ImGui::Text("For games without the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity");
-					ImGui::Text("For games with the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity");
-					ImGui::Text("Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 8 (75) is equal to a 45 degree turn.");
-					ImGui::Text("INTEGERS ONLY!");
+					ImGui::TextWrapped("IMPORTANT:");
+					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY"
+										"If you want to pick a SPECIFIC ANGLE, heres how."
+										"For games without the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity"
+										"For games with the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity"
+										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 8 (75) is equal to a 45 degree turn.");
+					ImGui::TextWrapped("INTEGERS ONLY!");
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("This Macro automatically flicks your screen AND jumps at the same time, performing a wallhop.");
+					ImGui::TextWrapped("This Macro automatically flicks your screen AND jumps at the same time, performing a wallhop.");
 				}
 
 				if (selected_section == 7) { // Walless LHJ
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("If you offset your center of mass to any direction EXCEPT upwards, you will be able to perform");
-					ImGui::Text("14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform");
-					ImGui::Text("in order to do it.");
+					ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT upwards, you will be able to perform"
+										"14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform"
+										"in order to do it.");
 				}
 
 				if (selected_section == 8) { // Spamkey
-					ImGui::Text("Key to Press:");
+					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
 					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
 						bindingModealt = true;
@@ -1278,21 +1347,25 @@ void RunGUI() {
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(50.0f);
 					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
-					ImGui::Text("Spam Delay (Microseconds):");
+					ImGui::TextWrapped("Spam Delay (Microseconds):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
 					ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					spam_delay = std::stoi(SpamDelay);
+					try { // Error Handling
+						spam_delay = std::stoi(SpamDelay);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
 					ImGui::Separator();
-					ImGui::Text("Explanation:");
+					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::Text("This macro will spam the second key with a microsecond delay. One millisecond is equal to 1000 microseconds.");
-					ImGui::Text("This can be used as an autoclicker for any games you want, or a key-spam.");
+					ImGui::TextWrapped("This macro will spam the second key with a microsecond delay. One millisecond is equal to 1000 microseconds."
+					"This can be used as an autoclicker for any games you want, or a key-spam.");
 				}
 
 
             } else {
-                ImGui::Text("Select a section to see its settings.");
+                ImGui::TextWrapped("Select a section to see its settings.");
             }
 
 

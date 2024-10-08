@@ -89,8 +89,6 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <Font Include="imgui-files\lato-regular.ttf">
-      <Filter>Header Files\imgui</Filter>
-    </Font>
+    <Font Include="x64\Release\LSANS.ttf" />
   </ItemGroup>
 </Project>
