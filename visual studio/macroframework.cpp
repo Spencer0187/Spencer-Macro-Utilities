@@ -865,7 +865,7 @@ void RunGUI() {
     ImGuiIO &io = ImGui::GetIO();
     (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    ImFont* mainfont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\LSANS.ttf", 20.0f);
+    ImFont* mainfont = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\micross.ttf", 20.0f);
 
     // Initialize ImGui for Win32 and DirectX 11
     ImGui_ImplWin32_Init(hwnd);
@@ -954,7 +954,7 @@ void RunGUI() {
 			ImGui::SetNextItemWidth(250.0f);
 			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
-			ImGui::SameLine(ImGui::GetWindowWidth() - 320);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
 			ImGui::Text("SAVE YOUR SETTINGS:");
 			ImGui::SameLine(ImGui::GetWindowWidth() - 125);
 			if (ImGui::Button("Save Settings")) {
