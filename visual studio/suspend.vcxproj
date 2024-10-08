@@ -155,22 +155,44 @@
       <WholeProgramOptimization>false</WholeProgramOptimization>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>imgui-files;imgui</AdditionalIncludeDirectories>
+      <AdditionalUsingDirectories>
+      </AdditionalUsingDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <NoEntryPoint />
       <SetChecksum>Yes</SetChecksum>
+      <AdditionalLibraryDirectories>
+      </AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);d3d11.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="imgui-files\imgui.cpp" />
+    <ClCompile Include="imgui-files\imgui_demo.cpp" />
+    <ClCompile Include="imgui-files\imgui_draw.cpp" />
+    <ClCompile Include="imgui-files\imgui_impl_dx11.cpp" />
+    <ClCompile Include="imgui-files\imgui_impl_win32.cpp" />
+    <ClCompile Include="imgui-files\imgui_tables.cpp" />
+    <ClCompile Include="imgui-files\imgui_widgets.cpp" />
     <ClCompile Include="macroframework.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Sviat\Downloads\ClipboardXX-0.5\ClipboardXX-0.5\include</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="imgui-files\imconfig.h" />
+    <ClInclude Include="imgui-files\imgui.h" />
+    <ClInclude Include="imgui-files\imgui_impl_dx11.h" />
+    <ClInclude Include="imgui-files\imgui_impl_win32.h" />
+    <ClInclude Include="imgui-files\imgui_internal.h" />
+    <ClInclude Include="imgui-files\imstb_rectpack.h" />
+    <ClInclude Include="imgui-files\imstb_textedit.h" />
+    <ClInclude Include="imgui-files\imstb_truetype.h" />
+    <ClInclude Include="imgui-files\json.hpp" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -178,6 +200,9 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="imgui-files\lato-regular.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
