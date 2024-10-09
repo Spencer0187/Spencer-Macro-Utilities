@@ -77,6 +77,9 @@
     <ClInclude Include="imgui-files\json.hpp">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
+    <ClInclude Include="imgui-files\LSANS.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">
@@ -87,8 +90,5 @@
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico">
       <Filter>Resource Files</Filter>
     </Image>
-  </ItemGroup>
-  <ItemGroup>
-    <Font Include="x64\Release\LSANS.ttf" />
   </ItemGroup>
 </Project>

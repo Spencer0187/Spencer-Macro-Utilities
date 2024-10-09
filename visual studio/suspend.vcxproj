@@ -83,7 +83,7 @@
     <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LinkIncremental>false</LinkIncremental>
+    <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -170,6 +170,10 @@
       </AdditionalLibraryDirectories>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);d3d11.lib</AdditionalDependencies>
     </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="imgui-files\imgui.cpp" />
@@ -193,18 +197,16 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="imgui-files\json.hpp" />
+    <ClInclude Include="imgui-files\LSANS.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="suspend1.rc" />
+    <ResourceCompile Include="suspend1.rc">
+      <DeploymentContent>true</DeploymentContent>
+    </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico" />
-  </ItemGroup>
-  <ItemGroup>
-    <Font Include="x64\Release\LSANS.ttf">
-      <DeploymentContent>true</DeploymentContent>
-    </Font>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

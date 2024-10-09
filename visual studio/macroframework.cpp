@@ -17,6 +17,8 @@
 #include "imgui-files/imgui_impl_dx11.h"
 #include "imgui-files/imgui_impl_win32.h"
 #include "imgui-files/json.hpp"
+#include "imgui-files/LSANS.h"
+#include "resource.h"
 #include <condition_variable>
 #include <fstream>
 #include <filesystem>
@@ -24,6 +26,7 @@
 #include <codecvt>
 #include <format>
 #include <unordered_map>
+
 using json = nlohmann::json;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -588,56 +591,60 @@ void SaveSettings(const std::string& filepath) {
 }
 
 void LoadSettings(const std::string& filepath) {
-    std::ifstream file(filepath);
-    if (file.is_open()) {
-        json settings;
-        file >> settings;
+    try {
+		std::ifstream file(filepath);
+		if (file.is_open()) {
+			json settings;
+			file >> settings;
 
-        // Load keybinds, toggles, etc.
-        macrotoggled = settings["macrotoggled"].get<bool>();
-        shiftswitch = settings["shiftswitch"].get<bool>();
-        scancode_shift = settings["scancode_shift"].get<unsigned int>();
-		camfixtoggle = settings["camfixtoggle"].get<bool>();
-        vk_f5 = settings["vk_f5"].get<unsigned int>();
-        vk_f6 = settings["vk_f6"].get<unsigned int>();
-        vk_f8 = settings["vk_f8"].get<unsigned int>();
-        vk_mbutton = settings["vk_mbutton"].get<unsigned int>();
-        vk_xbutton1 = settings["vk_xbutton1"].get<unsigned int>();
-        vk_xbutton2 = settings["vk_xbutton2"].get<unsigned int>();
-		vk_leftbracket = settings["vk_leftbracket"].get<unsigned int>();
-		vk_spamkey = settings["vk_spamkey"].get<unsigned int>();
-		vk_zkey = settings["vk_zkey"].get<unsigned int>();
-		vk_dkey = settings["vk_dkey"].get<unsigned int>();
-		vk_xkey = settings["vk_xkey"].get<unsigned int>();
-        spam_delay = settings["spam_delay"].get<int>();
-		wallhop_dx = settings["wallhop_dx"].get<int>();
-		wallhop_dy = settings["wallhop_dy"].get<int>();
-		speed_strengthx = settings["speed_strengthx"].get<int>();
-		speedoffsetx = settings["speedoffsetx"].get<int>();
-		speed_strengthy = settings["speed_strengthy"].get<int>();
-		speedoffsety = settings["speedoffsety"].get<int>();
-		speed_slot = settings["speed_slot"].get<int>();
-		desync_slot = settings["desync_slot"].get<int>();
-		screen_width = settings["screen_width"].get<int>();
-		screen_height = settings["screen_height"].get<int>();
+			// Load keybinds, toggles, etc.
+			macrotoggled = settings["macrotoggled"].get<bool>();
+			shiftswitch = settings["shiftswitch"].get<bool>();
+			scancode_shift = settings["scancode_shift"].get<unsigned int>();
+			camfixtoggle = settings["camfixtoggle"].get<bool>();
+			vk_f5 = settings["vk_f5"].get<unsigned int>();
+			vk_f6 = settings["vk_f6"].get<unsigned int>();
+			vk_f8 = settings["vk_f8"].get<unsigned int>();
+			vk_mbutton = settings["vk_mbutton"].get<unsigned int>();
+			vk_xbutton1 = settings["vk_xbutton1"].get<unsigned int>();
+			vk_xbutton2 = settings["vk_xbutton2"].get<unsigned int>();
+			vk_leftbracket = settings["vk_leftbracket"].get<unsigned int>();
+			vk_spamkey = settings["vk_spamkey"].get<unsigned int>();
+			vk_zkey = settings["vk_zkey"].get<unsigned int>();
+			vk_dkey = settings["vk_dkey"].get<unsigned int>();
+			vk_xkey = settings["vk_xkey"].get<unsigned int>();
+			spam_delay = settings["spam_delay"].get<int>();
+			wallhop_dx = settings["wallhop_dx"].get<int>();
+			wallhop_dy = settings["wallhop_dy"].get<int>();
+			speed_strengthx = settings["speed_strengthx"].get<int>();
+			speedoffsetx = settings["speedoffsetx"].get<int>();
+			speed_strengthy = settings["speed_strengthy"].get<int>();
+			speedoffsety = settings["speedoffsety"].get<int>();
+			speed_slot = settings["speed_slot"].get<int>();
+			desync_slot = settings["desync_slot"].get<int>();
+			screen_width = settings["screen_width"].get<int>();
+			screen_height = settings["screen_height"].get<int>();
 
 
-        // Load the rest of your settings
-        strncpy(settingsBuffer, settings["settingsBuffer"].get<std::string>().c_str(), sizeof(settingsBuffer));
-        strncpy(KeyBuffer, settings["KeyBuffer"].get<std::string>().c_str(), sizeof(KeyBuffer));
-        strncpy(KeyBufferalt, settings["KeyBufferalt"].get<std::string>().c_str(), sizeof(KeyBufferalt));
-        strncpy(ItemDesyncSlot, settings["ItemDesyncSlot"].get<std::string>().c_str(), sizeof(ItemDesyncSlot));
-        strncpy(ItemSpeedSlot, settings["ItemSpeedSlot"].get<std::string>().c_str(), sizeof(ItemSpeedSlot));
-        strncpy(ItemClipSlot, settings["ItemClipSlot"].get<std::string>().c_str(), sizeof(ItemClipSlot));
-        strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue));
-		strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
-		strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
-		strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
-        RobloxPixelValue = settings["RobloxPixelValue"].get<int>();
-		PreviousSensValue = settings["PreviousSensValue"].get<float>();
-        std::vector<bool> toggles = settings["section_toggles"].get<std::vector<bool>>();
-        std::copy(toggles.begin(), toggles.end(), section_toggles);
-    }
+			// Load the rest of your settings
+			strncpy(settingsBuffer, settings["settingsBuffer"].get<std::string>().c_str(), sizeof(settingsBuffer));
+			strncpy(KeyBuffer, settings["KeyBuffer"].get<std::string>().c_str(), sizeof(KeyBuffer));
+			strncpy(KeyBufferalt, settings["KeyBufferalt"].get<std::string>().c_str(), sizeof(KeyBufferalt));
+			strncpy(ItemDesyncSlot, settings["ItemDesyncSlot"].get<std::string>().c_str(), sizeof(ItemDesyncSlot));
+			strncpy(ItemSpeedSlot, settings["ItemSpeedSlot"].get<std::string>().c_str(), sizeof(ItemSpeedSlot));
+			strncpy(ItemClipSlot, settings["ItemClipSlot"].get<std::string>().c_str(), sizeof(ItemClipSlot));
+			strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue));
+			strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
+			strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
+			strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
+			RobloxPixelValue = settings["RobloxPixelValue"].get<int>();
+			PreviousSensValue = settings["PreviousSensValue"].get<float>();
+			std::vector<bool> toggles = settings["section_toggles"].get<std::vector<bool>>();
+			std::copy(toggles.begin(), toggles.end(), section_toggles);
+		}
+		} catch (const json::type_error &e) {
+			return;
+		}
 }
 
 struct Section {
@@ -874,8 +881,8 @@ void RunGUI() {
 	io.IniFilename = NULL;
     (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    char cwd[MAX_PATH];
-    ImFont* mainfont = io.Fonts->AddFontFromFileTTF("LSANS.ttf", 20.0f);
+
+	ImFont *mainfont = io.Fonts->AddFontFromMemoryTTF(LSANS_ttf, LSANS_ttf_len, 20.0f);
 
     // Initialize ImGui for Win32 and DirectX 11
     ImGui_ImplWin32_Init(hwnd);
