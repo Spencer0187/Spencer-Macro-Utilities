@@ -1,4 +1,4 @@
-# Roblox-Macro-Client
+# Roblox Macro Client
 An open-source Windows C++ Roblox ImGui Macro with many features.
 
 To Compile, run the project in Visual Studio 2022 and build it.
