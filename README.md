@@ -6,6 +6,10 @@ To Compile, run the project in Visual Studio 2022 and build it.
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
+## Join the Roblox Glitching Discord!
+https://discord.gg/roblox-glitching-community-998572881892094012
+
+
 # Current Features (Fully explained in-program):
 
 1. Anti-AFK at all times (even if Roblox isn't shown)
