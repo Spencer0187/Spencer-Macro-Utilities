@@ -90,5 +90,11 @@
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="..\..\..\..\Downloads\favicon-16x16.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="x64\Release\LSANS.ttf" />
   </ItemGroup>
 </Project>

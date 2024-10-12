@@ -206,7 +206,13 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
+    <Image Include="..\..\..\..\Downloads\favicon-16x16.ico" />
     <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="x64\Release\LSANS.ttf">
+      <DeploymentContent>true</DeploymentContent>
+    </Font>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
