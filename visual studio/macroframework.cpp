@@ -1361,9 +1361,9 @@ void RunGUI() {
 					}
 
 					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!"
-										"ALSO, YOU MUST BE ON 60 FPS FOR MAXIMUM SPEED!"
-										"TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT."
+					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
+					ImGui::TextWrapped("ALSO, YOU MUST BE ON 60 FPS FOR MAXIMUM SPEED!");
+					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT."
 										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation."
 										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
 					ImGui::Separator();
