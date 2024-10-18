@@ -6,7 +6,7 @@ To Compile, run the project in Visual Studio 2022 and build it.
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
-![GitHub Releases](https://img.shields.io/github/downloads/owner/repo/total.svg)
+![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
 ## Join the Roblox Glitching Discord!
 https://discord.gg/roblox-glitching-community-998572881892094012
