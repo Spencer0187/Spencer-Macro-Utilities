@@ -1816,7 +1816,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
     std::string localVersion = "2.6.0";
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV250) {
+    if (Trim(remoteVersion) != localVersion && !UserAcknowledgedV250) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
