@@ -1814,7 +1814,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (remoteVersion == "") {
 		remoteVersion = "HTTP request for latest version failed!";
     }
-    std::string localVersion = "2.5.0";
+    std::string localVersion = "2.6.0";
 
     if (remoteVersion != localVersion && !UserAcknowledgedV250) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
