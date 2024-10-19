@@ -22,7 +22,9 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 7. Wallhop Macro
 8. Walless Lag High Jump (14 Studs)
 9. Press a Key for One Frame
-10. Spam a Key/Button
+10. Wall-Walk
+11. Item-Clip
+12. Spam a Key/Button
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
