@@ -18,6 +18,7 @@
 #include "imgui-files/imgui_impl_win32.h"
 #include "imgui-files/json.hpp"
 #include "imgui-files/LSANS.h"
+#include <wininet.h>
 #include "resource.h"
 #include <condition_variable>
 #include <fstream>
@@ -26,9 +27,8 @@
 #include <codecvt>
 #include <format>
 #include <unordered_map>
-#include <winhttp.h>
 
-#pragma comment(lib, "winhttp.lib")
+#pragma comment(lib, "wininet.lib")
 
 using json = nlohmann::json;
 
@@ -217,7 +217,6 @@ static float PreviousWallWalkSide = 0;
 static float PreviousWallWalkValue = 0.5f;
 char RobloxSensValue[256] = "0.5";
 char RobloxPixelValueChar[256] = "718";
-char RobloxWallWalkSensValue[256] = "0.5";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
 const char *optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
@@ -230,7 +229,8 @@ auto rebindtime = std::chrono::high_resolution_clock::now();
 static int selected_section = -1;
 
 int screen_width = GetSystemMetrics(SM_CXSCREEN)/1.5;
-int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5;
+int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5 + 10;
+
 auto suspendStartTime = std::chrono::steady_clock::time_point();
 bool section_toggles[11] = {true, true, true, true, true, false, true, true, true, false, false};
 const int unsuspendTime = 50;
@@ -247,7 +247,8 @@ bool wallwalkcamfix = false;
 bool wallhopswitch = false;
 bool wallwalktoggleside = false;
 bool wallhopcamfix = false;
-bool toggle_jump = false;
+bool toggle_jump = true;
+bool toggle_flick = true;
 bool autotoggle = false;
 bool isspeedswitch = false;
 bool isfreezeswitch = false;
@@ -547,48 +548,38 @@ std::string Trim(const std::string& str) {
     return std::string(start, end + 1);
 }
 
-std::string GetRemoteVersion(const std::wstring& url) {
-    HINTERNET hSession = WinHttpOpen(L"VersionCheck/1.0",  
-                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, 
-                                     WINHTTP_NO_PROXY_NAME, 
-                                     WINHTTP_NO_PROXY_BYPASS, 0);
+size_t OutputReleaseVersion(void* contents, size_t size, size_t nmemb, std::string* output) {
+    size_t totalSize = size * nmemb;
+    output->append((char*)contents, totalSize);
+    return totalSize;
+}
 
-    URL_COMPONENTS urlComp = { sizeof(urlComp) };
-    wchar_t host[256], path[256];
-    urlComp.lpszHostName = host;
-    urlComp.dwHostNameLength = 256;
-    urlComp.lpszUrlPath = path;
-    urlComp.dwUrlPathLength = 256;
+std::string GetRemoteVersion() {
+    HINTERNET hInternet = InternetOpen(L"User-Agent", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+    if (!hInternet) return ""; // Failed to initialize
 
-    WinHttpCrackUrl(url.c_str(), 0, 0, &urlComp);
-
-    HINTERNET hConnect = WinHttpConnect(hSession, host, urlComp.nPort, 0);
-    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", 
-                                            path, NULL, WINHTTP_NO_REFERER, 
-                                            WINHTTP_DEFAULT_ACCEPT_TYPES, 
-                                            (urlComp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0);
-
-    WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
-    WinHttpReceiveResponse(hRequest, NULL);
-
-    DWORD bytesAvailable = 0;
-    WinHttpQueryDataAvailable(hRequest, &bytesAvailable);
-
-    std::string result;
-    if (bytesAvailable > 0) {
-        char* buffer = new char[bytesAvailable + 1];
-        ZeroMemory(buffer, bytesAvailable + 1);
-        DWORD bytesRead = 0;
-        WinHttpReadData(hRequest, buffer, bytesAvailable, &bytesRead);
-        result = std::string(buffer);
-        delete[] buffer;
+    HINTERNET hConnect = InternetOpenUrl(hInternet, 
+        L"https://raw.githubusercontent.com/Spencer0187/Roblox-Macro-Utilities/main/version", 
+        NULL, 0, INTERNET_FLAG_RELOAD, 0);
+    if (!hConnect) {
+        InternetCloseHandle(hInternet);
+        return ""; // Failed to connect
     }
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
+    // Read the response
+    char buffer[4096];
+    DWORD bytesRead;
+    std::string response;
 
-    return result;
+    while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead != 0) {
+        response.append(buffer, bytesRead);
+    }
+
+    // Clean up
+    InternetCloseHandle(hConnect);
+    InternetCloseHandle(hInternet);
+
+    return response;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -705,6 +696,7 @@ void SaveSettings(const std::string& filepath) {
     settings["wallhopcamfix"] = wallhopcamfix;
     settings["unequiptoggle"] = unequiptoggle;
     settings["toggle_jump"] = toggle_jump;
+    settings["toggle_flick"] = toggle_flick;
     settings["vk_f5"] = vk_f5;
     settings["vk_f6"] = vk_f6;
     settings["vk_f8"] = vk_f8;
@@ -741,7 +733,6 @@ void SaveSettings(const std::string& filepath) {
     settings["isspamswitch"] = isspamswitch;
     settings["isitemclipswitch"] = isitemclipswitch;
     settings["autotoggle"] = autotoggle;
-    settings["RobloxWallWalkSensValue"] = RobloxWallWalkSensValue;
     settings["PreviousWallWalkValue"] = PreviousWallWalkValue;
     settings["PreviousWallWalkSide"] = PreviousWallWalkSide;
     settings["RobloxWallWalkValueChar"] = RobloxWallWalkValueChar;
@@ -795,6 +786,7 @@ void LoadSettings(const std::string& filepath) {
                 {"isitemclipswitch", &isitemclipswitch},
 				{"autotoggle", &autotoggle},
 				{"toggle_jump", &toggle_jump},
+				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalkcamfix", &wallwalkcamfix},
 				{"wallwalktoggleside", &wallwalktoggleside},
@@ -853,8 +845,7 @@ void LoadSettings(const std::string& filepath) {
             strncpy(ItemSpeedSlot, settings["ItemSpeedSlot"].get<std::string>().c_str(), sizeof(ItemSpeedSlot));
             strncpy(ItemClipSlot, settings["ItemClipSlot"].get<std::string>().c_str(), sizeof(ItemClipSlot));
             strncpy(ItemClipDelay, settings["ItemClipDelay"].get<std::string>().c_str(), sizeof(ItemClipDelay));
-            strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue));
-            strncpy(RobloxWallWalkSensValue, settings["RobloxWallWalkSensValue"].get<std::string>().c_str(), sizeof(RobloxWallWalkSensValue));
+            strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue)); 
             strncpy(RobloxWallWalkValueChar, settings["RobloxWallWalkValueChar"].get<std::string>().c_str(), sizeof(RobloxWallWalkValueChar));
             strncpy(RobloxWallWalkValueDelayChar, settings["RobloxWallWalkValueDelayChar"].get<std::string>().c_str(), sizeof(RobloxWallWalkValueDelayChar));
             strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
@@ -1220,9 +1211,13 @@ void RunGUI() {
 			} else {
 				scancode_shift = 0x2A;
 			}
-			ImGui::NewLine();
-			ImGui::SameLine(ImGui::GetWindowWidth() - 320);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT");
+			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(70.0f);
+			ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+
+			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.6.0");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1414,8 +1409,12 @@ void RunGUI() {
 				}
 
 				if (selected_section == 0) { // Freeze Macro
-					ImGui::SetNextItemWidth(200.0f);
-					ImGui::SliderFloat("Automatically Unfreeze for 50ms when you hit this time (Anti-Internet-Kick)", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
+					ImGui::SetNextItemWidth(300.0f);
+					ImGui::SliderFloat("", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
+					ImGui::SameLine();
+					ImGui::TextWrapped("Automatically Unfreeze for 50ms when you hit this time (Anti-Internet-Kick)");
+					ImGui::SetNextItemWidth(180.0f);
+					ImGui::InputFloat("Unfreeze Time Above", &maxfreezetime, 0.01f, 1.0f, "%.2f");
 					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
@@ -1468,13 +1467,8 @@ void RunGUI() {
 				}
 
 				if (selected_section == 3) { // Speedglitch
-					ImGui::TextWrapped("Roblox Sensitivity (0-4):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					float CurrentSensValue = atof(RobloxSensValue);
-					ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					ImGui::SameLine();
 
+					float CurrentSensValue = atof(RobloxSensValue);
 					if (CurrentSensValue != PreviousSensValue) {
 						if (camfixtoggle) {
 							try {
@@ -1494,7 +1488,7 @@ void RunGUI() {
 						sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
 					}
 
-					ImGui::TextWrapped("Corresponding Pixel Value:");
+					ImGui::TextWrapped("Pixel Value for 180 Degree Turn BASED ON SENSITIVITY:");
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
@@ -1549,7 +1543,7 @@ void RunGUI() {
 						}
 						ImGui::EndCombo();
 					}
-					ImGui::Checkbox("Don't Unequip Item at the end", &unequiptoggle);
+					ImGui::Checkbox("Don't Unequip Item at the End", &unequiptoggle);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1612,7 +1606,8 @@ void RunGUI() {
 
 					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
 					ImGui::Checkbox("Game Uses Cam-Fix", &wallhopcamfix);
-					ImGui::Checkbox("Toggle Jump", &toggle_jump);
+					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
+					ImGui::Checkbox("Flick-Back During Wallhop", &toggle_flick);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
@@ -1673,15 +1668,10 @@ void RunGUI() {
 				}
 
 				if (selected_section == 9) { // Wall-Walk
-					ImGui::TextWrapped("Roblox Sensitivity (0-4):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					float CurrentWallWalkValue = atof(RobloxWallWalkSensValue);
 
+					float CurrentWallWalkValue = atof(RobloxSensValue);
 					float CurrentWallwalkSide = wallwalkcamfix;
 
-					ImGui::InputText("", RobloxWallWalkSensValue, sizeof(RobloxWallWalkSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					ImGui::SameLine();
 
 					if ((CurrentWallWalkValue != PreviousWallWalkValue) || (CurrentWallwalkSide != PreviousWallWalkSide)) {
 						if (wallwalktoggleside) {
@@ -1706,7 +1696,7 @@ void RunGUI() {
 						sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
 					}
 
-					ImGui::TextWrapped("Wall-Walk Pixel Value (meant to be super low):");
+					ImGui::TextWrapped("Wall-Walk Pixel Value BASED ON SENSITIVITY (meant to be low):");
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
@@ -1821,17 +1811,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 {
     LoadSettings("RMCSettings.json");
 
-    std::wstring url = L"https://raw.githubusercontent.com/Spencer0187/Roblox-Macro-Utilities/refs/heads/main/version";
-    std::string remoteVersion = Trim(GetRemoteVersion(url));
+    std::string remoteVersion = GetRemoteVersion();
     if (remoteVersion == "") {
 		remoteVersion = "HTTP request for latest version failed!";
     }
     std::string localVersion = "2.5.0";
 
     if (remoteVersion != localVersion && !UserAcknowledgedV250) {
-		std::wstring output_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
-		std::wstring output_version2 = std::wstring(localVersion.begin(), localVersion.end());
-        std::wstring message = L"Your Version is Outdated! The latest version is: " + output_version + L". Your version is: " + output_version2 + L". \nDo you understand this? If you press yes, this won't show up again.";
+		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
+		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
+        std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
         
         int result = MessageBox(NULL, 
             message.c_str(), 
@@ -1998,11 +1987,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) { // Unequip Speed
 			if (!isunequipspeed) {
-				HoldKey(sc_slashkey);
+
+				PasteText("/");
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				ReleaseKey(sc_slashkey);
 				HoldKey(0x1C);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(35));
@@ -2033,7 +2022,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_xbutton1) & 0x8000) && macrotoggled && notbinding && section_toggles[2]) { // Helicopter High jump
 			if (!HHJ) {
-				if (autotoggle) { // Auto-Timer 
+
+				if (autotoggle) { // Auto-Key-Timer
 					HoldKey(0x39);
 					std::this_thread::sleep_for(std::chrono::milliseconds(550));
 					HoldKey(0x11);
@@ -2042,8 +2032,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
-				ReleaseKey(0x39);
-				ReleaseKey(0x11);
+
+				if (autotoggle) { // Auto-Key-Timer
+					ReleaseKey(0x39);
+					ReleaseKey(0x11);
+				}
+
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(8));
 				HoldKey(scancode_shift);
