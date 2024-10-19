@@ -243,7 +243,6 @@ bool bindingMode = false;
 bool bindingModealt = false;
 bool notbinding = true;
 bool camfixtoggle = false;
-bool wallwalkcamfix = false;
 bool wallhopswitch = false;
 bool wallwalktoggleside = false;
 bool wallhopcamfix = false;
@@ -726,7 +725,6 @@ void SaveSettings(const std::string& filepath) {
     settings["PreviousSensValue"] = PreviousSensValue;
     settings["SpamDelay"] = SpamDelay;
     settings["maxfreezetime"] = maxfreezetime;
-    settings["wallwalkcamfix"] = wallwalkcamfix;
     settings["isspeedswitch"] = isspeedswitch;
     settings["isfreezeswitch"] = isfreezeswitch;
     settings["iswallwalkswitch"] = iswallwalkswitch;
@@ -788,7 +786,6 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_jump", &toggle_jump},
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
-				{"wallwalkcamfix", &wallwalkcamfix},
 				{"wallwalktoggleside", &wallwalktoggleside},
 				{"UserAcknowledgedV250", &UserAcknowledgedV250},
 
@@ -1215,8 +1212,17 @@ void RunGUI() {
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(70.0f);
 			ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+			ImGui::SameLine();
+			ImGui::Text("Game Uses Cam-Fix:");
+			ImGui::SameLine();
+			
+			if (ImGui::Checkbox("###", &camfixtoggle)) {
+				PreviousSensValue = -1;
+				PreviousWallWalkValue = -1;
+			}
+				
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
 			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.6.0");
 
             ImGui::EndChild(); // End Global Settings child window
@@ -1492,9 +1498,6 @@ void RunGUI() {
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					if (ImGui::Checkbox("Game Uses Cam-Fix", &camfixtoggle)) {
-						PreviousSensValue -= 1; // Update value is the checkbox is pressed
-					}
 
 					try { // Error Handling
 						speed_strengthx = std::stoi(RobloxPixelValueChar);
@@ -1605,7 +1608,6 @@ void RunGUI() {
 					}
 
 					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
-					ImGui::Checkbox("Game Uses Cam-Fix", &wallhopcamfix);
 					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
 					ImGui::Checkbox("Flick-Back During Wallhop", &toggle_flick);
 
@@ -1670,12 +1672,12 @@ void RunGUI() {
 				if (selected_section == 9) { // Wall-Walk
 
 					float CurrentWallWalkValue = atof(RobloxSensValue);
-					float CurrentWallwalkSide = wallwalkcamfix;
+					float CurrentWallwalkSide = camfixtoggle;
 
 
 					if ((CurrentWallWalkValue != PreviousWallWalkValue) || (CurrentWallwalkSide != PreviousWallWalkSide)) {
 						if (wallwalktoggleside) {
-							if (wallwalkcamfix) {
+							if (camfixtoggle) {
 								wallwalk_strengthx = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
 								wallwalk_strengthy = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
 							} else {
@@ -1683,7 +1685,7 @@ void RunGUI() {
 								wallwalk_strengthy = -static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
 							}
 						} else {
-							if (wallwalkcamfix) {
+							if (camfixtoggle) {
 								wallwalk_strengthx = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
 								wallwalk_strengthy = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
 							} else {
@@ -1705,9 +1707,6 @@ void RunGUI() {
 						PreviousWallWalkSide = -1;
 					}
 
-					if (ImGui::Checkbox("Game Uses Cam-Fix", &wallwalkcamfix)) {
-						PreviousWallWalkValue -= 1; // Update value if the checkbox is pressed
-					}
 					ImGui::SetNextItemWidth(100.0f);
 					ImGui::InputText("Delay Between Flicks (Don't change from 72720 unless neccessary):", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 
@@ -1937,15 +1936,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_xbutton2) & 0x8000) && macrotoggled && notbinding && section_toggles[6]) { // Wallhop
 			if (!iswallhop) {
-				if (!toggle_jump) {
+
+				if (toggle_jump) {
 					HoldKey(0x39);
 				}
+
 				MoveMouse(wallhop_dx, 0);
-				std::this_thread::sleep_for(std::chrono::milliseconds(75));
-				MoveMouse(wallhop_dy, 0);
-				if (!toggle_jump) {
+
+				if (toggle_flick) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(75));
+					MoveMouse(wallhop_dy, 0);
+				}
+
+				if (toggle_jump) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(16));
 					ReleaseKey(0x39);
 				}
+
 				iswallhop = true;
 			}
 		} else {
