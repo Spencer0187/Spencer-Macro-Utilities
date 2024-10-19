@@ -26,7 +26,9 @@
 #include <codecvt>
 #include <format>
 #include <unordered_map>
+#include <winhttp.h>
 
+#pragma comment(lib, "winhttp.lib")
 
 using json = nlohmann::json;
 
@@ -64,6 +66,7 @@ std::atomic<bool> isspeed(false);
 std::atomic<bool> isHHJ(false);
 std::atomic<bool> isspamloop(false);
 std::atomic<bool> isitemloop(false);
+std::atomic<bool> iswallwalkloop(false);
 
 std::mutex renderMutex;
 std::condition_variable renderCondVar;
@@ -88,13 +91,13 @@ unsigned int vk_xbutton1 = VK_XBUTTON1;
 unsigned int vk_xbutton2 = VK_XBUTTON2;
 unsigned int vk_spamkey = VK_LBUTTON;
 unsigned int vk_clipkey = VK_F3;
+unsigned int vk_wallkey = VK_F1;
 unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF; // Use this for alphabet keys so it works across layouts
 unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
-unsigned int vk_leftbracket = VkKeyScanEx('[', GetKeyboardLayout(0)) & 0xFF;
-unsigned int vk_slashkeyinit = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
-unsigned int vk_slashkey = MapVirtualKey(vk_slashkeyinit, MAPVK_VK_TO_VSC);
+unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
+unsigned int sc_slashkey = 0x35;
 
 std::unordered_map<int, std::string> vkToString = {
     {VK_LBUTTON, "VK_LBUTTON"},
@@ -182,14 +185,20 @@ std::unordered_map<int, std::string> vkToString = {
 int wallhop_dx = 300;
 int wallhop_dy = -300;
 int speed_strengthx = 959;
+int wallwalk_strengthx = -94;
 int speedoffsetx = 0;
 int speed_strengthy = -959;
+int wallwalk_strengthy = 94;
 int speedoffsety = 0;
 int speed_slot = 3;
 int desync_slot = 5;
 int clip_slot = 7;
 int clip_delay = 30;
-int spam_delay = 20;
+int RobloxWallWalkValueDelay = 72720;
+float spam_delay = 20;
+float maxfreezetime = 9.00f;
+int real_delay = 10000;
+int selected_dropdown = 0;
 char settingsBuffer[256] = "RobloxPlayerBeta.exe"; // Default value for the textbox
 char KeyBufferhuman[256] = "None";
 char KeyBuffer[256] = "None";
@@ -201,12 +210,19 @@ char ItemClipSlot[256] = "7";
 char ItemClipDelay[256] = "30";
 char WallhopPixels[256] = "300";
 char SpamDelay[256] = "20";
-int section_amounts = 10;
+int section_amounts = 11;
 
 static float PreviousSensValue = 0.5f;
+static float PreviousWallWalkSide = 0;
+static float PreviousWallWalkValue = 0.5f;
 char RobloxSensValue[256] = "0.5";
 char RobloxPixelValueChar[256] = "718";
+char RobloxWallWalkSensValue[256] = "0.5";
+char RobloxWallWalkValueChar[256] = "-94";
+char RobloxWallWalkValueDelayChar[256] = "72720";
+const char *optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
 int RobloxPixelValue = 718;
+int RobloxWallWalkValue = -94;
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
 auto rebindtime = std::chrono::high_resolution_clock::now();
@@ -215,11 +231,10 @@ static int selected_section = -1;
 
 int screen_width = GetSystemMetrics(SM_CXSCREEN)/1.5;
 int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5;
-RECT windowRect;
 auto suspendStartTime = std::chrono::steady_clock::time_point();
-bool section_toggles[10] = {true, true, true, true, true, false, true, true, true, false};
-const int suspendDuration = 9000;
+bool section_toggles[11] = {true, true, true, true, true, false, true, true, true, false, false};
 const int unsuspendTime = 50;
+bool unequiptoggle = false;
 bool shiftswitch = false;
 bool processFound = false; // Initialize as no process found
 bool done = false;
@@ -228,7 +243,19 @@ bool bindingMode = false;
 bool bindingModealt = false;
 bool notbinding = true;
 bool camfixtoggle = false;
-
+bool wallwalkcamfix = false;
+bool wallhopswitch = false;
+bool wallwalktoggleside = false;
+bool wallhopcamfix = false;
+bool toggle_jump = false;
+bool autotoggle = false;
+bool isspeedswitch = false;
+bool isfreezeswitch = false;
+bool iswallwalkswitch = false;
+bool isspamswitch = false;
+bool isitemclipswitch = false;
+static bool wasMButtonPressed = false; 
+static bool UserAcknowledgedV250 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -243,39 +270,6 @@ void SuspendOrResumeProcess(NtSuspendProcess pfnSuspend, NtResumeProcess pfnResu
 	} else {
 		pfnResume(hProcess);
 	}
-}
-
-bool ProcessKey(const std::wstring &key, unsigned int &custom_vk)
-{
-	// Convert the key to uppercase to handle cases like "f6"
-	std::wstring uppercaseKey = key;
-	std::transform(uppercaseKey.begin(), uppercaseKey.end(), uppercaseKey.begin(), ::towupper);
-
-	// Check if the key is a single alphabet character
-	if (uppercaseKey.length() == 1 && std::iswalpha(uppercaseKey[0])) {
-		// Convert to uppercase
-		custom_vk = VkKeyScanEx(uppercaseKey[0], GetKeyboardLayout(0)) & 0xFF;
-		return true;
-	}
-	// Check if the key is a function key (F1-F12)
-	else if (uppercaseKey.length() >= 2 && uppercaseKey[0] == L'F' &&
-		 std::isdigit(uppercaseKey[1])) {
-		int funcKeyNumber = std::stoi(uppercaseKey.substr(1));
-		if (funcKeyNumber >= 1 && funcKeyNumber <= 12) {
-			custom_vk = VK_F1 + (funcKeyNumber - 1);
-			return true;
-		}
-	}
-	// Check if the key is a virtual key code in hexadecimal format (e.g., "0x11" for Control)
-	else if (uppercaseKey.length() >= 3 && uppercaseKey.substr(0, 2) == L"0X") {
-		std::wstringstream ss;
-		ss << std::hex << uppercaseKey.substr(2);
-		ss >> custom_vk;
-		return true;
-	}
-
-	// If it's not a valid alphabet key, function key, or virtual key code, return false
-	return false;
 }
 
 
@@ -387,14 +381,18 @@ void MoveMouse(int dx, int dy)
 void PasteText(const std::string &text) // To run, just do PasteText(text), which is the name of the variable above at the beginning
 {
 	for (char c : text) {
-		INPUT input = {0};
-		input.type = INPUT_KEYBOARD;
-		input.ki.wVk = 0;
-		input.ki.wScan = c;
-		input.ki.dwFlags = KEYEVENTF_UNICODE;
+        // Key down event
+        INPUT input = { 0 };
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = 0;
+        input.ki.wScan = c;
+        input.ki.dwFlags = KEYEVENTF_UNICODE;  // Unicode key down
+        SendInput(1, &input, sizeof(INPUT));
 
-		SendInput(1, &input, sizeof(INPUT));
-	}
+        // Key up event
+        input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;  // Unicode key up
+        SendInput(1, &input, sizeof(INPUT));
+    }
 }
 
 // This is ran in a separate thread to avoid interfering with other functions
@@ -432,7 +430,7 @@ void SpeedglitchloopHHJ()
 {
 	while (true) {
 		while (!isHHJ) {
-			std::this_thread::sleep_for(std::chrono::microseconds(50));
+			std::this_thread::sleep_for(std::chrono::microseconds(25));
 		}
 		if (macrotoggled && notbinding && section_toggles[2]) {
 			MoveMouse(speed_strengthx, 0);
@@ -449,11 +447,11 @@ void SpamKeyLoop()
 		while (!isspamloop) {
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
 		}
-		if (macrotoggled && notbinding && section_toggles[9]) {
+		if (macrotoggled && notbinding && section_toggles[10]) {
 			HoldKeyMouse(vk_spamkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(spam_delay / 2));
+			std::this_thread::sleep_for(std::chrono::microseconds(real_delay));
 			ReleaseKeyMouse(vk_spamkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(spam_delay / 2));
+			std::this_thread::sleep_for(std::chrono::microseconds(real_delay));
 		}
 	}
 }
@@ -469,6 +467,21 @@ void ItemClipLoop()
 			std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
 			ReleaseKey(clip_slot + 1);
 			std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
+		}
+	}
+}
+
+void WallWalkLoop()
+{
+	while (true) { // Efficient variable checking method
+		while (!iswallwalkloop) {
+			std::this_thread::sleep_for(std::chrono::microseconds(100));
+		}
+		if (macrotoggled && notbinding && section_toggles[9]) {
+			MoveMouse(wallwalk_strengthx, 0);
+			std::this_thread::sleep_for(std::chrono::microseconds(6060));
+			MoveMouse(wallwalk_strengthy, 0);
+			std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
 		}
 	}
 }
@@ -520,6 +533,63 @@ bool IsForegroundWindowProcess(HWND targetHwnd) // Check if the current active w
     return (hwndtest == targetHwnd);
 }
 
+std::string Trim(const std::string& str) {
+    auto start = str.begin();
+    while (start != str.end() && std::isspace(*start)) {
+        ++start;
+    }
+
+    auto end = str.end();
+    do {
+        --end;
+    } while (end != start && std::isspace(*end));
+
+    return std::string(start, end + 1);
+}
+
+std::string GetRemoteVersion(const std::wstring& url) {
+    HINTERNET hSession = WinHttpOpen(L"VersionCheck/1.0",  
+                                     WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, 
+                                     WINHTTP_NO_PROXY_NAME, 
+                                     WINHTTP_NO_PROXY_BYPASS, 0);
+
+    URL_COMPONENTS urlComp = { sizeof(urlComp) };
+    wchar_t host[256], path[256];
+    urlComp.lpszHostName = host;
+    urlComp.dwHostNameLength = 256;
+    urlComp.lpszUrlPath = path;
+    urlComp.dwUrlPathLength = 256;
+
+    WinHttpCrackUrl(url.c_str(), 0, 0, &urlComp);
+
+    HINTERNET hConnect = WinHttpConnect(hSession, host, urlComp.nPort, 0);
+    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", 
+                                            path, NULL, WINHTTP_NO_REFERER, 
+                                            WINHTTP_DEFAULT_ACCEPT_TYPES, 
+                                            (urlComp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0);
+
+    WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    WinHttpReceiveResponse(hRequest, NULL);
+
+    DWORD bytesAvailable = 0;
+    WinHttpQueryDataAvailable(hRequest, &bytesAvailable);
+
+    std::string result;
+    if (bytesAvailable > 0) {
+        char* buffer = new char[bytesAvailable + 1];
+        ZeroMemory(buffer, bytesAvailable + 1);
+        DWORD bytesRead = 0;
+        WinHttpReadData(hRequest, buffer, bytesAvailable, &bytesRead);
+        result = std::string(buffer);
+        delete[] buffer;
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+
+    return result;
+}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -631,6 +701,10 @@ void SaveSettings(const std::string& filepath) {
     settings["shiftswitch"] = shiftswitch;
     settings["scancode_shift"] = scancode_shift;
     settings["camfixtoggle"] = camfixtoggle;
+    settings["wallhopswitch"] = wallhopswitch;
+    settings["wallhopcamfix"] = wallhopcamfix;
+    settings["unequiptoggle"] = unequiptoggle;
+    settings["toggle_jump"] = toggle_jump;
     settings["vk_f5"] = vk_f5;
     settings["vk_f6"] = vk_f6;
     settings["vk_f8"] = vk_f8;
@@ -644,7 +718,10 @@ void SaveSettings(const std::string& filepath) {
     settings["vk_dkey"] = vk_dkey;
     settings["vk_xkey"] = vk_xkey;
     settings["vk_clipkey"] = vk_clipkey;
-    
+    settings["vk_wallkey"] = vk_wallkey;
+    settings["selected_dropdown"] = selected_dropdown;
+    settings["text"] = text;
+
     // Save the rest of your settings
     settings["settingsBuffer"] = settingsBuffer;
     settings["KeyBuffer"] = KeyBuffer;
@@ -656,6 +733,21 @@ void SaveSettings(const std::string& filepath) {
     settings["RobloxSensValue"] = RobloxSensValue;
     settings["PreviousSensValue"] = PreviousSensValue;
     settings["SpamDelay"] = SpamDelay;
+    settings["maxfreezetime"] = maxfreezetime;
+    settings["wallwalkcamfix"] = wallwalkcamfix;
+    settings["isspeedswitch"] = isspeedswitch;
+    settings["isfreezeswitch"] = isfreezeswitch;
+    settings["iswallwalkswitch"] = iswallwalkswitch;
+    settings["isspamswitch"] = isspamswitch;
+    settings["isitemclipswitch"] = isitemclipswitch;
+    settings["autotoggle"] = autotoggle;
+    settings["RobloxWallWalkSensValue"] = RobloxWallWalkSensValue;
+    settings["PreviousWallWalkValue"] = PreviousWallWalkValue;
+    settings["PreviousWallWalkSide"] = PreviousWallWalkSide;
+    settings["RobloxWallWalkValueChar"] = RobloxWallWalkValueChar;
+    settings["wallwalktoggleside"] = wallwalktoggleside;
+    settings["RobloxWallWalkValueDelayChar"] = RobloxWallWalkValueDelayChar;
+    settings["RobloxWallWalkValueDelay"] = RobloxWallWalkValueDelay;
     settings["RobloxPixelValue"] = RobloxPixelValue;
     settings["RobloxPixelValueChar"] = RobloxPixelValueChar;
     settings["WallhopPixels"] = WallhopPixels;
@@ -671,8 +763,10 @@ void SaveSettings(const std::string& filepath) {
     settings["clip_slot"] = clip_slot;
     settings["clip_delay"] = clip_delay;
     settings["spam_delay"] = spam_delay;
+    settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
+    settings["UserAcknowledgedV250"] = UserAcknowledgedV250;
 
 
     // Write the settings to file
@@ -682,63 +776,101 @@ void SaveSettings(const std::string& filepath) {
 
 void LoadSettings(const std::string& filepath) {
     try {
-		std::ifstream file(filepath);
-		if (file.is_open()) {
-			json settings;
-			file >> settings;
+        std::ifstream file(filepath);
+        if (file.is_open()) {
+            json settings;
+            file >> settings;
 
-			// Load keybinds, toggles, etc.
-			macrotoggled = settings["macrotoggled"].get<bool>();
-			shiftswitch = settings["shiftswitch"].get<bool>();
-			scancode_shift = settings["scancode_shift"].get<unsigned int>();
-			camfixtoggle = settings["camfixtoggle"].get<bool>();
-			vk_f5 = settings["vk_f5"].get<unsigned int>();
-			vk_f6 = settings["vk_f6"].get<unsigned int>();
-			vk_f8 = settings["vk_f8"].get<unsigned int>();
-			vk_mbutton = settings["vk_mbutton"].get<unsigned int>();
-			vk_xbutton1 = settings["vk_xbutton1"].get<unsigned int>();
-			vk_xbutton2 = settings["vk_xbutton2"].get<unsigned int>();
-			vk_leftbracket = settings["vk_leftbracket"].get<unsigned int>();
-			vk_spamkey = settings["vk_spamkey"].get<unsigned int>();
-			vk_zkey = settings["vk_zkey"].get<unsigned int>();
-			vk_dkey = settings["vk_dkey"].get<unsigned int>();
-			vk_xkey = settings["vk_xkey"].get<unsigned int>();
-			vk_clipkey = settings["vk_clipkey"].get<unsigned int>();
-			spam_delay = settings["spam_delay"].get<int>();
-			wallhop_dx = settings["wallhop_dx"].get<int>();
-			wallhop_dy = settings["wallhop_dy"].get<int>();
-			speed_strengthx = settings["speed_strengthx"].get<int>();
-			speedoffsetx = settings["speedoffsetx"].get<int>();
-			speed_strengthy = settings["speed_strengthy"].get<int>();
-			speedoffsety = settings["speedoffsety"].get<int>();
-			speed_slot = settings["speed_slot"].get<int>();
-			desync_slot = settings["desync_slot"].get<int>();
-			clip_slot = settings["clip_slot"].get<int>();
-			clip_delay = settings["clip_delay"].get<int>();
-			screen_width = settings["screen_width"].get<int>() + 16;
-			screen_height = settings["screen_height"].get<int>() + 39;
+            // Use a map for boolean variables
+            std::unordered_map<std::string, bool*> boolVariables = {
+                {"macrotoggled", &macrotoggled},
+                {"shiftswitch", &shiftswitch},
+                {"wallhopswitch", &wallhopswitch},
+                {"wallhopcamfix", &wallhopcamfix},
+                {"unequiptoggle", &unequiptoggle},
+                {"isspeedswitch", &isspeedswitch},
+                {"isfreezeswitch", &isfreezeswitch},
+                {"iswallwalkswitch", &iswallwalkswitch},
+                {"isspamswitch", &isspamswitch},
+                {"isitemclipswitch", &isitemclipswitch},
+				{"autotoggle", &autotoggle},
+				{"toggle_jump", &toggle_jump},
+				{"camfixtoggle", &camfixtoggle},
+				{"wallwalkcamfix", &wallwalkcamfix},
+				{"wallwalktoggleside", &wallwalktoggleside},
+				{"UserAcknowledgedV250", &UserAcknowledgedV250},
 
+                // Add any additional boolean variables here
+            };
 
-			// Load the rest of your settings
-			strncpy(settingsBuffer, settings["settingsBuffer"].get<std::string>().c_str(), sizeof(settingsBuffer));
-			strncpy(KeyBuffer, settings["KeyBuffer"].get<std::string>().c_str(), sizeof(KeyBuffer));
-			strncpy(KeyBufferalt, settings["KeyBufferalt"].get<std::string>().c_str(), sizeof(KeyBufferalt));
-			strncpy(ItemDesyncSlot, settings["ItemDesyncSlot"].get<std::string>().c_str(), sizeof(ItemDesyncSlot));
-			strncpy(ItemSpeedSlot, settings["ItemSpeedSlot"].get<std::string>().c_str(), sizeof(ItemSpeedSlot));
-			strncpy(ItemClipSlot, settings["ItemClipSlot"].get<std::string>().c_str(), sizeof(ItemClipSlot));
-			strncpy(ItemClipDelay, settings["ItemClipDelay"].get<std::string>().c_str(), sizeof(ItemClipDelay));
-			strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue));
-			strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
-			strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
-			strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
-			RobloxPixelValue = settings["RobloxPixelValue"].get<int>();
-			PreviousSensValue = settings["PreviousSensValue"].get<float>();
-			std::vector<bool> toggles = settings["section_toggles"].get<std::vector<bool>>();
-			std::copy(toggles.begin(), toggles.end(), section_toggles);
-		}
-		} catch (const json::type_error &e) {
-			return;
-		}
+            // Load boolean variables
+            for (const auto& [key, ptr] : boolVariables) {
+                if (settings.contains(key)) {
+                    *ptr = settings[key].get<bool>();
+                }
+            }
+
+            // Load other variables (non-boolean)
+            scancode_shift = settings.value("scancode_shift", scancode_shift);
+            vk_f5 = settings.value("vk_f5", vk_f5);
+            vk_f6 = settings.value("vk_f6", vk_f6);
+            vk_f8 = settings.value("vk_f8", vk_f8);
+            vk_mbutton = settings.value("vk_mbutton", vk_mbutton);
+            vk_xbutton1 = settings.value("vk_xbutton1", vk_xbutton1);
+            vk_xbutton2 = settings.value("vk_xbutton2", vk_xbutton2);
+            vk_leftbracket = settings.value("vk_leftbracket", vk_leftbracket);
+            vk_spamkey = settings.value("vk_spamkey", vk_spamkey);
+            vk_zkey = settings.value("vk_zkey", vk_zkey);
+            vk_dkey = settings.value("vk_dkey", vk_dkey);
+            vk_xkey = settings.value("vk_xkey", vk_xkey);
+            vk_clipkey = settings.value("vk_clipkey", vk_clipkey);
+            spam_delay = settings.value("spam_delay", spam_delay);
+            real_delay = settings.value("real_delay", real_delay);
+            wallhop_dx = settings.value("wallhop_dx", wallhop_dx);
+            wallhop_dy = settings.value("wallhop_dy", wallhop_dy);
+            selected_dropdown = settings.value("selected_dropdown", selected_dropdown);
+            vk_wallkey = settings.value("vk_wallkey", vk_wallkey);
+            PreviousWallWalkValue = settings.value("PreviousWallWalkValue", PreviousWallWalkValue);
+            PreviousWallWalkSide = settings.value("PreviousWallWalkSide", PreviousWallWalkSide);
+            maxfreezetime = settings.value("maxfreezetime", maxfreezetime);
+            RobloxWallWalkValueDelay = settings.value("RobloxWallWalkValueDelay", RobloxWallWalkValueDelay);
+            speed_strengthx = settings.value("speed_strengthx", speed_strengthx);
+            speedoffsetx = settings.value("speedoffsetx", speedoffsetx);
+            speed_strengthy = settings.value("speed_strengthy", speed_strengthy);
+            speedoffsety = settings.value("speedoffsety", speedoffsety);
+            speed_slot = settings.value("speed_slot", speed_slot);
+            desync_slot = settings.value("desync_slot", desync_slot);
+            clip_slot = settings.value("clip_slot", clip_slot);
+            clip_delay = settings.value("clip_delay", clip_delay);
+            screen_width = settings.value("screen_width", screen_width) + 16;
+            screen_height = settings.value("screen_height", screen_height) + 39;
+
+            // Load strings with strncpy
+            strncpy(settingsBuffer, settings["settingsBuffer"].get<std::string>().c_str(), sizeof(settingsBuffer));
+            strncpy(KeyBuffer, settings["KeyBuffer"].get<std::string>().c_str(), sizeof(KeyBuffer));
+            strncpy(KeyBufferalt, settings["KeyBufferalt"].get<std::string>().c_str(), sizeof(KeyBufferalt));
+            strncpy(ItemDesyncSlot, settings["ItemDesyncSlot"].get<std::string>().c_str(), sizeof(ItemDesyncSlot));
+            strncpy(ItemSpeedSlot, settings["ItemSpeedSlot"].get<std::string>().c_str(), sizeof(ItemSpeedSlot));
+            strncpy(ItemClipSlot, settings["ItemClipSlot"].get<std::string>().c_str(), sizeof(ItemClipSlot));
+            strncpy(ItemClipDelay, settings["ItemClipDelay"].get<std::string>().c_str(), sizeof(ItemClipDelay));
+            strncpy(RobloxSensValue, settings["RobloxSensValue"].get<std::string>().c_str(), sizeof(RobloxSensValue));
+            strncpy(RobloxWallWalkSensValue, settings["RobloxWallWalkSensValue"].get<std::string>().c_str(), sizeof(RobloxWallWalkSensValue));
+            strncpy(RobloxWallWalkValueChar, settings["RobloxWallWalkValueChar"].get<std::string>().c_str(), sizeof(RobloxWallWalkValueChar));
+            strncpy(RobloxWallWalkValueDelayChar, settings["RobloxWallWalkValueDelayChar"].get<std::string>().c_str(), sizeof(RobloxWallWalkValueDelayChar));
+            strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
+            strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
+            strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
+            text = settings.value("text", text);
+            RobloxPixelValue = settings.value("RobloxPixelValue", RobloxPixelValue);
+            PreviousSensValue = settings.value("PreviousSensValue", PreviousSensValue);
+            std::vector<bool> toggles = settings.value("section_toggles", std::vector<bool>{});
+            std::copy(toggles.begin(), toggles.end(), section_toggles);
+        }
+    } catch (const json::type_error &e) {
+        // Handle the error (optional logging)
+        std::cerr << "Error loading settings: " << e.what() << '\n';
+        return;
+    }
 }
 
 struct Section {
@@ -809,8 +941,13 @@ void ChangeNinthSection() {
 }
 
 void ChangeTenthSection() {
-    sections[9].title = "Spam a Key";
-    sections[9].description = "Whenever You Press Your Keybind, it Spams the Other Button";
+    sections[9].title = "Wall-Walk";
+    sections[9].description = "Walk Across Wall Seams Without Jumping";
+}
+
+void ChangeEleventhSection() {
+    sections[10].title = "Spam a Key";
+    sections[10].description = "Whenever You Press Your Keybind, it Spams the Other Button";
 }
 
 
@@ -820,7 +957,7 @@ unsigned int BindKeyMode(unsigned int currentkey) {
 
     if (bindingMode) {
 		rebindtime = std::chrono::high_resolution_clock::now();
-        for (int key = 0; key < 231; key++) {
+        for (int key = 0; key < 255; key++) {
             if (GetAsyncKeyState(key) & 0x8000) {
                 bindingMode = false;
                 std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
@@ -861,7 +998,7 @@ unsigned int BindKeyModeAlt(unsigned int currentkey) {
 
     if (bindingModealt) {
 		rebindtime = std::chrono::high_resolution_clock::now();
-        for (int key = 0; key < 231; key++) {
+        for (int key = 0; key < 255; key++) {
             if (GetAsyncKeyState(key) & 0x8000) {
                 bindingModealt = false;
                 std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
@@ -896,7 +1033,6 @@ unsigned int BindKeyModeAlt(unsigned int currentkey) {
         return currentkey;
     }
 }
-
 
 
 void GetKeyNameFromHex(unsigned int hexKeyCode) {
@@ -1005,6 +1141,7 @@ void RunGUI() {
     ChangeEighthSection();
     ChangeNinthSection();
     ChangeTenthSection();
+    ChangeEleventhSection();
 
 
 	MSG msg;
@@ -1072,8 +1209,8 @@ void RunGUI() {
 			ImGui::SetNextItemWidth(250.0f);
 			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
-			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
-			ImGui::TextWrapped("SAVE YOUR SETTINGS:");
+			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
+			ImGui::TextWrapped("MANUALLY SAVE SETTINGS:");
 			ImGui::SameLine(ImGui::GetWindowWidth() - 125);
 			if (ImGui::Button("Save Settings")) {
 				SaveSettings("RMCSettings.json");
@@ -1254,6 +1391,12 @@ void RunGUI() {
 				}
 
 				if (selected_section == 9) {
+					vk_wallkey = BindKeyMode(vk_wallkey);
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_wallkey);
+				}
+
+				if (selected_section == 10) {
 					vk_leftbracket = BindKeyMode(vk_leftbracket);
 					ImGui::SetNextItemWidth(150.0f);
 					GetKeyNameFromHex(vk_leftbracket);
@@ -1271,10 +1414,13 @@ void RunGUI() {
 				}
 
 				if (selected_section == 0) { // Freeze Macro
+					ImGui::SetNextItemWidth(200.0f);
+					ImGui::SliderFloat("Automatically Unfreeze for 50ms when you hit this time (Anti-Internet-Kick)", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
+					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses"
+					ImGui::TextWrapped("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses "
 										"ALL network and physics activity that the server sends or recieves from you.");
 				}
 
@@ -1304,6 +1450,9 @@ void RunGUI() {
 				}
 
 				if (selected_section == 2) { // HHJ
+					ImGui::Checkbox("Automatically time inputs", &autotoggle);
+					ImGui::SameLine();
+					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
 					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS GO TO THE SPEEDGLITCH MENU, AND PROPERLY SET YOUR SPEEDGLITCH PIXEL VALUE!");
@@ -1360,17 +1509,19 @@ void RunGUI() {
 					} catch (const std::out_of_range &e) {
 					}
 
+					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspeedswitch);
+
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
 					ImGui::TextWrapped("ALSO, YOU MUST BE ON 60 FPS FOR MAXIMUM SPEED!");
-					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT."
-										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation."
+					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
+										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
 										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("This macro uses the way a changed center of mass affects your movement. If you offset your COM"
-										"in any way, and then toggle the macro, you will rotate 180 degrees every frame, holding W and"
+					ImGui::TextWrapped("This macro uses the way a changed center of mass affects your movement. If you offset your COM "
+										"in any way, and then toggle the macro, you will rotate 180 degrees every frame, holding W and "
 										"jump during this will catapult you forward.");
 				}
 
@@ -1384,13 +1535,28 @@ void RunGUI() {
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+					ImGui::SetNextItemWidth(150.0f);
+					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
+						for (int i = 0; i < IM_ARRAYSIZE(optionsforoffset); i++) {
+							bool is_selected = (selected_dropdown == i);
+							if (ImGui::Selectable(optionsforoffset[i], is_selected)) {
+								selected_dropdown = i;  // Update the selected option
+								text = optionsforoffset[selected_dropdown];
+							}
+							if (is_selected) {
+								ImGui::SetItemDefaultFocus();  // Ensure the selected item has focus
+							}
+						}
+						ImGui::EndCombo();
+					}
+					ImGui::Checkbox("Don't Unequip Item at the end", &unequiptoggle);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("R6 ONLY!");
 					ImGui::TextWrapped("HAVE THE ITEM UNEQUIPPED BEFORE DOING THIS!!!");
-					ImGui::TextWrapped("Performs a weaker version of the /e dance2 equip speedglitch, however, you unequip your gear."
-										"Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion,"
+					ImGui::TextWrapped("Performs a weaker version of the /e dance2 equip speedglitch, however, you unequip your gear. "
+										"Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion, "
 										"AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
 				}
 
@@ -1413,7 +1579,7 @@ void RunGUI() {
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind."
+					ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind. "
 										"This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
 				}
 
@@ -1423,17 +1589,37 @@ void RunGUI() {
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::InputText("", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try { // Error Handling
-						wallhop_dx = std::stoi(WallhopPixels);
-						wallhop_dy = -std::stoi(WallhopPixels);
+						if (wallhopswitch) {
+							if (wallhopcamfix) {
+								wallhop_dx = std::stoi(WallhopPixels) * -1 / 1.388889;
+								wallhop_dy = -std::stoi(WallhopPixels) * -1 / 1.388889;
+							} else {
+								wallhop_dx = std::stoi(WallhopPixels) * -1;
+								wallhop_dy = -std::stoi(WallhopPixels) * -1;
+							}
+						} else {
+							if (wallhopcamfix) {
+								wallhop_dx = std::stoi(WallhopPixels) / 1.388889;
+								wallhop_dy = -std::stoi(WallhopPixels) / 1.388889;
+							} else {
+								wallhop_dx = std::stoi(WallhopPixels);
+								wallhop_dy = -std::stoi(WallhopPixels);
+							}
+						}
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+
+					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
+					ImGui::Checkbox("Game Uses Cam-Fix", &wallhopcamfix);
+					ImGui::Checkbox("Toggle Jump", &toggle_jump);
+
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY"
-										"If you want to pick a SPECIFIC ANGLE, heres how."
-										"For games without the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity"
-										"For games with the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity"
+					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY. "
+										"If you want to pick a SPECIFIC ANGLE, heres how. "
+										"For games without the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity. "
+										"For games with the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity. "
 										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 8 (75) is equal to a 45 degree turn.");
 					ImGui::TextWrapped("INTEGERS ONLY!");
 					ImGui::Separator();
@@ -1446,42 +1632,9 @@ void RunGUI() {
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT upwards, you will be able to perform"
+					ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT upwards, you will be able to perform "
 										"14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform"
 										"in order to do it.");
-				}
-
-				if (selected_section == 9) { // Spamkey
-					ImGui::TextWrapped("Key to Press:");
-					ImGui::SameLine();
-					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
-						bindingModealt = true;
-						notbinding = false;
-						KeyButtonTextalt = "Press a Key...";
-						}
-					ImGui::SameLine();
-					vk_spamkey = BindKeyModeAlt(vk_spamkey);
-					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHexAlt(vk_spamkey);
-					ImGui::InputText("Key to Press (Human-Readable)", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(50.0f);
-					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
-					ImGui::TextWrapped("Spam Delay (Milliseconds):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(120.0f);
-					ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					try { // Error Handling
-						spam_delay = std::stoi(SpamDelay);
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
-					}
-					ImGui::TextWrapped("I do not take any responsibility if you set the delay to 0ms");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("This macro will spam the second key with a millisecond delay. "
-										"This can be used as an autoclicker for any games you want, or a key-spam.");
 				}
 
 				if (selected_section == 8) { // Item Clip
@@ -1505,16 +1658,131 @@ void RunGUI() {
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+					
+					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isitemclipswitch);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("This macro will equip and unequip your item in the amount of milliseconds you put in. "
 										"It's recommended to shiftlock, jump, and hold W while staying at the wall. "
-										"This lets you clip through walls in both R6 and R15, however, it is EXTREMELY RNG.  "
+										"This lets you clip through walls in both R6 and R15, however, it is EXTREMELY RNG. "
 										"There are way too factors that control this, the delay, fps, the item's size, your animation, etc. "
 										"The item in the best scenario should be big and stretch far into the wall. ");
 					ImGui::TextWrapped("Also, for convenience sake, you cannot activate item clip unless you're tabbed into roblox.");
+				}
+
+				if (selected_section == 9) { // Wall-Walk
+					ImGui::TextWrapped("Roblox Sensitivity (0-4):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(70.0f);
+					float CurrentWallWalkValue = atof(RobloxWallWalkSensValue);
+
+					float CurrentWallwalkSide = wallwalkcamfix;
+
+					ImGui::InputText("", RobloxWallWalkSensValue, sizeof(RobloxWallWalkSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::SameLine();
+
+					if ((CurrentWallWalkValue != PreviousWallWalkValue) || (CurrentWallwalkSide != PreviousWallWalkSide)) {
+						if (wallwalktoggleside) {
+							if (wallwalkcamfix) {
+								wallwalk_strengthx = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+								wallwalk_strengthy = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+							} else {
+								wallwalk_strengthx = static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+								wallwalk_strengthy = -static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+							}
+						} else {
+							if (wallwalkcamfix) {
+								wallwalk_strengthx = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+								wallwalk_strengthy = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+							} else {
+								wallwalk_strengthx = -static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+								wallwalk_strengthy = static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
+								}
+							}
+						PreviousWallWalkValue = CurrentWallWalkValue;
+						PreviousWallWalkSide = CurrentWallwalkSide;
+						sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
+					}
+
+					ImGui::TextWrapped("Wall-Walk Pixel Value (meant to be super low):");
+					ImGui::SetNextItemWidth(70.0f);
+					ImGui::SameLine();
+					ImGui::InputText("##PixelValue", RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+
+					if (ImGui::Checkbox("Switch to Left-Flick Wallwalk", &wallwalktoggleside)) {
+						PreviousWallWalkSide = -1;
+					}
+
+					if (ImGui::Checkbox("Game Uses Cam-Fix", &wallwalkcamfix)) {
+						PreviousWallWalkValue -= 1; // Update value if the checkbox is pressed
+					}
+					ImGui::SetNextItemWidth(100.0f);
+					ImGui::InputText("Delay Between Flicks (Don't change from 72720 unless neccessary):", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+
+					try {
+						RobloxWallWalkValueDelay = atof(RobloxWallWalkValueDelayChar);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+
+					try { // Error Handling
+						wallwalk_strengthx = std::stoi(RobloxWallWalkValueChar);
+						wallwalk_strengthy = -std::stoi(RobloxWallWalkValueChar);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+
+					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &iswallwalkswitch);
+					ImGui::Separator();
+					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
+					ImGui::TextWrapped("THE HIGHER FPS YOU ARE, THE MORE STABLE IT GETS, HOWEVER 60 FPS IS ENOUGH FOR INFINITE DISTANCE");
+					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
+										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
+										"You can also toggle whether it's right facing or left facing (Makes its respective side easier) "
+										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
+					ImGui::Separator();
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped("This macro abuses the way leg raycast physics work to permanently keep wallhopping, without jumping "
+										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across");
+				}
+
+				if (selected_section == 10) { // Spamkey
+					ImGui::TextWrapped("Key to Press:");
+					ImGui::SameLine();
+					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
+						bindingModealt = true;
+						notbinding = false;
+						KeyButtonTextalt = "Press a Key...";
+						}
+					ImGui::SameLine();
+					vk_spamkey = BindKeyModeAlt(vk_spamkey);
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHexAlt(vk_spamkey);
+					ImGui::InputText("Key to Press (Human-Readable)", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(50.0f);
+					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::TextWrapped("Spam Delay (Milliseconds but accepts decimals):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.0f);
+					ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					try { // Error Handling
+						spam_delay = std::stof(SpamDelay);
+						real_delay = static_cast<int>((spam_delay * 1000.0f + 0.5f) / 2);
+
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+					ImGui::TextWrapped("I do not take any responsibility if you set the delay to 0ms");
+					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspamswitch);
+					ImGui::Separator();
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped("This macro will spam the second key with a millisecond delay. "
+										"This can be used as an autoclicker for any games you want, or a key-spam.");
 				}
 
 
@@ -1551,8 +1819,30 @@ void RunGUI() {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-
     LoadSettings("RMCSettings.json");
+
+    std::wstring url = L"https://raw.githubusercontent.com/Spencer0187/Roblox-Macro-Utilities/refs/heads/main/version";
+    std::string remoteVersion = Trim(GetRemoteVersion(url));
+    if (remoteVersion == "") {
+		remoteVersion = "HTTP request for latest version failed!";
+    }
+    std::string localVersion = "2.5.0";
+
+    if (remoteVersion != localVersion && !UserAcknowledgedV250) {
+		std::wstring output_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
+		std::wstring output_version2 = std::wstring(localVersion.begin(), localVersion.end());
+        std::wstring message = L"Your Version is Outdated! The latest version is: " + output_version + L". Your version is: " + output_version2 + L". \nDo you understand this? If you press yes, this won't show up again.";
+        
+        int result = MessageBox(NULL, 
+            message.c_str(), 
+            L"Update Notification", 
+            MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
+
+        if (result == IDYES) {
+            UserAcknowledgedV250 = true;  // Change the variable
+        }
+    }
+
 	const HMODULE hNtdll = GetModuleHandleA("ntdll");
 	NtSuspendProcess pfnSuspend = reinterpret_cast<NtSuspendProcess>(GetProcAddress(hNtdll, "NtSuspendProcess"));
 	NtResumeProcess pfnResume = reinterpret_cast<NtResumeProcess>(GetProcAddress(hNtdll, "NtResumeProcess"));
@@ -1563,6 +1853,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread3(SpeedglitchloopHHJ);
 	std::thread actionThread4(SpamKeyLoop);
 	std::thread actionThread5(ItemClipLoop);
+	std::thread actionThread6(WallWalkLoop);
 	std::thread guiThread(RunGUI);
 	MSG msg;
 
@@ -1580,6 +1871,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool HHJ = false;
 	bool isspam = false;
 	bool isclip = false;
+	bool iswallwalk = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
 	static const float targetFrameTime = 1.0f / 120.0f; // Targeting 120 FPS
@@ -1587,15 +1879,37 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	while (!done) {
     {
-		if (GetAsyncKeyState(vk_mbutton) & 0x8000 && macrotoggled && notbinding && section_toggles[0]) {
-			if (!isSuspended) {
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true); // Suspend the program on press
-				isSuspended = true;
-				suspendStartTime = std::chrono::steady_clock::now(); // Start the timer
-			} else {
-				// Check if 9 seconds have passed since suspension
-				auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - suspendStartTime).count();
-				if (elapsed >= suspendDuration) {
+		if (macrotoggled && notbinding && section_toggles[0]) {
+			bool isMButtonPressed = GetAsyncKeyState(vk_mbutton) & 0x8000;
+
+			if (isfreezeswitch) {  // Toggle mode
+				if (isMButtonPressed && !wasMButtonPressed) {  // Detect button press edge
+					isSuspended = !isSuspended;  // Toggle the freeze state
+					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, isSuspended);
+
+					if (isSuspended) {
+						suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
+					}
+				}
+			} else {  // Hold mode
+				if (isMButtonPressed) {
+					if (!isSuspended) {
+						SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);  // Freeze on hold
+						isSuspended = true;
+						suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
+					}
+				} else if (isSuspended) {
+					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);  // Unfreeze on release
+					isSuspended = false;
+				}
+			}
+
+			// Common timer logic for both toggle and hold modes
+			if (isSuspended) {
+				auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+					std::chrono::steady_clock::now() - suspendStartTime).count();
+
+				if (elapsed >= (maxfreezetime * 1000)) {
 					// Unsuspend for 50 ms
 					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
 					std::this_thread::sleep_for(std::chrono::milliseconds(unsuspendTime));
@@ -1605,12 +1919,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					suspendStartTime = std::chrono::steady_clock::now();
 				}
 			}
-		} else {
-			if (isSuspended) {
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false); // Unsuspend when button is released
-				isSuspended = false;
-			}
+
+			// Update the previous state
+			wasMButtonPressed = isMButtonPressed;
 		}
+
 
 		if ((GetAsyncKeyState(vk_f5) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[1]) { // Item Desync Macro with anti-idiot design
 			if (!isdesync) {
@@ -1618,8 +1931,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				isdesync = true;
 			}
 		} else {
-			isdesyncloop = false;
 			isdesync = false;
+			isdesyncloop = false;
 		}
 
 		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5]) { // Press button for one frame
@@ -1635,11 +1948,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_xbutton2) & 0x8000) && macrotoggled && notbinding && section_toggles[6]) { // Wallhop
 			if (!iswallhop) {
-				HoldKey(0x39);
+				if (!toggle_jump) {
+					HoldKey(0x39);
+				}
 				MoveMouse(wallhop_dx, 0);
 				std::this_thread::sleep_for(std::chrono::milliseconds(75));
 				MoveMouse(wallhop_dy, 0);
-				ReleaseKey(0x39);
+				if (!toggle_jump) {
+					ReleaseKey(0x39);
+				}
 				iswallhop = true;
 			}
 		} else {
@@ -1674,23 +1991,39 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		} else {
 			isspeedglitch = false;
+			if (isspeedswitch) {
+				isspeed = false;
+			}
 		}
 
 		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) { // Unequip Speed
 			if (!isunequipspeed) {
-				HoldKey(vk_slashkey);
+				HoldKey(sc_slashkey);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				ReleaseKey(vk_slashkey);
+				ReleaseKey(sc_slashkey);
 				HoldKey(0x1C);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(35));
 				ReleaseKey(0x1C);
-				std::this_thread::sleep_for(std::chrono::milliseconds(920));
+				if (selected_dropdown == 2) {
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds(65));
+				}
+
+				if (selected_dropdown == 0) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(815));
+				}
+				if (selected_dropdown == 1) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(175));
+				}
 				HoldKey(speed_slot + 1);
 				ReleaseKey(speed_slot + 1);
 				std::this_thread::sleep_for(std::chrono::milliseconds(4));
-				HoldKey(speed_slot + 1);
+				if (!unequiptoggle) {
+					HoldKey(speed_slot + 1);
+				}
 				ReleaseKey(speed_slot + 1);
 				isunequipspeed = true;
 			}
@@ -1700,24 +2033,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_xbutton1) & 0x8000) && macrotoggled && notbinding && section_toggles[2]) { // Helicopter High jump
 			if (!HHJ) {
+				if (autotoggle) { // Auto-Timer 
+					HoldKey(0x39);
+					std::this_thread::sleep_for(std::chrono::milliseconds(550));
+					HoldKey(0x11);
+					std::this_thread::sleep_for(std::chrono::milliseconds(68));
+				}
+
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				INPUT input = {0};
-				input.type = INPUT_MOUSE;
-				input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-				SendInput(1, &input, sizeof(INPUT));
-				std::this_thread::sleep_for(std::chrono::milliseconds(450));
+				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				ReleaseKey(0x39);
+				ReleaseKey(0x11);
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
-				MoveMouse(speed_strengthx, 0);
-				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				std::this_thread::sleep_for(std::chrono::milliseconds(8));
 				HoldKey(scancode_shift);
-				input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-				SendInput(1, &input, sizeof(INPUT));
-				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 				isHHJ = true;
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				ReleaseKey(scancode_shift);
-				std::this_thread::sleep_for(std::chrono::milliseconds(240));
-				MoveMouse(speed_strengthy, 0);
+				std::this_thread::sleep_for(std::chrono::milliseconds(243));
 				isHHJ = false;
 				HHJ = true;
 			}
@@ -1725,13 +2059,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			HHJ = false;
 		}
 
-		if ((GetAsyncKeyState(vk_leftbracket) & 0x8000) && macrotoggled && notbinding && section_toggles[9]) { // Spamkey
+		if ((GetAsyncKeyState(vk_leftbracket) & 0x8000) && macrotoggled && notbinding && section_toggles[10]) { // Spamkey
 			if (!isspam) {
 				isspamloop = !isspamloop;
 				isspam = true;
 			}
 		} else {
 			isspam = false;
+			if (isspamswitch) {
+				isspamloop = false;
+			}
 		}
 
 		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[8]) { // Item Clip
@@ -1741,6 +2078,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		} else {
 			isclip = false;
+			if (isitemclipswitch) {
+				isitemloop = false;
+			}
+		}
+
+		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[9]) { // WallWalk
+			if (!iswallwalk) {
+				iswallwalkloop = !iswallwalkloop;
+				iswallwalk = true;
+			}
+		} else {
+			iswallwalk = false;
+			if (iswallwalkswitch) {
+				iswallwalkloop = false;
+			}
 		}
 
 		auto currentTime = std::chrono::steady_clock::now();
@@ -1811,6 +2163,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 			}
 		}
+	}
+	if (!IsForegroundWindowProcess(rbxhwnd)) { // Automatically turn off these 4 if you leave roblox window (so it isn't annoying)
+		iswallwalkloop = false;
+		isitemloop = false;
+		isdesyncloop = false;
+		isspeed = false;
 	}
 	std::this_thread::sleep_for(std::chrono::microseconds(50)); // Delay between checking for keys (dont touch pls)
 	}
