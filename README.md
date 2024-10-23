@@ -30,13 +30,13 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
-![image](https://github.com/user-attachments/assets/109144df-20d6-41a0-960e-a4d7149b22d4)
+![image](https://github.com/user-attachments/assets/7873131a-7c5b-492b-9e94-b057c49ae400)
 
 https://github.com/user-attachments/assets/3e08807a-b10d-4e66-92ed-ae1ecde259f7
 
-![image](https://github.com/user-attachments/assets/252b0592-9e71-4fe3-a245-d0d9ce241336)
+![image](https://github.com/user-attachments/assets/5d44059f-6f02-41e5-b62b-5984b4a91566)
 
-![image](https://github.com/user-attachments/assets/7c18b2fc-5f87-447d-9b7c-fa39e8367c27)
+![image](https://github.com/user-attachments/assets/ab4e8ff6-e70d-497e-9363-50146ef1ef7f)
 
 
 ## Credits
