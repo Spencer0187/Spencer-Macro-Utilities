@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <vector>
 #include <windows.h>
 #include <Psapi.h>
@@ -27,6 +27,7 @@
 #include <codecvt>
 #include <format>
 #include <unordered_map>
+#include <math.h>
 
 #pragma comment(lib, "wininet.lib")
 
@@ -185,10 +186,10 @@ std::unordered_map<int, std::string> vkToString = {
 int wallhop_dx = 300;
 int wallhop_dy = -300;
 int speed_strengthx = 959;
-int wallwalk_strengthx = -94;
+int wallwalk_strengthx = 94;
 int speedoffsetx = 0;
 int speed_strengthy = -959;
-int wallwalk_strengthy = 94;
+int wallwalk_strengthy = -94;
 int speedoffsety = 0;
 int speed_slot = 3;
 int desync_slot = 5;
@@ -227,6 +228,7 @@ std::string KeyButtonTextalt = "Click to Bind Key";
 auto rebindtime = std::chrono::high_resolution_clock::now();
 
 static int selected_section = -1;
+
 
 int screen_width = GetSystemMetrics(SM_CXSCREEN)/1.5;
 int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5 + 10;
@@ -478,10 +480,17 @@ void WallWalkLoop()
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
 		}
 		if (macrotoggled && notbinding && section_toggles[9]) {
-			MoveMouse(wallwalk_strengthx, 0);
-			std::this_thread::sleep_for(std::chrono::microseconds(6060));
-			MoveMouse(wallwalk_strengthy, 0);
-			std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
+			if (wallwalktoggleside) {
+				MoveMouse(-wallwalk_strengthx, 0);
+				std::this_thread::sleep_for(std::chrono::microseconds(6060));
+				MoveMouse(-wallwalk_strengthy, 0);
+				std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
+			} else {
+				MoveMouse(wallwalk_strengthx, 0);
+				std::this_thread::sleep_for(std::chrono::microseconds(6060));
+				MoveMouse(wallwalk_strengthy, 0);
+				std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
+			}
 		}
 	}
 }
@@ -499,10 +508,12 @@ HWND FindWindowByProcessHandle(HANDLE hProcess)
 		DWORD windowPID = 0;
 		GetWindowThreadProcessId(rbxhwnd, &windowPID);
 		if (windowPID == targetPID && IsMainWindow(rbxhwnd)) {
+			processFound = true;
 			return rbxhwnd; // Return if it's the main window
 		}
 		rbxhwnd = FindWindowEx(NULL, rbxhwnd, NULL, NULL);
 	}
+	processFound = false;
 	return NULL;
 }
 
@@ -524,6 +535,7 @@ DWORD GetProcessIdByName() // Return hProcess from .exe name
 		}
 	}
 	CloseHandle(hSnapshot);
+	processFound = false;
 	return 0; // Not found
 }
 
@@ -597,6 +609,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			CreateRenderTarget();
 		}
 		return 0;
+
+    case WM_GETMINMAXINFO: {
+        MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
+
+        // Set the minimum tracking size
+        mmi->ptMinTrackSize.x = 1147;
+        mmi->ptMinTrackSize.y = 780;
+        return 0;
+    }
+
     case WM_SYSCOMMAND:
 		if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
 			return 0;
@@ -895,7 +917,7 @@ void ChangeSecondSection() {
 
 void ChangeThirdSection() {
     sections[2].title = "Helicopter High Jump";
-    sections[2].description = "Use COM Offset to Catapult Yourself Into The Air by\nAligning your Back Angled to the Wall and Jumping and Letting Your Character Turn";
+    sections[2].description = "Use COM Offset to Catapult Yourself Into The Air by Aligning your Back Angled to the Wall and Jumping and Letting Your Character Turn";
 }
 
 void ChangeFourthSection() {
@@ -1195,7 +1217,20 @@ void RunGUI() {
 			ImGui::TextWrapped("Roblox Executable Name:");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
+
 			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
+
+			ImGui::SameLine();
+
+			ImDrawList* drawList = ImGui::GetWindowDrawList();
+			ImVec2 pos = ImGui::GetCursorScreenPos();
+			pos.y += ImGui::GetTextLineHeight() / 2 - 3;
+			ImU32 color = processFound ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
+
+			drawList->AddCircleFilled(ImVec2(pos.x + 5, pos.y + 5), 5, color);
+			ImGui::Dummy(ImVec2(5 * 2, 5 * 2));
+
+
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
 			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
 			ImGui::TextWrapped("MANUALLY SAVE SETTINGS:");
@@ -1203,6 +1238,7 @@ void RunGUI() {
 			if (ImGui::Button("Save Settings")) {
 				SaveSettings("RMCSettings.json");
 			}
+
 			if (shiftswitch) {
 				scancode_shift = 0x1D;
 			} else {
@@ -1219,6 +1255,54 @@ void RunGUI() {
 			if (ImGui::Checkbox("###", &camfixtoggle)) {
 				PreviousSensValue = -1;
 				PreviousWallWalkValue = -1;
+				if (wallhopswitch) {
+					if (camfixtoggle) {
+						wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
+						wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
+					} else {
+						wallhop_dx = std::round(std::stoi(WallhopPixels) / -1.388888889);
+						wallhop_dy = std::round(std::stoi(WallhopPixels) / 1.388888889);
+					}
+				} else {
+					if (camfixtoggle) {
+						wallhop_dx = std::round(std::stoi(WallhopPixels) * 1.388888889);
+						wallhop_dy = std::round(std::stoi(WallhopPixels) * -1.388888889);
+					} else {
+						wallhop_dx = std::round(std::stoi(WallhopPixels) / 1.388888889);
+						wallhop_dy = std::round(std::stoi(WallhopPixels) / -1.388888889);
+					}
+				}
+				sprintf(WallhopPixels, "%d", wallhop_dx);
+
+				float CurrentWallWalkValue = atof(RobloxSensValue);
+
+				if (camfixtoggle) {
+					wallwalk_strengthx = -static_cast<int>(std::round(((500.0f / CurrentWallWalkValue) * 0.13f)));
+					wallwalk_strengthy = static_cast<int>(std::round(((500.0f / CurrentWallWalkValue) * 0.13f)));
+				} else {
+					wallwalk_strengthx = -static_cast<int>(std::round(((360.0f / CurrentWallWalkValue) * 0.13f)));
+					wallwalk_strengthy = static_cast<int>(std::round(((360.0f / CurrentWallWalkValue) * 0.13f)));
+				}
+
+				sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
+
+				float CurrentSensValue = atof(RobloxSensValue);
+				if (camfixtoggle) {
+					try {
+						RobloxPixelValue = static_cast<int>(std::round((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)));
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+							
+				} else {
+					try {
+						RobloxPixelValue = static_cast<int>(std::round((360.0f / CurrentSensValue) * (static_cast<float>(359) / 360)));
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+				}
+				PreviousSensValue = CurrentSensValue;
+				sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
 			}
 				
 
@@ -1237,7 +1321,7 @@ void RunGUI() {
             // Scrollable mini-sections (always expanded)
 			for (size_t i = 0; i < sections.size(); ++i) {
 				// Calculate available button width based on the left panel size (use full width with a small margin)
-				float left_panel_width = ImGui::GetWindowSize().x - 6;
+				float left_panel_width = ImGui::GetWindowSize().x - 15;
 				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;  // Deduct padding
 
 				// Split the title and description for rendering
@@ -1404,15 +1488,21 @@ void RunGUI() {
 				}
 
 
-				ImGui::InputText("Key Binding (Human-Readable)", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("##", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::SameLine();
+				ImGui::TextWrapped("Key Binding");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(50.0f);
-				ImGui::InputText("Key Binding (Hexadecimal)", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("###", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::SameLine();
+				ImGui::TextWrapped("Key Binding (Hexadecimal)");
 				ImGui::TextWrapped("Toggle Macro:");
 				ImGui::SameLine();
 				if (selected_section >= 0 && selected_section < section_amounts) {
 					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), &section_toggles[selected_section]);
 				}
+				ImGui::SameLine(243);
+				ImGui::TextWrapped("(Human-Readable)");
 
 				if (selected_section == 0) { // Freeze Macro
 					ImGui::SetNextItemWidth(300.0f);
@@ -1495,7 +1585,7 @@ void RunGUI() {
 					}
 
 					ImGui::TextWrapped("Pixel Value for 180 Degree Turn BASED ON SENSITIVITY:");
-					ImGui::SetNextItemWidth(70.0f);
+					ImGui::SetNextItemWidth(90.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 
@@ -1585,27 +1675,8 @@ void RunGUI() {
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::InputText("", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					try { // Error Handling
-						if (wallhopswitch) {
-							if (wallhopcamfix) {
-								wallhop_dx = std::stoi(WallhopPixels) * -1 / 1.388889;
-								wallhop_dy = -std::stoi(WallhopPixels) * -1 / 1.388889;
-							} else {
-								wallhop_dx = std::stoi(WallhopPixels) * -1;
-								wallhop_dy = -std::stoi(WallhopPixels) * -1;
-							}
-						} else {
-							if (wallhopcamfix) {
-								wallhop_dx = std::stoi(WallhopPixels) / 1.388889;
-								wallhop_dy = -std::stoi(WallhopPixels) / 1.388889;
-							} else {
-								wallhop_dx = std::stoi(WallhopPixels);
-								wallhop_dy = -std::stoi(WallhopPixels);
-							}
-						}
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
-					}
+					wallhop_dx = std::round(std::stoi(WallhopPixels));
+					wallhop_dy = -std::round(std::stoi(WallhopPixels));
 
 					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
 					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
@@ -1615,8 +1686,8 @@ void RunGUI() {
 					ImGui::TextWrapped("IMPORTANT:");
 					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY. "
 										"If you want to pick a SPECIFIC ANGLE, heres how. "
-										"For games without the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity. "
-										"For games with the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity. "
+										"For games without the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity. "
+										"For games with the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity. "
 										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 8 (75) is equal to a 45 degree turn.");
 					ImGui::TextWrapped("INTEGERS ONLY!");
 					ImGui::Separator();
@@ -1629,8 +1700,8 @@ void RunGUI() {
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT upwards, you will be able to perform "
-										"14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform"
+					ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT directly upwards, you will be able to perform "
+										"14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform "
 										"in order to do it.");
 				}
 
@@ -1675,37 +1746,25 @@ void RunGUI() {
 					float CurrentWallwalkSide = camfixtoggle;
 
 
-					if ((CurrentWallWalkValue != PreviousWallWalkValue) || (CurrentWallwalkSide != PreviousWallWalkSide)) {
-						if (wallwalktoggleside) {
-							if (camfixtoggle) {
-								wallwalk_strengthx = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-								wallwalk_strengthy = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-							} else {
-								wallwalk_strengthx = static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-								wallwalk_strengthy = -static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-							}
+					if (CurrentWallWalkValue != PreviousWallWalkValue) {
+						if (camfixtoggle) {
+							wallwalk_strengthx = static_cast<int>(round((500.0f / CurrentWallWalkValue) * 0.13f));
+							wallwalk_strengthy = -static_cast<int>(round((500.0f / CurrentWallWalkValue) * 0.13f));
 						} else {
-							if (camfixtoggle) {
-								wallwalk_strengthx = -static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-								wallwalk_strengthy = static_cast<int>(((500.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-							} else {
-								wallwalk_strengthx = -static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-								wallwalk_strengthy = static_cast<int>(((360.0f / CurrentWallWalkValue) * 0.13f) + 0.5f);
-								}
-							}
-						PreviousWallWalkValue = CurrentWallWalkValue;
-						PreviousWallWalkSide = CurrentWallwalkSide;
-						sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
+							wallwalk_strengthx = static_cast<int>(round((360.0f / CurrentWallWalkValue) * 0.13f));
+							wallwalk_strengthy = -static_cast<int>(round((360.0f / CurrentWallWalkValue) * 0.13f));
+						}
 					}
 
+					PreviousWallWalkValue = CurrentWallWalkValue;
+					sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
+
 					ImGui::TextWrapped("Wall-Walk Pixel Value BASED ON SENSITIVITY (meant to be low):");
-					ImGui::SetNextItemWidth(70.0f);
+					ImGui::SetNextItemWidth(90.0f);
 					ImGui::SameLine();
 					ImGui::InputText("##PixelValue", RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 
-					if (ImGui::Checkbox("Switch to Left-Flick Wallwalk", &wallwalktoggleside)) {
-						PreviousWallWalkSide = -1;
-					}
+					ImGui::Checkbox("Switch to Left-Flick Wallwalk", &wallwalktoggleside);
 
 					ImGui::SetNextItemWidth(100.0f);
 					ImGui::InputText("Delay Between Flicks (Don't change from 72720 unless neccessary):", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
@@ -1736,7 +1795,7 @@ void RunGUI() {
 					ImGui::NewLine();
 					ImGui::TextWrapped("This macro abuses the way leg raycast physics work to permanently keep wallhopping, without jumping "
 										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across");
-				}
+			}
 
 				if (selected_section == 10) { // Spamkey
 					ImGui::TextWrapped("Key to Press:");
@@ -1941,11 +2000,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					HoldKey(0x39);
 				}
 
-				MoveMouse(wallhop_dx, 0);
+				if (wallhopswitch) {
+					MoveMouse(-wallhop_dx, 0);
+				} else {
+					MoveMouse(wallhop_dx, 0);
+				}
 
 				if (toggle_flick) {
 					std::this_thread::sleep_for(std::chrono::milliseconds(75));
-					MoveMouse(wallhop_dy, 0);
+					if (wallhopswitch) {
+						MoveMouse(-wallhop_dy, 0);
+					} else {
+						MoveMouse(wallhop_dy, 0);
+					}
 				}
 
 				if (toggle_jump) {
@@ -1954,10 +2021,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 
 				iswallhop = true;
-			}
 		} else {
 			iswallhop = false;
 		}
+	}
 
 		if ((GetAsyncKeyState(vk_f6) & 0x8000) && macrotoggled && notbinding && section_toggles[7]) { // Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
 			if (!islhj) {
@@ -2048,7 +2115,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(8));
 				HoldKey(scancode_shift);
-				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+				std::this_thread::sleep_for(std::chrono::milliseconds(17));
 				isHHJ = true;
 				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				ReleaseKey(scancode_shift);
@@ -2097,7 +2164,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		auto currentTime = std::chrono::steady_clock::now();
-		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 5) {
+		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
 			if (!IsWindow(rbxhwnd)) {
 				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
 				rbxhwnd = FindWindowByProcessHandle(hProcess);
