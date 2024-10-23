@@ -8,7 +8,7 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
-[DOWNLOAD HERE!](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/tag/V2.6.0)
+[DOWNLOAD HERE!](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/tag/V2.7.0)
 
 ## Join the Roblox Glitching Discord!
 https://discord.gg/roblox-glitching-community-998572881892094012
