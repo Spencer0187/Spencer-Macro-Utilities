@@ -1307,7 +1307,7 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.6.0");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.7.0");
 
             ImGui::EndChild(); // End Global Settings child window
 
