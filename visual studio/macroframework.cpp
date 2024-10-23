@@ -257,7 +257,7 @@ bool iswallwalkswitch = false;
 bool isspamswitch = false;
 bool isitemclipswitch = false;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV250 = false;
+static bool UserAcknowledgedV270 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -777,7 +777,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV250"] = UserAcknowledgedV250;
+    settings["UserAcknowledgedV270"] = UserAcknowledgedV270;
 
 
     // Write the settings to file
@@ -809,7 +809,7 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV250", &UserAcknowledgedV250},
+				{"UserAcknowledgedV270", &UserAcknowledgedV270},
 
                 // Add any additional boolean variables here
             };
@@ -1873,9 +1873,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (remoteVersion == "") {
 		remoteVersion = "HTTP request for latest version failed!";
     }
-    std::string localVersion = "2.6.0";
+	remoteVersion = Trim(remoteVersion);
+    std::string localVersion = "2.7.0";
 
-    if (Trim(remoteVersion) != localVersion && !UserAcknowledgedV250) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV270) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -1886,7 +1887,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV250 = true;  // Change the variable
+            UserAcknowledgedV270 = true;  // Change the variable
         }
     }
 
