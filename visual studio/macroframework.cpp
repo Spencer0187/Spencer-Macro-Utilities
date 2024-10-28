@@ -198,6 +198,7 @@ int clip_delay = 30;
 int RobloxWallWalkValueDelay = 72720;
 float spam_delay = 20;
 float maxfreezetime = 9.00f;
+int maxfreezeoverride = 50;
 int real_delay = 10000;
 int selected_dropdown = 0;
 char settingsBuffer[256] = "RobloxPlayerBeta.exe"; // Default value for the textbox
@@ -235,7 +236,6 @@ int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5 + 10;
 
 auto suspendStartTime = std::chrono::steady_clock::time_point();
 bool section_toggles[11] = {true, true, true, true, true, false, true, true, true, false, false};
-const int unsuspendTime = 50;
 bool unequiptoggle = false;
 bool shiftswitch = false;
 bool processFound = false; // Initialize as no process found
@@ -257,7 +257,7 @@ bool iswallwalkswitch = false;
 bool isspamswitch = false;
 bool isitemclipswitch = false;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV270 = false;
+static bool UserAcknowledgedV275 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -747,6 +747,7 @@ void SaveSettings(const std::string& filepath) {
     settings["PreviousSensValue"] = PreviousSensValue;
     settings["SpamDelay"] = SpamDelay;
     settings["maxfreezetime"] = maxfreezetime;
+    settings["maxfreezeoverride"] = maxfreezeoverride;
     settings["isspeedswitch"] = isspeedswitch;
     settings["isfreezeswitch"] = isfreezeswitch;
     settings["iswallwalkswitch"] = iswallwalkswitch;
@@ -777,7 +778,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV270"] = UserAcknowledgedV270;
+    settings["UserAcknowledgedV275"] = UserAcknowledgedV275;
 
 
     // Write the settings to file
@@ -809,7 +810,7 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV270", &UserAcknowledgedV270},
+				{"UserAcknowledgedV275", &UserAcknowledgedV275},
 
                 // Add any additional boolean variables here
             };
@@ -844,6 +845,7 @@ void LoadSettings(const std::string& filepath) {
             PreviousWallWalkValue = settings.value("PreviousWallWalkValue", PreviousWallWalkValue);
             PreviousWallWalkSide = settings.value("PreviousWallWalkSide", PreviousWallWalkSide);
             maxfreezetime = settings.value("maxfreezetime", maxfreezetime);
+            maxfreezeoverride = settings.value("maxfreezeoverride", maxfreezeoverride);
             RobloxWallWalkValueDelay = settings.value("RobloxWallWalkValueDelay", RobloxWallWalkValueDelay);
             speed_strengthx = settings.value("speed_strengthx", speed_strengthx);
             speedoffsetx = settings.value("speedoffsetx", speedoffsetx);
@@ -1252,10 +1254,10 @@ void RunGUI() {
 			ImGui::Text("Game Uses Cam-Fix:");
 			ImGui::SameLine();
 			
-			if (ImGui::Checkbox("###", &camfixtoggle)) {
+			if (ImGui::Checkbox("#####", &camfixtoggle)) {
 				PreviousSensValue = -1;
 				PreviousWallWalkValue = -1;
-				if (wallhopswitch) {
+				if (wallhopswitch) { // Wallhop
 					if (camfixtoggle) {
 						wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
 						wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
@@ -1274,7 +1276,7 @@ void RunGUI() {
 				}
 				sprintf(WallhopPixels, "%d", wallhop_dx);
 
-				float CurrentWallWalkValue = atof(RobloxSensValue);
+				float CurrentWallWalkValue = atof(RobloxSensValue); // Wallwalk
 
 				if (camfixtoggle) {
 					wallwalk_strengthx = -static_cast<int>(std::round(((500.0f / CurrentWallWalkValue) * 0.13f)));
@@ -1286,7 +1288,7 @@ void RunGUI() {
 
 				sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
 
-				float CurrentSensValue = atof(RobloxSensValue);
+				float CurrentSensValue = atof(RobloxSensValue); // Speedglitch
 				if (camfixtoggle) {
 					try {
 						RobloxPixelValue = static_cast<int>(std::round((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)));
@@ -1301,13 +1303,21 @@ void RunGUI() {
 					} catch (const std::out_of_range &e) {
 					}
 				}
+
 				PreviousSensValue = CurrentSensValue;
 				sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
+				try { // Error Handling
+					speed_strengthx = std::stoi(RobloxPixelValueChar);
+					speed_strengthy = -std::stoi(RobloxPixelValueChar);
+				} catch (const std::invalid_argument &e) {
+				} catch (const std::out_of_range &e) {
+				}
+
 			}
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.7.0");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.7.5");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1488,12 +1498,12 @@ void RunGUI() {
 				}
 
 
-				ImGui::InputText("##", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("KeyBufferHuman#", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(50.0f);
-				ImGui::InputText("###", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("KeyBuffer#", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding (Hexadecimal)");
 				ImGui::TextWrapped("Toggle Macro:");
@@ -1508,9 +1518,18 @@ void RunGUI() {
 					ImGui::SetNextItemWidth(300.0f);
 					ImGui::SliderFloat("", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
 					ImGui::SameLine();
-					ImGui::TextWrapped("Automatically Unfreeze for 50ms when you hit this time (Anti-Internet-Kick)");
+					ImGui::TextWrapped("Automatically Unfreeze for default 50ms when you hit this time (Anti-Internet-Kick)");
 					ImGui::SetNextItemWidth(180.0f);
-					ImGui::InputFloat("Unfreeze Time Above", &maxfreezetime, 0.01f, 1.0f, "%.2f");
+					ImGui::InputFloat("Same as the slider above but not a slider", &maxfreezetime, 0.01f, 1.0f, "%.2f");
+
+					char maxfreezeoverrideBuffer[16];
+					std::snprintf(maxfreezeoverrideBuffer, sizeof(maxfreezeoverrideBuffer), "%d", maxfreezeoverride);
+
+					ImGui::SetNextItemWidth(50.0f);
+					if (ImGui::InputText("Modify 50ms Default Unfreeze Time (MS)", maxfreezeoverrideBuffer, sizeof(maxfreezeoverrideBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						maxfreezeoverride = std::atoi(maxfreezeoverrideBuffer);
+					}
+
 					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
@@ -1874,9 +1893,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.7.0";
+    std::string localVersion = "2.7.5";
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV270) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV275) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -1887,7 +1906,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV270 = true;  // Change the variable
+            UserAcknowledgedV275 = true;  // Change the variable
         }
     }
 
@@ -1960,7 +1979,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (elapsed >= (maxfreezetime * 1000)) {
 					// Unsuspend for 50 ms
 					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
-					std::this_thread::sleep_for(std::chrono::milliseconds(unsuspendTime));
+					std::this_thread::sleep_for(std::chrono::milliseconds(maxfreezeoverride));
 					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
 
 					// Reset the timer
@@ -2008,10 +2027,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 
 				if (toggle_flick) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(75));
 					if (wallhopswitch) {
+						std::this_thread::sleep_for(std::chrono::milliseconds(75));
 						MoveMouse(-wallhop_dy, 0);
 					} else {
+						std::this_thread::sleep_for(std::chrono::milliseconds(75));
 						MoveMouse(wallhop_dy, 0);
 					}
 				}
@@ -2022,10 +2042,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 
 				iswallhop = true;
+
+				}
 		} else {
 			iswallhop = false;
 		}
-	}
 
 		if ((GetAsyncKeyState(vk_f6) & 0x8000) && macrotoggled && notbinding && section_toggles[7]) { // Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
 			if (!islhj) {
@@ -2164,12 +2185,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		auto currentTime = std::chrono::steady_clock::now();
+		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
-			if (!IsWindow(rbxhwnd)) {
-				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
-				rbxhwnd = FindWindowByProcessHandle(hProcess);
-			}
+			hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
+			rbxhwnd = FindWindowByProcessHandle(hProcess);
 			lastProcessCheck = std::chrono::steady_clock::now();
 		}
 
