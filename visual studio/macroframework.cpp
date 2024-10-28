@@ -2187,8 +2187,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
-			hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
-			rbxhwnd = FindWindowByProcessHandle(hProcess);
+			if (true) { // Holy crap, adding in this useless statement fixes false positive detections for some reason???
+				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
+				rbxhwnd = FindWindowByProcessHandle(hProcess);
+			}
 			lastProcessCheck = std::chrono::steady_clock::now();
 		}
 
