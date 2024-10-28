@@ -1498,12 +1498,12 @@ void RunGUI() {
 				}
 
 
-				ImGui::InputText("KeyBufferHuman#", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("##KeyBufferHuman", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank);
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(50.0f);
-				ImGui::InputText("KeyBuffer#", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
+				ImGui::InputText("##KeyBuffer", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank);
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding (Hexadecimal)");
 				ImGui::TextWrapped("Toggle Macro:");
