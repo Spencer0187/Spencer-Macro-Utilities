@@ -98,7 +98,6 @@ unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
-unsigned int sc_slashkey = 0x35;
 
 std::unordered_map<int, std::string> vkToString = {
     {VK_LBUTTON, "VK_LBUTTON"},
@@ -221,11 +220,13 @@ char RobloxSensValue[256] = "0.5";
 char RobloxPixelValueChar[256] = "718";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
+char ChatKeyChar[256] = "/";
 const char *optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
 int RobloxPixelValue = 718;
 int RobloxWallWalkValue = -94;
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
+std::string chatkey = "/";
 auto rebindtime = std::chrono::high_resolution_clock::now();
 
 static int selected_section = -1;
@@ -250,14 +251,17 @@ bool wallwalktoggleside = false;
 bool wallhopcamfix = false;
 bool toggle_jump = true;
 bool toggle_flick = true;
+bool fasthhj = false;
+bool wallesslhjswitch = false;
 bool autotoggle = false;
 bool isspeedswitch = false;
 bool isfreezeswitch = false;
 bool iswallwalkswitch = false;
 bool isspamswitch = false;
 bool isitemclipswitch = false;
+bool antiafktoggle = true;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV275 = false;
+static bool UserAcknowledgedV280 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -753,6 +757,9 @@ void SaveSettings(const std::string& filepath) {
     settings["iswallwalkswitch"] = iswallwalkswitch;
     settings["isspamswitch"] = isspamswitch;
     settings["isitemclipswitch"] = isitemclipswitch;
+    settings["antiafktoggle"] = antiafktoggle;
+    settings["fasthhj"] = fasthhj;
+    settings["wallesslhjswitch"] = wallesslhjswitch;
     settings["autotoggle"] = autotoggle;
     settings["PreviousWallWalkValue"] = PreviousWallWalkValue;
     settings["PreviousWallWalkSide"] = PreviousWallWalkSide;
@@ -762,6 +769,7 @@ void SaveSettings(const std::string& filepath) {
     settings["RobloxWallWalkValueDelay"] = RobloxWallWalkValueDelay;
     settings["RobloxPixelValue"] = RobloxPixelValue;
     settings["RobloxPixelValueChar"] = RobloxPixelValueChar;
+    settings["ChatKeyChar"] = ChatKeyChar;
     settings["WallhopPixels"] = WallhopPixels;
     settings["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
     settings["wallhop_dx"] = wallhop_dx;
@@ -778,7 +786,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV275"] = UserAcknowledgedV275;
+    settings["UserAcknowledgedV280"] = UserAcknowledgedV280;
 
 
     // Write the settings to file
@@ -810,7 +818,10 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV275", &UserAcknowledgedV275},
+				{"UserAcknowledgedV280", &UserAcknowledgedV280},
+				{"antiafktoggle", &antiafktoggle},
+				{"fasthhj", &fasthhj},
+				{"wallesslhjswitch", &wallesslhjswitch},
 
                 // Add any additional boolean variables here
             };
@@ -857,6 +868,8 @@ void LoadSettings(const std::string& filepath) {
             clip_delay = settings.value("clip_delay", clip_delay);
             screen_width = settings.value("screen_width", screen_width) + 16;
             screen_height = settings.value("screen_height", screen_height) + 39;
+            RobloxPixelValue = settings.value("RobloxPixelValue", RobloxPixelValue);
+            PreviousSensValue = settings.value("PreviousSensValue", PreviousSensValue);
 
             // Load strings with strncpy
             strncpy(settingsBuffer, settings["settingsBuffer"].get<std::string>().c_str(), sizeof(settingsBuffer));
@@ -872,9 +885,8 @@ void LoadSettings(const std::string& filepath) {
             strncpy(WallhopPixels, settings["WallhopPixels"].get<std::string>().c_str(), sizeof(WallhopPixels));
             strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
             strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
+			strncpy(ChatKeyChar, settings["ChatKeyChar"].get<std::string>().c_str(), sizeof(ChatKeyChar));
             text = settings.value("text", text);
-            RobloxPixelValue = settings.value("RobloxPixelValue", RobloxPixelValue);
-            PreviousSensValue = settings.value("PreviousSensValue", PreviousSensValue);
             std::vector<bool> toggles = settings.value("section_toggles", std::vector<bool>{});
             std::copy(toggles.begin(), toggles.end(), section_toggles);
         }
@@ -1214,6 +1226,8 @@ void RunGUI() {
 			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 			// Create a checkbox for macrotoggled
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
+			ImGui::SameLine();
+			ImGui::Checkbox("Toggle Anti-AFK", &antiafktoggle);
 			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
 			ImGui::TextWrapped("The ONLY official source for this is https://github.com/Spencer0187/Roblox-Macro-Utilities");
 			ImGui::TextWrapped("Roblox Executable Name:");
@@ -1257,24 +1271,29 @@ void RunGUI() {
 			if (ImGui::Checkbox("#####", &camfixtoggle)) {
 				PreviousSensValue = -1;
 				PreviousWallWalkValue = -1;
-				if (wallhopswitch) { // Wallhop
-					if (camfixtoggle) {
-						wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
-						wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
+				try {
+					if (wallhopswitch) { // Wallhop
+						if (camfixtoggle) {
+							wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
+							wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
+						} else {
+							wallhop_dx = std::round(std::stoi(WallhopPixels) / -1.388888889);
+							wallhop_dy = std::round(std::stoi(WallhopPixels) / 1.388888889);
+						}
 					} else {
-						wallhop_dx = std::round(std::stoi(WallhopPixels) / -1.388888889);
-						wallhop_dy = std::round(std::stoi(WallhopPixels) / 1.388888889);
+						if (camfixtoggle) {
+							wallhop_dx = std::round(std::stoi(WallhopPixels) * 1.388888889);
+							wallhop_dy = std::round(std::stoi(WallhopPixels) * -1.388888889);
+						} else {
+							wallhop_dx = std::round(std::stoi(WallhopPixels) / 1.388888889);
+							wallhop_dy = std::round(std::stoi(WallhopPixels) / -1.388888889);
+						}
 					}
-				} else {
-					if (camfixtoggle) {
-						wallhop_dx = std::round(std::stoi(WallhopPixels) * 1.388888889);
-						wallhop_dy = std::round(std::stoi(WallhopPixels) * -1.388888889);
-					} else {
-						wallhop_dx = std::round(std::stoi(WallhopPixels) / 1.388888889);
-						wallhop_dy = std::round(std::stoi(WallhopPixels) / -1.388888889);
-					}
+					sprintf(WallhopPixels, "%d", wallhop_dx);
+				} catch (const std::invalid_argument &e) {
+				} catch (const std::out_of_range &e) {
 				}
-				sprintf(WallhopPixels, "%d", wallhop_dx);
+
 
 				float CurrentWallWalkValue = atof(RobloxSensValue); // Wallwalk
 
@@ -1307,6 +1326,7 @@ void RunGUI() {
 				PreviousSensValue = CurrentSensValue;
 				sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
 				try { // Error Handling
+					chatkey = ChatKeyChar;
 					speed_strengthx = std::stoi(RobloxPixelValueChar);
 					speed_strengthy = -std::stoi(RobloxPixelValueChar);
 				} catch (const std::invalid_argument &e) {
@@ -1317,7 +1337,7 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.7.5");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.8.0");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1567,6 +1587,7 @@ void RunGUI() {
 					ImGui::Checkbox("Automatically time inputs", &autotoggle);
 					ImGui::SameLine();
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
+					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
 					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS GO TO THE SPEEDGLITCH MENU, AND PROPERLY SET YOUR SPEEDGLITCH PIXEL VALUE!");
@@ -1635,12 +1656,20 @@ void RunGUI() {
 					ImGui::TextWrapped("Gear Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
-					ImGui::InputText("", ItemSpeedSlot, sizeof(ItemSpeedSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##Gearslot", ItemSpeedSlot, sizeof(ItemSpeedSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try { // Error Handling
 						speed_slot = std::stoi(ItemSpeedSlot);
+						chatkey = ChatKeyChar;
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+					ImGui::TextWrapped("Key to Open Chat (Used for Anti-Afk):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(30.0f);
+					ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank);
+
+
+
 					ImGui::SetNextItemWidth(150.0f);
 					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
 						for (int i = 0; i < IM_ARRAYSIZE(optionsforoffset); i++) {
@@ -1694,8 +1723,12 @@ void RunGUI() {
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
 					ImGui::InputText("", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					wallhop_dx = std::round(std::stoi(WallhopPixels));
-					wallhop_dy = -std::round(std::stoi(WallhopPixels));
+					try {
+						wallhop_dx = std::round(std::stoi(WallhopPixels));
+						wallhop_dy = -std::round(std::stoi(WallhopPixels));
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
 
 					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
 					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
@@ -1716,6 +1749,7 @@ void RunGUI() {
 				}
 
 				if (selected_section == 7) { // Walless LHJ
+					ImGui::Checkbox("Switch to Left-Sided LHJ", &wallesslhjswitch); // Left Sided lhj switch
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1893,9 +1927,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.7.5";
+    std::string localVersion = "2.8.0";
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV275) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV280) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -1906,7 +1940,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV275 = true;  // Change the variable
+            UserAcknowledgedV280 = true;  // Change the variable
         }
     }
 
@@ -2050,13 +2084,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_f6) & 0x8000) && macrotoggled && notbinding && section_toggles[7]) { // Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
 			if (!islhj) {
-				HoldKey(0x20);
+				if (wallesslhjswitch) {
+					HoldKey(0x1E);
+				} else {
+					HoldKey(0x20);
+				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(15));
 				HoldKey(0x39);
 				std::this_thread::sleep_for(std::chrono::milliseconds(20));
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				ReleaseKey(0x20);
+				if (wallesslhjswitch) {
+					ReleaseKey(0x1E);
+				} else {
+					ReleaseKey(0x20);
+				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 				HoldKey(scancode_shift);
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
@@ -2081,10 +2123,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) { // Unequip Speed
+		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) { // Gear Unequip Speed
 			if (!isunequipspeed) {
 
-				PasteText("/");
+				PasteText(chatkey);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -2127,7 +2169,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 
 				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
-				std::this_thread::sleep_for(std::chrono::milliseconds(500));
+				if (!fasthhj) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(300));
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 				if (autotoggle) { // Auto-Key-Timer
 					ReleaseKey(0x39);
@@ -2198,7 +2243,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			// W is pressed, update the last press time to now
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
-			if (IsWindow(rbxhwnd)) {
+			if (IsWindow(rbxhwnd) && antiafktoggle) {
 				// Check if 15 minutes have passed
 				auto afktime = std::chrono::steady_clock::now();
 				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(afktime - lastPressTime).count();
@@ -2217,9 +2262,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						Sleep(50);
 						SendInput(1, &input, sizeof(INPUT));
 						Sleep(500);
-						HoldKey(0x35);
-						Sleep(20);
-						ReleaseKey(0x35);
+						PasteText(chatkey);
 						Sleep(20);
 						HoldKey(0x34);
 						Sleep(20);
@@ -2236,9 +2279,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 					if (IsForegroundWindowProcess(rbxhwnd) == 1) {
-						HoldKey(0x35);
-						Sleep(20);
-						ReleaseKey(0x35);
+						PasteText(chatkey);
 						Sleep(20);
 						HoldKey(0x34);
 						Sleep(20);
