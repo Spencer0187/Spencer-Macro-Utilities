@@ -1263,12 +1263,14 @@ void RunGUI() {
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(70.0f);
-			ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+			if (ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+				PreviousSensValue = -1;
+			}
 			ImGui::SameLine();
 			ImGui::Text("Game Uses Cam-Fix:");
 			ImGui::SameLine();
 			
-			if (ImGui::Checkbox("#####", &camfixtoggle)) {
+			if (ImGui::Checkbox("#####", &camfixtoggle) || PreviousSensValue == -1) {
 				PreviousSensValue = -1;
 				PreviousWallWalkValue = -1;
 				try {
