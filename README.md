@@ -16,19 +16,20 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 # Current Features (Fully explained in-program):
 
 1. Anti-AFK at all times (even if Roblox isn't shown)
-2. Helicopter High Jump
-3. Speedglitch
-4. Automatic Ledge Bouncing
-5. Automatic Laugh Clipping
-6. Dropless Item Desync Hitboxes
-7. Freeze Macro
-8. Unequip Speedglitch
-9. Wallhop Macro
-10. Walless Lag High Jump (14 Studs)
-11. Press a Key for One Frame
-12. Wall-Walk
-13. Item-Clip
-14. Spam a Key/Button
+2. Customizable UI buttons (Drag to Swap Locations)
+3. Helicopter High Jump
+4. Speedglitch
+5. Automatic Ledge Bouncing
+6. Automatic Laugh Clipping
+7. Dropless Item Desync Hitboxes
+8. Freeze Macro
+9. Unequip Speedglitch
+10. Wallhop Macro
+11. Walless Lag High Jump (14 Studs)
+12. Press a Key for One Frame
+13. Wall-Walk
+14. Item-Clip
+15. Spam a Key/Button
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
