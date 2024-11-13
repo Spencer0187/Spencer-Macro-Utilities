@@ -93,10 +93,12 @@ unsigned int vk_xbutton2 = VK_XBUTTON2;
 unsigned int vk_spamkey = VK_LBUTTON;
 unsigned int vk_clipkey = VK_F3;
 unsigned int vk_wallkey = VK_F1;
+unsigned int vk_laughkey = VK_F7;
 unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF; // Use this for alphabet keys so it works across layouts
 unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
 
 std::unordered_map<int, std::string> vkToString = {
@@ -182,6 +184,8 @@ std::unordered_map<int, std::string> vkToString = {
     {VK_OEM_102, "VK_OEM_102"}
 };
 
+// DEFAULT SETTINGS
+
 int wallhop_dx = 300;
 int wallhop_dy = -300;
 int speed_strengthx = 959;
@@ -211,18 +215,17 @@ char ItemClipSlot[256] = "7";
 char ItemClipDelay[256] = "30";
 char WallhopPixels[256] = "300";
 char SpamDelay[256] = "20";
-int section_amounts = 11;
-
-static float PreviousSensValue = 0.5f;
+int dragged_section = -1; // -1 means no section is being dragged
+static float PreviousSensValue = -1.0f;
 static float PreviousWallWalkSide = 0;
 static float PreviousWallWalkValue = 0.5f;
 char RobloxSensValue[256] = "0.5";
-char RobloxPixelValueChar[256] = "718";
+char RobloxPixelValueChar[256] = "716";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
 char ChatKeyChar[256] = "/";
 const char *optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
-int RobloxPixelValue = 718;
+int RobloxPixelValue = 716;
 int RobloxWallWalkValue = -94;
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
@@ -236,7 +239,9 @@ int screen_width = GetSystemMetrics(SM_CXSCREEN)/1.5;
 int screen_height = GetSystemMetrics(SM_CYSCREEN)/1.5 + 10;
 
 auto suspendStartTime = std::chrono::steady_clock::time_point();
-bool section_toggles[11] = {true, true, true, true, true, false, true, true, true, false, false};
+int section_amounts = 13;
+bool section_toggles[13] = {true, true, true, true, true, false, true, true, true, false, false, false, false};
+int section_order[13] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 bool unequiptoggle = false;
 bool shiftswitch = false;
 bool processFound = false; // Initialize as no process found
@@ -249,6 +254,7 @@ bool camfixtoggle = false;
 bool wallhopswitch = false;
 bool wallwalktoggleside = false;
 bool wallhopcamfix = false;
+bool chatoverride = true;
 bool toggle_jump = true;
 bool toggle_flick = true;
 bool fasthhj = false;
@@ -260,8 +266,11 @@ bool iswallwalkswitch = false;
 bool isspamswitch = false;
 bool isitemclipswitch = false;
 bool antiafktoggle = true;
+bool bouncesidetoggle = false;
+bool bouncerealignsideways = true;
+bool bounceautohold = true;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV280 = false;
+static bool UserAcknowledgedV290 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -483,7 +492,7 @@ void WallWalkLoop()
 		while (!iswallwalkloop) {
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
 		}
-		if (macrotoggled && notbinding && section_toggles[9]) {
+		if (macrotoggled && notbinding && section_toggles[10]) {
 			if (wallwalktoggleside) {
 				MoveMouse(-wallwalk_strengthx, 0);
 				std::this_thread::sleep_for(std::chrono::microseconds(6060));
@@ -498,6 +507,7 @@ void WallWalkLoop()
 		}
 	}
 }
+
 
 bool IsMainWindow(HWND handle)
 {
@@ -517,7 +527,6 @@ HWND FindWindowByProcessHandle(HANDLE hProcess)
 		}
 		rbxhwnd = FindWindowEx(NULL, rbxhwnd, NULL, NULL);
 	}
-	processFound = false;
 	return NULL;
 }
 
@@ -608,8 +617,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		screen_height = HIWORD(lParam);
 		if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED) {
 			CleanupRenderTarget();
-			g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam),
-						    DXGI_FORMAT_UNKNOWN, 0);
+			g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
 			CreateRenderTarget();
 		}
 		return 0;
@@ -617,7 +625,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_GETMINMAXINFO: {
         MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
 
-        // Set the minimum tracking size
+        // Set the minimum screen size
         mmi->ptMinTrackSize.x = 1147;
         mmi->ptMinTrackSize.y = 780;
         return 0;
@@ -736,6 +744,8 @@ void SaveSettings(const std::string& filepath) {
     settings["vk_xkey"] = vk_xkey;
     settings["vk_clipkey"] = vk_clipkey;
     settings["vk_wallkey"] = vk_wallkey;
+    settings["vk_laughkey"] = vk_laughkey;
+    settings["vk_bouncekey"] = vk_bouncekey;
     settings["selected_dropdown"] = selected_dropdown;
     settings["text"] = text;
 
@@ -758,6 +768,10 @@ void SaveSettings(const std::string& filepath) {
     settings["isspamswitch"] = isspamswitch;
     settings["isitemclipswitch"] = isitemclipswitch;
     settings["antiafktoggle"] = antiafktoggle;
+    settings["chatoverride"] = chatoverride;
+    settings["bounceautohold"] = bounceautohold;
+    settings["bouncerealignsideways"] = bouncerealignsideways;
+    settings["bouncesidetoggle"] = bouncesidetoggle;
     settings["fasthhj"] = fasthhj;
     settings["wallesslhjswitch"] = wallesslhjswitch;
     settings["autotoggle"] = autotoggle;
@@ -772,6 +786,7 @@ void SaveSettings(const std::string& filepath) {
     settings["ChatKeyChar"] = ChatKeyChar;
     settings["WallhopPixels"] = WallhopPixels;
     settings["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
+    settings["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
     settings["wallhop_dx"] = wallhop_dx;
     settings["wallhop_dy"] = wallhop_dy;
     settings["speed_strengthx"] = speed_strengthx;
@@ -786,7 +801,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV280"] = UserAcknowledgedV280;
+    settings["UserAcknowledgedV290"] = UserAcknowledgedV290;
 
 
     // Write the settings to file
@@ -818,10 +833,14 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV280", &UserAcknowledgedV280},
+				{"UserAcknowledgedV290", &UserAcknowledgedV290},
 				{"antiafktoggle", &antiafktoggle},
 				{"fasthhj", &fasthhj},
 				{"wallesslhjswitch", &wallesslhjswitch},
+				{"chatoverride", &chatoverride},
+				{"bounceautohold", &bounceautohold},
+				{"bouncerealignsideways", &bouncerealignsideways},
+				{"bouncesidetoggle", &bouncesidetoggle},
 
                 // Add any additional boolean variables here
             };
@@ -847,6 +866,8 @@ void LoadSettings(const std::string& filepath) {
             vk_dkey = settings.value("vk_dkey", vk_dkey);
             vk_xkey = settings.value("vk_xkey", vk_xkey);
             vk_clipkey = settings.value("vk_clipkey", vk_clipkey);
+			vk_laughkey = settings.value("vk_laughkey", vk_laughkey);
+			vk_bouncekey = settings.value("vk_bouncekey", vk_bouncekey);
             spam_delay = settings.value("spam_delay", spam_delay);
             real_delay = settings.value("real_delay", real_delay);
             wallhop_dx = settings.value("wallhop_dx", wallhop_dx);
@@ -889,6 +910,13 @@ void LoadSettings(const std::string& filepath) {
             text = settings.value("text", text);
             std::vector<bool> toggles = settings.value("section_toggles", std::vector<bool>{});
             std::copy(toggles.begin(), toggles.end(), section_toggles);
+
+			std::vector<int> section_order_vector = settings["section_order_vector"];
+
+			for (int i = 0; i < section_amounts && i < section_order_vector.size(); ++i) {
+				section_order[i] = section_order_vector[i];
+			}
+
         }
     } catch (const json::type_error &e) {
         // Handle the error (optional logging)
@@ -964,15 +992,27 @@ void ChangeNinthSection() {
     sections[8].description = "Clip through 2-3 Stud Walls Using Gears";
 }
 
-void ChangeTenthSection() {
-    sections[9].title = "Wall-Walk";
-    sections[9].description = "Walk Across Wall Seams Without Jumping";
+void ChangeTenthSection()
+{
+    sections[9].title = "Laugh Clip";
+    sections[9].description = "Automatically Perform a Laugh Clip";
 }
 
 void ChangeEleventhSection() {
-    sections[10].title = "Spam a Key";
-    sections[10].description = "Whenever You Press Your Keybind, it Spams the Other Button";
+    sections[10].title = "Wall-Walk";
+    sections[10].description = "Walk Across Wall Seams Without Jumping";
 }
+
+void ChangeTwelfthSection() {
+    sections[11].title = "Spam a Key";
+    sections[11].description = "Whenever You Press Your Keybind, it Spams the Other Button";
+}
+
+void ChangeThirteenthSection() {
+    sections[12].title = "Ledge Bounce";
+    sections[12].description = "Briefly Falls off a Ledge to Then Bounce Off it While Falling";
+}
+
 
 
 
@@ -1154,6 +1194,7 @@ void RunGUI() {
 
     auto lastTime = std::chrono::high_resolution_clock::now();
     float targetFrameTime = 1.0f / 120.0f;  // 120 FPS target
+
 	InitializeSections();
     ChangeFirstSection();
     ChangeSecondSection();
@@ -1166,7 +1207,8 @@ void RunGUI() {
     ChangeNinthSection();
     ChangeTenthSection();
     ChangeEleventhSection();
-
+    ChangeTwelfthSection();
+    ChangeThirteenthSection();
 
 	MSG msg;
 
@@ -1218,7 +1260,7 @@ void RunGUI() {
 
             // Top settings child window (occupying 20% of the screen height)
             float settings_panel_height = display_size.y * 0.2f;
-            ImGui::BeginChild("GlobalSettings", ImVec2(display_size.x - 15, settings_panel_height), true);
+            ImGui::BeginChild("GlobalSettings", ImVec2(display_size.x - 16, settings_panel_height), true);
 
             // Example global settings (replace with your actual settings)
             ImGui::TextWrapped("Global Settings");
@@ -1226,8 +1268,6 @@ void RunGUI() {
 			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 			// Create a checkbox for macrotoggled
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
-			ImGui::SameLine();
-			ImGui::Checkbox("Toggle Anti-AFK", &antiafktoggle);
 			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
 			ImGui::TextWrapped("The ONLY official source for this is https://github.com/Spencer0187/Roblox-Macro-Utilities");
 			ImGui::TextWrapped("Roblox Executable Name:");
@@ -1246,8 +1286,16 @@ void RunGUI() {
 			drawList->AddCircleFilled(ImVec2(pos.x + 5, pos.y + 5), 5, color);
 			ImGui::Dummy(ImVec2(5 * 2, 5 * 2));
 
+			if (!processFound) {
+				ImGui::SameLine();
+				ImGui::TextWrapped("Roblox Not Found");
+			}
+
+
 
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
+			ImGui::SameLine();
+			ImGui::Checkbox("Toggle Anti-AFK", &antiafktoggle);
 			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
 			ImGui::TextWrapped("MANUALLY SAVE SETTINGS:");
 			ImGui::SameLine(ImGui::GetWindowWidth() - 125);
@@ -1312,14 +1360,14 @@ void RunGUI() {
 				float CurrentSensValue = atof(RobloxSensValue); // Speedglitch
 				if (camfixtoggle) {
 					try {
-						RobloxPixelValue = static_cast<int>(std::round((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)));
+						RobloxPixelValue = static_cast<int>(std::round((500.0f / CurrentSensValue) * ((static_cast<float>(359) / 360))*(static_cast<float>(359) / 360)));
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
 							
 				} else {
 					try {
-						RobloxPixelValue = static_cast<int>(std::round((360.0f / CurrentSensValue) * (static_cast<float>(359) / 360)));
+						RobloxPixelValue = static_cast<int>(std::round((360.0f / CurrentSensValue) * ((static_cast<float>(359) / 360))*(static_cast<float>(359) / 360)));
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
@@ -1339,73 +1387,93 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.8.0");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.0");
 
             ImGui::EndChild(); // End Global Settings child window
 
-            // Left panel takes 30% of the window width
-            float left_panel_width = display_size.x * 0.3f;
+			// Calculate left panel width and height
+			float left_panel_width = ImGui::GetWindowSize().x * 0.3f - 23;
 
-            // Create a left child window (scrollable section) with dynamic sizing
-            ImGui::BeginChild("LeftScrollSection", ImVec2(left_panel_width - 23, display_size.y - settings_panel_height - 20), true);
+			ImGui::BeginChild("LeftScrollSection", ImVec2(left_panel_width, ImGui::GetWindowSize().y - settings_panel_height - 20), true);
 
+			for (size_t display_index = 0; display_index < section_amounts; ++display_index) {
 
-            // Scrollable mini-sections (always expanded)
-			for (size_t i = 0; i < sections.size(); ++i) {
-				// Calculate available button width based on the left panel size (use full width with a small margin)
-				float left_panel_width = ImGui::GetWindowSize().x - 15;
-				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;  // Deduct padding
+				int i = section_order[display_index]; // Get section index from order array
 
-				// Split the title and description for rendering
-				std::string titleText = sections[i].title;
-				std::string descriptionText = sections[i].description;
-
-				// Manually wrap the description text and calculate height
-				ImVec2 textPos = ImVec2(0, 0);  // Position of text relative to the button
-				ImVec2 titleSize = ImGui::CalcTextSize(titleText.c_str(), nullptr, true);  // Title size
-				ImVec2 descriptionSize = ImGui::CalcTextSize(descriptionText.c_str(), nullptr, true, buttonWidth);  // Wrapped description size
-				float buttonHeight = titleSize.y + descriptionSize.y + ImGui::GetStyle().FramePadding.y * 2;  // Add padding to determine button height
-
-				// Use PushID to create a unique ID for each button
 				ImGui::PushID(i);
 
-				// Set button colors based on toggle state
+				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;
+
+				// Set up button colors based on toggle state
 				if (section_toggles[i]) {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(39.0f / 255.0f, 73.0f / 255.0f, 114.0f / 255.0f, 1.0f)); // Light blue
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(66.0f / 255.0f, 150.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Lighter blue
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(15.0f / 255.0f, 135.0f / 255.0f, 250.0f / 255.0f, 1.0f)); // Darker blue
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.29f, 0.45f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.06f, 0.53f, 0.98f, 1.0f));
 				} else {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(114.0f / 255.0f, 73.0f / 255.0f, 39.0f / 255.0f, 1.0f)); // Light red
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(250.0f / 255.0f, 150.0f / 255.0f, 66.0f / 255.0f, 1.0f)); // Lighter red
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(250.0f / 255.0f, 135.0f / 255.0f, 15.0f / 255.0f, 1.0f)); // Darker red
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.45f, 0.29f, 0.15f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.98f, 0.59f, 0.26f, 1.0f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.98f, 0.53f, 0.06f, 1.0f));
 				}
 
-				// Create the button
-				if (ImGui::Button("", ImVec2(buttonWidth, buttonHeight))) {
-					selected_section = i;  // Update selected section
+				// Calculate button height based on text
+				ImVec2 titleSize = ImGui::CalcTextSize(sections[i].title.c_str(), nullptr, true);
+				ImVec2 descriptionSize = ImGui::CalcTextSize(sections[i].description.c_str(), nullptr, true, buttonWidth - 20);
+				float buttonHeight = titleSize.y + descriptionSize.y + ImGui::GetStyle().FramePadding.y * 2;
+
+
+				// Create the button with a custom layout
+				if (ImGui::GetScrollMaxY() == 0) {
+					if (ImGui::Button("", ImVec2(buttonWidth - 7, buttonHeight))) {
+						selected_section = i;
+					}
+				} else {
+					if (ImGui::Button("", ImVec2(buttonWidth - 18, buttonHeight))) {
+						selected_section = i;
+					}
 				}
 
-				// Get button's position for custom drawing
+
+				// Drag and Drop Source
+				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
+					ImGui::SetDragDropPayload("DND_SECTION", &display_index, sizeof(int)); // Dragging by visual index
+					ImGui::EndDragDropSource();
+				}
+
+				if (ImGui::BeginDragDropTarget()) {
+					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SECTION")) {
+						int payload_index = *(const int *)payload->Data;
+						std::swap(section_order[payload_index], section_order[display_index]);
+						}
+					}
+					ImGui::EndDragDropTarget();
+
+
+
+				// Draw the button content: title and wrapped description text
 				ImVec2 buttonPos = ImGui::GetItemRectMin();
-				textPos = ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y);
-
+				ImVec2 textPos = ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y);
 				ImDrawList* drawList = ImGui::GetWindowDrawList();
+				drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), sections[i].title.c_str());
 
-				// Draw the title at the top of the button
-				drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), titleText.c_str());
-				textPos.y += titleSize.y;  // Move position down after the title
-
-				// Manually wrap and draw the description below the title
-				std::stringstream ss(descriptionText);
-				std::string word;
-				std::string currentLine;
-
-				// Perform text-wrapping for the description within button width
+				// Wrap and draw description
+				std::stringstream ss(sections[i].description);
+				std::string word, currentLine;
+				textPos.y += titleSize.y;
 				while (ss >> word) {
 					std::string potentialLine = currentLine + (currentLine.empty() ? "" : " ") + word;
 					ImVec2 potentialLineSize = ImGui::CalcTextSize(potentialLine.c_str());
 
-					if (potentialLineSize.x > buttonWidth) {
+				if (ImGui::GetScrollMaxY() == 0) { // No scrollbar
+					if (potentialLineSize.x > buttonWidth - 7) {
+						// Draw the current line and move to the next
+						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
+						textPos.y += potentialLineSize.y;
+						currentLine = word;
+					} else {
+						currentLine = potentialLine;
+					}
+				} else {
+					if (potentialLineSize.x > buttonWidth - 18) { // Scrollbar
 						// Draw the current line and move to the next
 						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
 						textPos.y += potentialLineSize.y;
@@ -1414,29 +1482,25 @@ void RunGUI() {
 						currentLine = potentialLine;
 					}
 				}
+				}
 
-				// Draw the last line
 				if (!currentLine.empty()) {
 					drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
 				}
 
-				// Reset styles and pop ID
-				ImGui::PopStyleColor(3);
-				ImGui::PopID();
+				ImGui::PopStyleColor(3); // Reset styles
+				ImGui::PopID();           // Reset ID
 
-				// Optional separator between buttons
-				ImGui::Separator();
+				ImGui::Separator();        // Optional separator between buttons
 			}
 
-
-            // End left scroll section
-            ImGui::EndChild();
+			ImGui::EndChild();
 
             // Right section (content changes based on the selected section)
             ImGui::SameLine(); // Move to the right of the left section
 
             // Right child window with dynamic sizing
-            ImGui::BeginChild("RightSection", ImVec2(display_size.x - left_panel_width, display_size.y - settings_panel_height - 20), true);
+            ImGui::BeginChild("RightSection", ImVec2(display_size.x - 24 - left_panel_width, display_size.y - settings_panel_height - 20), true);
 
             // Display different content based on the selected mini-section
             if (selected_section >= 0 && selected_section < sections.size()) {
@@ -1508,15 +1572,27 @@ void RunGUI() {
 				}
 
 				if (selected_section == 9) {
+					vk_laughkey = BindKeyMode(vk_laughkey);
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_laughkey);
+				}
+
+				if (selected_section == 10) {
 					vk_wallkey = BindKeyMode(vk_wallkey);
 					ImGui::SetNextItemWidth(150.0f);
 					GetKeyNameFromHex(vk_wallkey);
 				}
 
-				if (selected_section == 10) {
+				if (selected_section == 11) {
 					vk_leftbracket = BindKeyMode(vk_leftbracket);
 					ImGui::SetNextItemWidth(150.0f);
 					GetKeyNameFromHex(vk_leftbracket);
+				}
+
+				if (selected_section == 12) {
+					vk_bouncekey = BindKeyMode(vk_bouncekey);
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_bouncekey);
 				}
 
 
@@ -1665,11 +1741,14 @@ void RunGUI() {
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
-					ImGui::TextWrapped("Key to Open Chat (Used for Anti-Afk):");
+					ImGui::TextWrapped("Key to Open Chat (Used for Anti-Afk and Laugh):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank);
-
+					
+					ImGui::TextWrapped("Override Chat Key to Directly type \"/\" (Less Buggy, also affects Anti-AFK and Laugh):");
+					ImGui::SameLine();
+					ImGui::Checkbox("##ChatOverride", &chatoverride);
 
 
 					ImGui::SetNextItemWidth(150.0f);
@@ -1795,7 +1874,17 @@ void RunGUI() {
 					ImGui::TextWrapped("Also, for convenience sake, you cannot activate item clip unless you're tabbed into roblox.");
 				}
 
-				if (selected_section == 9) { // Wall-Walk
+				if (selected_section == 9) { // Laugh Clip
+
+					ImGui::Separator();
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped("Go against a wall unshiftlocked and angle your camera DIRECTLY OPPOSITE TO THE WALL. "
+										"The Macro will Automatically type out /e laugh using the settings inside of the \"Unequip Com\" section. "
+										"It will automatically time your shiftlock and jump to laugh clip through up to ~1.3 studs.");
+				}
+
+				if (selected_section == 10) { // Wall-Walk
 
 					float CurrentWallWalkValue = atof(RobloxSensValue);
 					float CurrentWallwalkSide = camfixtoggle;
@@ -1852,7 +1941,7 @@ void RunGUI() {
 										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across");
 			}
 
-				if (selected_section == 10) { // Spamkey
+				if (selected_section == 11) { // Spamkey
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
 					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
@@ -1886,6 +1975,23 @@ void RunGUI() {
 					ImGui::NewLine();
 					ImGui::TextWrapped("This macro will spam the second key with a millisecond delay. "
 										"This can be used as an autoclicker for any games you want, or a key-spam.");
+				}
+
+				if (selected_section == 12) { // Ledge Bounce
+					ImGui::Checkbox("Switch Ledge Bounce to Left-Sided", &bouncesidetoggle);
+					ImGui::Checkbox("Stay Horizontal After Bounce", &bouncerealignsideways);
+					ImGui::Checkbox("Automatically Hold Movement Keys", &bounceautohold);
+					ImGui::Separator();
+					ImGui::TextWrapped("IMPORTANT:");
+					ImGui::TextWrapped("PLEASE SET YOUR ROBLOX SENS AND CAM-FIX CORRECTLY SO IT CAN ACTUALLY DO THE PROPER TURNS!");
+					ImGui::TextWrapped("Also, if you set it to automatically hold movement keys, PLEASE HOLD THE KEY YOURSELF AS WELL, else it will keep moving forever.");
+					ImGui::Separator();
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped(
+									"Walk up to a ledge with your camera sideways, about half of your left foot should be on the platform. "
+									"The Macro will Automatically flick your camera 90 degrees, let you fall, and then flick back. "
+									"This will boost you up slightly into the air, and you can even jump after it.");
 				}
 
 
@@ -1929,9 +2035,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.8.0";
+    std::string localVersion = "2.9.0";
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV280) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV290) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -1942,7 +2048,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV280 = true;  // Change the variable
+            UserAcknowledgedV290 = true;  // Change the variable
         }
     }
 
@@ -1962,6 +2068,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName()); // Get hProcess
+
 	HWND rbxhwnd = FindWindowByProcessHandle(hProcess); // Make sure HWND is set correctly
 
 	bool isdesync = false; // These variables are used for "one-click" functionalies for macros, so you can press a key and it runs every time that key is pressed (without overlapping itself)
@@ -1975,6 +2082,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool isspam = false;
 	bool isclip = false;
 	bool iswallwalk = false;
+	bool islaugh = false;
+	bool isbounce = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
 	static const float targetFrameTime = 1.0f / 120.0f; // Targeting 120 FPS
@@ -2127,9 +2236,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) { // Gear Unequip Speed
 			if (!isunequipspeed) {
+				if (chatoverride) {
+					HoldKey(0x35);
+				} else {
+					PasteText(chatkey);
+				}
 
-				PasteText(chatkey);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				if (chatoverride) {
+					ReleaseKey(0x35);
+				}
+
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				HoldKey(0x1C);
@@ -2196,7 +2313,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			HHJ = false;
 		}
 
-		if ((GetAsyncKeyState(vk_leftbracket) & 0x8000) && macrotoggled && notbinding && section_toggles[10]) { // Spamkey
+		if ((GetAsyncKeyState(vk_leftbracket) & 0x8000) && macrotoggled && notbinding && section_toggles[11]) { // Spamkey
 			if (!isspam) {
 				isspamloop = !isspamloop;
 				isspam = true;
@@ -2206,6 +2323,87 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if (isspamswitch) {
 				isspamloop = false;
 			}
+		}
+
+		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[9]) { // Laughkey
+			if (!islaugh) {
+				if (chatoverride) {
+					HoldKey(0x35);
+				} else {
+					PasteText(chatkey);
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+				HoldKey(0x39); // Type space to cancel / prompts
+
+				if (chatoverride) {
+					ReleaseKey(0x35);
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
+				PasteText("/e laugh");
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+				ReleaseKey(0x39);
+
+				HoldKey(0x1C);
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(283));
+				HoldKey(0x39);
+				HoldKey(scancode_shift);
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
+				ReleaseKey(0x39);
+				ReleaseKey(scancode_shift);
+				ReleaseKey(0x1C);
+				islaugh = true;
+			}
+		} else {
+			islaugh = false;
+		}
+
+		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[12]) { // Ledge Bounce
+			if (!isbounce) {
+				int turn90 = (180 / atof(RobloxSensValue));
+				int skey = 0x1F;
+				int dkey = 0x20;
+				int wkey = 0x11;
+				if (bouncesidetoggle) {
+					turn90 = -turn90;
+					dkey = 0x1E;
+				}
+
+				MoveMouse(-turn90, 0);  // Left
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				HoldKey(skey); // Hold S
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				ReleaseKey(skey);     // Release S
+				HoldKey(dkey);        // Hold D
+				MoveMouse(turn90, 0); // Right
+				std::this_thread::sleep_for(std::chrono::microseconds(3030));
+				ReleaseKey(dkey); // Release D
+
+				if (!bouncerealignsideways && !bounceautohold) {
+				} else {
+					HoldKey(0x11); // Hold W
+				}
+
+				if (bouncerealignsideways) {
+					MoveMouse(turn90, 0); // Right
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+					ReleaseKey(wkey);      // Release W
+					MoveMouse(-turn90, 0); // Left
+					if (bounceautohold) {
+						HoldKey(dkey); // Hold D
+					}
+				} else {
+					MoveMouse(turn90, 0); // Right
+				}
+
+				isbounce = true;
+			}
+		} else {
+			isbounce = false;
 		}
 
 		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[8]) { // Item Clip
@@ -2220,7 +2418,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[9]) { // WallWalk
+		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[10]) { // WallWalk
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -2231,6 +2429,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				iswallwalkloop = false;
 			}
 		}
+
+
 
 		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
@@ -2254,8 +2454,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT input = {0};
 					input.type = INPUT_MOUSE;
 					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					if (IsForegroundWindowProcess(rbxhwnd) ==
-						0) { // Extremely long process to simulate going to roblox and typing .
+					if (IsForegroundWindowProcess(rbxhwnd) == 0) { // Extremely long process to simulate going to roblox and typing .
 						SetWindowPos(rbxhwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(rbxhwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2294,6 +2493,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 				}
+			} else {
+				lastPressTime = std::chrono::steady_clock::now();
 			}
 		}
 	}
@@ -2304,7 +2505,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		isspeed = false;
 	}
 	std::this_thread::sleep_for(std::chrono::microseconds(50)); // Delay between checking for keys (dont touch pls)
-	}
+}
+
 	// Cleanup
 	SaveSettings("RMCSettings.json");
 	guiThread.join();
