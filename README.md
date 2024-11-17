@@ -6,7 +6,8 @@ To Compile, run the project in Visual Studio 2022 and build it.
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
-If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
+If it doesn't launch at all, go into properties and select "Unblock" on the file.
+If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
