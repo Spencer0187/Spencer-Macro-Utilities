@@ -224,6 +224,7 @@ char RobloxPixelValueChar[256] = "716";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
 char ChatKeyChar[256] = "/";
+char CustomTextChar[256] = "";
 const char *optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
 int RobloxPixelValue = 716;
 int RobloxWallWalkValue = -94;
@@ -269,8 +270,11 @@ bool antiafktoggle = true;
 bool bouncesidetoggle = false;
 bool bouncerealignsideways = true;
 bool bounceautohold = true;
+bool wallhopupdate = false;
+bool UserOutdated = false;
+bool laughmoveswitch = false;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV290 = false;
+static bool UserAcknowledgedV295 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -773,6 +777,7 @@ void SaveSettings(const std::string& filepath) {
     settings["bouncerealignsideways"] = bouncerealignsideways;
     settings["bouncesidetoggle"] = bouncesidetoggle;
     settings["fasthhj"] = fasthhj;
+    settings["laughmoveswitch"] = laughmoveswitch;
     settings["wallesslhjswitch"] = wallesslhjswitch;
     settings["autotoggle"] = autotoggle;
     settings["PreviousWallWalkValue"] = PreviousWallWalkValue;
@@ -784,6 +789,7 @@ void SaveSettings(const std::string& filepath) {
     settings["RobloxPixelValue"] = RobloxPixelValue;
     settings["RobloxPixelValueChar"] = RobloxPixelValueChar;
     settings["ChatKeyChar"] = ChatKeyChar;
+    settings["CustomTextChar"] = CustomTextChar;
     settings["WallhopPixels"] = WallhopPixels;
     settings["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
     settings["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
@@ -801,7 +807,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV290"] = UserAcknowledgedV290;
+    settings["UserAcknowledgedV295"] = UserAcknowledgedV295;
 
 
     // Write the settings to file
@@ -833,7 +839,7 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV290", &UserAcknowledgedV290},
+				{"UserAcknowledgedV295", &UserAcknowledgedV295},
 				{"antiafktoggle", &antiafktoggle},
 				{"fasthhj", &fasthhj},
 				{"wallesslhjswitch", &wallesslhjswitch},
@@ -841,6 +847,8 @@ void LoadSettings(const std::string& filepath) {
 				{"bounceautohold", &bounceautohold},
 				{"bouncerealignsideways", &bouncerealignsideways},
 				{"bouncesidetoggle", &bouncesidetoggle},
+				{"laughmoveswitch", &laughmoveswitch}
+
 
                 // Add any additional boolean variables here
             };
@@ -907,6 +915,7 @@ void LoadSettings(const std::string& filepath) {
             strncpy(SpamDelay, settings["SpamDelay"].get<std::string>().c_str(), sizeof(SpamDelay));
             strncpy(RobloxPixelValueChar, settings["RobloxPixelValueChar"].get<std::string>().c_str(), sizeof(RobloxPixelValueChar));
 			strncpy(ChatKeyChar, settings["ChatKeyChar"].get<std::string>().c_str(), sizeof(ChatKeyChar));
+			strncpy(CustomTextChar, settings["CustomTextChar"].get<std::string>().c_str(), sizeof(CustomTextChar));
             text = settings.value("text", text);
             std::vector<bool> toggles = settings.value("section_toggles", std::vector<bool>{});
             std::copy(toggles.begin(), toggles.end(), section_toggles);
@@ -978,7 +987,7 @@ void ChangeSixthSection() {
 }
 
 void ChangeSeventhSection() {
-    sections[6].title = "Wallhop";
+    sections[6].title = "Wallhop/Rotation";
     sections[6].description = "Automatically Flick and Jump to easily Wallhop On All FPS";
 }
 
@@ -1264,11 +1273,17 @@ void RunGUI() {
 
             // Example global settings (replace with your actual settings)
             ImGui::TextWrapped("Global Settings");
+			if (UserOutdated) {
+				ImGui::SameLine(135);
+				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+				ImGui::TextWrapped("(OUTDATED VERSION)");
+				ImGui::PopStyleColor();
+			}
 			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
 			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 			// Create a checkbox for macrotoggled
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
-			ImGui::SameLine(ImGui::GetWindowWidth() - 800);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 790);
 			ImGui::TextWrapped("The ONLY official source for this is https://github.com/Spencer0187/Roblox-Macro-Utilities");
 			ImGui::TextWrapped("Roblox Executable Name:");
 			ImGui::SameLine();
@@ -1291,14 +1306,18 @@ void RunGUI() {
 				ImGui::TextWrapped("Roblox Not Found");
 			}
 
+			ImGui::SameLine(ImGui::GetWindowWidth() - 450);
 
+			ImGui::TextWrapped("Force-Set Chat Open Key to \"/\" (Most Stable):");
+			ImGui::SameLine();
+			ImGui::Checkbox("##ChatOverride", &chatoverride);
 
 			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
 			ImGui::SameLine();
 			ImGui::Checkbox("Toggle Anti-AFK", &antiafktoggle);
-			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 370);
 			ImGui::TextWrapped("MANUALLY SAVE SETTINGS:");
-			ImGui::SameLine(ImGui::GetWindowWidth() - 125);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 135);
 			if (ImGui::Button("Save Settings")) {
 				SaveSettings("RMCSettings.json");
 			}
@@ -1319,31 +1338,37 @@ void RunGUI() {
 			ImGui::SameLine();
 			
 			if (ImGui::Checkbox("#####", &camfixtoggle) || PreviousSensValue == -1) {
+				wallhopupdate = false;
+				if (PreviousSensValue != -1) { // Localize wallhop updates only to cam-fix
+					wallhopupdate = true;
+				}
 				PreviousSensValue = -1;
+
 				PreviousWallWalkValue = -1;
 				try {
-					if (wallhopswitch) { // Wallhop
-						if (camfixtoggle) {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
-							wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
+					if (wallhopupdate) {
+						if (wallhopswitch) { // Wallhop
+							if (camfixtoggle) {
+								wallhop_dx = std::round(std::stoi(WallhopPixels) * -1.388888889);
+								wallhop_dy = std::round(std::stoi(WallhopPixels) * 1.388888889);
+							} else {
+								wallhop_dx = std::round(std::stoi(WallhopPixels) / -1.388888889);
+								wallhop_dy = std::round(std::stoi(WallhopPixels) / 1.388888889);
+							}
 						} else {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) / -1.388888889);
-							wallhop_dy = std::round(std::stoi(WallhopPixels) / 1.388888889);
-						}
-					} else {
-						if (camfixtoggle) {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) * 1.388888889);
-							wallhop_dy = std::round(std::stoi(WallhopPixels) * -1.388888889);
-						} else {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) / 1.388888889);
-							wallhop_dy = std::round(std::stoi(WallhopPixels) / -1.388888889);
+							if (camfixtoggle) {
+								wallhop_dx = std::round(std::stoi(WallhopPixels) * 1.388888889);
+								wallhop_dy = std::round(std::stoi(WallhopPixels) * -1.388888889);
+							} else {
+								wallhop_dx = std::round(std::stoi(WallhopPixels) / 1.388888889);
+								wallhop_dy = std::round(std::stoi(WallhopPixels) / -1.388888889);
+							}
+						sprintf(WallhopPixels, "%d", wallhop_dx);
 						}
 					}
-					sprintf(WallhopPixels, "%d", wallhop_dx);
 				} catch (const std::invalid_argument &e) {
 				} catch (const std::out_of_range &e) {
 				}
-
 
 				float CurrentWallWalkValue = atof(RobloxSensValue); // Wallwalk
 
@@ -1387,7 +1412,7 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.0");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.5");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1500,7 +1525,7 @@ void RunGUI() {
             ImGui::SameLine(); // Move to the right of the left section
 
             // Right child window with dynamic sizing
-            ImGui::BeginChild("RightSection", ImVec2(display_size.x - 24 - left_panel_width, display_size.y - settings_panel_height - 20), true);
+            ImGui::BeginChild("RightSection", ImVec2(display_size.x - 23 - left_panel_width, display_size.y - settings_panel_height - 20), true);
 
             // Display different content based on the selected mini-section
             if (selected_section >= 0 && selected_section < sections.size()) {
@@ -1741,15 +1766,17 @@ void RunGUI() {
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
-					ImGui::TextWrapped("Key to Open Chat (Used for Anti-Afk and Laugh):");
+
+					ImGui::TextWrapped("Type in a custom chat message! (Disables gear equipping, just pastes your message in chat)");
+					ImGui::TextWrapped("(Leave this blank if you don't want a custom message)");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(700.0f);
+					ImGui::InputText("##CustomText", CustomTextChar, sizeof(CustomTextChar));
+
+					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank);
-					
-					ImGui::TextWrapped("Override Chat Key to Directly type \"/\" (Less Buggy, also affects Anti-AFK and Laugh):");
-					ImGui::SameLine();
-					ImGui::Checkbox("##ChatOverride", &chatoverride);
-
 
 					ImGui::SetNextItemWidth(150.0f);
 					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
@@ -1765,7 +1792,7 @@ void RunGUI() {
 						}
 						ImGui::EndCombo();
 					}
-					ImGui::Checkbox("Don't Unequip Item at the End", &unequiptoggle);
+					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1776,7 +1803,7 @@ void RunGUI() {
 										"AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
 				}
 
-				if (selected_section == 5) { // Button Press
+				if (selected_section == 5) { // Presskey
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
 					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
@@ -1875,7 +1902,7 @@ void RunGUI() {
 				}
 
 				if (selected_section == 9) { // Laugh Clip
-
+					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -2035,9 +2062,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.0";
+    std::string localVersion = "2.9.5";
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV290) {
+	if (remoteVersion != localVersion) {
+		UserOutdated = true;
+    }
+
+    if (remoteVersion != localVersion && !UserAcknowledgedV295) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -2048,7 +2079,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV290 = true;  // Change the variable
+            UserAcknowledgedV295 = true;  // Change the variable
         }
     }
 
@@ -2057,7 +2088,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	NtResumeProcess pfnResume = reinterpret_cast<NtResumeProcess>(GetProcAddress(hNtdll, "NtResumeProcess"));
 	
 
-	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, ONLY do this for SPAMMERS that need to run ALONGSIDE other functions
+	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, lets functions run alongside
 	std::thread actionThread2(ItemDesyncLoop);
 	std::thread actionThread3(SpeedglitchloopHHJ);
 	std::thread actionThread4(SpamKeyLoop);
@@ -2147,8 +2178,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			isdesyncloop = false;
 		}
 
-		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5]) { // Press button for one frame
+		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5]) { // Presskey
 			if (!ispressd) {
+				if (vk_zkey == vk_dkey) {
+					ReleaseKeyMouse(vk_zkey);
+				}
+
 				HoldKeyMouse(vk_dkey);
 				std::this_thread::sleep_for(std::chrono::milliseconds(6));
 				ReleaseKeyMouse(vk_dkey);
@@ -2247,6 +2282,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					ReleaseKey(0x35);
 				}
 
+				if (strlen(CustomTextChar) >= 1) {
+					PasteText(CustomTextChar);
+					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+					HoldKey(0x1C);
+
+					std::this_thread::sleep_for(std::chrono::milliseconds(35));
+					ReleaseKey(0x1C);
+					isunequipspeed = true;
+					continue;
+				}
+
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				HoldKey(0x1C);
@@ -2333,29 +2379,37 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					PasteText(chatkey);
 				}
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(25));
-
-				HoldKey(0x39); // Type space to cancel / prompts
-
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				if (chatoverride) {
 					ReleaseKey(0x35);
 				}
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				PasteText("/e laugh");
-				std::this_thread::sleep_for(std::chrono::milliseconds(25));
-
-				ReleaseKey(0x39);
-
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				HoldKey(0x1C);
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(283));
-				HoldKey(0x39);
+				std::this_thread::sleep_for(std::chrono::milliseconds(35));
+				ReleaseKey(0x1C);
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(248));
+
+				HoldKey(0x39); // Jump
 				HoldKey(scancode_shift);
+
+				if (!laughmoveswitch) {
+					HoldKey(0x1F); // S
+				}
+
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				ReleaseKey(0x39);
 				ReleaseKey(scancode_shift);
 				ReleaseKey(0x1C);
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
+
+				if (!laughmoveswitch) {
+					ReleaseKey(0x1F); // S
+				}
+
 				islaugh = true;
 			}
 		} else {
@@ -2431,7 +2485,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 
-
 		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
 			if (true) { // Holy crap, adding in this useless statement fixes false positive detections for some reason???
@@ -2463,7 +2516,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						Sleep(50);
 						SendInput(1, &input, sizeof(INPUT));
 						Sleep(500);
-						PasteText(chatkey);
+						if (chatoverride) {
+							HoldKey(0x35);
+						} else {
+							PasteText(chatkey);
+						}
+						if (chatoverride) {
+							Sleep(20);
+							ReleaseKey(0x35);
+						}
 						Sleep(20);
 						HoldKey(0x34);
 						Sleep(20);
@@ -2480,7 +2541,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 					if (IsForegroundWindowProcess(rbxhwnd) == 1) {
-						PasteText(chatkey);
+						if (chatoverride) {
+							HoldKey(0x35);
+						} else {
+							PasteText(chatkey);
+						}
+						if (chatoverride) {
+							Sleep(20);
+							ReleaseKey(0x35);
+						}
 						Sleep(20);
 						HoldKey(0x34);
 						Sleep(20);
