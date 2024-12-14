@@ -17,7 +17,7 @@ If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Re
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
-## [DOWNLOAD LATEST](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
+## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
 
 ## Join the Roblox Glitching Discord!
 https://discord.gg/roblox-glitching-community-998572881892094012
