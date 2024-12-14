@@ -7,7 +7,9 @@ To Compile, run the project in Visual Studio 2022 and build it.
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 If it doesn't launch at all, go into properties and select "Unblock" on the file.
+
 If you get "0x0" when binding, restart your PC
+
 Do not run it from the Windows Search Bar, run it from file explorer, this will be fixed later
 
 If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
