@@ -8,6 +8,7 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 If it doesn't launch at all, go into properties and select "Unblock" on the file.
 
+### Known Issues
 If you get "0x0" when binding, restart your PC.
 
 Do not run it from the Windows Search Bar, run it from File Explorer, this will be fixed later.
