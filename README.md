@@ -53,5 +53,5 @@ https://github.com/user-attachments/assets/b458481b-c410-4744-92f1-d30122db0e37
 
 ## Credits
 
-- Freezing code framework based on [craftwar/suspend](https://github.com/craftwar/suspend).
+- Freezing code framework based on [craftwar/suspend](https://github.com/craftwar/suspend)
 - ImGui GUI library used, obviously... [ocornut/imgui](https://github.com/ocornut/imgui)
