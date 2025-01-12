@@ -94,7 +94,4 @@
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
-  <ItemGroup>
-    <Font Include="x64\Release\LSANS.ttf" />
-  </ItemGroup>
 </Project>

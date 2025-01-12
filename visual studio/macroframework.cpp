@@ -28,6 +28,7 @@
 #include <format>
 #include <unordered_map>
 #include <math.h>
+#include <memory.h>
 
 #pragma comment(lib, "wininet.lib")
 
@@ -199,6 +200,7 @@ int desync_slot = 5;
 int clip_slot = 7;
 int clip_delay = 30;
 int RobloxWallWalkValueDelay = 72720;
+BYTE AllKeys[256] = {0}; // Useless
 float spam_delay = 20;
 float maxfreezetime = 9.00f;
 int maxfreezeoverride = 50;
@@ -214,6 +216,7 @@ char ItemSpeedSlot[256] = "3";
 char ItemClipSlot[256] = "7";
 char ItemClipDelay[256] = "30";
 char WallhopPixels[256] = "300";
+char WallhopDegrees[256] = "150";
 char SpamDelay[256] = "20";
 int dragged_section = -1; // -1 means no section is being dragged
 static float PreviousSensValue = -1.0f;
@@ -263,6 +266,7 @@ bool wallesslhjswitch = false;
 bool autotoggle = false;
 bool isspeedswitch = false;
 bool isfreezeswitch = false;
+bool freezeoutsideroblox = true;
 bool iswallwalkswitch = false;
 bool isspamswitch = false;
 bool isitemclipswitch = false;
@@ -274,7 +278,7 @@ bool wallhopupdate = false;
 bool UserOutdated = false;
 bool laughmoveswitch = false;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV295 = false;
+static bool UserAcknowledgedV296 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -466,7 +470,7 @@ void SpamKeyLoop()
 		while (!isspamloop) {
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
 		}
-		if (macrotoggled && notbinding && section_toggles[10]) {
+		if (macrotoggled && notbinding && section_toggles[11]) {
 			HoldKeyMouse(vk_spamkey);
 			std::this_thread::sleep_for(std::chrono::microseconds(real_delay));
 			ReleaseKeyMouse(vk_spamkey);
@@ -512,13 +516,12 @@ void WallWalkLoop()
 	}
 }
 
-
-bool IsMainWindow(HWND handle)
+bool IsMainWindow(HWND hwnd)
 {
-	return GetWindow(handle, GW_OWNER) == (HWND)0 && IsWindowVisible(handle);
+	return (IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == NULL);
 }
 
-HWND FindWindowByProcessHandle(HANDLE hProcess)
+HWND FindWindowByProcessHandle(HANDLE hProcess) // Fix background app detection
 {
 	DWORD targetPID = GetProcessId(hProcess);
 	HWND rbxhwnd = FindWindowEx(NULL, NULL, NULL, NULL);
@@ -534,8 +537,7 @@ HWND FindWindowByProcessHandle(HANDLE hProcess)
 	return NULL;
 }
 
-
-DWORD GetProcessIdByName() // Return hProcess from .exe name
+DWORD GetProcessIdByName() // Return pID from .exe name
 {
 	std::string RobloxName = settingsBuffer;
 	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
@@ -556,11 +558,17 @@ DWORD GetProcessIdByName() // Return hProcess from .exe name
 	return 0; // Not found
 }
 
-bool IsForegroundWindowProcess(HWND targetHwnd) // Check if the current active window is the given HWND
-{
-    HWND hwndtest = GetForegroundWindow();
-    return (hwndtest == targetHwnd);
+
+bool IsForegroundWindowProcess(HANDLE hProcess) { // UWP + Hidden check fps
+    HWND foreground = GetForegroundWindow(); // Get the currently focused window
+    DWORD foregroundPID = 0;
+
+    GetWindowThreadProcessId(foreground, &foregroundPID); // Get the PID of the foreground window
+
+    DWORD targetPID = GetProcessId(hProcess); // Get the target process PID
+    return (foregroundPID == targetPID); // Compare PIDs
 }
+
 
 std::string Trim(const std::string& str) {
     auto start = str.begin();
@@ -773,6 +781,7 @@ void SaveSettings(const std::string& filepath) {
     settings["isitemclipswitch"] = isitemclipswitch;
     settings["antiafktoggle"] = antiafktoggle;
     settings["chatoverride"] = chatoverride;
+    settings["freezeoutsideroblox"] = freezeoutsideroblox;
     settings["bounceautohold"] = bounceautohold;
     settings["bouncerealignsideways"] = bouncerealignsideways;
     settings["bouncesidetoggle"] = bouncesidetoggle;
@@ -807,7 +816,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV295"] = UserAcknowledgedV295;
+    settings["UserAcknowledgedV296"] = UserAcknowledgedV296;
 
 
     // Write the settings to file
@@ -839,7 +848,7 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV295", &UserAcknowledgedV295},
+				{"UserAcknowledgedV296", &UserAcknowledgedV296},
 				{"antiafktoggle", &antiafktoggle},
 				{"fasthhj", &fasthhj},
 				{"wallesslhjswitch", &wallesslhjswitch},
@@ -847,8 +856,8 @@ void LoadSettings(const std::string& filepath) {
 				{"bounceautohold", &bounceautohold},
 				{"bouncerealignsideways", &bouncerealignsideways},
 				{"bouncesidetoggle", &bouncesidetoggle},
-				{"laughmoveswitch", &laughmoveswitch}
-
+				{"laughmoveswitch", &laughmoveswitch},
+				{"freezeoutsideroblox", &freezeoutsideroblox}
 
                 // Add any additional boolean variables here
             };
@@ -1412,7 +1421,7 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.5");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.6");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1638,12 +1647,12 @@ void RunGUI() {
 				ImGui::TextWrapped("(Human-Readable)");
 
 				if (selected_section == 0) { // Freeze Macro
-					ImGui::SetNextItemWidth(300.0f);
-					ImGui::SliderFloat("", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
+					ImGui::TextWrapped("Automatically Unfreeze for default 50ms after this amount of seconds (Anti-Internet-Kick)");
+					ImGui::SetNextItemWidth(60.0f);
+					ImGui::InputFloat("##FreezeFloat", &maxfreezetime, 0.0f, 0.0f, "%.2f");
 					ImGui::SameLine();
-					ImGui::TextWrapped("Automatically Unfreeze for default 50ms when you hit this time (Anti-Internet-Kick)");
-					ImGui::SetNextItemWidth(180.0f);
-					ImGui::InputFloat("Same as the slider above but not a slider", &maxfreezetime, 0.01f, 1.0f, "%.2f");
+					ImGui::SetNextItemWidth(300.0f);
+					ImGui::SliderFloat("##FreezeSlider", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
 
 					char maxfreezeoverrideBuffer[16];
 					std::snprintf(maxfreezeoverrideBuffer, sizeof(maxfreezeoverrideBuffer), "%d", maxfreezeoverride);
@@ -1653,7 +1662,11 @@ void RunGUI() {
 						maxfreezeoverride = std::atoi(maxfreezeoverrideBuffer);
 					}
 
+					ImGui::Checkbox("Allow Roblox to be frozen while not tabbed in", &freezeoutsideroblox);
 					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
+					if (isfreezeswitch) {
+						freezeoutsideroblox = true;
+					}
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1798,12 +1811,12 @@ void RunGUI() {
 					ImGui::NewLine();
 					ImGui::TextWrapped("R6 ONLY!");
 					ImGui::TextWrapped("HAVE THE ITEM UNEQUIPPED BEFORE DOING THIS!!!");
-					ImGui::TextWrapped("Performs a weaker version of the /e dance2 equip speedglitch, however, you unequip your gear. "
+					ImGui::TextWrapped("Automatically performs a weaker version of the /e dance2 equip speedglitch, however, it unequips your gear. "
 										"Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion, "
 										"AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
 				}
 
-				if (selected_section == 5) { // Presskey
+				if (selected_section == 5) { // Presskey / Press a Key
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
 					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
@@ -1815,10 +1828,17 @@ void RunGUI() {
 					vk_dkey = BindKeyModeAlt(vk_dkey);
 					ImGui::SetNextItemWidth(150.0f);
 					GetKeyNameFromHexAlt(vk_dkey);
-					ImGui::InputText("Key to Press (Human-Readable)", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("Key to Press", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(50.0f);
-					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::PushID("Press2");
+					ImGui::InputText("Key to Press", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::PopID();
+					ImGui::NewLine();
+					ImGui::SameLine(276);
+					ImGui::Text("(Human-Readable)");
+					ImGui::SameLine(510);
+					ImGui::Text("(Hexadecimal)");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1827,16 +1847,25 @@ void RunGUI() {
 				}
 
 				if (selected_section == 6) { // Wallhop
+					ImGui::TextWrapped("Flick Degrees:");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(70.0f);
+					snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(std::atof(WallhopPixels) * std::atof(RobloxSensValue)));
+					
+					ImGui::InputText("", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_ReadOnly);
+
 					ImGui::TextWrapped("Flick Pixel Amount:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					ImGui::InputText("", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						wallhop_dx = std::round(std::stoi(WallhopPixels));
 						wallhop_dy = -std::round(std::stoi(WallhopPixels));
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+					ImGui::SameLine();
+					ImGui::TextWrapped("(Modify this one)");
 
 					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
 					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
@@ -1846,9 +1875,9 @@ void RunGUI() {
 					ImGui::TextWrapped("IMPORTANT:");
 					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY. "
 										"If you want to pick a SPECIFIC ANGLE, heres how. "
-										"For games without the cam-fix module, 360 degrees is equal to 360 divided by your Roblox Sensitivity. "
-										"For games with the cam-fix module, 360 degrees is equal to 500 divided by your Roblox Sensitivity. "
-										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 8 (75) is equal to a 45 degree turn.");
+										"For games without the cam-fix module, 180 degrees is equal to 360 divided by your Roblox Sensitivity. "
+										"For games with the cam-fix module, 180 degrees is equal to 500 divided by your Roblox Sensitivity. "
+										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 4 (150) is equal to a 45 degree turn.");
 					ImGui::TextWrapped("INTEGERS ONLY!");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
@@ -1906,6 +1935,7 @@ void RunGUI() {
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
+					ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6!");
 					ImGui::TextWrapped("Go against a wall unshiftlocked and angle your camera DIRECTLY OPPOSITE TO THE WALL. "
 										"The Macro will Automatically type out /e laugh using the settings inside of the \"Unequip Com\" section. "
 										"It will automatically time your shiftlock and jump to laugh clip through up to ~1.3 studs.");
@@ -1980,10 +2010,17 @@ void RunGUI() {
 					vk_spamkey = BindKeyModeAlt(vk_spamkey);
 					ImGui::SetNextItemWidth(150.0f);
 					GetKeyNameFromHexAlt(vk_spamkey);
-					ImGui::InputText("Key to Press (Human-Readable)", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("Key to Press", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(50.0f);
-					ImGui::InputText("Key to Press (Hexadecimal)", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::PushID("Press2");
+					ImGui::InputText("Key to Press", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::PopID();
+					ImGui::NewLine();
+					ImGui::SameLine(276);
+					ImGui::Text("(Human-Readable)");
+					ImGui::SameLine(510);
+					ImGui::Text("(Hexadecimal)");
 					ImGui::TextWrapped("Spam Delay (Milliseconds but accepts decimals):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
@@ -2051,10 +2088,22 @@ void RunGUI() {
 }
 
 
-
+void SetWorkingDirectoryToExecutablePath() // Allows non-standard execution for save files
+{
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(nullptr, exePath, MAX_PATH)) {
+	// Remove the executable name to get the directory
+	char *lastSlash = strrchr(exePath, '\\');
+	if (lastSlash) {
+	    *lastSlash = '\0'; // Terminate the string at the last backslash
+	    SetCurrentDirectoryA(exePath);
+		}
+    }
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+    SetWorkingDirectoryToExecutablePath();
     LoadSettings("RMCSettings.json");
 
     std::string remoteVersion = GetRemoteVersion();
@@ -2062,13 +2111,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.5";
+    std::string localVersion = "2.9.6";
 
 	if (remoteVersion != localVersion) {
 		UserOutdated = true;
     }
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV295) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV296) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -2079,7 +2128,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV295 = true;  // Change the variable
+            UserAcknowledgedV296 = true;  // Change the variable
         }
     }
 
@@ -2115,6 +2164,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool iswallwalk = false;
 	bool islaugh = false;
 	bool isbounce = false;
+	bool isafk = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
 	static const float targetFrameTime = 1.0f / 120.0f; // Targeting 120 FPS
@@ -2122,7 +2172,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	while (!done) {
     {
-		if (macrotoggled && notbinding && section_toggles[0]) {
+		if ((macrotoggled && notbinding && section_toggles[0]) && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) { // Freeze Macro
 			bool isMButtonPressed = GetAsyncKeyState(vk_mbutton) & 0x8000;
 
 			if (isfreezeswitch) {  // Toggle mode
@@ -2168,7 +2218,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 
-		if ((GetAsyncKeyState(vk_f5) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[1]) { // Item Desync Macro with anti-idiot design
+		if ((GetAsyncKeyState(vk_f5) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[1]) { // Item Desync Macro with anti-idiot design
 			if (!isdesync) {
 				isdesyncloop = true;
 				isdesync = true;
@@ -2257,7 +2307,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			islhj = false;
 		}
 
-		if ((GetAsyncKeyState(vk_xkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[3]) { // Speedglitch
+		if ((GetAsyncKeyState(vk_xkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[3]) { // Speedglitch
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -2371,7 +2421,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[9]) { // Laughkey
+		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[9]) { // Laughkey
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -2416,7 +2466,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			islaugh = false;
 		}
 
-		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[12]) { // Ledge Bounce
+		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[12]) { // Ledge Bounce
 			if (!isbounce) {
 				int turn90 = (180 / atof(RobloxSensValue));
 				int skey = 0x1F;
@@ -2460,7 +2510,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			isbounce = false;
 		}
 
-		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[8]) { // Item Clip
+		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[8]) { // Item Clip
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -2472,7 +2522,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(rbxhwnd) && macrotoggled && notbinding && section_toggles[10]) { // WallWalk
+		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[10]) { // WallWalk
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -2488,17 +2538,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
 			if (true) { // Holy crap, adding in this useless statement fixes false positive detections for some reason???
-				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName());
+				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName()); // Get hProcess
 				rbxhwnd = FindWindowByProcessHandle(hProcess);
 			}
 			lastProcessCheck = std::chrono::steady_clock::now();
 		}
 
-		if ((GetAsyncKeyState('W') & 0x8000) && IsForegroundWindowProcess(rbxhwnd)) { // Anti AFK (MUST STAY AT THE LOWEST PRIORITY!!!)
+		isafk = true;
+		for (int i = 0; i < 256; ++i) {
+			if (GetAsyncKeyState(i) & 0x8000) { // Check if any key is pressed
+				isafk = false;
+				break;
+			}
+		}
+
+		if (!isafk && IsForegroundWindowProcess(hProcess)) { // Anti AFK (MUST STAY AT THE LOWEST PRIORITY!!!)
 			// W is pressed, update the last press time to now
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
-			if (IsWindow(rbxhwnd) && antiafktoggle) {
+			if (processFound && antiafktoggle && isafk) {
 				// Check if 15 minutes have passed
 				auto afktime = std::chrono::steady_clock::now();
 				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(afktime - lastPressTime).count();
@@ -2507,7 +2565,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT input = {0};
 					input.type = INPUT_MOUSE;
 					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					if (IsForegroundWindowProcess(rbxhwnd) == 0) { // Extremely long process to simulate going to roblox and typing .
+					if (IsForegroundWindowProcess(hProcess) == 0) { // Extremely long process to simulate going to roblox and typing .
 						SetWindowPos(rbxhwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(rbxhwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2540,7 +2598,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						SetForegroundWindow(originalHwnd);
 						lastPressTime = std::chrono::steady_clock::now();
 					}
-					if (IsForegroundWindowProcess(rbxhwnd) == 1) {
+					if (IsForegroundWindowProcess(hProcess) == 1) {
 						if (chatoverride) {
 							HoldKey(0x35);
 						} else {
@@ -2567,7 +2625,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 	}
-	if (!IsForegroundWindowProcess(rbxhwnd)) { // Automatically turn off these 4 if you leave roblox window (so it isn't annoying)
+	if (!IsForegroundWindowProcess(hProcess)) { // Automatically turn off these 4 if you leave roblox window (so it isn't annoying)
 		iswallwalkloop = false;
 		isitemloop = false;
 		isdesyncloop = false;
