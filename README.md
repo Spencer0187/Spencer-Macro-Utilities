@@ -46,6 +46,7 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 ![image](https://github.com/user-attachments/assets/05c71938-669c-4845-a5bc-4e6704eb3f53)
 
+https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
 
 ## Credits
 
