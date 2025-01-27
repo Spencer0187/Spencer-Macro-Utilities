@@ -13,6 +13,8 @@ If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Re
 
 If it doesn't launch at all, go into properties and select "Unblock" on the file.
 
+If you have another issue where keybinds don't work, restart your computer, it seems to fix it permanently.
+
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
 ## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
