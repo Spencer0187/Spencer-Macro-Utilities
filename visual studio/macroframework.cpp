@@ -2589,13 +2589,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if (processFound && antiafktoggle && isafk) {
 				// Check if 15 minutes have passed
 				auto afktime = std::chrono::steady_clock::now();
-				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(afktime - lastPressTime).count();
-				if (elapsedMinutes >= 15) {
+				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::seconds>(afktime - lastPressTime).count();
+				if (elapsedMinutes >= 5) {
 					HWND originalHwnd = GetForegroundWindow();
 					INPUT input = {0};
 					input.type = INPUT_MOUSE;
 					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					if (IsForegroundWindowProcess(hProcess) == 0) { // Extremely long process to simulate going to roblox and pressing f13
+					if (IsForegroundWindowProcess(hProcess) == 0) { // Extremely long process to simulate going to roblox and typing .
 						SetWindowPos(rbxhwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(rbxhwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2604,15 +2604,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						Sleep(50);
 						SendInput(1, &input, sizeof(INPUT));
 						Sleep(500);
-
-						INPUT input = {0};
-						input.type = INPUT_KEYBOARD;
-						input.ki.wVk = VK_F13;
-						SendInput(1, &input, sizeof(INPUT));
-						Sleep(100);
-						input.ki.dwFlags = KEYEVENTF_KEYUP;
-						SendInput(1, &input, sizeof(INPUT));
-
+						if (chatoverride) {
+							HoldKey(0x35);
+						} else {
+							PasteText(chatkey);
+						}
+						if (chatoverride) {
+							Sleep(20);
+							ReleaseKey(0x35);
+						}
+						Sleep(20);
+						HoldKey(0x34);
+						Sleep(20);
+						ReleaseKey(0x34);
+						Sleep(20);
+						HoldKey(0x1C);
+						Sleep(20);
+						ReleaseKey(0x1C);
+						Sleep(500);
 						SetWindowPos(originalHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(originalHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2620,13 +2629,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 					if (IsForegroundWindowProcess(hProcess) == 1) {
-						INPUT input = {0};
-						input.type = INPUT_KEYBOARD;
-						input.ki.wVk = VK_F13;
-						SendInput(1, &input, sizeof(INPUT));
-						Sleep(100);
-						input.ki.dwFlags = KEYEVENTF_KEYUP;
-						SendInput(1, &input, sizeof(INPUT));
+						if (chatoverride) {
+							HoldKey(0x35);
+						} else {
+							PasteText(chatkey);
+						}
+						if (chatoverride) {
+							Sleep(20);
+							ReleaseKey(0x35);
+						}
+						Sleep(20);
+						HoldKey(0x34);
+						Sleep(20);
+						ReleaseKey(0x34);
+						Sleep(20);
+						HoldKey(0x1C);
+						Sleep(20);
+						ReleaseKey(0x1C);
+						Sleep(500);
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 				}
