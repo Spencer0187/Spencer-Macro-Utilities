@@ -51,17 +51,13 @@ void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-
-// TO ENABLE FREEZING, CREATE A .CMD in the same folder that just does (nameofthisexe).exe RobloxPlayerBeta.exe (or whatever your roblox process is called)
-
-
 // TO PUT IN A KEYBOARD KEY, GO TO https://www.millisecond.com/support/docs/current/html/language/scancodes.htm
 // Convert the scancode into hexadecimal before putting it into the HoldKey or ReleaseKey functions
 // Ex: E = 18 = 0x12 = HoldKey(0x12)
 
 // If you want to create custom HOTKEYS for stuff that isn't an alphabet/function key, go to https://learn.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes and get your virtual key code or value
 
-std::string text = "/e dance2"; // INSERT CUSTOM TEXT HERE
+std::string text = "/e dance2"; // Custom chat text
 
 std::atomic<bool> isdesyncloop(false); // Set the variable used for the alternate thread
 std::atomic<bool> isspeed(false);
