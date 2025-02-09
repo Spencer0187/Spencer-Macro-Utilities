@@ -29,13 +29,13 @@
 #include <unordered_map>
 #include <math.h>
 #include <memory.h>
+#include <synchapi.h>
 
 #pragma comment(lib, "wininet.lib")
 
 using json = nlohmann::json;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-#define TH32CS_PROCESS 0x00000002
 
 
 // DirectX11 Variables
@@ -278,7 +278,7 @@ bool wallhopupdate = false;
 bool UserOutdated = false;
 bool laughmoveswitch = false;
 static bool wasMButtonPressed = false; 
-static bool UserAcknowledgedV296 = false;
+static bool UserAcknowledgedV297 = false;
 
 
 typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
@@ -537,29 +537,63 @@ HWND FindWindowByProcessHandle(HANDLE hProcess) // Fix background app detection
 	return NULL;
 }
 
-DWORD GetProcessIdByName() // Return pID from .exe name
+DWORD GetProcessIdByName()
 {
-	std::string RobloxName = settingsBuffer;
-	std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-	std::wstring wideString = converter.from_bytes(settingsBuffer);
-	const wchar_t *RobloxNameWCHAR = wideString.c_str();
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_PROCESS, 0);
-	PROCESSENTRY32 pe = {sizeof(pe)};
+    std::string targetName = settingsBuffer;
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::wstring targetNameW = converter.from_bytes(targetName);
 
-	while (Process32Next(hSnapshot, &pe)) {
-		if (_wcsicmp(pe.szExeFile, RobloxNameWCHAR) == 0) {
-			processFound = true;
-			CloseHandle(hSnapshot);
-			return pe.th32ProcessID;
-		}
-	}
-	CloseHandle(hSnapshot);
-	processFound = false;
-	return 0; // Not found
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE)
+    {
+        processFound = false;
+        return 0;
+    }
+
+    PROCESSENTRY32 pe;
+    pe.dwSize = sizeof(PROCESSENTRY32);
+
+    bool foundAny = false;
+    DWORD selectedPID = 0;
+    ULONGLONG newestCreationTime = 0;
+
+    if (Process32First(hSnapshot, &pe))
+    {
+        do
+        {
+            // Compare the process name
+            if (_wcsicmp(pe.szExeFile, targetNameW.c_str()) == 0)
+            {
+                // Open the process to get its time
+                HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
+                if (hProcess)
+                {
+                    FILETIME ftCreation, ftExit, ftKernel, ftUser;
+                    if (GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser))
+                    {
+                        ULONGLONG creationTime = (static_cast<ULONGLONG>(ftCreation.dwHighDateTime) << 32) | ftCreation.dwLowDateTime;
+                        
+                        // If this is the first match or if the process is newer, update our selection.
+                        if (!foundAny || creationTime > newestCreationTime)
+                        {
+                            newestCreationTime = creationTime;
+                            selectedPID = pe.th32ProcessID;
+                            foundAny = true;
+                        }
+                    }
+                    CloseHandle(hProcess);
+                }
+            }
+        } while (Process32Next(hSnapshot, &pe));
+    }
+
+    CloseHandle(hSnapshot);
+    processFound = foundAny;
+    return selectedPID;
 }
 
 
-bool IsForegroundWindowProcess(HANDLE hProcess) { // UWP + Hidden check fps
+bool IsForegroundWindowProcess(HANDLE hProcess) {
     HWND foreground = GetForegroundWindow(); // Get the currently focused window
     DWORD foregroundPID = 0;
 
@@ -570,7 +604,7 @@ bool IsForegroundWindowProcess(HANDLE hProcess) { // UWP + Hidden check fps
 }
 
 
-std::string Trim(const std::string& str) {
+std::string Trim(const std::string& str) { // Trim a string
     auto start = str.begin();
     while (start != str.end() && std::isspace(*start)) {
         ++start;
@@ -816,7 +850,7 @@ void SaveSettings(const std::string& filepath) {
     settings["real_delay"] = real_delay;
     settings["screen_width"] = screen_width;
     settings["screen_height"] = screen_height;
-    settings["UserAcknowledgedV296"] = UserAcknowledgedV296;
+    settings["UserAcknowledgedV297"] = UserAcknowledgedV297;
 
 
     // Write the settings to file
@@ -848,7 +882,7 @@ void LoadSettings(const std::string& filepath) {
 				{"toggle_flick", &toggle_flick},
 				{"camfixtoggle", &camfixtoggle},
 				{"wallwalktoggleside", &wallwalktoggleside},
-				{"UserAcknowledgedV296", &UserAcknowledgedV296},
+				{"UserAcknowledgedV297", &UserAcknowledgedV297},
 				{"antiafktoggle", &antiafktoggle},
 				{"fasthhj", &fasthhj},
 				{"wallesslhjswitch", &wallesslhjswitch},
@@ -1421,7 +1455,7 @@ void RunGUI() {
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.6");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.7");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1706,7 +1740,7 @@ void RunGUI() {
 					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS GO TO THE SPEEDGLITCH MENU, AND PROPERLY SET YOUR SPEEDGLITCH PIXEL VALUE!");
+					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS PLEASE SET YOUR SENS AND CAM FIX ABOVE!");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -1995,7 +2029,7 @@ void RunGUI() {
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("This macro abuses the way leg raycast physics work to permanently keep wallhopping, without jumping "
-										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across");
+										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across.");
 			}
 
 				if (selected_section == 11) { // Spamkey
@@ -2005,7 +2039,7 @@ void RunGUI() {
 						bindingModealt = true;
 						notbinding = false;
 						KeyButtonTextalt = "Press a Key...";
-						}
+					}
 					ImGui::SameLine();
 					vk_spamkey = BindKeyModeAlt(vk_spamkey);
 					ImGui::SetNextItemWidth(150.0f);
@@ -2111,13 +2145,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.6";
+    std::string localVersion = "2.9.7";
 
 	if (remoteVersion != localVersion) {
 		UserOutdated = true;
     }
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV296) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV297) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -2128,7 +2162,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV296 = true;  // Change the variable
+            UserAcknowledgedV297 = true;  // Change the variable
         }
     }
 
@@ -2565,7 +2599,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT input = {0};
 					input.type = INPUT_MOUSE;
 					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					if (IsForegroundWindowProcess(hProcess) == 0) { // Extremely long process to simulate going to roblox and typing .
+					if (IsForegroundWindowProcess(hProcess) == 0) { // Extremely long process to simulate going to roblox and pressing f13
 						SetWindowPos(rbxhwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(rbxhwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2574,24 +2608,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						Sleep(50);
 						SendInput(1, &input, sizeof(INPUT));
 						Sleep(500);
-						if (chatoverride) {
-							HoldKey(0x35);
-						} else {
-							PasteText(chatkey);
-						}
-						if (chatoverride) {
-							Sleep(20);
-							ReleaseKey(0x35);
-						}
-						Sleep(20);
-						HoldKey(0x34);
-						Sleep(20);
-						ReleaseKey(0x34);
-						Sleep(20);
-						HoldKey(0x1C);
-						Sleep(20);
-						ReleaseKey(0x1C);
-						Sleep(500);
+
+						INPUT input = {0};
+						input.type = INPUT_KEYBOARD;
+						input.ki.wVk = VK_F13;
+						SendInput(1, &input, sizeof(INPUT));
+						Sleep(100);
+						input.ki.dwFlags = KEYEVENTF_KEYUP;
+						SendInput(1, &input, sizeof(INPUT));
+
 						SetWindowPos(originalHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(originalHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						Sleep(1000);
@@ -2599,32 +2624,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 					if (IsForegroundWindowProcess(hProcess) == 1) {
-						if (chatoverride) {
-							HoldKey(0x35);
-						} else {
-							PasteText(chatkey);
-						}
-						if (chatoverride) {
-							Sleep(20);
-							ReleaseKey(0x35);
-						}
-						Sleep(20);
-						HoldKey(0x34);
-						Sleep(20);
-						ReleaseKey(0x34);
-						Sleep(20);
-						HoldKey(0x1C);
-						Sleep(20);
-						ReleaseKey(0x1C);
-						Sleep(500);
+						INPUT input = {0};
+						input.type = INPUT_KEYBOARD;
+						input.ki.wVk = VK_F13;
+						SendInput(1, &input, sizeof(INPUT));
+						Sleep(100);
+						input.ki.dwFlags = KEYEVENTF_KEYUP;
+						SendInput(1, &input, sizeof(INPUT));
 						lastPressTime = std::chrono::steady_clock::now();
 					}
 				}
-			} else {
-				lastPressTime = std::chrono::steady_clock::now();
 			}
 		}
 	}
+
 	if (!IsForegroundWindowProcess(hProcess)) { // Automatically turn off these 4 if you leave roblox window (so it isn't annoying)
 		iswallwalkloop = false;
 		isitemloop = false;
@@ -2632,6 +2645,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		isspeed = false;
 	}
 	std::this_thread::sleep_for(std::chrono::microseconds(50)); // Delay between checking for keys (dont touch pls)
+
 }
 
 	// Cleanup
