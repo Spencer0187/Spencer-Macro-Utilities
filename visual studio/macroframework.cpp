@@ -561,7 +561,7 @@ DWORD GetProcessIdByName()
             if (_wcsicmp(pe.szExeFile, targetNameW.c_str()) == 0)
             {
                 // Open the process to get its time
-                HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
+                HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME, FALSE, pe.th32ProcessID);
                 if (hProcess)
                 {
                     FILETIME ftCreation, ftExit, ftKernel, ftUser;
@@ -2177,7 +2177,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	MSG msg;
 
 
-	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName()); // Get hProcess
+	HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME, FALSE, GetProcessIdByName()); // Get hProcess
 
 	HWND rbxhwnd = FindWindowByProcessHandle(hProcess); // Make sure HWND is set correctly
 
@@ -2568,7 +2568,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		auto currentTime = std::chrono::steady_clock::now(); // Auto Reconnect
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
 			if (true) { // Holy crap, adding in this useless statement fixes false positive detections for some reason???
-				hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, GetProcessIdByName()); // Get hProcess
+				hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME, FALSE, GetProcessIdByName()); // Get hProcess
 				rbxhwnd = FindWindowByProcessHandle(hProcess);
 			}
 			lastProcessCheck = std::chrono::steady_clock::now();
@@ -2589,8 +2589,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			if (processFound && antiafktoggle && isafk) {
 				// Check if 15 minutes have passed
 				auto afktime = std::chrono::steady_clock::now();
-				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::seconds>(afktime - lastPressTime).count();
-				if (elapsedMinutes >= 5) {
+				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(afktime - lastPressTime).count();
+				if (elapsedMinutes >= 15) {
 					HWND originalHwnd = GetForegroundWindow();
 					INPUT input = {0};
 					input.type = INPUT_MOUSE;
