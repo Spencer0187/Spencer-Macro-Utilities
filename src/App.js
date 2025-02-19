@@ -1,6 +1,6 @@
 import React from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
-import { Helmet, HelmetProvider } from 'react-helmet-async'; // Updated import
+import { Helmet } from 'react-helmet';
 
 const GlobalStyle = createGlobalStyle`
   :root {
@@ -227,7 +227,7 @@ const Footer = styled.footer`
 
 const App = () => {
   return (
-    <HelmetProvider> {/* Wrap the app with HelmetProvider */}
+    <>
       <Helmet>
         <meta name="google-site-verification" content="yuUkuubLUS0OYlP0U0Oi73OaOVmL-961B3KeujN8yHM" />
       </Helmet>
@@ -253,9 +253,124 @@ const App = () => {
           </ButtonGroup>
         </Header>
 
-        {/* Rest of your components */}
+        <Section>
+          <h2>Key Features</h2>
+          <FeatureGrid>
+            <Feature>
+              <h3>🖱️ Custom Interface</h3>
+              <ul>
+                <li>Drag-and-drop button rearrangement</li>
+                <li>Resizable window to fit your workflow</li>
+                <li>Automatic layout saving</li>
+                <li>Clean, modern dark theme</li>
+              </ul>
+            </Feature>
+            
+            <Feature>
+              <h3>⚡ Performance</h3>
+              <ul>
+                <li>Single portable executable</li>
+                <li>No installation required</li>
+                <li>Lightweight (under 5MB)</li>
+                <li>Windows 10/11 optimized</li>
+              </ul>
+            </Feature>
+
+            <Feature>
+              <h3>🛡️ Safety</h3>
+              <ul>
+                <li>No memory modification</li>
+                <li>No background services</li>
+                <li>Local config storage</li>
+                <li>Open source verification</li>
+              </ul>
+            </Feature>
+          </FeatureGrid>
+        </Section>
+
+        <Section>
+          <h2>Complete Feature List</h2>
+          <FullFeatureList>
+            <ul>
+              {[
+                "Anti-AFK (works in background)",
+                "Customizable UI buttons (drag to rearrange)",
+                "Helicopter High Jump",
+                "Speedglitch toggle",
+                "Automatic Ledge Bouncing",
+                "Laugh Clipping automation",
+                "Dropless Item Desync",
+                "Freeze Macro",
+                "Unequip Speedglitch",
+                "Wallhop Macro",
+                "Lag High Jump (14 Studs)",
+                "One-Frame Keypress",
+                "Wall-Walk assistance",
+                "Item-Clip automation",
+                "Key/Button Spammer",
+                "Resizable interface window",
+                "Portable configuration",
+                "Automatic updates"
+              ].map((feature, index) => (
+                <li key={index}>{feature}</li>
+              ))}
+            </ul>
+          </FullFeatureList>
+        </Section>
+
+        <Section>
+          <h2>Interface Preview</h2>
+          <ScreenshotGrid>
+            <img src="path-to-screenshot-1.jpg" alt="Main interface showing draggable buttons" />
+            <img src="path-to-screenshot-2.jpg" alt="Settings customization preview" />
+            <img src="path-to-screenshot-3.jpg" alt="Resizable window demonstration" />
+          </ScreenshotGrid>
+        </Section>
+
+        <Section>
+          <h2>Troubleshooting</h2>
+          <FeatureGrid>
+            <Feature>
+              <h3>Common Issues</h3>
+              <ul>
+                <li><strong>DLL errors:</strong> Install <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist">Visual C++ Redist</a></li>
+                <li><strong>Keybind issues:</strong> Restart PC</li>
+                <li><strong>Launch failure:</strong> Unblock in file properties</li>
+              </ul>
+            </Feature>
+            
+            <Feature>
+              <h3>Technical Specs</h3>
+              <ul>
+                <li>C++17 with ImGui</li>
+                <li>Windows API hooks</li>
+                <li>Portable configuration</li>
+                <li>MIT Licensed</li>
+              </ul>
+            </Feature>
+          </FeatureGrid>
+        </Section>
+
+        <Footer>
+          <ButtonGroup>
+            <Button 
+              href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" 
+              className="primary"
+            >
+              Download Now
+            </Button>
+          </ButtonGroup>
+          <p>Need help? Join our <a href="https://discord.gg/roblox-glitching-community-998572881892094012">Discord support community</a></p>
+          <Credits>
+            <p>Built with:</p>
+            <ul>
+              <li><a href="https://github.com/ocornut/imgui">ImGui</a></li>
+              <li><a href="https://github.com/craftwar/suspend">suspend</a></li>
+            </ul>
+          </Credits>
+        </Footer>
       </Container>
-    </HelmetProvider>
+    </>
   );
 };
 
