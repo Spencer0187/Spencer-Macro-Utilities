@@ -32,3 +32,72 @@
     ]
   }
 }
+
+{
+  "name": "react-helmet-async",
+  "version": "0.2.0",
+  "description": "Thread-safe Helmet for React 16+ and friends",
+  "main": "lib/index.js",
+  "repository": "http://github.com/NYTimes/react-helmet-async",
+  "author": "Scott Taylor <scott.c.taylor@mac.com>",
+  "license": "Apache-2.0",
+  "typings": "index.d.ts",
+  "dependencies": {
+    "invariant": "^2.2.4",
+    "prop-types": "^15.6.1",
+    "react-fast-compare": "^2.0.2",
+    "shallowequal": "^1.0.2"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "babel-eslint": "^8.2.3",
+    "babel-jest": "^22.4.4",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-plugin-transform-es2015-modules-commonjs": "^6.26.2",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-kyt-react": "^0.3.0",
+    "enzyme": "^3.3.0",
+    "enzyme-adapter-react-16": "^1.1.1",
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb": "^16.1.0",
+    "eslint-config-kyt": "^0.5.0",
+    "eslint-config-prettier": "^2.9.0",
+    "eslint-plugin-import": "^2.12.0",
+    "eslint-plugin-jest": "^21.17.0",
+    "eslint-plugin-json": "^1.2.0",
+    "eslint-plugin-jsx-a11y": "^6.0.3",
+    "eslint-plugin-prettier": "^2.6.0",
+    "eslint-plugin-react": "^7.9.1",
+    "jest-cli": "^22.4.4",
+    "jsdom": "^11.11.0",
+    "prettier": "^1.13.5",
+    "prettier-eslint-cli": "^4.7.1",
+    "react": "^16.4.1",
+    "react-dom": "^16.4.1",
+    "regenerator-runtime": "^0.11.1"
+  },
+  "peerDependencies": {
+    "react": "^16.4.2",
+    "react-dom": "^16.4.2"
+  },
+  "scripts": {
+    "test": "jest",
+    "compile": "npm run compile:commonjs && npm run compile:es",
+    "compile:commonjs": "babel src --out-dir lib",
+    "compile:es": "babel src --out-dir es",
+    "prepare": "npm run compile"
+  },
+  "jest": {
+    "setupTestFrameworkScriptFile": "<rootDir>/jest.setup.js",
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/src/",
+      "/lib/"
+    ]
+  }
+}
