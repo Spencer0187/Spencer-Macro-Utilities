@@ -75,6 +75,18 @@ const ButtonGroup = styled.div`
   }
 `;
 
+const Credits = styled.footer`
+  opacity: 0.8;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  a {
+    color: var(--hover);
+  }
+`;
+
 const Button = styled.a`
   padding: 1rem 2rem;
   border-radius: 8px;
