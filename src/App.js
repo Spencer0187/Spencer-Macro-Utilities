@@ -1,8 +1,9 @@
 import React from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
-import Screenshot1 from './path/to/screenshot1.jpg';
-import Screenshot2 from './path/to/screenshot2.jpg';
-import Screenshot3 from './path/to/screenshot3.jpg';
+// Add your screenshot imports here later
+// import Screenshot1 from './path/to/screenshot1.jpg';
+// import Screenshot2 from './path/to/screenshot2.jpg';
+// import Screenshot3 from './path/to/screenshot3.jpg';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
@@ -165,8 +166,18 @@ const App = () => {
             </ul>
           </div>
           <Screenshot>
-            <img src={Screenshot1} alt="Customizable UI with draggable buttons" />
-            <figcaption>Drag buttons to reorganize your workspace</figcaption>
+            <div style={{
+              background: '#1a1a1a',
+              height: '300px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#666',
+              fontSize: '1.2rem'
+            }}>
+              Screenshot Placeholder
+            </div>
+            <figcaption>Image caption will appear here</figcaption>
           </Screenshot>
         </FeatureShowcase>
 
@@ -218,10 +229,20 @@ const App = () => {
         </Section>
 
         <FeatureShowcase>
-          <Screenshot>
-            <img src={Screenshot2} alt="Feature demonstration" />
-            <figcaption>Detailed configuration options for each macro</figcaption>
-          </Screenshot>
+            <Screenshot>
+              <div style={{
+                background: '#1a1a1a',
+                height: '300px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#666',
+                fontSize: '1.2rem'
+              }}>
+                Screenshot Placeholder
+              </div>
+              <figcaption>Image caption will appear here</figcaption>
+            </Screenshot>
           <div>
             <h2>Precision Control</h2>
             <p>Fine-tune every action with:</p>
