@@ -1,13 +1,15 @@
 import React from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
+import { Helmet } from 'react-helmet';
 
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg: #0f0f0f;
-    --card-bg: #1a1a1a;
+    --bg: linear-gradient(45deg, #0a0a0a 0%, #1a1a1a 100%);
+    --card-bg: rgba(30, 30, 30, 0.95);
     --text: #e0e0e0;
     --accent: #2b7a78;
     --hover: #3daaaa;
+    --section-spacing: 4rem;
   }
 
   * {
@@ -21,145 +23,219 @@ const GlobalStyle = createGlobalStyle`
     color: var(--text);
     line-height: 1.6;
     font-family: 'Inter', system-ui, sans-serif;
-    padding: 2rem 1rem;
+    min-height: 100vh;
   }
 
   a {
     color: var(--hover);
     text-decoration: none;
+    transition: opacity 0.2s ease;
 
     &:hover {
+      opacity: 0.8;
       text-decoration: underline;
     }
   }
 `;
 
 const Container = styled.div`
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 4rem 2rem;
 `;
 
 const Header = styled.header`
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 6rem;
+  position: relative;
 
   h1 {
     color: var(--hover);
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
+    font-size: 3rem;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.05em;
   }
 
   p {
     max-width: 600px;
     margin: 0 auto;
+    font-size: 1.1rem;
+    opacity: 0.9;
   }
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
   justify-content: center;
-  margin: 2rem 0;
+  margin: 3rem 0;
 
   @media (max-width: 768px) {
     flex-direction: column;
+    align-items: center;
   }
 `;
 
 const Button = styled.a`
-  padding: 0.8rem 1.5rem;
-  border-radius: 6px;
-  text-decoration: none;
-  font-weight: 500;
-  transition: 0.2s all ease;
-  cursor: pointer;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 
   &.primary {
     background: var(--accent);
     color: white;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 
     &:hover {
-      background: var(--hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(43, 122, 120, 0.3);
     }
   }
 
   &.secondary {
-    border: 1px solid var(--accent);
+    border: 2px solid var(--accent);
     color: var(--accent);
 
     &:hover {
-      border-color: var(--hover);
-      color: var(--hover);
+      background: rgba(43, 122, 120, 0.1);
     }
   }
 `;
 
 const Section = styled.section`
   background: var(--card-bg);
-  border-radius: 8px;
-  padding: 2rem;
-  margin-bottom: 2rem;
+  border-radius: 16px;
+  padding: 3rem;
+  margin-bottom: var(--section-spacing);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 
   h2 {
-    color: var(--accent);
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #333;
+    color: var(--hover);
+    margin-bottom: 2rem;
+    font-size: 2rem;
+    position: relative;
+    padding-bottom: 1rem;
+
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 60px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
   }
 `;
 
 const FeatureGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
 `;
 
 const Feature = styled.div`
-  padding: 1.25rem;
-  background: var(--bg);
-  border-radius: 8px;
-  border: 1px solid #333;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 
   h3 {
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
     color: var(--hover);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   ul {
-    padding-left: 1.25rem;
+    padding-left: 1.5rem;
   }
 
   li {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
   }
 `;
 
-const Highlight = styled.span`
-  color: var(--hover);
-  font-weight: 500;
+const ScreenshotGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 3rem;
+
+  img {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: translateY(-4px);
+    }
+  }
 `;
 
-const Credits = styled.footer`
-  opacity: 0.8;
-  font-size: 0.9rem;
+const FullFeatureList = styled.div`
+  columns: 2;
+  gap: 2rem;
   margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #333;
 
-  a {
-    color: var(--hover);
+  @media (max-width: 768px) {
+    columns: 1;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  li {
+    margin-bottom: 0.75rem;
+    padding-left: 1.5rem;
+    position: relative;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+    }
+  }
+`;
+
+const Footer = styled.footer`
+  margin-top: var(--section-spacing);
+  text-align: center;
+  padding: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  p {
+    margin: 1rem 0;
+    opacity: 0.8;
   }
 `;
 
 const App = () => {
   return (
     <>
+      <Helmet>
+        <meta name="google-site-verification" content="yuUkuubLUS0OYlP0U0Oi73OaOVmL-961B3KeujN8yHM" />
+      </Helmet>
       <GlobalStyle />
       <Container>
         <Header>
           <h1>Roblox Macro Utilities</h1>
-          <p>Open-source Windows automation tool for Roblox - works externally without game modifications</p>
+          <p>Open-source Windows automation tool with customizable interface and portable execution</p>
           
           <ButtonGroup>
             <Button 
@@ -181,85 +257,118 @@ const App = () => {
           <h2>Key Features</h2>
           <FeatureGrid>
             <Feature>
-              <h3>Customization</h3>
+              <h3>🖱️ Custom Interface</h3>
               <ul>
-                <li><Highlight>Drag-and-drop UI</Highlight> - Rearrange buttons freely</li>
-                <li>Automatically saves your layout</li>
-                <li>Clean, minimal interface</li>
+                <li>Drag-and-drop button rearrangement</li>
+                <li>Resizable window to fit your workflow</li>
+                <li>Automatic layout saving</li>
+                <li>Clean, modern dark theme</li>
               </ul>
             </Feature>
             
             <Feature>
-              <h3>Convenience</h3>
+              <h3>⚡ Performance</h3>
               <ul>
-                <li>Persistent anti-AFK</li>
-                <li>Single executable file</li>
+                <li>Single portable executable</li>
                 <li>No installation required</li>
-                <li>Windows 10/11 supported</li>
+                <li>Lightweight (under 5MB)</li>
+                <li>Windows 10/11 optimized</li>
               </ul>
             </Feature>
 
             <Feature>
-              <h3>Gameplay Macros</h3>
+              <h3>🛡️ Safety</h3>
               <ul>
-                <li>Speedglitch toggle</li>
-                <li>High jump macros</li>
-                <li>Ledge bouncing</li>
-                <li>Wallhop/Wall-walk</li>
-                <li>Item clipping</li>
-                <li>+10 more specialized actions</li>
+                <li>No memory modification</li>
+                <li>No background services</li>
+                <li>Local config storage</li>
+                <li>Open source verification</li>
               </ul>
             </Feature>
           </FeatureGrid>
+        </Section>
+
+        <Section>
+          <h2>Complete Feature List</h2>
+          <FullFeatureList>
+            <ul>
+              {[
+                "Anti-AFK (works in background)",
+                "Customizable UI buttons (drag to rearrange)",
+                "Helicopter High Jump",
+                "Speedglitch toggle",
+                "Automatic Ledge Bouncing",
+                "Laugh Clipping automation",
+                "Dropless Item Desync",
+                "Freeze Macro",
+                "Unequip Speedglitch",
+                "Wallhop Macro",
+                "Lag High Jump (14 Studs)",
+                "One-Frame Keypress",
+                "Wall-Walk assistance",
+                "Item-Clip automation",
+                "Key/Button Spammer",
+                "Resizable interface window",
+                "Portable configuration",
+                "Automatic updates"
+              ].map((feature, index) => (
+                <li key={index}>{feature}</li>
+              ))}
+            </ul>
+          </FullFeatureList>
+        </Section>
+
+        <Section>
+          <h2>Interface Preview</h2>
+          <ScreenshotGrid>
+            <img src="path-to-screenshot-1.jpg" alt="Main interface showing draggable buttons" />
+            <img src="path-to-screenshot-2.jpg" alt="Settings customization preview" />
+            <img src="path-to-screenshot-3.jpg" alt="Resizable window demonstration" />
+          </ScreenshotGrid>
         </Section>
 
         <Section>
           <h2>Troubleshooting</h2>
           <FeatureGrid>
             <Feature>
-              <h3>Common Solutions</h3>
+              <h3>Common Issues</h3>
               <ul>
                 <li><strong>DLL errors:</strong> Install <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist">Visual C++ Redist</a></li>
-                <li><strong>Keybind issues:</strong> Full system restart</li>
-                <li><strong>Launch problems:</strong> Right-click → Properties → Unblock</li>
+                <li><strong>Keybind issues:</strong> Restart PC</li>
+                <li><strong>Launch failure:</strong> Unblock in file properties</li>
               </ul>
             </Feature>
             
             <Feature>
-              <h3>Technical Notes</h3>
+              <h3>Technical Specs</h3>
               <ul>
-                <li>Doesn't modify Roblox memory</li>
-                <li>No background services</li>
-                <li>Settings stored in local config</li>
-                <li>Built with C++/ImGui</li>
+                <li>C++17 with ImGui</li>
+                <li>Windows API hooks</li>
+                <li>Portable configuration</li>
+                <li>MIT Licensed</li>
               </ul>
             </Feature>
           </FeatureGrid>
         </Section>
 
-        <Section>
-          <h2>Support & Community</h2>
-          <div style={{ marginTop: '1.5rem' }}>
-            <p style={{ marginBottom: '1rem' }}>
-              Get help or discuss glitches:
-            </p>
+        <Footer>
+          <ButtonGroup>
             <Button 
-              href="https://discord.gg/roblox-glitching-community-998572881892094012" 
-              className="secondary"
-              style={{ marginTop: '0.5rem' }}
+              href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" 
+              className="primary"
             >
-              Join Discord Server
+              Download Now
             </Button>
-          </div>
-        </Section>
-
-        <Credits>
-          <p>Built with:</p>
-          <ul>
-            <li><a href="https://github.com/ocornut/imgui">ImGui</a> interface framework</li>
-            <li><a href="https://github.com/craftwar/suspend">suspend</a> core functionality</li>
-          </ul>
-        </Credits>
+          </ButtonGroup>
+          <p>Need help? Join our <a href="https://discord.gg/roblox-glitching-community-998572881892094012">Discord support community</a></p>
+          <Credits>
+            <p>Built with:</p>
+            <ul>
+              <li><a href="https://github.com/ocornut/imgui">ImGui</a></li>
+              <li><a href="https://github.com/craftwar/suspend">suspend</a></li>
+            </ul>
+          </Credits>
+        </Footer>
       </Container>
     </>
   );
