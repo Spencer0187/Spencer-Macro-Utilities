@@ -5,6 +5,7 @@ import styled, { createGlobalStyle, keyframes } from 'styled-components';
 // import Screenshot2 from './path/to/screenshot2.jpg';
 // import Screenshot3 from './path/to/screenshot3.jpg';
 
+// ===== Styled Components =====
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -71,7 +72,58 @@ const Header = styled.header`
   }
 `;
 
-// ... (keep previous styled components, add new ones below)
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const Button = styled.a`
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: 0.2s all ease;
+  cursor: pointer;
+
+  &.primary {
+    background: var(--accent);
+    color: white;
+
+    &:hover {
+      background: var(--hover);
+    }
+  }
+
+  &.secondary {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+
+    &:hover {
+      border-color: var(--hover);
+      color: var(--hover);
+    }
+  }
+`;
+
+const Section = styled.section`
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+
+  h2 {
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #333;
+  }
+`;
 
 const FeatureShowcase = styled.section`
   display: grid;
@@ -135,6 +187,19 @@ const FullFeatureList = styled.div`
   }
 `;
 
+const Credits = styled.footer`
+  opacity: 0.8;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #333;
+
+  a {
+    color: var(--hover);
+  }
+`;
+
+// ===== Main Component =====
 const App = () => {
   return (
     <>
