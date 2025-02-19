@@ -1,6 +1,5 @@
 import React from 'react';
 import styled, { createGlobalStyle } from 'styled-components';
-import { Helmet } from 'react-helmet';
 
 const GlobalStyle = createGlobalStyle`
   :root {
@@ -228,9 +227,9 @@ const Footer = styled.footer`
 const App = () => {
   return (
     <>
-      <Helmet>
+      <head>
         <meta name="google-site-verification" content="yuUkuubLUS0OYlP0U0Oi73OaOVmL-961B3KeujN8yHM" />
-      </Helmet>
+      </head>
       <GlobalStyle />
       <Container>
         <Header>
