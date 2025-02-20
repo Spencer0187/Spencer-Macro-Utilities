@@ -494,6 +494,17 @@ const App = () => {
               Join Community
             </Button>
           </ButtonGroup>
+
+          {/* === DOWNLOAD COUNT DUPLICATED HERE === */}
+          <DownloadCount style={{marginTop: '1rem'}}> {/* Added marginTop for spacing */}
+            {loadingCount ? "Loading download count..." : countError ? countError : (
+              <>
+                Total Downloads: <CountNumber>{downloadCount !== null ? downloadCount.toLocaleString() + "k+" : "N/A"}</CountNumber>
+              </>
+            )}
+          </DownloadCount>
+
+
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
             Windows 10/11 · Portable EXE · No dependencies
           </p>
