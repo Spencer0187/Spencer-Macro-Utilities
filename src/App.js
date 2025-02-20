@@ -492,7 +492,7 @@ const App = () => {
             </li>
             <li>
               <h3>Keybinds Not Working</h3>
-              <p>If keybinds are not functioning, restart your computer. Ensure you are using the latest version, as updates often contain fixes.</p>
+              <p>If keybinds are not functioning, restart your computer. Make sure you are using the latest version since updates often contain fixes. Join the discord for more active notifications of current issues.</p>
             </li>
           </ul>
         </KnownIssuesSection>
