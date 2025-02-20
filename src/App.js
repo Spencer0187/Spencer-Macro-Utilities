@@ -386,7 +386,7 @@ const App = () => {
                 <li>External input simulation</li>
                 <li>Portable execution</li>
                 <li>Open source C++</li>
-                <li>Active maintenance</li>
+              <li>Active maintenance</li>
               </ul>
             </div>
           </FullFeatureList>
@@ -409,6 +409,19 @@ const App = () => {
           </Screenshot>
         </FeatureShowcase>
 
+        {/* === NEW DISCORD SECTION - MOVED ABOVE GET STARTED === */}
+        <Section style={{ textAlign: 'center', marginTop: '3rem' }}>
+          <h2>Join the Community Discord</h2>
+          <p style={{maxWidth: '600px', margin: '0.5rem auto 1rem'}}>
+            Get notified about updates, discuss glitches, and get help from other users by joining the Roblox Glitching Community Discord server!
+          </p>
+          <ButtonGroup>
+            <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="primary">
+              Join Discord Server
+            </Button>
+          </ButtonGroup>
+        </Section>
+
         <Section style={{ textAlign: 'center', marginTop: '4rem' }}>
           <h2>Get Started</h2>
           <ButtonGroup>
@@ -425,19 +438,6 @@ const App = () => {
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
             Discord server features update pings and glitch discussion
           </p>
-        </Section>
-
-        {/* === NEW DISCORD SECTION === */}
-        <Section style={{ textAlign: 'center', marginTop: '3rem' }}>
-          <h2>Join the Community Discord</h2>
-          <p style={{maxWidth: '600px', margin: '0.5rem auto 1rem'}}>
-            Get notified about updates, discuss glitches, and get help from other users by joining the Roblox Glitching Community Discord server!
-          </p>
-          <ButtonGroup>
-            <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="primary">
-              Join Discord Server
-            </Button>
-          </ButtonGroup>
         </Section>
 
         <Credits>
