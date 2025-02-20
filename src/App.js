@@ -323,7 +323,7 @@ const App = () => {
               Download (1.3MB EXE)
             </Button>
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities" className="secondary">
-              Source Code
+              See Github/Source Code
             </Button>
           </ButtonGroup>
         </Header>
@@ -335,13 +335,13 @@ const App = () => {
             <ul>
               <li>Drag buttons to any position</li>
               <li>Resize window to your preference</li>
-              <li>Dark theme follows system settings</li>
+              <li>All macro settings save automatically</li>
               <li>Layout saves automatically</li>
             </ul>
           </div>
           <Screenshot onClick={() => openLightbox(screenshotUrl1)}>
             <img src={screenshotUrl1} alt="Customizable Interface Screenshot" />
-            <figcaption>Screenshot of the Customizable Interface</figcaption>
+            <figcaption>Screenshot of the UI</figcaption>
           </Screenshot>
         </FeatureShowcase>
 
@@ -405,7 +405,7 @@ const App = () => {
           </div>
           <Screenshot onClick={() => openLightbox(screenshotUrl2)}>
             <img src={screenshotUrl2} alt="Precise Control Screenshot" />
-            <figcaption>Screenshot of Precise Control Options</figcaption>
+            <figcaption>Screenshot of Macro Options</figcaption>
           </Screenshot>
         </FeatureShowcase>
 
@@ -423,7 +423,7 @@ const App = () => {
             Windows 10/11 · Portable EXE · No dependencies
           </p>
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
-            Discord features update pings and glitch discussion
+            Discord server features update pings and glitch discussion
           </p>
         </Section>
 
