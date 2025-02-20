@@ -171,8 +171,21 @@ const FeatureShowcase = styled.section`
 
   @media (min-width: 768px) {
     display: grid; /* Switch to grid for larger screens */
-    grid-template-columns: 70% 30%; /* Text 70%, Image 30% (adjust as needed) */
+    grid-template-columns: 40% 60%; /* Text 40%, Image 60% for FIRST showcase */
     align-items: start;
+  }
+
+  &:nth-of-type(even) { /* Target EVEN FeatureShowcase for second one */
+    @media (min-width: 768px) {
+      grid-template-columns: 60% 40%; /* Text 60%, Image 40% for SECOND showcase (and onwards if any more) */
+      direction: rtl; /* Reverse direction to put text on left */
+    }
+  }
+
+  &:nth-of-type(even) > * { /* Reverse items inside even showcases */
+    @media (min-width: 768px) {
+      direction: ltr; /* Revert items to LTR */
+    }
   }
 `;
 
@@ -191,7 +204,6 @@ const Screenshot = styled.div`
   @media (min-width: 768px) {
       max-width: none; /* Remove max-width on larger screens if needed for grid layout */
   }
-
 
   &:hover {
     transform: translateY(-5px);
@@ -377,10 +389,6 @@ const App = () => {
         </Section>
 
         <FeatureShowcase>
-          <Screenshot onClick={() => openLightbox(screenshotUrl2)}>
-            <img src={screenshotUrl2} alt="Precise Control Screenshot" />
-            <figcaption>Screenshot of Precise Control Options</figcaption>
-          </Screenshot>
           <div>
             <h2>Precise Control</h2>
             <p>Detailed configuration options:</p>
@@ -391,6 +399,10 @@ const App = () => {
               <li>Custom Keybind Mapping</li>
             </ul>
           </div>
+          <Screenshot onClick={() => openLightbox(screenshotUrl2)}>
+            <img src={screenshotUrl2} alt="Precise Control Screenshot" />
+            <figcaption>Screenshot of Precise Control Options</figcaption>
+          </Screenshot>
         </FeatureShowcase>
 
         <Section style={{ textAlign: 'center', marginTop: '4rem' }}>
