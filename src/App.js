@@ -147,6 +147,8 @@ const Section = styled.section`
   border-radius: 8px;
   padding: 2rem;
   margin-bottom: 2rem;
+
+  /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
   overflow: hidden; /* Ensure content doesn't overflow */
 
@@ -162,11 +164,28 @@ const FeatureShowcase = styled.section`
   display: grid;
   gap: 2rem;
   margin: 4rem 0 2rem;
+
+  /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
 
   @media (min-width: 768px) {
     grid-template-columns: 1fr 1fr;
     align-items: start;
+  }
+`;
+
+const Credits = styled.footer`
+  opacity: 0.8;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #333;
+
+  /* Apply the scrollFade animation */
+  animation: ${scrollFade} 0.8s ease;
+
+  a {
+    color: var(--hover);
   }
 `;
 
@@ -177,18 +196,18 @@ const Screenshot = styled.div`
   transition: transform 0.3s ease;
   animation: ${popIn} 0.8s ease;
   cursor: pointer;
-  position: relative; /* Needed for absolute positioning of content */
+  position: relative;
 
   &:hover {
     transform: translateY(-5px);
   }
 
   img {
-    width: 100%;  /* Fill the container */
-    height: auto; /* Maintain aspect ratio */
-    display: block; /* Remove extra space below image */
-    max-height: 500px; /* Increase maximum height */
-    object-fit: contain;  /* Fit image inside container without cropping */
+    width: 100%; /* Ensure it fills the container */
+    height: auto;  /* Maintain aspect ratio */
+    display: block;
+    max-height: 600px; /* INCREASE max-height */
+    object-fit: contain; /* This is crucial */
   }
 
   figcaption {
@@ -196,11 +215,11 @@ const Screenshot = styled.div`
     background: var(--card-bg);
     font-size: 0.9rem;
     opacity: 0.8;
-    position: absolute; /* Position caption at the bottom */
+    position: absolute;
     bottom: 0;
     left: 0;
     width: 100%;
-    box-sizing: border-box; /* Include padding in width calculation */
+    box-sizing: border-box;
   }
 `;
 
@@ -228,19 +247,6 @@ const FullFeatureList = styled.div`
     ul {
       padding-left: 1.2rem;
     }
-  }
-`;
-
-const Credits = styled.footer`
-  opacity: 0.8;
-  font-size: 0.9rem;
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #333;
-  animation: ${scrollFade} 0.8s ease;
-
-  a {
-    color: var(--hover);
   }
 `;
 
@@ -282,6 +288,7 @@ const App = () => {
   return (
     <>
       <GlobalStyle />
+      <div style={{ background: 'linear-gradient(145deg, var(--bg-bottom) 0%, var(--bg-top) 100%)' }}>
       <Container>
         <Header>
           <h1>Roblox Macro Utilities</h1>
@@ -374,7 +381,6 @@ const App = () => {
               <li>Microsecond timing accuracy</li>
               <li>Safety against unintentional activations</li>
               <li>Custom Keybind Mapping</li>
-              <li>Toggle state visibility</li>
             </ul>
           </div>
         </FeatureShowcase>
