@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 // ===== Animation Definitions =====
@@ -295,12 +295,63 @@ const LightboxImage = styled.img`
   object-fit: contain; /* ensures the image fits within the container without cropping */
 `;
 
+const DownloadCount = styled.div`
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-top: 0.5rem;
+  text-align: center;
+`;
+
+const CountNumber = styled.span`
+  font-weight: bold;
+  color: var(--accent);
+`;
+
+
 // ===== Updated Main Component =====
 const App = () => {
   const screenshotUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
+  const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
 
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [downloadCount, setDownloadCount] = useState(null);
+  const [loadingCount, setLoadingCount] = useState(true);
+  const [countError, setCountError] = useState(null);
+
+
+  useEffect(() => {
+    const fetchDownloadCount = async () => {
+      setLoadingCount(true);
+      setCountError(null);
+      try {
+        const response = await fetch(downloadBadgeUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const svgText = await response.text();
+
+        // Simple string extraction - may need more robust parsing for production
+        const countMatch = svgText.match(/<text[^>]*>(.*?)<\/text>/); // Match text within <text> tags
+        if (countMatch && countMatch[1]) {
+          const extractedCount = countMatch[1].replace(/[^0-9]/g, ''); // Remove non-numeric chars
+          setDownloadCount(parseInt(extractedCount, 10));
+        } else {
+          setCountError("Could not extract download count from badge.");
+        }
+
+
+      } catch (error) {
+        console.error("Error fetching download count:", error);
+        setCountError("Failed to load download count.");
+      } finally {
+        setLoadingCount(false);
+      }
+    };
+
+    fetchDownloadCount();
+  }, [downloadBadgeUrl]);
+
 
   const openLightbox = (imageUrl) => {
     setLightboxImage(imageUrl);
@@ -326,6 +377,16 @@ const App = () => {
               See Github/Source Code
             </Button>
           </ButtonGroup>
+
+          <DownloadCount>
+            {loadingCount ? "Loading download count..." : countError ? countError : (
+              <>
+                Total Downloads: <CountNumber>{downloadCount ? downloadCount.toLocaleString() : "N/A"}</CountNumber>
+              </>
+            )}
+          </DownloadCount>
+
+
         </Header>
 
         <FeatureShowcase>
