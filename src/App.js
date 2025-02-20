@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 // ===== Animation Definitions =====
@@ -21,6 +21,7 @@ const GlobalStyle = createGlobalStyle`
     --text: #e0e0e0;
     --accent: #2b7a78;
     --hover: #3daaaa;
+    --lightbox-bg: rgba(0, 0, 0, 0.8);
   }
 
   html {
@@ -174,15 +175,18 @@ const Screenshot = styled.div`
   border: 1px solid #333;
   transition: transform 0.3s ease;
   animation: ${popIn} 0.8s ease;
+  cursor: pointer;
 
   &:hover {
     transform: translateY(-5px);
   }
 
   img {
-    width: 100%;
+    width: 100%; // Use 100% of the container width
     height: auto;
     display: block;
+    max-height: 400px; /* Optional: Set a maximum height to prevent images from becoming too large */
+    object-fit: contain; /* ensures the image fits within the container without cropping */
   }
 
   figcaption {
@@ -233,11 +237,40 @@ const Credits = styled.footer`
   }
 `;
 
+const LightboxOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--lightbox-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  cursor: pointer;
+`;
+
+const LightboxImage = styled.img`
+  max-width: 90%;
+  max-height: 90%;
+  object-fit: contain; /* ensures the image fits within the container without cropping */
+`;
+
 // ===== Updated Main Component =====
 const App = () => {
-  // Placeholder image URLs (replace these with your actual image paths)
-  const placeholderImageUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
-  const placeholderImageUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
+  const screenshotUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
+  const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
+
+  const [lightboxImage, setLightboxImage] = useState(null);
+
+  const openLightbox = (imageUrl) => {
+    setLightboxImage(imageUrl);
+  };
+
+  const closeLightbox = () => {
+    setLightboxImage(null);
+  };
 
   return (
     <>
@@ -268,8 +301,8 @@ const App = () => {
               <li>Layout saves automatically</li>
             </ul>
           </div>
-          <Screenshot>
-            <img src={placeholderImageUrl1} alt="Customizable Interface Screenshot" />
+          <Screenshot onClick={() => openLightbox(screenshotUrl1)}>
+            <img src={screenshotUrl1} alt="Customizable Interface Screenshot" />
             <figcaption>Screenshot of the Customizable Interface</figcaption>
           </Screenshot>
         </FeatureShowcase>
@@ -322,8 +355,8 @@ const App = () => {
         </Section>
 
         <FeatureShowcase>
-          <Screenshot>
-            <img src={placeholderImageUrl2} alt="Precise Control Screenshot" />
+          <Screenshot onClick={() => openLightbox(screenshotUrl2)}>
+            <img src={screenshotUrl2} alt="Precise Control Screenshot" />
             <figcaption>Screenshot of Precise Control Options</figcaption>
           </Screenshot>
           <div>
@@ -331,9 +364,9 @@ const App = () => {
             <p>Detailed configuration options:</p>
             <ul>
               <li>Microsecond timing accuracy</li>
-              <li>Custom keybind mapping</li>
-              <li>Active macro indicators</li>
-              <li>Toggle state visibility</li>
+              <li>Safety against unintentional activations</li>
+              <li>Toggle macro keybinds</li>
+              <li>Custom Keybind Mapping</li>
             </ul>
           </div>
         </FeatureShowcase>
@@ -364,6 +397,12 @@ const App = () => {
           </ul>
         </Credits>
       </Container>
+
+      {lightboxImage && (
+        <LightboxOverlay onClick={closeLightbox}>
+          <LightboxImage src={lightboxImage} alt="Lightbox View" />
+        </LightboxOverlay>
+      )}
     </>
   );
 };
