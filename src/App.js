@@ -15,8 +15,8 @@ const popIn = keyframes`
 // ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg-top: #0a0a0a; /* Darker grey for top gradient now - KEEP AS IS */
-    --bg-bottom: #333333; /* Brighter grey for bottom gradient NOW */
+    --bg-top: #0a0a0a;
+    --bg-bottom: #949494;
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
     --accent: #2b7a78;
