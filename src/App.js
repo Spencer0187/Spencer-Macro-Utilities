@@ -147,10 +147,10 @@ const Section = styled.section`
   border-radius: 8px;
   padding: 2rem;
   margin-bottom: 2rem;
+  overflow: hidden; /* Ensure content doesn't overflow */
 
   /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
-  overflow: hidden; /* Ensure content doesn't overflow */
 
   h2 {
     color: var(--accent);
@@ -174,21 +174,6 @@ const FeatureShowcase = styled.section`
   }
 `;
 
-const Credits = styled.footer`
-  opacity: 0.8;
-  font-size: 0.9rem;
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #333;
-
-  /* Apply the scrollFade animation */
-  animation: ${scrollFade} 0.8s ease;
-
-  a {
-    color: var(--hover);
-  }
-`;
-
 const Screenshot = styled.div`
   border-radius: 12px;
   overflow: hidden;
@@ -204,7 +189,7 @@ const Screenshot = styled.div`
 
   img {
     width: 100%; /* Ensure it fills the container */
-    height: auto;  /* Maintain aspect ratio */
+    height: auto; /* Maintain aspect ratio */
     display: block;
     max-height: 600px; /* INCREASE max-height */
     object-fit: contain; /* This is crucial */
@@ -250,6 +235,21 @@ const FullFeatureList = styled.div`
   }
 `;
 
+const Credits = styled.footer`
+  opacity: 0.8;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #333;
+
+  /* Apply the scrollFade animation */
+  animation: ${scrollFade} 0.8s ease;
+
+  a {
+    color: var(--hover);
+  }
+`;
+
 const LightboxOverlay = styled.div`
   position: fixed;
   top: 0;
@@ -288,7 +288,6 @@ const App = () => {
   return (
     <>
       <GlobalStyle />
-      <div style={{ background: 'linear-gradient(145deg, var(--bg-bottom) 0%, var(--bg-top) 100%)' }}>
       <Container>
         <Header>
           <h1>Roblox Macro Utilities</h1>
@@ -377,10 +376,10 @@ const App = () => {
             <h2>Precise Control</h2>
             <p>Detailed configuration options:</p>
             <ul>
-              <li>Toggle macro keybinds</li>
+              <li>Custom Keybind Mapping</li>
               <li>Microsecond timing accuracy</li>
               <li>Safety against unintentional activations</li>
-              <li>Custom Keybind Mapping</li>
+              <li>Toggle Macro Keybinds</li>
             </ul>
           </div>
         </FeatureShowcase>
