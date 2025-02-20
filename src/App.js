@@ -167,11 +167,6 @@ const FeatureShowcase = styled.section`
 
   /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
-
-  @media (min-width: 768px) {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-  }
 `;
 
 const Screenshot = styled.div`
