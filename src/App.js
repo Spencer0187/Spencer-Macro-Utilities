@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 // ===== Animation Definitions =====
@@ -7,14 +7,24 @@ const scrollFade = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
+const popIn = keyframes`
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+`;
+
 // ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg: linear-gradient(145deg, #0a0a0a 0%, #121212 100%);
+    --bg-top: #121212;
+    --bg-bottom: #0a0a0a;
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
     --accent: #2b7a78;
     --hover: #3daaaa;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   * {
@@ -24,7 +34,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body {
-    background: var(--bg);
+    background: linear-gradient(145deg, var(--bg-bottom) 0%, var(--bg-top) 100%);
     color: var(--text);
     line-height: 1.6;
     font-family: 'Inter', system-ui, sans-serif;
@@ -47,7 +57,7 @@ const GlobalStyle = createGlobalStyle`
   ul {
     padding-left: 1.5rem;
     margin: 0.8rem 0;
-    
+
     li {
       margin-bottom: 0.5rem;
       max-width: 80ch;
@@ -58,7 +68,7 @@ const GlobalStyle = createGlobalStyle`
   @media (max-width: 768px) {
     ul {
       padding-left: 1.2rem;
-      
+
       li {
         margin-left: 0.5rem;
       }
@@ -75,7 +85,7 @@ const Container = styled.div`
 const Header = styled.header`
   text-align: center;
   margin-bottom: 3rem;
-  animation: ${scrollFade} 0.8s ease;
+  animation: ${popIn} 0.8s ease;
 
   h1 {
     color: var(--hover);
@@ -136,6 +146,7 @@ const Section = styled.section`
   border-radius: 8px;
   padding: 2rem;
   margin-bottom: 2rem;
+  animation: ${scrollFade} 0.8s ease;
 
   h2 {
     color: var(--accent);
@@ -162,7 +173,8 @@ const Screenshot = styled.div`
   overflow: hidden;
   border: 1px solid #333;
   transition: transform 0.3s ease;
-  
+  animation: ${popIn} 0.8s ease;
+
   &:hover {
     transform: translateY(-5px);
   }
@@ -196,12 +208,12 @@ const FullFeatureList = styled.div`
     background: var(--card-bg);
     border-radius: 8px;
     margin-bottom: 1rem;
-    
+
     h3 {
       color: var(--hover);
       margin-bottom: 0.5rem;
     }
-    
+
     ul {
       padding-left: 1.2rem;
     }
@@ -214,6 +226,7 @@ const Credits = styled.footer`
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid #333;
+  animation: ${scrollFade} 0.8s ease;
 
   a {
     color: var(--hover);
@@ -222,6 +235,10 @@ const Credits = styled.footer`
 
 // ===== Updated Main Component =====
 const App = () => {
+  // Placeholder image URLs (replace these with your actual image paths)
+  const placeholderImageUrl1 = 'https://via.placeholder.com/600x400/444/eee?text=Screenshot+1';
+  const placeholderImageUrl2 = 'https://via.placeholder.com/600x400/666/ddd?text=Screenshot+2';
+
   return (
     <>
       <GlobalStyle />
@@ -229,7 +246,7 @@ const App = () => {
         <Header>
           <h1>Roblox Macro Utilities</h1>
           <p>Windows automation tool that works alongside Roblox - no memory access, just input automation</p>
-          
+
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" className="primary">
               Download (1.3MB EXE)
@@ -252,7 +269,8 @@ const App = () => {
             </ul>
           </div>
           <Screenshot>
-            {/* Keep placeholder */}
+            <img src={placeholderImageUrl1} alt="Customizable Interface Screenshot" />
+            <figcaption>Screenshot of the Customizable Interface</figcaption>
           </Screenshot>
         </FeatureShowcase>
 
@@ -305,7 +323,8 @@ const App = () => {
 
         <FeatureShowcase>
           <Screenshot>
-            {/* Keep placeholder */}
+            <img src={placeholderImageUrl2} alt="Precise Control Screenshot" />
+            <figcaption>Screenshot of Precise Control Options</figcaption>
           </Screenshot>
           <div>
             <h2>Precise Control</h2>
