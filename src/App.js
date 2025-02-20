@@ -427,6 +427,19 @@ const App = () => {
           </p>
         </Section>
 
+        {/* === NEW DISCORD SECTION === */}
+        <Section style={{ textAlign: 'center', marginTop: '3rem' }}>
+          <h2>Join the Community Discord</h2>
+          <p style={{maxWidth: '600px', margin: '0.5rem auto 1rem'}}>
+            Get notified about updates, discuss glitches, and get help from other users by joining the Roblox Glitching Community Discord server!
+          </p>
+          <ButtonGroup>
+            <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="primary">
+              Join Discord Server
+            </Button>
+          </ButtonGroup>
+        </Section>
+
         <Credits>
           <p>Implementation Details:</p>
           <ul>
