@@ -1,4 +1,3 @@
---- START OF FILE App.js ---
 
 import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
