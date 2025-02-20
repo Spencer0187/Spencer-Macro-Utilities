@@ -171,13 +171,13 @@ const FeatureShowcase = styled.section`
 
   @media (min-width: 768px) {
     display: grid; /* Switch to grid for larger screens */
-    grid-template-columns: 40% 60%; /* Text 40%, Image 60% for FIRST showcase */
+    grid-template-columns: 1fr 1.5fr; /* Text 1fr, Image 1.5fr for FIRST showcase (using fr units) */
     align-items: start;
   }
 
   &:nth-of-type(even) { /* Target EVEN FeatureShowcase for second one */
     @media (min-width: 768px) {
-      grid-template-columns: 60% 40%; /* Text 60%, Image 40% for SECOND showcase (and onwards if any more) */
+      grid-template-columns: 1.5fr 1fr; /* Image 1.5fr, Text 1fr for SECOND showcase (using fr units) */
       direction: rtl; /* Reverse direction to put text on left */
     }
   }
@@ -200,9 +200,13 @@ const Screenshot = styled.div`
   max-height: none; /* Remove max-height restriction on the container */
   width: 100%; /* Take full width of the grid column or flex container */
   max-width: 100%; /* Ensure it doesn't exceed its parent width */
+  box-sizing: border-box; /* Add box-sizing to include padding/border in width */
+  padding-right: 1rem; /* Add some right padding to visually separate from text */
+
 
   @media (min-width: 768px) {
       max-width: none; /* Remove max-width on larger screens if needed for grid layout */
+      padding-right: 0; /* Reset padding for larger screens if needed, or adjust as desired */
   }
 
   &:hover {
