@@ -236,8 +236,8 @@ const Credits = styled.footer`
 // ===== Updated Main Component =====
 const App = () => {
   // Placeholder image URLs (replace these with your actual image paths)
-  const placeholderImageUrl1 = 'https://via.placeholder.com/600x400/444/eee?text=Screenshot+1';
-  const placeholderImageUrl2 = 'https://via.placeholder.com/600x400/666/ddd?text=Screenshot+2';
+  const placeholderImageUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
+  const placeholderImageUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
 
   return (
     <>
