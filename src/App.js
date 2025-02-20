@@ -35,7 +35,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body {
-    background: linear-gradient(145deg, var(--bg-bottom) 0%, var(--bg-top) 100%);
+    background: linear-gradient(145deg, var(--bg-bottom) 0%, var(--bg-top) 100%); /* Gradient Background */
     color: var(--text);
     line-height: 1.6;
     font-family: 'Inter', system-ui, sans-serif;
@@ -148,6 +148,7 @@ const Section = styled.section`
   padding: 2rem;
   margin-bottom: 2rem;
   animation: ${scrollFade} 0.8s ease;
+  overflow: hidden; /* Ensure content doesn't overflow */
 
   h2 {
     color: var(--accent);
@@ -176,17 +177,18 @@ const Screenshot = styled.div`
   transition: transform 0.3s ease;
   animation: ${popIn} 0.8s ease;
   cursor: pointer;
+  position: relative; /* Needed for absolute positioning of content */
 
   &:hover {
     transform: translateY(-5px);
   }
 
   img {
-    width: 100%; // Use 100% of the container width
-    height: auto;
-    display: block;
-    max-height: 400px; /* Optional: Set a maximum height to prevent images from becoming too large */
-    object-fit: contain; /* ensures the image fits within the container without cropping */
+    width: 100%;  /* Fill the container */
+    height: auto; /* Maintain aspect ratio */
+    display: block; /* Remove extra space below image */
+    max-height: 500px; /* Increase maximum height */
+    object-fit: contain;  /* Fit image inside container without cropping */
   }
 
   figcaption {
@@ -194,6 +196,11 @@ const Screenshot = styled.div`
     background: var(--card-bg);
     font-size: 0.9rem;
     opacity: 0.8;
+    position: absolute; /* Position caption at the bottom */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box; /* Include padding in width calculation */
   }
 `;
 
@@ -363,10 +370,11 @@ const App = () => {
             <h2>Precise Control</h2>
             <p>Detailed configuration options:</p>
             <ul>
+              <li>Toggle macro keybinds</li>
               <li>Microsecond timing accuracy</li>
               <li>Safety against unintentional activations</li>
-              <li>Toggle macro keybinds</li>
               <li>Custom Keybind Mapping</li>
+              <li>Toggle state visibility</li>
             </ul>
           </div>
         </FeatureShowcase>
