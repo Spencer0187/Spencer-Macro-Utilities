@@ -161,12 +161,19 @@ const Section = styled.section`
 `;
 
 const FeatureShowcase = styled.section`
-  display: grid;
+  display: flex;
+  flex-direction: column; /* Default to column for small screens */
   gap: 2rem;
   margin: 4rem 0 2rem;
 
   /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
+
+  @media (min-width: 768px) {
+    display: grid; /* Switch to grid for larger screens */
+    grid-template-columns: 70% 30%; /* Text 70%, Image 30% (adjust as needed) */
+    align-items: start;
+  }
 `;
 
 const Screenshot = styled.div`
@@ -178,16 +185,22 @@ const Screenshot = styled.div`
   cursor: pointer;
   position: relative;
   max-height: none; /* Remove max-height restriction on the container */
+  width: 100%; /* Take full width of the grid column or flex container */
+  max-width: 100%; /* Ensure it doesn't exceed its parent width */
+
+  @media (min-width: 768px) {
+      max-width: none; /* Remove max-width on larger screens if needed for grid layout */
+  }
+
 
   &:hover {
     transform: translateY(-5px);
   }
 
   img {
-    width: 100%; /* Ensure it fills the container */
+    width: 100%; /* Ensure it fills its container (Screenshot div) */
     height: auto; /* Maintain aspect ratio */
     display: block;
-    /* max-height: 600px;  REMOVED max-height on img */
     object-fit: scale-down; /* Changed to scale-down */
   }
 
