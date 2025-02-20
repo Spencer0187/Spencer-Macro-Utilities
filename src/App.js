@@ -15,7 +15,7 @@ const popIn = keyframes`
 // ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg-top: #121212;
+    --bg-top: #333333; /* Lighter grey for top gradient */
     --bg-bottom: #0a0a0a;
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
@@ -182,6 +182,7 @@ const Screenshot = styled.div`
   animation: ${popIn} 0.8s ease;
   cursor: pointer;
   position: relative;
+  max-height: none; /* Remove max-height restriction on the container */
 
   &:hover {
     transform: translateY(-5px);
@@ -191,8 +192,8 @@ const Screenshot = styled.div`
     width: 100%; /* Ensure it fills the container */
     height: auto; /* Maintain aspect ratio */
     display: block;
-    max-height: 600px; /* INCREASE max-height */
-    object-fit: contain; /* This is crucial */
+    /* max-height: 600px;  REMOVED max-height on img */
+    object-fit: scale-down; /* Changed to scale-down */
   }
 
   figcaption {
