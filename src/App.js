@@ -1,14 +1,49 @@
 import React from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
-// ===== Styled Components Updates =====
+// ===== Animation Definitions =====
 const scrollFade = keyframes`
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 `;
 
+// ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
-  /* Add bullet point fixes */
+  :root {
+    --bg: linear-gradient(145deg, #0a0a0a 0%, #121212 100%);
+    --card-bg: rgba(25, 25, 25, 0.9);
+    --text: #e0e0e0;
+    --accent: #2b7a78;
+    --hover: #3daaaa;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-family: 'Inter', system-ui, sans-serif;
+    padding: 2rem 1rem;
+    min-height: 100vh;
+  }
+
+  a {
+    color: var(--hover);
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.8;
+      text-decoration: underline;
+    }
+  }
+
+  /* Bullet point fixes */
   ul {
     padding-left: 1.5rem;
     margin: 0.8rem 0;
@@ -20,7 +55,6 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  /* Mobile bullet alignment fix */
   @media (max-width: 768px) {
     ul {
       padding-left: 1.2rem;
@@ -32,10 +66,158 @@ const GlobalStyle = createGlobalStyle`
   }
 `;
 
+// ===== Styled Components =====
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+`;
+
+const Header = styled.header`
+  text-align: center;
+  margin-bottom: 3rem;
+  animation: ${scrollFade} 0.8s ease;
+
+  h1 {
+    color: var(--hover);
+    font-size: 2.8rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.05em;
+  }
+
+  p {
+    max-width: 600px;
+    margin: 0 auto;
+    font-size: 1.1rem;
+    opacity: 0.9;
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const Button = styled.a`
+  padding: 0.8rem 1.5rem;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: 0.2s all ease;
+  cursor: pointer;
+
+  &.primary {
+    background: var(--accent);
+    color: white;
+
+    &:hover {
+      background: var(--hover);
+    }
+  }
+
+  &.secondary {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+
+    &:hover {
+      border-color: var(--hover);
+      color: var(--hover);
+    }
+  }
+`;
+
+const Section = styled.section`
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+
+  h2 {
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #333;
+  }
+`;
+
 const FeatureShowcase = styled.section`
-  /* Add padding between image and features */
+  display: grid;
+  gap: 2rem;
   margin: 4rem 0 2rem;
   animation: ${scrollFade} 0.8s ease;
+
+  @media (min-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+`;
+
+const Screenshot = styled.div`
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #333;
+  transition: transform 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-5px);
+  }
+
+  img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  figcaption {
+    padding: 1rem;
+    background: var(--card-bg);
+    font-size: 0.9rem;
+    opacity: 0.8;
+  }
+`;
+
+const FullFeatureList = styled.div`
+  columns: 2;
+  gap: 2rem;
+  margin-top: 2rem;
+
+  @media (max-width: 768px) {
+    columns: 1;
+  }
+
+  div {
+    break-inside: avoid;
+    padding: 1rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    
+    h3 {
+      color: var(--hover);
+      margin-bottom: 0.5rem;
+    }
+    
+    ul {
+      padding-left: 1.2rem;
+    }
+  }
+`;
+
+const Credits = styled.footer`
+  opacity: 0.8;
+  font-size: 0.9rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #333;
+
+  a {
+    color: var(--hover);
+  }
 `;
 
 // ===== Updated Main Component =====
