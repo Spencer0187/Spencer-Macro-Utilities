@@ -1,3 +1,5 @@
+--- START OF FILE App.js ---
+
 import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
@@ -15,8 +17,8 @@ const popIn = keyframes`
 // ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg-top: #333333; /* Lighter grey for top gradient */
-    --bg-bottom: #0a0a0a;
+    --bg-top: #555555; /* Even brighter grey for top gradient */
+    --bg-bottom: #222222; /* Slightly brighter dark grey */
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
     --accent: #2b7a78;
@@ -307,6 +309,26 @@ const CountNumber = styled.span`
   color: var(--accent);
 `;
 
+const FAQSection = styled(Section)`
+  text-align: left;
+
+  h3 {
+    color: var(--hover);
+    margin-bottom: 0.5rem;
+  }
+
+  div {
+    margin-bottom: 1.5rem;
+  }
+`;
+
+const KnownIssuesSection = styled(Section)`
+  h3 {
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+`;
+
 
 // ===== Updated Main Component =====
 const App = () => {
@@ -454,6 +476,30 @@ const App = () => {
           </FullFeatureList>
         </Section>
 
+        {/* === NEW Known Issues SECTION === */}
+        <KnownIssuesSection>
+          <h2>Known Issues</h2>
+          <ul>
+            <li>
+              <h3>Keybind Issues (0x0 or immediate keys on binding)</h3>
+              <p>If you encounter "0x0" or other keys registering immediately when binding keybinds, a system restart is typically required to resolve this.</p>
+            </li>
+            <li>
+              <h3>DLL Errors on Launch</h3>
+              <p>Should you receive DLL errors upon launching the application, please ensure you have installed the Visual Studio 2022 x64 C++ Redistributable. You can download it from <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist">Microsoft's website</a>.</p>
+            </li>
+            <li>
+              <h3>Application Fails to Launch</h3>
+              <p>In cases where the application does not launch at all, navigate to the file properties, and check the box to "Unblock" the file. This is sometimes necessary for executables downloaded from the internet.</p>
+            </li>
+            <li>
+              <h3>Keybinds Not Working</h3>
+              <p>If you experience issues with keybinds not functioning as expected, restarting your computer is recommended. Additionally, ensure you are using the latest version of the application, as updates often include fixes for such problems.</p>
+            </li>
+          </ul>
+        </KnownIssuesSection>
+
+
         <FeatureShowcase>
           <div>
             <h2>Precise Control</h2>
@@ -483,6 +529,26 @@ const App = () => {
             </Button>
           </ButtonGroup>
         </Section>
+
+        {/* === NEW FAQ SECTION === */}
+        <FAQSection>
+          <h2>FAQ</h2>
+          <div>
+            <h3>Is this A CHEAT???</h3>
+            <p>No, it's a macro utility. It operates by simulating user input and does not interact with Roblox's memory or game processes in any way that would be considered cheating. It's purely for automating in-game actions through external input.</p>
+          </div>
+
+          <div>
+            <h3>Windows Defender says it's a virus!</h3>
+            <p>This is a known and ongoing issue where a portion of PCs flag the application as a potential virus, while others do not. Rest assured, the application is not a virus. This is a "false positive" detection, and efforts are continuously being made to reduce these occurrences. If you remain concerned, you are welcome to download Visual Studio 2022, install the "Desktop C++" workload, open the provided <code>.sln</code> project file from the GitHub source code, and compile the application yourself for complete trust and transparency.</p>
+          </div>
+
+          <div>
+            <h3>Help, I bound wallhop to left-click!</h3>
+            <p>Accidentally binding a macro to a mouse button can be easily resolved. Simply hold down the designated "Toggle Macro" keybind (which disables all macros when held), then drag your mouse cursor back over the problematic macro button in the UI, and release the "Toggle Macro" key. This action will effectively toggle off the macro, allowing you to reconfigure it or disable it as needed.</p>
+          </div>
+        </FAQSection>
+
 
         <Section style={{ textAlign: 'center', marginTop: '4rem' }}>
           <h2>Get Started</h2>
