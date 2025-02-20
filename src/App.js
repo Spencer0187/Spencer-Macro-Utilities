@@ -15,8 +15,8 @@ const popIn = keyframes`
 // ===== Global Styles =====
 const GlobalStyle = createGlobalStyle`
   :root {
-    --bg-top: #0a0a0a; /* Darker grey for top gradient now */
-    --bg-bottom: #222222; /* Keep bottom similar, slightly brighter dark grey */
+    --bg-top: #0a0a0a; /* Darker grey for top gradient now - KEEP AS IS */
+    --bg-bottom: #333333; /* Brighter grey for bottom gradient NOW */
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
     --accent: #2b7a78;
@@ -35,7 +35,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body {
-    background: linear-gradient(145deg, var(--bg-top) 0%, var(--bg-bottom) 100%); /* Gradient Background - Top Darker now */
+    background: linear-gradient(145deg, var(--bg-top) 0%, var(--bg-bottom) 100%); /* Gradient Background - Top Darker, Bottom Brighter */
     color: var(--text);
     line-height: 1.6;
     font-family: 'Inter', system-ui, sans-serif;
@@ -538,12 +538,12 @@ const App = () => {
 
           <div>
             <h3>Windows Defender flags it as a virus!</h3>
-            <p>This is a known false positive.  While some PCs flag the application, many do not.  Efforts are ongoing to reduce these false detections. If you have concerns, you can download Visual Studio 2022 with the "Desktop C++" workload, open the <code>.sln</code> project file from the GitHub source code, and compile it yourself.</p>
+            <p>This is a known false positive. Some PC's flag it, but most don't. I'm consistently trying to fix false positives. If you still don't trust it, you can download Visual Studio 2022 with the "Desktop C++" workload, open the .sln project file from the GitHub source code, and compile it yourself.</p>
           </div>
 
           <div>
             <h3>I bound a macro to left-click by mistake!</h3>
-            <p>To resolve this, hold down the "Toggle Macro" key (which disables macros while held). Then, drag your mouse cursor back over the macro button in the UI and release the "Toggle Macro" key. This will toggle off the macro.</p>
+            <p>To fix this, press down the "Toggle Macro" button in the app. Then, drag your mouse cursor back over the UI's Toggle button and release your mouse. This will toggle off the macro.</p>
           </div>
         </FAQSection>
 
