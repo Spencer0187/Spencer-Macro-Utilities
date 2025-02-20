@@ -331,11 +331,12 @@ const App = () => {
         }
         const svgText = await response.text();
 
-        // Simple string extraction - may need more robust parsing for production
-        const countMatch = svgText.match(/<text[^>]*>(.*?)<\/text>/); // Match text within <text> tags
-        if (countMatch && countMatch[1]) {
-          const extractedCount = countMatch[1].replace(/[^0-9]/g, ''); // Remove non-numeric chars
-          setDownloadCount(parseInt(extractedCount, 10));
+        // Modified regex to find text elements containing numbers, and get the LAST match
+        const countMatches = [...svgText.matchAll(/<text[^>]*>([\d\.]+[kMGTPE]?)<\/text>/g)]; // Match all text elements with numbers/units
+        if (countMatches && countMatches.length > 0) {
+          const lastMatch = countMatches[countMatches.length - 1]; // Get the last match
+          const extractedCount = lastMatch[1].replace(/[^0-9\.]/g, ''); // Remove non-numeric chars except decimals
+          setDownloadCount(parseFloat(extractedCount)); // Use parseFloat for potential decimals
         } else {
           setCountError("Could not extract download count from badge.");
         }
@@ -381,7 +382,7 @@ const App = () => {
           <DownloadCount>
             {loadingCount ? "Loading download count..." : countError ? countError : (
               <>
-                Total Downloads: <CountNumber>{downloadCount ? downloadCount.toLocaleString() : "N/A"}</CountNumber>
+                Total Downloads: <CountNumber>{downloadCount !== null ? downloadCount.toLocaleString() + "k+" : "N/A"}</CountNumber>
               </>
             )}
           </DownloadCount>
