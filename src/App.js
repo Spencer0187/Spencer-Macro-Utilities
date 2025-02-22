@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Analytics } from "@vercel/analytics/react"
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 // ===== Animation Definitions =====
