@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
-import { Analytics } from 'https://unpkg.com/@vercel/analytics/react@1.5.0/dist/index.js';
 
 // ===== Animation Definitions =====
 const scrollFade = keyframes`
