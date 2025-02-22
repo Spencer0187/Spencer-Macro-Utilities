@@ -335,7 +335,7 @@ const App = () => {
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
 
-  <Analytics />
+  
   const [lightboxImage, setLightboxImage] = useState(null);
   const [downloadCount, setDownloadCount] = useState(null);
   const [loadingCount, setLoadingCount] = useState(true);
