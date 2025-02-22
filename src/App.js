@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Analytics } from '@vercel/analytics/react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 
 // ===== Animation Definitions =====
@@ -331,7 +330,6 @@ const KnownIssuesSection = styled(Section)`
 
 // ===== Updated Main Component =====
 const App = () => {
-  <Analytics />
   const screenshotUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
