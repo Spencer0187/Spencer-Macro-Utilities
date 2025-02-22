@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
+import { Analytics } from 'https://unpkg.com/@vercel/analytics/react@1.5.0/dist/index.js';
 
 // ===== Animation Definitions =====
 const scrollFade = keyframes`
@@ -334,6 +335,7 @@ const App = () => {
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
 
+  <Analytics />
   const [lightboxImage, setLightboxImage] = useState(null);
   const [downloadCount, setDownloadCount] = useState(null);
   const [loadingCount, setLoadingCount] = useState(true);
