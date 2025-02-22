@@ -388,6 +388,7 @@ const App = () => {
       <GlobalStyle />
       <Container>
         <Header>
+          <Analytics />
           <h1>Roblox Macro Utilities</h1>
           <p>Windows automation tool that works alongside Roblox - no memory access, just input automation</p>
 
