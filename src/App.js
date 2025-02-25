@@ -16,7 +16,7 @@ const popIn = keyframes`
 const GlobalStyle = createGlobalStyle`
   :root {
     --bg-top: #0a0a0a;
-    --bg-bottom: #949494;
+    --bg-bottom: #616161;
     --card-bg: rgba(25, 25, 25, 0.9);
     --text: #e0e0e0;
     --accent: #2b7a78;
