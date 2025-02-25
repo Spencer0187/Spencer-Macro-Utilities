@@ -35,7 +35,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   body {
-    background: linear-gradient(145deg, var(--bg-top) 0%, var(--bg-bottom) 100%); /* Gradient Background - Top Darker, Bottom Brighter */
+    background: linear-gradient(145deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
     color: var(--text);
     line-height: 1.6;
     font-family: 'Inter', system-ui, sans-serif;
@@ -54,7 +54,6 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  /* Bullet point fixes */
   ul {
     padding-left: 1.5rem;
     margin: 0.8rem 0;
@@ -147,9 +146,7 @@ const Section = styled.section`
   border-radius: 8px;
   padding: 2rem;
   margin-bottom: 2rem;
-  overflow: hidden; /* Ensure content doesn't overflow */
-
-  /* Apply the scrollFade animation */
+  overflow: hidden;
   animation: ${scrollFade} 0.8s ease;
 
   h2 {
@@ -162,29 +159,27 @@ const Section = styled.section`
 
 const FeatureShowcase = styled.section`
   display: flex;
-  flex-direction: column; /* Default to column for small screens */
+  flex-direction: column;
   gap: 2rem;
   margin: 4rem 0 2rem;
-
-  /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
 
   @media (min-width: 768px) {
-    display: grid; /* Switch to grid for larger screens */
-    grid-template-columns: 1fr 1.5fr; /* Text 1fr, Image 1.5fr for FIRST showcase (using fr units) */
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
     align-items: start;
   }
 
-  &:nth-of-type(even) { /* Target EVEN FeatureShowcase for second one */
+  &:nth-of-type(even) {
     @media (min-width: 768px) {
-      grid-template-columns: 1.5fr 1fr; /* Image 1.5fr, Text 1fr for SECOND showcase (using fr units) */
-      direction: rtl; /* Reverse direction to put text on left */
+      grid-template-columns: 1.5fr 1fr;
+      direction: rtl;
     }
   }
 
-  &:nth-of-type(even) > * { /* Reverse items inside even showcases */
+  &:nth-of-type(even) > * {
     @media (min-width: 768px) {
-      direction: ltr; /* Revert items to LTR */
+      direction: ltr;
     }
   }
 `;
@@ -197,16 +192,15 @@ const Screenshot = styled.div`
   animation: ${popIn} 0.8s ease;
   cursor: pointer;
   position: relative;
-  max-height: none; /* Remove max-height restriction on the container */
-  width: 100%; /* Take full width of the grid column or flex container */
-  max-width: 100%; /* Ensure it doesn't exceed its parent width */
-  box-sizing: border-box; /* Add box-sizing to include padding/border in width */
-  padding-right: 1rem; /* Add some right padding to visually separate from text */
-
+  max-height: none;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-right: 1rem;
 
   @media (min-width: 768px) {
-      max-width: none; /* Remove max-width on larger screens if needed for grid layout */
-      padding-right: 0; /* Reset padding for larger screens if needed, or adjust as desired */
+    max-width: none;
+    padding-right: 0;
   }
 
   &:hover {
@@ -214,10 +208,10 @@ const Screenshot = styled.div`
   }
 
   img {
-    width: 100%; /* Ensure it fills its container (Screenshot div) */
-    height: auto; /* Maintain aspect ratio */
+    width: 100%;
+    height: auto;
     display: block;
-    object-fit: scale-down; /* Changed to scale-down */
+    object-fit: scale-down;
   }
 
   figcaption {
@@ -266,8 +260,6 @@ const Credits = styled.footer`
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid #333;
-
-  /* Apply the scrollFade animation */
   animation: ${scrollFade} 0.8s ease;
 
   a {
@@ -292,7 +284,7 @@ const LightboxOverlay = styled.div`
 const LightboxImage = styled.img`
   max-width: 90%;
   max-height: 90%;
-  object-fit: contain; /* ensures the image fits within the container without cropping */
+  object-fit: contain;
 `;
 
 const DownloadCount = styled.div`
@@ -327,18 +319,20 @@ const KnownIssuesSection = styled(Section)`
   }
 `;
 
-
 // ===== Updated Main Component =====
 const App = () => {
   const screenshotUrl1 = 'https://github.com/user-attachments/assets/f38363ad-da99-4c00-92a5-39faf1dd8c8c';
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/5a8ca696-77be-41eb-b8d4-fa52e9f3a3b5';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
+  const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Roblox-Macro-Utilities';
 
   const [lightboxImage, setLightboxImage] = useState(null);
   const [downloadCount, setDownloadCount] = useState(null);
   const [loadingCount, setLoadingCount] = useState(true);
   const [countError, setCountError] = useState(null);
-
+  const [currentVersion, setCurrentVersion] = useState(null);
+  const [loadingVersion, setLoadingVersion] = useState(true);
+  const [versionError, setVersionError] = useState(null);
 
   useEffect(() => {
     const fetchDownloadCount = async () => {
@@ -350,18 +344,13 @@ const App = () => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const svgText = await response.text();
-
-        // Modified regex to find text elements containing numbers, and get the LAST match
-        const countMatches = [...svgText.matchAll(/<text[^>]*>([\d\.]+[kMGTPE]?)<\/text>/g)]; // Match all text elements with numbers/units
-        if (countMatches && countMatches.length > 0) {
-          const lastMatch = countMatches[countMatches.length - 1]; // Get the last match
-          const extractedCount = lastMatch[1].replace(/[^0-9\.]/g, ''); // Remove non-numeric chars except decimals
-          setDownloadCount(parseFloat(extractedCount)); // Use parseFloat for potential decimals
+        const textMatches = [...svgText.matchAll(/<text[^>]*>(.*?)<\/text>/g)];
+        if (textMatches && textMatches.length > 0) {
+          const lastText = textMatches[textMatches.length - 1][1];
+          setDownloadCount(lastText); // e.g., "1.2k"
         } else {
           setCountError("Could not extract download count from badge.");
         }
-
-
       } catch (error) {
         console.error("Error fetching download count:", error);
         setCountError("Failed to load download count.");
@@ -369,10 +358,35 @@ const App = () => {
         setLoadingCount(false);
       }
     };
-
     fetchDownloadCount();
   }, [downloadBadgeUrl]);
 
+  useEffect(() => {
+    const fetchVersion = async () => {
+      setLoadingVersion(true);
+      setVersionError(null);
+      try {
+        const response = await fetch(versionBadgeUrl);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const svgText = await response.text();
+        const textMatches = [...svgText.matchAll(/<text[^>]*>(.*?)<\/text>/g)];
+        if (textMatches && textMatches.length > 0) {
+          const lastText = textMatches[textMatches.length - 1][1];
+          setCurrentVersion(lastText); // e.g., "V2.9.7"
+        } else {
+          setVersionError("Could not extract version from badge.");
+        }
+      } catch (error) {
+        console.error("Error fetching version:", error);
+        setVersionError("Failed to load version.");
+      } finally {
+        setLoadingVersion(false);
+      }
+    };
+    fetchVersion();
+  }, [versionBadgeUrl]);
 
   const openLightbox = (imageUrl) => {
     setLightboxImage(imageUrl);
@@ -397,17 +411,19 @@ const App = () => {
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities" className="secondary">
               See Github/Source Code
             </Button>
+            <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
+              Join Community Discord
+            </Button>
           </ButtonGroup>
 
-          <DownloadCount>
-            {loadingCount ? "Loading download count..." : countError ? countError : (
-              <>
-                Total Downloads: <CountNumber>{downloadCount !== null ? downloadCount.toLocaleString() + "k+" : "N/A"}</CountNumber>
-              </>
-            )}
-          </DownloadCount>
-
-
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+            <DownloadCount>
+              Total Downloads: {loadingCount ? "Loading..." : countError ? countError : <CountNumber>{downloadCount}</CountNumber>}
+            </DownloadCount>
+            <DownloadCount>
+              Current version: {loadingVersion ? "Loading..." : versionError ? versionError : <CountNumber>{currentVersion}</CountNumber>}
+            </DownloadCount>
+          </div>
         </Header>
 
         <FeatureShowcase>
@@ -439,7 +455,6 @@ const App = () => {
                 <li>Low resource usage</li>
               </ul>
             </div>
-
             <div>
               <h3>Movement Macros</h3>
               <ul>
@@ -450,7 +465,6 @@ const App = () => {
                 <li>14-Stud Lag High Jump</li>
               </ul>
             </div>
-
             <div>
               <h3>Advanced Functions</h3>
               <ul>
@@ -461,20 +475,18 @@ const App = () => {
                 <li>Laugh Clipping</li>
               </ul>
             </div>
-
             <div>
               <h3>Technical Details</h3>
               <ul>
                 <li>External input simulation</li>
                 <li>Portable execution</li>
                 <li>Open source C++</li>
-              <li>Active maintenance</li>
+                <li>Active maintenance</li>
               </ul>
             </div>
           </FullFeatureList>
         </Section>
 
-        {/* === NEW Known Issues SECTION === */}
         <KnownIssuesSection>
           <h2>Known Issues</h2>
           <ul>
@@ -497,7 +509,6 @@ const App = () => {
           </ul>
         </KnownIssuesSection>
 
-
         <FeatureShowcase>
           <div>
             <h2>Precise Control</h2>
@@ -515,10 +526,9 @@ const App = () => {
           </Screenshot>
         </FeatureShowcase>
 
-        {/* === NEW DISCORD SECTION - MOVED ABOVE GET STARTED === */}
         <Section style={{ textAlign: 'center', marginTop: '3rem' }}>
           <h2>Join the Community Discord</h2>
-          <p style={{maxWidth: '600px', margin: '0.5rem auto 1rem'}}>
+          <p style={{ maxWidth: '600px', margin: '0.5rem auto 1rem' }}>
             Get notified about updates, discuss glitches, and get help from other users by joining the Roblox Glitching Community Discord server!
           </p>
           <ButtonGroup>
@@ -528,25 +538,21 @@ const App = () => {
           </ButtonGroup>
         </Section>
 
-        {/* === NEW FAQ SECTION === */}
         <FAQSection>
           <h2>FAQ</h2>
           <div>
             <h3>Is this a Cheat?</h3>
             <p>No, this is a macro utility. It simulates user input and does not interact with Roblox's memory or game processes in any way that would be considered cheating. It automates in-game actions through external input.</p>
           </div>
-
           <div>
             <h3>Windows Defender flags it as a virus!</h3>
             <p>This is a known false positive. Some PC's flag it, but most don't. I'm consistently trying to fix false positives. If you still don't trust it, you can download Visual Studio 2022 with the "Desktop C++" workload, open the .sln project file from the GitHub source code, and compile it yourself.</p>
           </div>
-
           <div>
             <h3>I bound a macro to left-click by mistake!</h3>
             <p>To fix this, press down the "Toggle Macro" button in the app. Then, drag your mouse cursor back over the UI's Toggle button and release your mouse. This will toggle off the macro.</p>
           </div>
         </FAQSection>
-
 
         <Section style={{ textAlign: 'center', marginTop: '4rem' }}>
           <h2>Get Started</h2>
@@ -558,17 +564,13 @@ const App = () => {
               Join Community
             </Button>
           </ButtonGroup>
-
-          {/* === DOWNLOAD COUNT DUPLICATED HERE === */}
-          <DownloadCount style={{marginTop: '1rem'}}> {/* Added marginTop for spacing */}
+          <DownloadCount style={{ marginTop: '1rem' }}>
             {loadingCount ? "Loading download count..." : countError ? countError : (
               <>
-                Total Downloads: <CountNumber>{downloadCount !== null ? downloadCount.toLocaleString() + "k+" : "N/A"}</CountNumber>
+                Total Downloads: <CountNumber>{downloadCount}</CountNumber>
               </>
             )}
           </DownloadCount>
-
-
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
             Windows 10/11 · Portable EXE · No dependencies
           </p>
