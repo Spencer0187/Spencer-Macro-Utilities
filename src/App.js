@@ -258,8 +258,9 @@ const Credits = styled.footer`
   opacity: 0.8;
   font-size: 0.9rem;
   margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #333;
+  padding: 1rem;
+  background: rgba(25, 25, 25, 0.9);
+  border-radius: 8px;
   animation: ${scrollFade} 0.8s ease;
 
   a {
@@ -347,7 +348,7 @@ const App = () => {
         const textMatches = [...svgText.matchAll(/<text[^>]*>(.*?)<\/text>/g)];
         if (textMatches && textMatches.length > 0) {
           const lastText = textMatches[textMatches.length - 1][1];
-          setDownloadCount(lastText); // e.g., "1.2k"
+          setDownloadCount(lastText);
         } else {
           setCountError("Could not extract download count from badge.");
         }
@@ -374,7 +375,7 @@ const App = () => {
         const textMatches = [...svgText.matchAll(/<text[^>]*>(.*?)<\/text>/g)];
         if (textMatches && textMatches.length > 0) {
           const lastText = textMatches[textMatches.length - 1][1];
-          setCurrentVersion(lastText); // e.g., "V2.9.7"
+          setCurrentVersion(lastText);
         } else {
           setVersionError("Could not extract version from badge.");
         }
@@ -564,13 +565,14 @@ const App = () => {
               Join Community
             </Button>
           </ButtonGroup>
-          <DownloadCount style={{ marginTop: '1rem' }}>
-            {loadingCount ? "Loading download count..." : countError ? countError : (
-              <>
-                Total Downloads: <CountNumber>{downloadCount}</CountNumber>
-              </>
-            )}
-          </DownloadCount>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', marginTop: '1rem' }}>
+            <DownloadCount>
+              Total Downloads: {loadingCount ? "Loading..." : countError ? countError : <CountNumber>{downloadCount}</CountNumber>}
+            </DownloadCount>
+            <DownloadCount>
+              Current version: {loadingVersion ? "Loading..." : versionError ? versionError : <CountNumber>{currentVersion}</CountNumber>}
+            </DownloadCount>
+          </div>
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
             Windows 10/11 · Portable EXE · No dependencies
           </p>
