@@ -3,7 +3,7 @@
 // Used by suspend1.rc
 //
 constexpr auto IDI_ICON1 = 101;
-constexpr auto IDI_ICON2 = 105;
+constexpr auto IDI_ICON2 = 102;
 
 // Next default values for new objects
 // 

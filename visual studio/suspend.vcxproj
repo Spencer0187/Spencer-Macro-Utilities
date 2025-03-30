@@ -145,7 +145,7 @@
       <PrecompiledHeader>
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>Custom</Optimization>
+      <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
@@ -162,6 +162,7 @@
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -201,7 +202,6 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="imgui-files\json.hpp" />
-    <ClInclude Include="imgui-files\LSANS.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -210,8 +210,11 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\..\..\Downloads\favicon-16x16.ico" />
-    <Image Include="..\..\..\..\Downloads\favicon_io\favicon.ico" />
+    <Font Include="LSANS.TTF" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="favicon-16x16.ico" />
+    <Image Include="favicon.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
