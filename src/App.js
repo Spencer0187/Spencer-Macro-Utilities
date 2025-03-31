@@ -407,7 +407,7 @@ const App = () => {
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" className="primary">
-              Download (1.3MB EXE)
+              Download (853KB EXE)
             </Button>
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities" className="secondary">
               See Github/Source Code
@@ -471,8 +471,8 @@ const App = () => {
               <ul>
                 <li>Item Desync Hitboxes</li>
                 <li>Microsecond input timing</li>
-                <li>Key spam repeater</li>
-                <li>Process suspension</li>
+                <li>Key Spam repeater</li>
+                <li>Suspend Processes / Freeze Roblox</li>
                 <li>Laugh Clipping</li>
               </ul>
             </div>
@@ -480,7 +480,7 @@ const App = () => {
               <h3>Technical Details</h3>
               <ul>
                 <li>External input simulation</li>
-                <li>Portable execution</li>
+                <li>Portable exe file</li>
                 <li>Open source C++</li>
                 <li>Active maintenance</li>
               </ul>
@@ -559,7 +559,7 @@ const App = () => {
           <h2>Get Started</h2>
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" className="primary">
-              Download (1.3MB)
+              Download (853KB)
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
               Join Community
