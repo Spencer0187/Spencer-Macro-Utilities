@@ -459,7 +459,7 @@ const App = () => {
             <div>
               <h3>Movement Macros</h3>
               <ul>
-                <li>Helicopter High Jump</li>
+                <li>Helicopter High Jump (+Automatic Mode)</li>
                 <li>Speedglitch toggle</li>
                 <li>Automatic Ledge Bouncing</li>
                 <li>Wallhop/Wall-Walk</li>
