@@ -1,7 +1,7 @@
 # Roblox Macro Client
 An open-source Windows C++ Roblox ImGui Macro with many features.
 
-To Compile, run the project in Visual Studio 2022 and build it.
+To Compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp.
 
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
