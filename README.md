@@ -15,6 +15,8 @@ If it doesn't launch at all, go into properties and select "Unblock" on the file
 
 If you have another issue where keybinds don't work, restart your computer, it seems to fix it permanently.
 
+Downgrading from a version with more functions to a version with less functions causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
+
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
 
 ## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
