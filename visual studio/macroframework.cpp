@@ -67,12 +67,16 @@ std::atomic<bool> isHHJ(false);
 std::atomic<bool> isspamloop(false);
 std::atomic<bool> isitemloop(false);
 std::atomic<bool> iswallwalkloop(false);
+std::atomic<bool> isbhoploop(false);
 
 std::mutex renderMutex;
 std::condition_variable renderCondVar;
 bool renderFlag = false;
 bool running = true;
 HWND hwnd;
+
+std::atomic<bool> g_isVk_BunnyhopHeldDown(false);
+HHOOK g_keyboardHook = NULL;
 
 const DWORD SCAN_CODE_FLAGS = KEYEVENTF_SCANCODE;
 const DWORD RELEASE_FLAGS = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
@@ -99,6 +103,7 @@ unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
+unsigned int vk_bunnyhopkey = MapVirtualKey(0x39, MAPVK_VSC_TO_VK);
 
 // Lookup Table - Backup to avoid displaying Hex if unneccessary
 std::unordered_map<int, std::string> vkToString = {
@@ -202,6 +207,7 @@ char ItemDesyncSlot[256] = "5";
 char ItemSpeedSlot[256] = "3";
 char ItemClipSlot[256] = "7";
 char ItemClipDelay[256] = "30";
+char BunnyHopDelayChar[256] = "10";
 char WallhopPixels[256] = "300";
 char WallhopDegrees[256] = "150";
 char SpamDelay[256] = "20";
@@ -209,7 +215,7 @@ char RobloxSensValue[256] = "0.5";
 char RobloxPixelValueChar[256] = "716";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
-char ChatKeyChar[256] = "/";
+char ChatKeyChar[2] = "/";
 char CustomTextChar[256] = "";
 
 
@@ -240,12 +246,14 @@ bool bounceautohold = true;
 bool laughmoveswitch = false;
 bool takeallprocessids = false;
 bool ontoptoggle = false;
-bool UserAcknowledgedV298 = false;
+bool bunnyhoptoggled = false;
+bool bunnyhopsmart = true;
+bool UserAcknowledgedV299 = false;
 
 // Section toggles and order
-constexpr int section_amounts = 13;
-bool section_toggles[13] = {true, true, true, true, true, false, true, true, true, false, false, false, false};
-int section_order[13] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+constexpr int section_amounts = 14;
+bool section_toggles[14] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false};
+int section_order[14] = {0, 1, 2, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12};
 
 // Numeric settings
 int wallhop_dx = 300;
@@ -260,6 +268,7 @@ int speed_slot = 3;
 int desync_slot = 5;
 int clip_slot = 7;
 int clip_delay = 30;
+int BunnyHopDelay = 10;
 int RobloxWallWalkValueDelay = 72720;
 float spam_delay = 20.0f;
 float maxfreezetime = 9.00f;
@@ -301,7 +310,7 @@ typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
 typedef LONG(NTAPI *NtResumeProcess)(HANDLE ProcessHandle);
 
 
-// Function to suspend or resume a process
+// Helper function to suspend or resume a process
 static void SuspendOrResumeProcess(NtSuspendProcess pfnSuspend, NtResumeProcess pfnResume, const std::vector<HANDLE>& pids, bool suspend)
 {
     for (HANDLE pid : pids)
@@ -346,15 +355,36 @@ static void ReleaseKey(WORD scanCode)
 	SendInput(1, &input, sizeof(INPUT));
 }
 
-static void HoldKeyMouse(WORD scanCode)
+LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode == HC_ACTION) {
+        KBDLLHOOKSTRUCT* pkbhs = (KBDLLHOOKSTRUCT*)lParam;
+
+        // Check if it's the key we care about AND if it's NOT injected
+        if (pkbhs->vkCode == vk_bunnyhopkey) {
+            if (!(pkbhs->flags & LLKHF_INJECTED)) {
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+                    g_isVk_BunnyhopHeldDown = true;
+                } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+                    g_isVk_BunnyhopHeldDown = false;
+                }
+            }
+            // If it IS injected, we do nothing
+        }
+    }
+    return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
+}
+
+// Use these only if the input comes from a bind
+
+static void HoldKeyBinded(WORD Vk_key)
 {
     INPUT input = {};
 
-    // Check if scanCode corresponds to M1, M2, or M3
-    if (scanCode == VK_LBUTTON || scanCode == VK_RBUTTON || scanCode == VK_MBUTTON)
+    // Check if Vk corresponds to M1, M2, or M3
+    if (Vk_key == VK_LBUTTON || Vk_key == VK_RBUTTON || Vk_key == VK_MBUTTON)
     {
         input.type = INPUT_MOUSE;
-        switch (scanCode)
+        switch (Vk_key)
         {
         case VK_LBUTTON:
             input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
@@ -369,24 +399,24 @@ static void HoldKeyMouse(WORD scanCode)
     }
     else
     {
-		scanCode = MapVirtualKeyEx(scanCode, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
+		Vk_key = MapVirtualKeyEx(Vk_key, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
         input.type = INPUT_KEYBOARD;
-        input.ki.wScan = scanCode;
+        input.ki.wScan = Vk_key;
         input.ki.dwFlags = SCAN_CODE_FLAGS;
     }
 
     SendInput(1, &input, sizeof(INPUT));
 }
 
-static void ReleaseKeyMouse(WORD scanCode)
+static void ReleaseKeyBinded(WORD Vk_key)
 {
     INPUT input = {};
 
-    // Check if scanCode corresponds to M1, M2, or M3
-    if (scanCode == VK_LBUTTON || scanCode == VK_RBUTTON || scanCode == VK_MBUTTON)
+    // Check if Vk corresponds to M1, M2, or M3
+    if (Vk_key == VK_LBUTTON || Vk_key == VK_RBUTTON || Vk_key == VK_MBUTTON)
     {
         input.type = INPUT_MOUSE;
-        switch (scanCode)
+        switch (Vk_key)
         {
         case VK_LBUTTON:
             input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
@@ -401,9 +431,9 @@ static void ReleaseKeyMouse(WORD scanCode)
     }
     else
     {
-		scanCode = MapVirtualKeyEx(scanCode, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
+		Vk_key = MapVirtualKeyEx(Vk_key, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
         input.type = INPUT_KEYBOARD;
-        input.ki.wScan = scanCode;
+        input.ki.wScan = Vk_key;
         input.ki.dwFlags = RELEASE_FLAGS;
     }
 
@@ -495,9 +525,9 @@ static void SpamKeyLoop()
 			std::this_thread::sleep_for(std::chrono::microseconds(100));
 		}
 		if (macrotoggled && notbinding && section_toggles[11]) {
-			HoldKeyMouse(vk_spamkey);
+			HoldKeyBinded(vk_spamkey);
 			std::this_thread::sleep_for(std::chrono::microseconds(real_delay));
-			ReleaseKeyMouse(vk_spamkey);
+			ReleaseKeyBinded(vk_spamkey);
 			std::this_thread::sleep_for(std::chrono::microseconds(real_delay));
 		}
 	}
@@ -540,6 +570,19 @@ static void WallWalkLoop()
 	}
 }
 
+static void BhopLoop()
+{
+    while (true) {
+        while (!isbhoploop.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+
+        HoldKeyBinded(vk_bunnyhopkey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+        ReleaseKeyBinded(vk_bunnyhopkey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+    }
+}
 static bool IsMainWindow(HWND hwnd)
 {
 	return (IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == NULL);
@@ -564,6 +607,7 @@ static std::vector<HWND> FindWindowByProcessHandle(const std::vector<HANDLE> &ha
     return windows;
 }
 
+// Find Process ID of latest Process in selection
 static std::vector<DWORD> GetProcessIdByName(bool takeallprocessids)
 {
     // Convert target name from settingsBuffer to wide string
@@ -669,7 +713,7 @@ static HWND FindNewestProcessWindow(const std::vector<HWND> &hwnds)
         DWORD pid = 0;
         GetWindowThreadProcessId(hwnd, &pid);
 
-        // Step 3: Open the process to get its creation time
+        // Open the process to get its creation time
         HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
         if (hProcess) {
             FILETIME ftCreation, ftExit, ftKernel, ftUser;
@@ -729,26 +773,49 @@ static size_t OutputReleaseVersion(void *contents, size_t size, size_t nmemb, st
     return totalSize;
 }
 
+
 static std::string GetRemoteVersion()
 {
+    // Set timeout value (MS)
+    DWORD timeout = 2000; // Sadly, anything below 5 seconds goes back to 5 seconds
+    
     HINTERNET hInternet = InternetOpen(L"User-Agent", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (!hInternet) return ""; // Failed to initialize
+    if (!hInternet) return "";
+
+    // Set timeouts for the internet handle
+    InternetSetOption(hInternet, INTERNET_OPTION_CONNECT_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOption(hInternet, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOption(hInternet, INTERNET_OPTION_SEND_TIMEOUT, &timeout, sizeof(timeout));
+    InternetSetOption(hInternet, INTERNET_OPTION_DATA_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
 
     HINTERNET hConnect = InternetOpenUrl(hInternet, 
         L"https://raw.githubusercontent.com/Spencer0187/Roblox-Macro-Utilities/main/version", 
         NULL, 0, INTERNET_FLAG_RELOAD, 0);
     if (!hConnect) {
         InternetCloseHandle(hInternet);
-        return ""; // Failed to connect
+        return "";
     }
 
-    // Read the response
+    // Read the response with timeout
     char buffer[4096];
     DWORD bytesRead;
     std::string response;
+    DWORD startTime = GetTickCount();
 
-    while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead != 0) {
-        response.append(buffer, bytesRead);
+    while (true) {
+        if (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead)) {
+            if (bytesRead == 0) break; // End of response
+            response.append(buffer, bytesRead);
+        } else {
+            // Error occurred
+            break;
+        }
+
+        // Check if timeout has been exceeded
+        if (GetTickCount() - startTime > timeout) {
+            response.clear();
+            break;
+        }
     }
 
     // Clean up
@@ -902,7 +969,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"toggle_flick", &toggle_flick},
 	{"camfixtoggle", &camfixtoggle},
 	{"wallwalktoggleside", &wallwalktoggleside},
-	{"UserAcknowledgedV298", &UserAcknowledgedV298},
+	{"UserAcknowledgedV299", &UserAcknowledgedV299},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
 	{"wallesslhjswitch", &wallesslhjswitch},
@@ -914,6 +981,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"freezeoutsideroblox", &freezeoutsideroblox},
 	{"takeallprocessids", &takeallprocessids},
 	{"ontoptoggle", &ontoptoggle},
+	{"bunnyhopsmart", &bunnyhopsmart},
 };
 
 // Numeric variables
@@ -933,6 +1001,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_clipkey", &vk_clipkey},
 	{"vk_laughkey", &vk_laughkey},
 	{"vk_bouncekey", &vk_bouncekey},
+	{"vk_bunnyhopkey", &vk_bunnyhopkey},
 	{"selected_dropdown", &selected_dropdown},
 	{"vk_wallkey", &vk_wallkey},
 	{"PreviousWallWalkSide", &PreviousWallWalkSide},
@@ -966,6 +1035,7 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
     {"ItemSpeedSlot", {ItemSpeedSlot, sizeof(ItemSpeedSlot)}},
     {"ItemClipSlot", {ItemClipSlot, sizeof(ItemClipSlot)}},
     {"ItemClipDelay", {ItemClipDelay, sizeof(ItemClipDelay)}},
+	{"BunnyHopDelayChar", {BunnyHopDelayChar, sizeof(BunnyHopDelayChar)}},
     {"RobloxSensValue", {RobloxSensValue, sizeof(RobloxSensValue)}},
     {"RobloxWallWalkValueChar", {RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar)}},
     {"RobloxWallWalkValueDelayChar", {RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar)}},
@@ -1040,12 +1110,19 @@ void LoadSettings(const std::string& filepath) {
             std::copy(toggles.begin(), toggles.end(), section_toggles);
         }
 
-        if (settings.contains("section_order_vector")) {
-            auto order = settings["section_order_vector"].get<std::vector<int>>();
-            for (size_t i = 0; i < section_amounts && i < order.size(); ++i) {
-                section_order[i] = order[i];
-            }
-        }
+		if (settings.contains("section_order_vector")) {
+			auto order = settings["section_order_vector"].get<std::vector<int>>();
+    
+			// HACKY SOLUTION TO ADD IN FUNCTIONS IN CUSTOM POSITONS BY DEFAULT!
+			// Add in Bunnyhop Location to older save files
+			if (std::find(order.begin(), order.end(), 13) == order.end() && order.size() >= 6) {
+				order.insert(order.begin() + 7, 13);  // Insert at index 6 (7th element)
+			}
+    
+			for (size_t i = 0; i < section_amounts && i < order.size(); ++i) {
+				section_order[i] = order[i];
+			}
+		}
 
         if (settings.contains("text")) text = settings["text"];
         
@@ -1073,6 +1150,8 @@ struct SectionConfig {
 
 std::vector<Section> sections;
 
+// Title + Description of Sections
+
 constexpr std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Freeze", "Automatically Tab Glitch With a Button"},
     {"Item Desync", "Enable Item Collision (Hold Item Before Pressing)"},
@@ -1086,7 +1165,8 @@ constexpr std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Laugh Clip", "Automatically Perform a Laugh Clip"},
     {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
     {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
-    {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"}
+    {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
+    {"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
 }};
 
 // ADD KEYBIND VARIABLES FOR EACH SECTION
@@ -1094,7 +1174,7 @@ static const std::unordered_map<unsigned int, unsigned int *> section_to_key = {
 	{0, &vk_mbutton},   {1, &vk_f5},       {2, &vk_xbutton1}, {3, &vk_xkey},
 	{4, &vk_f8},        {5, &vk_zkey},     {6, &vk_xbutton2}, {7, &vk_f6},
 	{8, &vk_clipkey},   {9, &vk_laughkey}, {10, &vk_wallkey}, {11, &vk_leftbracket},
-	{12, &vk_bouncekey}};
+	{12, &vk_bouncekey}, {13, &vk_bunnyhopkey}};
 
 static void InitializeSections()
 {
@@ -1102,11 +1182,12 @@ static void InitializeSections()
     for (size_t i = 0; i < SECTION_CONFIGS.size(); ++i) {
 	sections.push_back({
 		SECTION_CONFIGS[i].title, SECTION_CONFIGS[i].description,
-		false, // Default optionA
-		50.0f  // Default settingValue
+		false, // Fallback Option1
+		50.0f  // Fallback Option2
 	});
     }
 }
+
 
 static unsigned int BindKeyMode(unsigned int currentkey)
 {
@@ -1119,7 +1200,7 @@ static unsigned int BindKeyMode(unsigned int currentkey)
                 bindingMode = false;
                 std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
                 unsigned int currentkeyint = std::stoul(currentkeystr, nullptr, 16); // Convert string into unsigned int
-                std::snprintf(KeyBuffer, sizeof(KeyBuffer), "0x%02x", currentkeyint); // Update KeyBuffer text to your key
+                std::snprintf(KeyBuffer, sizeof(KeyBuffer), "0x%02x", currentkeyint); // Update KeyBuffer text to the key
                 return currentkeyint;
             }
         }
@@ -1149,6 +1230,7 @@ static unsigned int BindKeyMode(unsigned int currentkey)
         return currentkey;
     }
 }
+
 
 static unsigned int BindKeyModeAlt(unsigned int currentkey)
 {
@@ -1249,6 +1331,30 @@ static void GetKeyNameFromHexAlt(unsigned int hexKeyCode)
     }
 }
 
+UINT ChatKeyCharToVK(const char* input) {
+    if (!input || strlen(input) == 0) {
+        return 0;
+    }
+
+    wchar_t wideChar;
+    if (MultiByteToWideChar(CP_ACP, 0, input, 1, &wideChar, 1) == 0) {
+        return 0;
+    }
+
+    HKL keyboardLayout = GetKeyboardLayout(0);
+    
+    SHORT vkAndShift = VkKeyScanExW(wideChar, keyboardLayout);
+    if (vkAndShift == -1) {
+        return 0; // Character not available
+    }
+
+    // Extract the virtual key code (low byte)
+    return static_cast<UINT>(LOBYTE(vkAndShift));
+}
+
+unsigned int vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
+
+// Make the Title Bar Black
 static bool SetTitleBarColor(HWND hwnd, COLORREF color) {
     BOOL value = TRUE;
     HRESULT hr = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
@@ -1262,14 +1368,20 @@ static bool SetTitleBarColor(HWND hwnd, COLORREF color) {
     return true;
 }
 
+// START OF PROGRAM
 static void RunGUI()
 {
+	// Setup Keyboard hook for Bhop Only
+	HINSTANCE hMod = GetModuleHandle(NULL);
+	g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hMod, 0);
+		
 	// Initialize a basic Win32 window
 	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Roblox Macro Client"), NULL };
 
 	// CUSTOM ICONS DON'T WORK AND I DONT KNOW WHY!!!!!!!!!!!!!
-	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON2));
+	/* wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON2));
 	wc.hIconSm = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON2));
+	*/
 
 	RegisterClassEx(&wc);
 	HWND hwnd = CreateWindow(wc.lpszClassName, _T("Roblox Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
@@ -1315,13 +1427,15 @@ static void RunGUI()
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
-
     auto lastTime = std::chrono::high_resolution_clock::now();
     float targetFrameTime = 1.0f / 120.0f;  // 120 FPS target
 
 	InitializeSections();
 
 	MSG msg;
+
+	// Update chatkey vk, I'm not sure why this location works
+	vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
 
     // Attach the GUI thread to the input of the main thread
     DWORD mainThreadId = GetWindowThreadProcessId(hwnd, NULL);
@@ -1373,7 +1487,7 @@ static void RunGUI()
             float settings_panel_height = display_size.y * 0.2f;
             ImGui::BeginChild("GlobalSettings", ImVec2(display_size.x - 16, settings_panel_height), true);
 
-            // Example global settings (replace with your actual settings)
+            // Start of Global Settings
             ImGui::TextWrapped("Global Settings");
 			if (UserOutdated) {
 				ImGui::SameLine(135);
@@ -1381,6 +1495,7 @@ static void RunGUI()
 				ImGui::TextWrapped("(OUTDATED VERSION)");
 				ImGui::PopStyleColor();
 			}
+
 			ImGui::SameLine(ImGui::GetWindowWidth() - 795);
 			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 
@@ -1499,7 +1614,7 @@ static void RunGUI()
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.8");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.9");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1602,7 +1717,7 @@ static void RunGUI()
 				ImGui::PopStyleColor(3); // Reset styles
 				ImGui::PopID();           // Reset ID
 
-				ImGui::Separator();        // Optional separator between buttons
+				ImGui::Separator();        // Separator between buttons
 			}
 
 			ImGui::EndChild();
@@ -1713,10 +1828,12 @@ static void RunGUI()
 
 					ImGui::Checkbox("Allow Roblox to be frozen while not tabbed in", &freezeoutsideroblox);
 					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
-					if (isfreezeswitch) {
+					if (isfreezeswitch || takeallprocessids) {
 						freezeoutsideroblox = true;
 					}
+
 					ImGui::Checkbox("Freeze all Found Processes Instead of Newest", &takeallprocessids);
+
 					ImGui::SameLine();
 					ImGui::TextWrapped("(ONLY EVER USE FOR COMPATIBILITY ISSUES WITH NON-ROBLOX GAMES)");
 					ImGui::Separator();
@@ -1841,7 +1958,12 @@ static void RunGUI()
 					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
-					ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank);
+					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
+						if (strlen(ChatKeyChar) > 1) {
+							ChatKeyChar[1] = '\0';
+						}
+						vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
+					}
 
 					ImGui::SetNextItemWidth(150.0f);
 					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
@@ -2076,14 +2198,16 @@ static void RunGUI()
 					ImGui::TextWrapped("Spam Delay (Milliseconds but accepts decimals):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
-					ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					try { // Error Handling
+					if (ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { // Error Handling
 						spam_delay = std::stof(SpamDelay);
 						real_delay = static_cast<int>((spam_delay * 1000.0f + 0.5f) / 2);
 
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
+					}
+
 					ImGui::TextWrapped("I do not take any responsibility if you set the delay to 0ms");
 					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspamswitch);
 					ImGui::Separator();
@@ -2110,6 +2234,43 @@ static void RunGUI()
 									"This will boost you up slightly into the air, and you can even jump after it.");
 				}
 
+				if (selected_section == 13) { // Bunnyhop
+					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(30.0f);
+					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
+						if (strlen(ChatKeyChar) > 1) {
+							ChatKeyChar[1] = '\0';
+						}
+						vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
+					}
+
+					ImGui::TextWrapped("Bunnyhop Delay in Milliseconds (Default 10ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(120.0f);
+					ImGui::InputText("##", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+
+					try {
+						BunnyHopDelay = atof(BunnyHopDelayChar);
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+
+					ImGui::Checkbox("Enable Intelligent Auto-Toggle", &bunnyhopsmart);
+
+					ImGui::Separator();
+					ImGui::TextWrapped("If Intelligent Auto-Toggle is on, pressing your chat key will temporarily disable bhop "
+									   "until you press left click or enter to leave the chat.");
+					ImGui::Separator();
+
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped(
+									"This Macro will automatically spam your key (typically space) with a specified delay whenever space is held down. "
+									"This is created as a more functional Spamkey implementation specifically for Bhop/Bunnyhop.");
+
+					ImGui::TextWrapped("This will not be active unless you are currently inside of the target program.");
+				}
 
             } else {
                 ImGui::TextWrapped("Select a section to see its settings.");
@@ -2167,13 +2328,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.8";
+    std::string localVersion = "2.9.9";
 
 	if (remoteVersion != localVersion) {
 		UserOutdated = true;
     }
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV298) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV299) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -2184,7 +2345,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV298 = true;  // No more notifications
+            UserAcknowledgedV299 = true;  // No more notifications
         }
     }
 
@@ -2200,6 +2361,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread4(SpamKeyLoop);
 	std::thread actionThread5(ItemClipLoop);
 	std::thread actionThread6(WallWalkLoop);
+	std::thread actionThread7(BhopLoop);
 	std::thread guiThread(RunGUI);
 	MSG msg;
 
@@ -2221,7 +2383,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool iswallwalk = false;
 	bool islaugh = false;
 	bool isbounce = false;
+	bool isbhop = false;
 	bool isafk = false;
+	bool bhoplocked = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
 	static const float targetFrameTime = 1.0f / 120.0f; // Targeting 120 FPS
@@ -2230,11 +2394,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	while (!done) {
     {
 		// Freeze
-		if ((macrotoggled && notbinding && section_toggles[0]) && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) {
+		if ((macrotoggled && notbinding && section_toggles[0])) {
 			bool isMButtonPressed = GetAsyncKeyState(vk_mbutton) & 0x8000;
 
 			if (isfreezeswitch) {  // Toggle mode
-				if (isMButtonPressed && !wasMButtonPressed) {  // Detect button press edge
+				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) {  // Detect button press edge
 					isSuspended = !isSuspended;  // Toggle the freeze state
 					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, isSuspended);
 
@@ -2243,7 +2407,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					}
 				}
 			} else {  // Hold mode
-				if (isMButtonPressed) {
+				if (isMButtonPressed && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) {
 					if (!isSuspended) {
 						SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);  // Freeze on hold
 						isSuspended = true;
@@ -2290,12 +2454,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5]) {
 			if (!ispressd) {
 				if (vk_zkey == vk_dkey) {
-					ReleaseKeyMouse(vk_zkey);
+					ReleaseKeyBinded(vk_zkey);
 				}
 
-				HoldKeyMouse(vk_dkey);
+				HoldKeyBinded(vk_dkey);
 				std::this_thread::sleep_for(std::chrono::milliseconds(6));
-				ReleaseKeyMouse(vk_dkey);
+				ReleaseKeyBinded(vk_dkey);
 				ispressd = true;
 			}
 		} else {
@@ -2606,6 +2770,52 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
+		// Bunnyhop / Bhop
+		if (bunnyhopsmart) {
+			// Smart bunnyhop mode with chat lock
+			if (!bhoplocked && g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[13]) 
+			{
+				if (!isbhop) {
+					isbhoploop = true;
+					isbhop = true;
+				}
+			} else {
+				if (isbhop) {
+					isbhoploop = false;
+					isbhop = false;
+				}
+        
+				// Check for chat key press to lock
+				if (GetAsyncKeyState(vk_chatkey) & 0x8000) {
+					bhoplocked = true;
+				}
+			}
+    
+			// Check for lock release conditions (ENTER or Mouse1)
+			if (bhoplocked && (GetAsyncKeyState(VK_RETURN) & 0x8000 || GetAsyncKeyState(VK_LBUTTON) & 0x8000)) {
+				bhoplocked = false;
+			}
+		} 
+		else {
+			// Normal behavior when bunnyhopsmart is false
+			if (g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[13]) 
+			{
+				if (!isbhop) {
+					isbhoploop = true;
+					isbhop = true;
+				}
+			} else {
+				if (isbhop) {
+					isbhoploop = false;
+					isbhop = false;
+				}
+				if (!g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed)) {
+					isbhoploop = false;
+					isbhop = false;
+				}
+			}
+		}
+
 		// Every second, check if roblox continues to exist.
 		auto currentTime = std::chrono::steady_clock::now();
 		if (std::chrono::duration_cast<std::chrono::seconds>(currentTime - lastProcessCheck).count() >= 1) {
@@ -2703,6 +2913,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// Automatically turn off these 4 if you leave roblox window (so it isn't annoying)
 	if (!IsForegroundWindowProcess(hProcess)) {
+		isbhoploop = false;
 		iswallwalkloop = false;
 		isitemloop = false;
 		isdesyncloop = false;
@@ -2715,6 +2926,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// Cleanup on exit
 	SaveSettings("RMCSettings.json");
+	if (g_keyboardHook) {
+		UnhookWindowsHookEx(g_keyboardHook);
+		g_keyboardHook = NULL;
+	}
 	guiThread.join();
 	CleanupDeviceD3D();
 	ImGui_ImplDX11_Shutdown();
