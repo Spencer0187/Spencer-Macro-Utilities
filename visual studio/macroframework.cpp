@@ -1608,7 +1608,7 @@ static void RunGUI()
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT     VERSION 2.9.9.2");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT     VERSION 2.9.92");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -2326,7 +2326,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.9.2";
+    std::string localVersion = "2.9.92";
 
 	if (remoteVersion != localVersion) {
 		UserOutdated = true;
