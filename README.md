@@ -41,6 +41,7 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 13. Wall-Walk
 14. Item-Clip
 15. Spam a Key/Button
+16. Intelligent Bhop/Bunnyhop
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 

@@ -472,6 +472,7 @@ const App = () => {
                 <li>Item Desync Hitboxes</li>
                 <li>Microsecond input timing</li>
                 <li>Key Spam repeater</li>
+                <li>Intelligent Bhop / Bunnyhop</li>
                 <li>Suspend Processes / Freeze Roblox</li>
                 <li>Laugh Clipping</li>
               </ul>
