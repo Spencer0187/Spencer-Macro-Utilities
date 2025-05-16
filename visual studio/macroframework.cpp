@@ -248,7 +248,7 @@ bool takeallprocessids = false;
 bool ontoptoggle = false;
 bool bunnyhoptoggled = false;
 bool bunnyhopsmart = true;
-bool UserAcknowledgedV299 = false;
+bool UserAcknowledgedV2992 = false;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
@@ -961,7 +961,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"toggle_flick", &toggle_flick},
 	{"camfixtoggle", &camfixtoggle},
 	{"wallwalktoggleside", &wallwalktoggleside},
-	{"UserAcknowledgedV299", &UserAcknowledgedV299},
+	{"UserAcknowledgedV2992", &UserAcknowledgedV2992},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
 	{"wallesslhjswitch", &wallesslhjswitch},
@@ -1608,7 +1608,7 @@ static void RunGUI()
 				
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT      VERSION 2.9.9");
+			ImGui::TextWrapped("AUTOSAVES ON QUIT     VERSION 2.9.9.2");
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -2326,13 +2326,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		remoteVersion = "HTTP request for latest version failed!";
     }
 	remoteVersion = Trim(remoteVersion);
-    std::string localVersion = "2.9.9";
+    std::string localVersion = "2.9.9.2";
 
 	if (remoteVersion != localVersion) {
 		UserOutdated = true;
     }
 
-    if (remoteVersion != localVersion && !UserAcknowledgedV299) {
+    if (remoteVersion != localVersion && !UserAcknowledgedV2992) {
 		std::wstring remote_version = std::wstring(remoteVersion.begin(), remoteVersion.end());
 		std::wstring local_version = std::wstring(localVersion.begin(), localVersion.end());
         std::wstring message = L"Your Version is Outdated! The latest version is: " + remote_version + L". Your version is: " + local_version + L". \nDo you understand this? If you press yes, this won't show up again.";
@@ -2343,7 +2343,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1 | MB_APPLMODAL);
 
         if (result == IDYES) {
-            UserAcknowledgedV299 = true;  // No more notifications
+            UserAcknowledgedV2992 = true;  // No more notifications
         }
     }
 
