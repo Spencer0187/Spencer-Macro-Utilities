@@ -355,20 +355,14 @@ static void ReleaseKey(WORD scanCode)
 	SendInput(1, &input, sizeof(INPUT));
 }
 
+// Keyboard Hook for Bhop
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
-        KBDLLHOOKSTRUCT* pkbhs = (KBDLLHOOKSTRUCT*)lParam;
-
-        // Check if it's the key we care about AND if it's NOT injected
+        const KBDLLHOOKSTRUCT* pkbhs = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
         if (pkbhs->vkCode == vk_bunnyhopkey) {
-            if (!(pkbhs->flags & LLKHF_INJECTED)) {
-                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
-                    g_isVk_BunnyhopHeldDown = true;
-                } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
-                    g_isVk_BunnyhopHeldDown = false;
-                }
+            if ((pkbhs->flags & LLKHF_INJECTED) == 0) {
+                g_isVk_BunnyhopHeldDown = ((wParam & 1) == 0);
             }
-            // If it IS injected, we do nothing
         }
     }
     return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
@@ -453,9 +447,7 @@ static void MoveMouse(int dx, int dy)
 	SendInput(1, &input, sizeof(INPUT));
 }
 
-static void PasteText(
-	const std::string &
-		text) // To run, just do PasteText(text), which is the name of the variable above at the beginning
+static void PasteText(const std::string &text)
 {
 	for (char c : text) {
         // Key down event
@@ -477,7 +469,7 @@ static void ItemDesyncLoop()
 {
 	while (true) { // Efficient variable checking method
 		while (!isdesyncloop) {
-			std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		if (macrotoggled && notbinding && section_toggles[1]) {
 			HoldKey(desync_slot + 1);
@@ -492,7 +484,7 @@ static void Speedglitchloop()
 {
 	while (true) {
 		while (!isspeed) {
-			std::this_thread::sleep_for(std::chrono::microseconds(50));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		if (macrotoggled && notbinding && section_toggles[3]) {
 			MoveMouse(speed_strengthx, 0);
@@ -507,7 +499,7 @@ static void SpeedglitchloopHHJ()
 {
 	while (true) {
 		while (!isHHJ) {
-			std::this_thread::sleep_for(std::chrono::microseconds(25));
+			std::this_thread::sleep_for(std::chrono::microseconds(99));
 		}
 		if (macrotoggled && notbinding && section_toggles[2]) {
 			MoveMouse(speed_strengthx, 0);
@@ -522,7 +514,7 @@ static void SpamKeyLoop()
 {
 	while (true) { // Efficient variable checking method
 		while (!isspamloop) {
-			std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		if (macrotoggled && notbinding && section_toggles[11]) {
 			HoldKeyBinded(vk_spamkey);
@@ -537,7 +529,7 @@ static void ItemClipLoop()
 {
 	while (true) { // Efficient variable checking method
 		while (!isitemloop) {
-			std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		if (macrotoggled && notbinding && section_toggles[8]) {
 			HoldKey(clip_slot + 1);
@@ -552,7 +544,7 @@ static void WallWalkLoop()
 {
 	while (true) { // Efficient variable checking method
 		while (!iswallwalkloop) {
-			std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		if (macrotoggled && notbinding && section_toggles[10]) {
 			if (wallwalktoggleside) {
@@ -574,7 +566,7 @@ static void BhopLoop()
 {
     while (true) {
         while (!isbhoploop.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
 
         HoldKeyBinded(vk_bunnyhopkey);
@@ -1371,9 +1363,11 @@ static bool SetTitleBarColor(HWND hwnd, COLORREF color) {
 // START OF PROGRAM
 static void RunGUI()
 {
-	// Setup Keyboard hook for Bhop Only
-	HINSTANCE hMod = GetModuleHandle(NULL);
-	g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hMod, 0);
+	// Run timers with max precision
+    timeBeginPeriod(1);
+
+	// I LOVE THREAD PRIORITY!!!!!!!!!!!!!!!
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 		
 	// Initialize a basic Win32 window
 	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Roblox Macro Client"), NULL };
@@ -1428,7 +1422,7 @@ static void RunGUI()
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
     auto lastTime = std::chrono::high_resolution_clock::now();
-    float targetFrameTime = 1.0f / 120.0f;  // 120 FPS target
+    float targetFrameTime = 1.0f / 90.0f;  // 90 FPS target
 
 	InitializeSections();
 
@@ -2318,6 +2312,10 @@ static void SetWorkingDirectoryToExecutablePath() // Allows non-standard executi
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 	
+	// Setup Keyboard hook for Bhop Only
+	HINSTANCE hMod = GetModuleHandle(NULL);
+	g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hMod, 0);
+
 	// Load Settings
     SetWorkingDirectoryToExecutablePath();
     LoadSettings("RMCSettings.json");
@@ -2365,7 +2363,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread guiThread(RunGUI);
 	MSG msg;
 
-
 	std::vector<HANDLE> hProcess = GetProcessHandles(GetProcessIdByName(takeallprocessids), PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME);
 	std::vector<HWND> rbxhwnd = FindWindowByProcessHandle(hProcess); // SET ROBLOX WINDOW HWND RAHHHHH
 
@@ -2388,7 +2385,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool bhoplocked = false;
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
-	static const float targetFrameTime = 1.0f / 120.0f; // Targeting 120 FPS
+	static const float targetFrameTime = 1.0f / 90.0f; // Targeting 90 FPS
 	auto lastTime = std::chrono::high_resolution_clock::now();
 
 	while (!done) {
@@ -2835,6 +2832,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
+		// Message handler for this thread for the keyboard hook only
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+
 
 		// Anti AFK (MUST STAY AT THE LOWEST PART OF THE LIST!!!)
 		if (!isafk && IsForegroundWindowProcess(hProcess)) {
@@ -2936,6 +2939,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 	DestroyWindow(hwnd);
+	timeEndPeriod(1);
 	exit(0);
 
 	return 0;
