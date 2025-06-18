@@ -1,0 +1,37 @@
+name: Sign Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sign:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Prepare input folder with unsigned zip
+        run: |
+          mkdir input
+          copy unsigned\Spencer-Macro-Utilities.zip input\
+
+      - name: Install SignPath module
+        run: Install-Module -Name SignPath -Force -Scope CurrentUser
+
+      - name: Submit signing request
+        shell: pwsh
+        run: |
+          Submit-SigningRequest `
+            -InputArtifactPath "input/Spencer-Macro-Utilities.zip" `
+            -ApiToken $env:SIGNPATH_API_TOKEN `
+            -OrganizationId $env:SIGNPATH_ORGANIZATION_ID `
+            -ProjectSlug $env:SIGNPATH_PROJECT_SLUG `
+            -SigningPolicySlug $env:SIGNPATH_SIGNING_POLICY `
+            -OutputArtifactPath "signed/Spencer-Macro-Utilities-signed.zip" `
+            -WaitForCompletion
+
+      - name: Upload signed artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: signed-release
+          path: signed/Spencer-Macro-Utilities-signed.zip
