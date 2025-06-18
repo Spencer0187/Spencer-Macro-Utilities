@@ -1,4 +1,4 @@
-# Roblox Macro Client
+# Spencer Macro Client
 An open-source Windows C++ Roblox ImGui Macro with many features.
 
 To Compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp.
@@ -17,9 +17,9 @@ If you have another issue where keybinds don't work, restart your computer, it s
 
 In certain scenarios, when downgrading from a version with more features to a version with less features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
 
-![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
+![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
 
-## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
+## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
