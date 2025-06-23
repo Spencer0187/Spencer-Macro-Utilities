@@ -1545,7 +1545,7 @@ static void RunGUI()
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(70.0f);
-			if (ImGui::InputText("", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+			if (ImGui::InputText("##RobloxSensValueInput", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 				PreviousSensValue = -1;
 			}
 			ImGui::SameLine();
@@ -1660,13 +1660,14 @@ static void RunGUI()
 					ImGui::EndDragDropSource();
 				}
 
+				// CORRECTED VERSION
 				if (ImGui::BeginDragDropTarget()) {
-					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SECTION")) {
-						int payload_index = *(const int *)payload->Data;
-						std::swap(section_order[payload_index], section_order[display_index]);
-						}
-					}
-					ImGui::EndDragDropTarget();
+				    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SECTION")) {
+				        int payload_index = *(const int *)payload->Data;
+				        std::swap(section_order[payload_index], section_order[display_index]);
+				    }
+				    ImGui::EndDragDropTarget(); // Moved inside this block
+				}
 
 				// Custom text rendering on buttons
 
@@ -1841,7 +1842,7 @@ static void RunGUI()
 					ImGui::TextWrapped("Gear Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
-					ImGui::InputText("", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##ItemDesyncSlotInput", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						desync_slot = std::stoi(ItemDesyncSlot);
 					} catch (const std::invalid_argument &e) {
@@ -2025,7 +2026,7 @@ static void RunGUI()
 					ImGui::TextWrapped("Flick Pixel Amount:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					ImGui::InputText("##", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##WallhopPixelsInput", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						wallhop_dx = std::round(std::stoi(WallhopPixels));
 						wallhop_dy = -std::round(std::stoi(WallhopPixels));
@@ -2068,7 +2069,7 @@ static void RunGUI()
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 
-					ImGui::InputText("", ItemClipSlot, sizeof(ItemClipSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##ItemClipSlotInput", ItemClipSlot, sizeof(ItemClipSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						clip_slot = std::stoi(ItemClipSlot);
 					} catch (const std::invalid_argument &e) {
@@ -2078,7 +2079,7 @@ static void RunGUI()
 					ImGui::TextWrapped("Item Clip Delay in Milliseconds (Default 30ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
-					ImGui::InputText("##", ItemClipDelay, sizeof(ItemClipDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##ItemClipDelayInput", ItemClipDelay, sizeof(ItemClipDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try { // Error Handling
 						clip_delay = std::stoi(ItemClipDelay);
 					} catch (const std::invalid_argument &e) {
@@ -2192,7 +2193,7 @@ static void RunGUI()
 					ImGui::TextWrapped("Spam Delay (Milliseconds but accepts decimals):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
-					if (ImGui::InputText("", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+					if (ImGui::InputText("##SpamDelayInput", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try { // Error Handling
 						spam_delay = std::stof(SpamDelay);
 						real_delay = static_cast<int>((spam_delay * 1000.0f + 0.5f) / 2);
@@ -2242,7 +2243,7 @@ static void RunGUI()
 					ImGui::TextWrapped("Bunnyhop Delay in Milliseconds (Default 10ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
-					ImGui::InputText("##", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
+					ImGui::InputText("##BunnyHopDelayCharInput", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 
 					try {
 						BunnyHopDelay = atof(BunnyHopDelayChar);
@@ -2927,20 +2928,33 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 }
 
-	// Cleanup on exit
-	SaveSettings("RMCSettings.json");
-	if (g_keyboardHook) {
-		UnhookWindowsHookEx(g_keyboardHook);
-		g_keyboardHook = NULL;
-	}
-	guiThread.join();
-	CleanupDeviceD3D();
-	ImGui_ImplDX11_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-	DestroyWindow(hwnd);
-	timeEndPeriod(1);
-	exit(0);
+// Wait for all threads to finish now that 'done' is true.
+actionThread.join();
+actionThread2.join();
+actionThread3.join();
+actionThread4.join();
+actionThread5.join();
+actionThread6.join();
+actionThread7.join();
+guiThread.join();
+
+// Now that all threads are stopped, can safeuly cleanup now.
+SaveSettings("RMCSettings.json"); // Good practice to save here.
+
+if (g_keyboardHook) {
+    UnhookWindowsHookEx(g_keyboardHook);
+    g_keyboardHook = NULL;
+}
+
+// Correct ImGui/D3D cleanup order
+ImGui_ImplDX11_Shutdown();
+ImGui_ImplWin32_Shutdown();
+ImGui::DestroyContext();
+CleanupDeviceD3D();
+
+timeEndPeriod(1);
+
+return 0; // Return normally
 
 	return 0;
 }
