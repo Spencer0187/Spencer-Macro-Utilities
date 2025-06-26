@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare input folder with unsigned zip
         run: |
@@ -31,7 +31,7 @@ jobs:
             -WaitForCompletion
 
       - name: Upload signed artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: signed-release
           path: signed/Spencer-Macro-Utilities-signed.zip
