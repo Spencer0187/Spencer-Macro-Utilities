@@ -29,6 +29,11 @@ jobs:
             -SigningPolicySlug $env:SIGNPATH_SIGNING_POLICY `
             -OutputArtifactPath "signed/Spencer-Macro-Utilities-signed.zip" `
             -WaitForCompletion
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
 
       - name: Upload signed artifact
         uses: actions/upload-artifact@v4
