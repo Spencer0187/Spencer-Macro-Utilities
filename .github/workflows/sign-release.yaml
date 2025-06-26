@@ -26,7 +26,7 @@ jobs:
       - name: Prepare ZIP
         run: |
           mkdir input
-          copy ".\x64\Release\suspend.exe" "input\suspend.exe"
+          copy ".\visual studio\x64\Release\suspend.exe" "input\suspend.exe"
           Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
 
       - name: Install SignPath module
