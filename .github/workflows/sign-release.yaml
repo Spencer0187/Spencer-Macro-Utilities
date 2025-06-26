@@ -6,14 +6,28 @@ on:
 jobs:
   sign:
     runs-on: windows-latest
+
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Prepare input folder with unsigned zip
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build project
+        run: msbuild SpencerMacroUtilities.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Prepare ZIP
         run: |
           mkdir input
-          copy unsigned\Spencer-Macro-Utilities.zip input\
+          copy ".\x64\Release\suspend.exe" "input\suspend.exe"
+          Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
 
       - name: Install SignPath module
         run: Install-Module -Name SignPath -Force -Scope CurrentUser
@@ -29,11 +43,6 @@ jobs:
             -SigningPolicySlug $env:SIGNPATH_SIGNING_POLICY `
             -OutputArtifactPath "signed/Spencer-Macro-Utilities-signed.zip" `
             -WaitForCompletion
-        env:
-          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
-          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
-          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
-          SIGNPATH_SIGNING_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
 
       - name: Upload signed artifact
         uses: actions/upload-artifact@v4
