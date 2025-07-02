@@ -36,7 +36,7 @@ jobs:
         shell: pwsh
         run: |
           Submit-SigningRequest `
-            -InputArtifactPath ".\visual studio\x64\Release\suspend.exe" `
+            -InputArtifactPath "input/Spencer-Macro-Utilities.zip" `
             -ApiToken $env:SIGNPATH_API_TOKEN `
             -OrganizationId $env:SIGNPATH_ORGANIZATION_ID `
             -ProjectSlug $env:SIGNPATH_PROJECT_SLUG `
