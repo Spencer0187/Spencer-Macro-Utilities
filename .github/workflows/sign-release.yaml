@@ -30,9 +30,9 @@ jobs:
           Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
 
       - name: Upload unsigned ZIP for signing
+        id: upload-artifact-step
         uses: actions/upload-artifact@v4
         with:
-          id: upload-artifact-step
           name: unsigned-zip
           path: input/Spencer-Macro-Utilities.zip
 
