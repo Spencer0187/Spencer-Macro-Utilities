@@ -37,7 +37,7 @@ jobs:
           path: input/Spencer-Macro-Utilities.zip
 
       - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@v1.1
         with:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
