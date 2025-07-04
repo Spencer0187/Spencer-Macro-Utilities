@@ -44,6 +44,7 @@ jobs:
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           github-artifact-id: ${{ steps.upload-artifact-step.outputs.artifact-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           wait-for-completion: true
           artifact-configuration-slug: initial
 
