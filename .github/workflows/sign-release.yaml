@@ -30,7 +30,7 @@ jobs:
           path: visual studio\x64\Release\suspend.exe
 
       - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@v1.1
+        uses: signpath/github-action-submit-signing-request@v1
         with:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
