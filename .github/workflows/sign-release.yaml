@@ -38,10 +38,6 @@ jobs:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           github-artifact-id: unsigned-exe
           wait-for-completion: true
-          download-signed-artifact-timeout-in-seconds: 300
-          service-unavailable-timeout-in-seconds: 600
-          wait-for-completion-timeout-in-seconds: 600
-          connector-url: https://githubactions.connectors.signpath.io
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload signed artifact
