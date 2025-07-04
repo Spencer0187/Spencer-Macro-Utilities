@@ -37,14 +37,13 @@ jobs:
           path: input/Spencer-Macro-Utilities.zip
 
       - name: Submit signing request to SignPath
-        uses: signpath/github-action-submit-signing-request@v1.1
+        uses: signpath/github-action-submit-signing-request@v1.6
         with:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           github-artifact-id: ${{ steps.upload-artifact-step.outputs.artifact-id }}
-          connector-url: https://githubactions.connectors.signpath.io
           wait-for-completion: true
           artifact-configuration-slug: initial
 
