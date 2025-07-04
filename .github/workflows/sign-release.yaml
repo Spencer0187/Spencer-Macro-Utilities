@@ -29,7 +29,7 @@ jobs:
         with:
           path: visual studio\x64\Release\suspend.exe
 
-      - name: Submit signing request to SignPath
+      - name: Submit signing request to SignPath and upload to signed
         uses: signpath/github-action-submit-signing-request@v1.1
         with:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
@@ -40,9 +40,4 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           wait-for-completion: true
           artifact-configuration-slug: initial
-
-      - name: Upload signed artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-release
-          path: signpath-artifacts/**
+          output-artifact-directory: signed/
