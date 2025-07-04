@@ -23,18 +23,11 @@ jobs:
       - name: Build project
         run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 /p:ClCompileOptimization=MaxSpeed
 
-      - name: Prepare ZIP
-        run: |
-          mkdir input
-          copy "visual studio\x64\Release\suspend.exe" "input\suspend.exe"
-          Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
-
       - name: Upload unsigned ZIP for signing
         id: upload-artifact-step
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-zip
-          path: input/Spencer-Macro-Utilities.zip
+          path: visual studio\x64\Release\suspend.exe
 
       - name: Submit signing request to SignPath
         uses: signpath/github-action-submit-signing-request@v1.1
