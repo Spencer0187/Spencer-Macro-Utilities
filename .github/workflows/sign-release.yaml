@@ -21,19 +21,17 @@ jobs:
         uses: microsoft/setup-msbuild@v1.1
 
       - name: Build project
-        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 /p:ClCompileOptimization=MaxSpeed
-
-      - name: Prepare ZIP
         run: |
-          mkdir input
-          copy ".\visual studio\x64\Release\suspend.exe" "input\suspend.exe"
-          Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
+          msbuild "visual studio\suspend.sln" `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /p:ClCompileOptimization=MaxSpeed
 
-      - name: Upload unsigned ZIP for signing
+      - name: Upload unsigned .exe for signing
         uses: actions/upload-artifact@v4
         with:
-          name: unsigned-zip
-          path: input/Spencer-Macro-Utilities.zip
+          name: unsigned-exe
+          path: visual studio\x64\Release\suspend.exe
 
       - name: Submit signing request to SignPath
         uses: signpath/github-action-submit-signing-request@v1
@@ -42,13 +40,18 @@ jobs:
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          github-artifact-id: unsigned-zip
+          github-artifact-id: unsigned-exe
           wait-for-completion: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Zip the signed .exe
+        run: |
+          mkdir output
+          copy signpath-artifacts\* output\suspend.exe
+          Compress-Archive -Path output\suspend.exe -DestinationPath output/Spencer-Macro-Utilities-signed.zip
 
-      - name: Upload signed artifact
+      - name: Upload final signed .zip
         uses: actions/upload-artifact@v4
         with:
           name: signed-release
-          path: signed/Spencer-Macro-Utilities-signed.zip
+          path: output/Spencer-Macro-Utilities-signed.zip
