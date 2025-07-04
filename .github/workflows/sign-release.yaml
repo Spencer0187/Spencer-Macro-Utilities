@@ -43,7 +43,8 @@ jobs:
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          github-artifact-id: steps.upload-artifact-step.outputs.artifact-id
+          github-artifact-id: ${{ steps.upload-artifact-step.outputs.artifact-id }}
+          connector-url: 'https://githubactions.connectors.signpath.io'
           wait-for-completion: true
           artifact-configuration-slug: initial
 
