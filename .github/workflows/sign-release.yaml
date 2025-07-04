@@ -26,8 +26,14 @@ jobs:
       - name: Prepare ZIP
         run: |
           mkdir input
-          copy ".\visual studio\x64\Release\suspend.exe" "input\suspend.exe"
+          copy "visual studio\x64\Release\suspend.exe" "input\suspend.exe"
           Compress-Archive -Path "input\suspend.exe" -DestinationPath "input/Spencer-Macro-Utilities.zip"
+
+      - name: Upload unsigned ZIP for signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-zip
+          path: input/Spencer-Macro-Utilities.zip
 
       - name: Submit signing request to SignPath
         uses: signpath/github-action-submit-signing-request@v1
@@ -36,12 +42,16 @@ jobs:
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          input-artifact-path: input/Spencer-Macro-Utilities.zip
-          output-artifact-path: signed/Spencer-Macro-Utilities-signed.zip
+          github-artifact-id: unsigned-zip
           wait-for-completion: true
+          download-signed-artifact-timeout-in-seconds: 300
+          service-unavailable-timeout-in-seconds: 600
+          wait-for-completion-timeout-in-seconds: 600
+          connector-url: https://githubactions.connectors.signpath.io
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload signed artifact
         uses: actions/upload-artifact@v4
         with:
           name: signed-release
-          path: signed/Spencer-Macro-Utilities-signed.zip
+          path: signpath-artifacts/**
