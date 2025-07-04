@@ -36,8 +36,8 @@ jobs:
           project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          connector-url: 'https://githubactions.connectors.signpath.io'
           github-artifact-id: unsigned-exe
-          artifact-configuration-slug: initial
           wait-for-completion: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
