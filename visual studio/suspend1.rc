@@ -53,8 +53,16 @@ END
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
 IDI_ICON1               ICON                    "favicon.ico"
-LSANS_TTF               RCDATA                  "LSANS.TTF"
+
 IDI_ICON2               ICON                    "favicon-16x16.ico"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// RCDATA
+//
+
+LSANS_TTF               RCDATA                  "LSANS.TTF"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -80,13 +88,13 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Spencer's Open Source Macro Industries"
-            VALUE "FileDescription", "An open source Macro with many useful features."
-            VALUE "FileVersion", "2.0"
+            VALUE "FileDescription", "Spencers Macro Utilities"
+            VALUE "FileVersion", "3.0"
             VALUE "InternalName", "suspend.exe"
             VALUE "LegalCopyright", "Copyright (C) 2025"
             VALUE "OriginalFilename", "suspend.exe"
-            VALUE "ProductName", "Roblox Macro Utilities"
-            VALUE "ProductVersion", "2.0.0"
+            VALUE "ProductName", "Spencers Macro Utilities"
+            VALUE "ProductVersion", "3.0.0"
         END
     END
     BLOCK "VarFileInfo"
