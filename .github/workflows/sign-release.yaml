@@ -1,0 +1,60 @@
+name: Sign Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sign:
+    runs-on: windows-latest
+    
+    permissions:
+      contents: write
+
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_SIGNING_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build project
+        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 /p:ClCompileOptimization=MaxSpeed
+
+      - name: Upload unsigned ZIP for signing
+        id: upload-artifact-step
+        uses: actions/upload-artifact@v4
+        with:
+          path: visual studio\x64\Release\suspend.exe
+
+      - name: Submit signing request to SignPath and upload to signed
+        uses: signpath/github-action-submit-signing-request@v1.1
+        with:
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          github-artifact-id: ${{ steps.upload-artifact-step.outputs.artifact-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-for-completion: true
+          artifact-configuration-slug: initial
+          output-artifact-directory: signed/
+
+      - name: Zip signed executable
+        run: |
+          Compress-Archive -Path signed/suspend.exe -DestinationPath signed/Spencer-Macro-Utilities.zip -Force
+
+      - name: Commit and push signed executable to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add signed/Spencer-Macro-Utilities.zip
+          git commit -m "Update signed executable"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

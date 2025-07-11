@@ -324,8 +324,8 @@ const KnownIssuesSection = styled(Section)`
 const App = () => {
   const screenshotUrl1 = 'https://github.com/user-attachments/assets/34ec9ef9-1fde-4c76-8694-e9ca54f0478c';
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/1db31fcf-0e20-4a3a-8399-645a273e19c4';
-  const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg';
-  const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Roblox-Macro-Utilities';
+  const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg';
+  const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Spencer-Macro-Utilities';
 
   const [lightboxImage, setLightboxImage] = useState(null);
   const [downloadCount, setDownloadCount] = useState(null);
@@ -402,14 +402,14 @@ const App = () => {
       <GlobalStyle />
       <Container>
         <Header>
-          <h1>Roblox Macro Utilities</h1>
+          <h1>Spencer Macro Utilities</h1>
           <p>Windows automation tool that works alongside Roblox - no memory access, just input automation</p>
 
           <ButtonGroup>
-            <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" className="primary">
+            <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
               Download (853KB EXE)
             </Button>
-            <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities" className="secondary">
+            <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities" className="secondary">
               See Github/Source Code
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
@@ -559,7 +559,7 @@ const App = () => {
         <Section style={{ textAlign: 'center', marginTop: '4rem' }}>
           <h2>Get Started</h2>
           <ButtonGroup>
-            <Button href="https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest" className="primary">
+            <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
               Download (853KB)
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">

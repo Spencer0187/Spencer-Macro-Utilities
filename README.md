@@ -1,4 +1,4 @@
-# Roblox Macro Client
+# Spencer Macro Client
 An open-source Windows C++ Roblox ImGui Macro with many features.
 
 To Compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp.
@@ -17,9 +17,9 @@ If you have another issue where keybinds don't work, restart your computer, it s
 
 In certain scenarios, when downgrading from a version with more features to a version with less features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
 
-![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Roblox-Macro-Utilities/total.svg)
+![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
 
-## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Roblox-Macro-Utilities/releases/latest)
+## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
@@ -54,6 +54,19 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 ![image](https://github.com/user-attachments/assets/34ec9ef9-1fde-4c76-8694-e9ca54f0478c)
 
 https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
+
+## Code Signing Policy
+
+This project uses free code signing provided by [SignPath.io](https://about.signpath.io/), with certificates issued by [SignPath Foundation](https://signpath.org/).
+
+| [<img src="https://avatars.githubusercontent.com/u/34448643?s=25&v=4" width="25">](https://about.signpath.io/) | Free code signing provided by [**SignPath.io**](https://about.signpath.io/), certificate by [**SignPath Foundation**](https://signpath.org/) |
+|----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+
+### Team Roles
+- **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/)
+
+### Privacy Policy
+This application makes client-side HTTP requests solely for version checking and updates. No user data is collected or transmitted to any servers.
 
 ## Credits
 
