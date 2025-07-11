@@ -47,11 +47,11 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 ## The UI is customizable, drag your buttons to re-order them
 
-![image](https://github.com/user-attachments/assets/1db31fcf-0e20-4a3a-8399-645a273e19c4)
+<img width="1694" height="963" alt="image" src="https://github.com/user-attachments/assets/80d843de-4141-4cc4-8cc0-42676c0a2662" />
 
-![image](https://github.com/user-attachments/assets/d4c00416-f4a0-45f0-8e01-61ac0f5f17a4)
+<img width="1690" height="960" alt="image" src="https://github.com/user-attachments/assets/0bf81cba-2444-4454-952b-17ea7a1db4a5" />
 
-![image](https://github.com/user-attachments/assets/34ec9ef9-1fde-4c76-8694-e9ca54f0478c)
+<img width="1691" height="963" alt="image" src="https://github.com/user-attachments/assets/c6423c05-9fec-4b27-bd1b-7deea39fa222" />
 
 https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
 
