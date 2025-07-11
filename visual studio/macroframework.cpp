@@ -3594,7 +3594,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "2.9.92";
+        std::string localVersion = "3.0.0";
 
         if (remoteVersion != localVersion) 
         {
