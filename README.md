@@ -57,9 +57,9 @@ https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
 
 ## Code Signing Policy
 
-This project uses free code signing provided by [SignPath.io](https://signpath.io/), with certificates issued by SignPath Foundation.
+This project uses free code signing provided by [SignPath.io](https://about.signpath.io/), with certificates issued by SignPath Foundation.
 
-[<img src="https://avatars.githubusercontent.com/u/34448643?s=100&v=4" width="100">](https://signpath.io/) [Free code signing provided by SignPath.io, certificate by SignPath Foundation](https://signpath.io/)
+[<img src="https://avatars.githubusercontent.com/u/34448643?s=25&v=4" width="25" height="25">](https://about.signpath.io/) [Free code signing provided by **SignPath.io**, certificate by **SignPath Foundation**](https://signpath.org/)
 
 ### Team Roles
 - **Committer and Approver**: [Project Owner](https://github.com/Spencer0187/)
