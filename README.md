@@ -63,7 +63,7 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
 |----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 
 ### Team Roles
-- **Committer and Approver**: [Project Owner](https://github.com/Spencer0187/)
+- **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/)
 
 ### Privacy Policy
 This application makes client-side HTTP requests solely for version checking and updates. No user data is collected or transmitted to any servers.
