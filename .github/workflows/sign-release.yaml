@@ -45,14 +45,24 @@ jobs:
           artifact-configuration-slug: initial
           output-artifact-directory: signed/
 
-      - name: Clean old zip
-        run: Remove-Item "Spencer-Macro-Utilities.zip" -Force
+      - name: Prepare zip staging folder
+        run: |
+          mkdir staging
+          copy "signed\suspend.exe" staging\
+          copy "README.md" staging\
         shell: pwsh
-        working-directory: signed
       
-      - name: Zip signed executable (store mode, flat structure)
-        run: 7z a -mx=0 Spencer-Macro-Utilities.zip suspend.exe
-        working-directory: signed
+      - name: Create zip (store mode, flat structure)
+        run: 7z a -mx=0 Spencer-Macro-Utilities.zip suspend.exe README.md
+        working-directory: staging
+      
+      - name: Move zip to signed/
+        run: move staging\Spencer-Macro-Utilities.zip signed\
+        shell: pwsh
+
+      - name: Clean up staging folder
+        run: Remove-Item -Recurse -Force staging
+        shell: pwsh
 
       - name: Commit and push signed executable to repo
         run: |
