@@ -46,7 +46,8 @@ jobs:
           output-artifact-directory: signed/
 
       - name: Clean old zip
-        run: rm -f signed/Spencer-Macro-Utilities.zip
+        run: Remove-Item "signed/Spencer-Macro-Utilities.zip" -Force
+        shell: pwsh
 
       - name: Zip signed executable
         run: |
