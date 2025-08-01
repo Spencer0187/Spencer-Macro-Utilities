@@ -407,7 +407,7 @@ const App = () => {
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (853KB EXE)
+              Download (970KB EXE)
             </Button>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities" className="secondary">
               See Github/Source Code
@@ -560,7 +560,7 @@ const App = () => {
           <h2>Get Started</h2>
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (853KB)
+              Download (970KB)
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
               Join Community
