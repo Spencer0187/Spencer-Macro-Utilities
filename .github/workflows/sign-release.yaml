@@ -46,12 +46,13 @@ jobs:
           output-artifact-directory: signed/
 
       - name: Clean old zip
-        run: Remove-Item "signed/Spencer-Macro-Utilities.zip" -Force
+        run: Remove-Item "Spencer-Macro-Utilities.zip" -Force
         shell: pwsh
-
-      - name: Zip signed executable
-        run: |
-          7z a -mx=0 signed/Spencer-Macro-Utilities.zip signed/suspend.exe
+        working-directory: signed
+      
+      - name: Zip signed executable (store mode, flat structure)
+        run: 7z a -mx=0 Spencer-Macro-Utilities.zip suspend.exe
+        working-directory: signed
 
       - name: Commit and push signed executable to repo
         run: |
