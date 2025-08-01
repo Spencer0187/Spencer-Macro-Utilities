@@ -78,6 +78,7 @@ std::atomic<bool> iswallwalkloop(false);
 std::atomic<bool> isbhoploop(false);
 std::atomic<bool> isafk(false);
 std::atomic<bool> iswallhopthread(false);
+std::atomic<bool> ispresskeythread(false);
 
 std::atomic<unsigned int> RobloxFPS(120);
 
@@ -235,6 +236,7 @@ char ChatKeyChar[2] = "/";
 char CustomTextChar[256] = "";
 char RobloxFPSChar[256] = "60";
 char AntiAFKTimeChar[256] = "15";
+char PressKeyDelayChar[256] = "16";
 
 
 // Toggles and switches
@@ -266,6 +268,8 @@ bool takeallprocessids = false;
 bool ontoptoggle = false;
 bool bunnyhoptoggled = false;
 bool bunnyhopsmart = true;
+bool presskeyinroblox = false;
+bool unequipinroblox = false;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
@@ -296,6 +300,7 @@ int RobloxWallWalkValue = -94;
 int WallhopDelay = 17;
 int AntiAFKTime = 15;
 int display_scale = 100;
+int PressKeyDelay = 16;
 
 // Dropdown options
 const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
@@ -703,6 +708,24 @@ static void WallhopThread() {
 	}
 }
 
+static void PressKeyThread() {
+    while (true) {
+		while (!ispresskeythread.load(std::memory_order_relaxed)) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+		if (vk_zkey == vk_dkey) {
+			ReleaseKeyBinded(vk_zkey);
+		}
+
+		HoldKeyBinded(vk_dkey);
+		std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyDelay));
+		ReleaseKeyBinded(vk_dkey);
+
+		ispresskeythread = false;
+    }
+}
+
 static bool IsMainWindow(HWND hwnd)
 {
 	return (IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == NULL);
@@ -1082,6 +1105,7 @@ void PerformUpdate(const std::string& newVersion, const std::string& localVersio
         return;
     }
 
+
     // Conditionally generate the batch script based on folder name
     std::wstring batchScriptContent;
     std::wstring wLocalVersion = converter.from_bytes(localVersion);
@@ -1317,6 +1341,8 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"takeallprocessids", &takeallprocessids},
 	{"ontoptoggle", &ontoptoggle},
 	{"bunnyhopsmart", &bunnyhopsmart},
+	{"presskeyinroblox", &presskeyinroblox},
+	{"unequipinroblox", &unequipinroblox},
 };
 
 // Numeric variables
@@ -1382,6 +1408,8 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"RobloxFPSChar", {RobloxFPSChar, sizeof(RobloxFPSChar)}},
 	{"AntiAFKTimeChar", {AntiAFKTimeChar, sizeof(AntiAFKTimeChar)}},
 	{"WallhopDelayChar", {WallhopDelayChar, sizeof(WallhopDelayChar)}},
+	{"PressKeyDelayChar", {PressKeyDelayChar, sizeof(PressKeyDelayChar)}},
+
 };
 
 void SaveSettings(const std::string& filepath, const std::string& profile_name) {
@@ -2541,6 +2569,7 @@ static void RunGUI()
 	SAFE_CONVERT_INT(vk_chatkey, ChatKeyChar);
 	SAFE_CONVERT_INT(RobloxFPS, RobloxFPSChar);
 	SAFE_CONVERT_INT(AntiAFKTime, AntiAFKTimeChar);
+	SAFE_CONVERT_INT(PressKeyDelay, PressKeyDelayChar);
 
 	SAFE_CONVERT_DOUBLE(BunnyHopDelay, BunnyHopDelayChar);
 
@@ -3049,17 +3078,24 @@ static void RunGUI()
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
 					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
 					ImGui::Separator();
+					ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
+					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("FOR MOST OPTIMAL RESULTS PLEASE SET YOUR SENS AND CAM FIX ABOVE!");
+					ImGui::TextWrapped("Have your Sensitivity and Cam-Fix options set before using this module.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("This macro abuses Roblox's conversion from angular velocity to regular velocity. If you put your "
-										"back against a wall, rotate left 20-30 degrees, turn around 180 degrees, hold jump, and press W "
-										"as you land on the floor, then, activate the macro, and let go of W, if you did it correctly, "
-										"you will rotate into the wall, and get your feet stuck inside of it, the macro freezes the game "
-										"during this process, and you will be catapulted up DEPENDANT ON YOUR CENTER OF MASS OFFSET "
-										"Bigger COM offset = Easier to perform and higher height");
+					ImGui::TextWrapped("Assuming unequip com offset set to /e dance2 is used prior to offset com, to perform a Helicopter High Jump, "
+										"you want to align yourself with your back against the wall, and rotate slightly to the left (around 5-15 degrees). "
+										"Now, turn your camera to face directly towards the wall, turn it towards the left a similar amount (5-15 degrees), "
+										"in such a way that when you hold W, you turn INTO the wall, instead of away from it (the smaller the angle, the more "
+										"successful you'll be). Now, still keeping the alignment and camera angle, perform a normal lag high jump without "
+										"holding any movement keys. Instead of lagging, hold w, and press the assigned hotkey.");
+
+					ImGui::Separator();
+					ImGui::TextWrapped("If you are struggling with the lag high jump timing part, you can try using the \"Automatically time inputs\" feature. "
+										"Align in the exact same way as stated above, but instead doing the lhj motion, just press the assigned key. This should time "
+										"the two jumps, as well as the w tap for you. This can also act as a demonstration for what to do, when using manual activation of the module.");
 				}
 
 				if (selected_section == 3) { // Speedglitch
@@ -3097,19 +3133,20 @@ static void RunGUI()
 					}
 
 					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspeedswitch);
-
+					ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
 					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
-					ImGui::TextWrapped("FPS DOES AFFECT IT, HOWEVER, IT SHOULD WORK ON ALL!");
-					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
-										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
-										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
+					ImGui::TextWrapped("IMPORTANT: Have your Sensitivity and Cam-Fix options set before using this module.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("This macro uses the way a changed center of mass affects your movement. If you offset your COM "
-										"in any way, and then toggle the macro, you will rotate 180 degrees every frame, holding W and "
-										"jump during this will catapult you forward.");
+
+					ImGui::TextWrapped("Assuming unequip \"/e dance2\" is used prior to offset com, to activate a speed glitch, enable shiftlock mode "
+										"(found in roblox settings), and press the keybind once to start the macro (or hold down if you are using the hold key option). "
+										"Note that the macro should rotate you exactly 180 degrees. If not, verify your Roblox sensitivity in the settings matches the Macros sensitivity value, "
+										"also, test out speedglitch with the \"Cam-Fix\" at the top left set to both true and false. Once the macro is activated, simply jump, and hold w. "
+										"As long as you are in the air, you will start to gain immense velocity towards the direction you are facing (assuming shiftlock has been held, and "
+										", and you are holding w). "
+);
 				}
 
 				if (selected_section == 4) { // Gear Unequip COM speed
@@ -3156,14 +3193,23 @@ static void RunGUI()
 						ImGui::EndCombo();
 					}
 					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
+					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
 					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
+					ImGui::TextWrapped("This module allows you to trick Roblox into thinking your centre of mass is elsewhere. This is used in the Helicopter "
+										"High Jump, Speed Glitch and Walless LHJ modules (may change in the future).");
+					ImGui::Separator();
+					ImGui::TextWrapped("IMPORTANT: This ONLY works in R6. Although the glitch is possible in R15, the macro isn't built around that rig type. "
+										"An Item is also required, and must be placed in the corresponding gear slot (3 by default).");
 					ImGui::NewLine();
-					ImGui::TextWrapped("R6 ONLY!");
-					ImGui::TextWrapped("HAVE THE ITEM UNEQUIPPED BEFORE DOING THIS!!!");
-					ImGui::TextWrapped("Automatically performs a weaker version of the /e dance2 equip speedglitch, however, it unequips your gear. "
-										"Unequipping your gear will make HHJ's feel easier to perform, will keep COM after gear deletion, "
-										"AND, speedglitching while in this state will move you PERFECTLY forwards, no side movement.");
+					ImGui::TextWrapped("Usage:");
+					ImGui::TextWrapped("Assuming you have a gear ready, to get an offset com, put the gear into the corresponding gear slot (set above), "
+										"and press the keybind (F8 is used with the fn key). Note if the emote bugs out such as restarting halfway through, "
+										"or starting late due to a delay, your com may not be in its most offset state. Reusing the macro until the emote "
+										"plays out error free will fix this.");
+					ImGui::NewLine();
+					ImGui::TextWrapped(
+						"In most cases, you will be using the \"/e dance2\" emote, as that provides you with the furthest offset, although the other emotes "
+						"are still useful occasionaly, such as \"/e laugh\" for wraparounds, and \"/e cheer\" for walless lhjs.");
 				}
 
 				if (selected_section == 5) { // Presskey / Press a Key
@@ -3189,6 +3235,20 @@ static void RunGUI()
 					ImGui::Text("(Human-Readable)");
 					ImGui::SameLine(510);
 					ImGui::Text("(Hexadecimal)");
+
+					ImGui::Text("Length of Second Button Press (ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(80);
+					if (ImGui::InputText("##PressKeyDelayChar", PressKeyDelayChar, sizeof(PressKeyDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							PressKeyDelay = std::stoi(PressKeyDelayChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::Checkbox("Make PressKey only work while tabbed into Roblox", &presskeyinroblox);
+
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -3412,15 +3472,15 @@ static void RunGUI()
 					ImGui::Checkbox("Automatically Hold Movement Keys", &bounceautohold);
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("PLEASE SET YOUR ROBLOX SENS AND CAM-FIX CORRECTLY SO IT CAN ACTUALLY DO THE PROPER TURNS!");
-					ImGui::TextWrapped("Also, if you set it to automatically hold movement keys, PLEASE HOLD THE KEY YOURSELF AS WELL, else it will keep moving forever.");
+					ImGui::TextWrapped("PLEASE SET YOUR ROBLOX SENS AND CAM-FIX CORRECTLY SO IT CAN ACTUALLY DO THE PROPER TURNS! It works best at high FPS (120+).");
+					ImGui::TextWrapped("Also, if you set it to automatically hold movement keys, PLEASE HOLD THE KEY AT THE PROPER TIME, else it will keep moving forever.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped(
 									"Walk up to a ledge with your camera sideways, about half of your left foot should be on the platform. "
 									"The Macro will Automatically flick your camera 90 degrees, let you fall, and then flick back. "
-									"This will boost you up slightly into the air, and you can even jump after it.");
+									"This will boost you up slightly into the air, and you can even jump after it. This lets you \"jump\" without jumping.");
 				}
 
 				if (selected_section == 13) { // Bunnyhop
@@ -3638,6 +3698,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread6(WallWalkLoop);
 	std::thread actionThread7(BhopLoop);
 	std::thread actionThread8(WallhopThread);
+	std::thread actionThread9(PressKeyThread);
 	
 	std::thread guiThread(RunGUI);
 	std::thread KeyboardThread(KeyboardHookThread);
@@ -3650,7 +3711,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool isdesync = false;
 	bool isSuspended = false; 
 	bool islhj = false;
-	bool ispressd = false;
+	bool ispresskey = false;
 	bool iswallhop = false;
 	bool isspeedglitch = false;
 	bool isunequipspeed = false;
@@ -3671,13 +3732,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	static int counter = 0;
 
 	while (!done) {
+	bool tabbedintoroblox = IsForegroundWindowProcess(hProcess);
     {
+		tabbedintoroblox = IsForegroundWindowProcess(hProcess);
 		// Freeze
 		if ((macrotoggled && notbinding && section_toggles[0])) {
 			bool isMButtonPressed = GetAsyncKeyState(vk_mbutton) & 0x8000;
 
 			if (isfreezeswitch) {  // Toggle mode
-				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) {  // Detect button press edge
+				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {  // Detect button press edge
 					isSuspended = !isSuspended;  // Toggle the freeze state
 					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, isSuspended);
 
@@ -3686,7 +3749,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					}
 				}
 			} else {  // Hold mode
-				if (isMButtonPressed && (freezeoutsideroblox || IsForegroundWindowProcess(hProcess))) {
+				if (isMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {
 					if (!isSuspended) {
 						SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);  // Freeze on hold
 						isSuspended = true;
@@ -3718,30 +3781,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Item Desync Macro with anti-idiot design
-		if ((GetAsyncKeyState(vk_f5) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[1]) {
+		if ((GetAsyncKeyState(vk_f5) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
 			if (!isdesync) {
-				isdesyncloop = true;
+				isdesyncloop.store(true, std::memory_order_relaxed);
 				isdesync = true;
 			}
 		} else {
 			isdesync = false;
-			isdesyncloop = false;
+			isdesyncloop.store(false, std::memory_order_relaxed);
 		}
 
 		// PressKey
-		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5]) {
-			if (!ispressd) {
-				if (vk_zkey == vk_dkey) {
-					ReleaseKeyBinded(vk_zkey);
-				}
-
-				HoldKeyBinded(vk_dkey);
-				std::this_thread::sleep_for(std::chrono::milliseconds(6));
-				ReleaseKeyBinded(vk_dkey);
-				ispressd = true;
+		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
+			if (!ispresskey) {
+				ispresskeythread.store(true, std::memory_order_relaxed);
+				ispresskey = true;
 			}
 		} else {
-			ispressd = false;
+			ispresskey = false;
+			ispresskeythread.store(false, std::memory_order_relaxed);
 		}
 
 		// Wallhop (Ran in separate thread)
@@ -3786,7 +3844,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Speedglitch
-		if ((GetAsyncKeyState(vk_xkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[3]) {
+		if ((GetAsyncKeyState(vk_xkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -3799,7 +3857,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Gear Unequip COM Speed
-		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4]) {
+		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3908,7 +3966,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Laughkey
-		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[9]) {
+		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3955,42 +4013,54 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// Ledge Bounce
-		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[12]) {
+		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
-				int turn90 = (180 / atof(RobloxSensValue));
-				int skey = 0x1F;
-				int dkey = 0x20;
-				int wkey = 0x11;
+				int turn90 = (camfixtoggle ? 250 : 180) / atof(RobloxSensValue);
+				int skey = 0x1F; // S key
+				int dkey = 0x20; // D key
+				int wkey = 0x11; // W key
+
 				if (bouncesidetoggle) {
 					turn90 = -turn90;
-					dkey = 0x1E;
+					dkey = 0x1E; // A Key
 				}
 
-				MoveMouse(-turn90, 0);  // Left
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				MoveMouse(-turn90, 0); // Turn Left
+				std::this_thread::sleep_for(std::chrono::milliseconds(90));
 				HoldKey(skey); // Hold S
-				std::this_thread::sleep_for(std::chrono::milliseconds(16));
-				ReleaseKey(skey);     // Release S
-				HoldKey(dkey);        // Hold D
-				MoveMouse(turn90, 0); // Right
-				std::this_thread::sleep_for(std::chrono::microseconds(3030));
-				ReleaseKey(dkey); // Release D
+				std::this_thread::sleep_for(std::chrono::milliseconds(40));
+				ReleaseKey(skey); // Release S
+				MoveMouse(turn90, 0); // Turn Right
+				HoldKey(dkey);    // Hold D
 
-				if (!bouncerealignsideways && !bounceautohold) {
-				} else {
-					HoldKey(0x11); // Hold W
-				}
+
+				// If neither bouncerealignsideways nor bounceautohold are true, W is not held.
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(16));
 
 				if (bouncerealignsideways) {
-					MoveMouse(turn90, 0); // Right
-					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+					HoldKey(wkey); // Hold W
+				}
+
+				if (!bouncerealignsideways) {
+					ReleaseKey(dkey);
+				}
+
+				// After Bounce
+				if (bouncerealignsideways) {
+					MoveMouse(turn90, 0); // Turn Right to face towards ledge
+					std::this_thread::sleep_for(std::chrono::milliseconds(70));
 					ReleaseKey(wkey);      // Release W
-					MoveMouse(-turn90, 0); // Left
+					MoveMouse(-turn90, 0); // Turn Left to face normally
 					if (bounceautohold) {
 						HoldKey(dkey); // Hold D
 					}
 				} else {
-					MoveMouse(turn90, 0); // Right
+					// Front Facing End
+					if (bounceautohold) {
+						HoldKey(wkey); // Hold W
+					}
+					MoveMouse(turn90, 0); // Turn Right
 				}
 
 				isbounce = true;
@@ -4001,7 +4071,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// Item Clip
-		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[8]) {
+		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -4015,7 +4085,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// WallWalk
-		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && IsForegroundWindowProcess(hProcess) && macrotoggled && notbinding && section_toggles[10]) {
+		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -4027,7 +4097,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		bool can_process_bhop = GetAsyncKeyState(vk_bunnyhopkey) && IsForegroundWindowProcess(hProcess) && section_toggles[13] && macrotoggled && notbinding;
+		bool can_process_bhop = GetAsyncKeyState(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
 
 		if (GetAsyncKeyState(vk_chatkey) & 0x8000) {
 			bhoplocked = true;
@@ -4081,7 +4151,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Anti AFK (MUST STAY AT THE LOWEST PART OF THE LIST!!!)
-		if (!isafk && IsForegroundWindowProcess(hProcess)) {
+		if (!isafk && tabbedintoroblox) {
 			// Not Afk, reset lastpresstime
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
@@ -4156,7 +4226,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	// Automatically turn off these 4 modules if you leave roblox window (so it isn't annoying)
-	if (!IsForegroundWindowProcess(hProcess)) {
+	if (!tabbedintoroblox) {
 		isbhoploop = false;
 		iswallwalkloop = false;
 		isitemloop = false;
