@@ -45,6 +45,9 @@ jobs:
           artifact-configuration-slug: initial
           output-artifact-directory: signed/
 
+      - name: Clean old zip
+        run: rm -f signed/Spencer-Macro-Utilities.zip
+
       - name: Zip signed executable
         run: |
           7z a -mx=0 signed/Spencer-Macro-Utilities.zip signed/suspend.exe
