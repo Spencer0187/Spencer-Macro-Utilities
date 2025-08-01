@@ -1040,7 +1040,7 @@ bool UnzipSingleFile(const std::wstring &zipPath, const std::wstring &destFolder
 
 			// Rename the extracted file
 			if (SUCCEEDED(hr)) {
-			    Sleep(500); // Give a moment for file system to catch up
+			    Sleep(1500); // Give a moment for file system to catch up
 			    std::wstring oldPath = destFolder + L"\\" + fileNameToExtract;
 			    std::wstring newPath = destFolder + L"\\" + newFileName;
 			    if (!MoveFile(oldPath.c_str(), newPath.c_str())) {
