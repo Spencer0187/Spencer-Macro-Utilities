@@ -56,8 +56,8 @@ jobs:
         run: 7z a -mx=0 Spencer-Macro-Utilities.zip suspend.exe README.md
         working-directory: staging
       
-      - name: Move zip to signed/
-        run: move staging\Spencer-Macro-Utilities.zip signed\
+      - name: Move zip to signed/ (overwrite)
+        run: Move-Item staging\Spencer-Macro-Utilities.zip signed\ -Force
         shell: pwsh
 
       - name: Clean up staging folder
