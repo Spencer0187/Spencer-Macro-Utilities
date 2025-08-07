@@ -45,6 +45,9 @@
     <ClCompile Include="imgui-files\imgui_impl_win32.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="miniz.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h">
@@ -76,6 +79,9 @@
     </ClInclude>
     <ClInclude Include="imgui-files\json.hpp">
       <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="miniz.h">
+      <Filter>Resource Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

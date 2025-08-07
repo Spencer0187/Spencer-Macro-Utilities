@@ -191,6 +191,7 @@
     <ClCompile Include="macroframework.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Sviat\Downloads\ClipboardXX-0.5\ClipboardXX-0.5\include</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="miniz.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui-files\imconfig.h" />
@@ -202,7 +203,10 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="imgui-files\json.hpp" />
-    <ClInclude Include="resource.h" />
+    <ClInclude Include="miniz.h" />
+    <ClInclude Include="resource.h">
+      <DeploymentContent>false</DeploymentContent>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">

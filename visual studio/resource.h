@@ -3,6 +3,9 @@
 // Used by suspend1.rc
 //
 
+#define IDI_ICON1                       102
+
+
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
