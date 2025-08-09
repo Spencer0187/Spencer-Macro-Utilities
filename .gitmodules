@@ -1,0 +1,6 @@
+[submodule "cmake/libs/imgui"]
+	path = cmake/libs/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "cmake/libs/miniz"]
+	path = cmake/libs/miniz
+	url = https://github.com/richgel999/miniz
