@@ -1,16 +1,20 @@
+#include <windows.h>
 #include "resource.h"
 
-IDI_APP_ICON            ICON                    "favicon.ico"
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+IDI_APP_ICON   ICON      "favicon.ico"
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON1               ICON                    "favicon.ico"
+IDI_ICON1      ICON      "favicon.ico"
 
-IDI_ICON2               ICON                    "favicon-16x16.ico"
+IDI_ICON2      ICON      "favicon-16x16.ico"
 
 // RCDATA
 
-LSANS_TTF               RCDATA                  "LSANS.TTF"
+LSANS_TTF      RCDATA    "LSANS.TTF"
 
 // Version
 
