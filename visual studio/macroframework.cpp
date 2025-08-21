@@ -281,7 +281,7 @@ bool bunnyhoptoggled = false;
 bool bunnyhopsmart = true;
 bool presskeyinroblox = false;
 bool unequipinroblox = false;
-bool shortdescriptions = true;
+bool shortdescriptions = false;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
