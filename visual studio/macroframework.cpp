@@ -236,6 +236,7 @@ char ItemClipDelay[256] = "34";
 char BunnyHopDelayChar[256] = "10";
 char WallhopPixels[256] = "300";
 char WallhopDelayChar[256] = "17";
+char WallhopBonusDelayChar[256] = "0";
 char WallhopDegrees[256] = "150";
 char SpamDelay[256] = "20";
 char RobloxSensValue[256] = "0.5";
@@ -280,6 +281,7 @@ bool bunnyhoptoggled = false;
 bool bunnyhopsmart = true;
 bool presskeyinroblox = false;
 bool unequipinroblox = false;
+bool shortdescriptions = true;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
@@ -308,9 +310,12 @@ int real_delay = 1000;
 int RobloxPixelValue = 716;
 int RobloxWallWalkValue = -94;
 int WallhopDelay = 17;
+int WallhopBonusDelay = 0;
 int AntiAFKTime = 15;
 int display_scale = 100;
 int PressKeyDelay = 16;
+int WindowPosX = 0;
+int WindowPosY = 0;
 
 // Dropdown options
 const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
@@ -689,10 +694,6 @@ static void WallhopThread() {
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 
-		if (toggle_jump) {
-			HoldKey(0x39);
-		}
-
 		if (wallhopswitch) {
 			MoveMouse(-wallhop_dx, 0);
 		} else {
@@ -700,17 +701,36 @@ static void WallhopThread() {
 		}
 
 		if (toggle_flick) {
-			if (wallhopswitch) {
+			if (WallhopBonusDelay > 0 && WallhopBonusDelay < WallhopDelay) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopBonusDelay));
+
+				if (toggle_jump) {
+					HoldKey(0x39);
+				}
+
+				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay - WallhopBonusDelay));
+			} else {
+				if (toggle_jump) {
+					HoldKey(0x39);
+				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay));
+			}
+
+			if (wallhopswitch) {
 				MoveMouse(-wallhop_dy, 0);
 			} else {
-				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay));
 				MoveMouse(wallhop_dy, 0);
+			}
+		} else {
+			if (toggle_jump) {
+				HoldKey(0x39);
 			}
 		}
 
 		if (toggle_jump) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100 - WallhopDelay));
+            if (100 - WallhopDelay > 0) {
+			    std::this_thread::sleep_for(std::chrono::milliseconds(100 - WallhopDelay));
+            }
 			ReleaseKey(0x39);
 		}
 
@@ -930,7 +950,7 @@ static size_t OutputReleaseVersion(void *contents, size_t size, size_t nmemb, st
 // Generic function to get the content of a URL as a string.
 static std::string GetStringFromUrl(const wchar_t* url)
 {
-    DWORD timeout = 5000;
+    DWORD timeout = 500;
     
     HINTERNET hInternet = InternetOpen(L"Spencer-Macro-Utilities-Updater", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
     if (!hInternet) return "";
@@ -1321,11 +1341,9 @@ static std::string TrimNullChars(const char *buffer, size_t size)
     return std::string(buffer, length);
 }
 
-
-
 using NumericVar = std::variant<int*, float*, unsigned int*>;
 
-// Boolean variables
+// Boolean variables to save
 const std::unordered_map<std::string, bool *> bool_vars = {
 	{"macrotoggled", &macrotoggled},
 	{"shiftswitch", &shiftswitch},
@@ -1356,9 +1374,10 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"bunnyhopsmart", &bunnyhopsmart},
 	{"presskeyinroblox", &presskeyinroblox},
 	{"unequipinroblox", &unequipinroblox},
+	{"shortdescriptions", &shortdescriptions},
 };
 
-// Numeric variables
+// Numeric variables to save
 const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"scancode_shift", &scancode_shift},
 	{"vk_f5", &vk_f5},
@@ -1400,9 +1419,11 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"windowOpacityPercent", &windowOpacityPercent},
 	{"AntiAFKTime", &AntiAFKTime},
 	{"display_scale", &display_scale},
+	{"WindowPosX", &WindowPosX},
+	{"WindowPosY", &WindowPosY},
 };
 
-// Char variables
+// Char variables to save
 const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays = {
     {"settingsBuffer", {settingsBuffer, sizeof(settingsBuffer)}},
     {"ItemDesyncSlot", {ItemDesyncSlot, sizeof(ItemDesyncSlot)}},
@@ -1421,8 +1442,8 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"RobloxFPSChar", {RobloxFPSChar, sizeof(RobloxFPSChar)}},
 	{"AntiAFKTimeChar", {AntiAFKTimeChar, sizeof(AntiAFKTimeChar)}},
 	{"WallhopDelayChar", {WallhopDelayChar, sizeof(WallhopDelayChar)}},
+	{"WallhopBonusDelayChar", {WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar)}},
 	{"PressKeyDelayChar", {PressKeyDelayChar, sizeof(PressKeyDelayChar)}},
-
 };
 
 void SaveSettings(const std::string& filepath, const std::string& profile_name) {
@@ -1461,6 +1482,7 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
         current_profile_data["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
         current_profile_data["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
     }
+
     current_profile_data["text"] = text;
     current_profile_data["screen_width"] = screen_width;
     current_profile_data["screen_height"] = screen_height;
@@ -1542,7 +1564,6 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
 	if (profile_name == "") {
 		return;
 	}
-
 
 	std::ifstream file;
 	bool fileFound = false;
@@ -1771,7 +1792,7 @@ bool DeleteProfileFromFile(const std::string& filepath, const std::string& profi
         if (WriteJsonToFile(filepath, root_json)) {
             if (G_CURRENTLY_LOADED_PROFILE_NAME == profile_name) {
                 G_CURRENTLY_LOADED_PROFILE_NAME = "";
-                std::cout << "Info: Deleted profile '" << profile_name << "' was active. Settings might need reload or reset." << std::endl;
+                std::cout << "Info: Deleted profile '" << profile_name << "' was active." << std::endl;
             }
             return true;
         }
@@ -2312,13 +2333,23 @@ constexpr std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
 static void InitializeSections()
 {
     sections.clear();
-    for (size_t i = 0; i < SECTION_CONFIGS.size(); ++i) {
-	sections.push_back({
-		SECTION_CONFIGS[i].title, SECTION_CONFIGS[i].description,
-		false, // Fallback Option1
-		50.0f  // Fallback Option2
-	});
-    }
+    if (shortdescriptions) {
+        for (size_t i = 0; i < SECTION_CONFIGS.size(); ++i) {
+			sections.push_back({
+				SECTION_CONFIGS[i].title, "",
+				false, // Fallback Option1
+				50.0f  // Fallback Option2
+			});
+		}
+	} else {
+		for (size_t i = 0; i < SECTION_CONFIGS.size(); ++i) {
+			sections.push_back({
+				SECTION_CONFIGS[i].title, SECTION_CONFIGS[i].description,
+				false, // Fallback Option1
+				50.0f  // Fallback Option2
+			});
+		}
+	}
 }
 
 static unsigned int BindKeyMode(unsigned int currentkey)
@@ -2526,6 +2557,9 @@ static void RunGUI()
 	// Load icons
 	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 	wc.hIconSm = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
+
+	// Override old default profile to new one
+	SaveSettings(G_SETTINGS_FILEPATH, "SAVE_DEFAULT_90493");
 	
 	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
 
@@ -2534,8 +2568,16 @@ static void RunGUI()
 
 	RegisterClassEx(&wc);
 	HWND hwnd = CreateWindow(wc.lpszClassName, _T("Spencer Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
+	::hwnd = hwnd;
 	SetTitleBarColor(hwnd, RGB(0, 0, 0));
-	SetWindowPos(hwnd, NULL, 0, 0, screen_width, screen_height, SWP_NOZORDER | SWP_NOMOVE);
+
+	// Load Window coordinates
+
+	if (WindowPosX == 0 && WindowPosY == 0) {
+		SetWindowPos(hwnd, NULL, 0, 0, screen_width, screen_height, SWP_NOZORDER | SWP_NOMOVE);
+	} else {
+		SetWindowPos(hwnd, NULL, WindowPosX, WindowPosY, screen_width, screen_height, SWP_NOZORDER);
+	}
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd)) {
@@ -2597,6 +2639,7 @@ static void RunGUI()
 		try { var = std::stod(src); } catch (...) {}
 
 	SAFE_CONVERT_INT(WallhopDelay, WallhopDelayChar);
+	SAFE_CONVERT_INT(WallhopBonusDelay, WallhopBonusDelayChar);
 	SAFE_CONVERT_INT(clip_slot, ItemClipSlot);
 	SAFE_CONVERT_INT(desync_slot, ItemDesyncSlot);
 	SAFE_CONVERT_INT(clip_delay, ItemClipDelay);
@@ -2636,6 +2679,7 @@ static void RunGUI()
 
 	bool amIFocused = true;
 	bool processFoundOld = false;
+	bool renderfirstframe = true;
 
 	while (running) {
 		// Process all pending messages first
@@ -2647,6 +2691,7 @@ static void RunGUI()
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+
 		if (!running) break;
 
 		// RENDER ONLY IF YOU'RE FOCUSED OR PROCESSFOUND CHANGES
@@ -2660,11 +2705,14 @@ static void RunGUI()
 
 		processFoundOld = processFound;
 
+		if (renderfirstframe) {
+			amIFocused = true;
+		}
+
 		if (!amIFocused) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(200));
 			continue; // Skip the rest of this iteration
 		}
-
 
 		// Check if it's time to render
 		auto currentTime = std::chrono::steady_clock::now();
@@ -2692,11 +2740,12 @@ static void RunGUI()
 			// Enable ImGUI Debug Mode
 			// ImGui::ShowMetricsWindow();
 
-            // Top settings child window (occupying 20% of the screen height)
-            float settings_panel_height = display_size.y * 0.2f;
+            // Top settings child window
+            float settings_panel_height = 140;
             ImGui::BeginChild("GlobalSettings", ImVec2(display_size.x - 16, settings_panel_height), true);
 
             // Start of Global Settings
+			ImGui::AlignTextToFramePadding();
             ImGui::TextWrapped("Global Settings");
 			if (UserOutdated) {
 				ImGui::SameLine(135);
@@ -2710,11 +2759,24 @@ static void RunGUI()
 
 			// Macro Toggle Checkbox
 			ImGui::PushStyleColor(ImGuiCol_Text, macrotoggled ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+			ImGui::AlignTextToFramePadding();
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
 			ImGui::PopStyleColor();
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 790);
-			ImGui::TextWrapped("The ONLY official source for this is https://github.com/Spencer0187/Spencer-Macro-Utilities");
+			ImGui::TextWrapped("The ONLY official source for this is");
+			ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(50, 102, 205, 255)); // Blue
+			ImGui::SameLine(ImGui::GetWindowWidth() - 499);
+			ImGui::TextWrapped("https://github.com/Spencer0187/Spencer-Macro-Utilities");
+			if (ImGui::IsItemHovered()) {
+				ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+				if (ImGui::IsItemClicked()) {
+						ShellExecuteA(NULL, "open", "https://github.com/Spencer0187/Spencer-Macro-Utilities", NULL, NULL, SW_SHOWNORMAL);
+				}
+			}
+
+			ImGui::PopStyleColor();
+			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Executable Name:");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
@@ -2736,33 +2798,20 @@ static void RunGUI()
 				ImGui::TextWrapped("Roblox Not Found");
 			}
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 435);
-
-			ImGui::TextWrapped("Force-Set Chat Open Key to \"/\" (Most Stable):");
-			ImGui::SameLine();
-			ImGui::Checkbox("##ChatOverride", &chatoverride);
-
-			ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
-			ImGui::SameLine();
-			ImGui::Checkbox("Toggle Anti-AFK", &antiafktoggle);
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(30.0f);
-			if (ImGui::InputText("##AntiAFKTime", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-				try {
-					AntiAFKTime = std::stoi(AntiAFKTimeChar);
-				} catch (const std::invalid_argument &e) {
-				} catch (const std::out_of_range &e) {
-				}
-			}
-
-			ImGui::SameLine(ImGui::GetWindowWidth() - 352);
-			ImGui::TextWrapped("AUTOSAVES ON QUIT     VERSION 3.0.2");
-
 			if (shiftswitch) {
 				scancode_shift = 0x1D;
 			} else {
 				scancode_shift = 0x2A;
 			}
+
+			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
+			ImGui::Text("Toggle Anti-AFK:");
+			ImGui::SameLine();
+			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
+
+			ImGui::SameLine(ImGui::GetWindowWidth() - 130);
+			ImGui::TextWrapped("VERSION 3.0.3");
+
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
 			ImGui::SameLine();
@@ -2841,7 +2890,7 @@ static void RunGUI()
 
 			static bool show_settings_menu = false;
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 110);
+			ImGui::SameLine(ImGui::GetWindowWidth() - 90);
 			if (ImGui::Button("Settings:")) {
 				show_settings_menu = !show_settings_menu;
 			}
@@ -2849,12 +2898,12 @@ static void RunGUI()
 			if (show_settings_menu) {
 				// Get the main window size
 				ImVec2 main_window_size = ImGui::GetIO().DisplaySize;
-				float child_width = main_window_size.x * 0.4f;
-				float child_height = main_window_size.y * 0.4f;
+				float child_width = main_window_size.x * 0.5f;
+				float child_height = main_window_size.y * 0.5f;
 
 				// Calculate position to center the child window
 				ImVec2 child_pos = ImVec2(
-					(main_window_size.x - child_width + 750) * 0.5f,
+					(main_window_size.x * 0.4f),
 					(main_window_size.y - child_height - 90) * 0.5f
 				);
 
@@ -2870,22 +2919,61 @@ static void RunGUI()
 					ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
 
 					// Setting: Windows Display Scale
-					ImGui::Text("Windows Display Scale:");
-					const char* scale_options[] = { "100%", "125%", "150%", "175%", "200%", "225%", "250%", "275%", "300%"};
-					const int scale_values[] = { 100, 125, 150, 175, 200, 225, 250, 275, 300};
-					// Format the current display_scale as the preview value
-					char preview[16];
-					snprintf(preview, sizeof(preview), "%d%%", display_scale);
+					ImGui::Text("Your Current Windows Display Scale Value (10-500%):");
 					ImGui::SetNextItemWidth(150);
-					if (ImGui::BeginCombo("##DisplayScale", preview)) {
-						for (int i = 0; i < IM_ARRAYSIZE(scale_options); i++) {
-							bool is_selected = (display_scale == scale_values[i]);
-							if (ImGui::Selectable(scale_options[i], is_selected)) {
-								display_scale = scale_values[i]; // Directly update display_scale
-							}
-						}
-						ImGui::EndCombo();
+
+					if (ImGui::InputInt("##DisplayScale", &display_scale)) {
+						if (display_scale < 10)
+							display_scale = 10;
+						if (display_scale > 500)
+							display_scale = 500;
 					}
+					ImGui::SameLine();
+					ImGui::Text("%%");
+
+					ImGui::Separator();
+
+					ImGui::AlignTextToFramePadding();
+					ImGui::Text("Amount of Minutes Between Anti-AFK Runs:");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(30.0f);
+					if (ImGui::InputText("##AntiAFKTime", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							AntiAFKTime = std::stoi(AntiAFKTimeChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::Separator();
+
+					ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
+
+					ImGui::Separator();
+
+					ImGui::Checkbox("Force-Set Chat Open Key to \"/\" (Most Stable)", &chatoverride);
+
+					ImGui::Separator();
+
+					if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
+						InitializeSections();
+					}
+
+					ImGui::Separator();
+
+					ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight() * 0.5f));
+
+					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(50, 102, 205, 255)); // Blue
+					ImGui::Text("%s", "Want to Donate directly to my Github?");
+					if (ImGui::IsItemHovered()) {
+						ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+						if (ImGui::IsItemClicked()) {
+							ShellExecuteA(NULL, "open", "https://github.com/sponsors/Spencer0187", NULL, NULL, SW_SHOWNORMAL);
+						}
+					}
+					ImGui::PopStyleColor();
+
+					ImGui::Text("%s", "Github Doesn't take any of the profits.");
 
 					// End the scrollable child region
 					ImGui::EndChild();
@@ -3041,7 +3129,9 @@ static void RunGUI()
 
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding (Hexadecimal)");
-				ImGui::TextWrapped("Toggle Macro:");
+				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+				ImGui::TextWrapped("Enable This Macro:");
+				ImGui::PopStyleColor();
 				ImGui::SameLine();
 				if (selected_section >= 0 && selected_section < section_amounts) {
 					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), &section_toggles[selected_section]);
@@ -3294,12 +3384,21 @@ static void RunGUI()
 				}
 
 				if (selected_section == 6) { // Wallhop
-					ImGui::TextWrapped("Flick Degrees:");
+					ImGui::TextWrapped("Flick Degrees (Estimated):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(std::atof(WallhopPixels) * std::atof(RobloxSensValue)));
+					snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
 					
-					ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_ReadOnly);
+					if (ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue));
+						snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
+						try {
+							wallhop_dx = std::round(std::stoi(WallhopPixels));
+							wallhop_dy = -std::round(std::stoi(WallhopPixels));
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
 
 					ImGui::TextWrapped("Flick Pixel Amount:");
 					ImGui::SameLine();
@@ -3312,15 +3411,24 @@ static void RunGUI()
 						} catch (const std::out_of_range &e) {
 						}
 					}
-					ImGui::SameLine();
-					ImGui::TextWrapped("(Modify this one)");
 
 					ImGui::TextWrapped("Wallhop Length (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("###", WallhopDelayChar, sizeof(WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+					if (ImGui::InputText("##WallhopDelay", WallhopDelayChar, sizeof(WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							WallhopDelay = std::round(std::stoi(WallhopDelayChar));
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::TextWrapped("Bonus Wallhop Delay Before Jumping (ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(70.0f);
+					if (ImGui::InputText("##WallhopBonusDelay", WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							WallhopBonusDelay = std::round(std::stoi(WallhopBonusDelayChar));
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -3663,8 +3771,7 @@ void CreateDebugConsole() {
         // Optional: Set console title
         SetConsoleTitle(L"Debug Console");
 
-        // Optional: Synchronize C++ streams with C stdio (if using std::cout)
-        // std::cout.sync_with_stdio(true);
+        std::cout.sync_with_stdio(true);
     }
 }
 
@@ -3673,7 +3780,7 @@ void CreateDebugConsole() {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     DisablePowerThrottling();
-	// Create Debug Console, use Printf to use
+	// Create Debug Console, use DbgPrintf, printf, or cout to use
     // CreateDebugConsole();
 
 	// Run timers with max precision
@@ -3691,7 +3798,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.0.2";
+        std::string localVersion = "3.0.3";
 
         if (remoteVersion != localVersion) 
         {
@@ -4280,6 +4387,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 }
 
+	// Save Window Positions and Size before closing
+	RECT windowrect;
+	GetWindowRect(hwnd, &windowrect);
+	WindowPosX = windowrect.left;
+	WindowPosY = windowrect.top;
+
+	RECT screen_rect;
+
+	GetWindowRect(hwnd, &screen_rect);
+
+	screen_width = screen_rect.right - screen_rect.left;
+	screen_height = screen_rect.bottom - screen_rect.top;
+
 	// If save file, save normally, if not, save as Profile 1
 	if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
 		SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
@@ -4295,6 +4415,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		UnhookWindowsHookEx(g_keyboardHook);
 		g_keyboardHook = NULL;
 	}
+
 
 	guiThread.join();
 
