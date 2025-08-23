@@ -1374,7 +1374,6 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"bunnyhopsmart", &bunnyhopsmart},
 	{"presskeyinroblox", &presskeyinroblox},
 	{"unequipinroblox", &unequipinroblox},
-	{"shortdescriptions", &shortdescriptions},
 };
 
 // Numeric variables to save
@@ -1549,6 +1548,11 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
         root_json_output[METADATA_KEY][LAST_ACTIVE_PROFILE_KEY] = G_CURRENTLY_LOADED_PROFILE_NAME;
     }
 
+	if (profile_name != "SAVE_DEFAULT_90493") {
+		// Global variables that don't change across profiles go here saved when not saving as (default)
+		root_json_output[METADATA_KEY]["shortdescriptions"] = shortdescriptions;
+	}
+
     // Write the root JSON (which now contains all profiles) to file
     std::ofstream outfile(filepath);
     if (outfile.is_open()) {
@@ -1713,13 +1717,21 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
         if (settings_to_load.contains("text") && settings_to_load["text"].is_string()) {
             text = settings_to_load["text"].get<std::string>();
         }
-        
         if (settings_to_load.contains("screen_width") && settings_to_load["screen_width"].is_number_integer()) {
             screen_width = settings_to_load.value("screen_width", screen_width);
         }
         if (settings_to_load.contains("screen_height") && settings_to_load["screen_height"].is_number_integer()) {
             screen_height = settings_to_load.value("screen_height", screen_height);
         }
+
+		// Load global variables in metadata (applies across all profiles)
+		if (root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
+			const auto& metadata = root_file_json[METADATA_KEY];
+
+			if (metadata.contains("shortdescriptions") && metadata["shortdescriptions"].is_boolean()) {
+				shortdescriptions = metadata["shortdescriptions"].get<bool>();
+			}
+		}
 
     } catch (const json::exception& e) {
         std::cerr << "Load error processing profile '" << profile_name << "': " << e.what() << '\n';
@@ -2539,8 +2551,13 @@ void CheckDisplayScale(HWND hwnd, int display_scale) {
     int currentScalePercent = (int)(dpi * 100 / USER_DEFAULT_SCREEN_DPI); // 96 DPI base
 
     if (currentScalePercent != 100 && display_scale != currentScalePercent) {
+        std::wstring msg = L"Your display scaling doesn't match the program's settings. "
+                           L"Your current display scale is " + std::to_wstring(currentScalePercent) +
+                           L"%, the Macro's display scale is " + std::to_wstring(display_scale) +
+                           L"%. Make these two equal by either updating the Macro's Settings or your Windows Settings.";
+
         MessageBox(hwnd,
-                   L"Your display scaling doesn't match the program's settings. Please open the Macro's Settings menu and put in your Display Scaling value.",
+                   msg.c_str(),
                    L"Display Scaling Mismatch",
                    MB_OK | MB_ICONWARNING);
     }
@@ -2571,7 +2588,15 @@ static void RunGUI()
 	::hwnd = hwnd;
 	SetTitleBarColor(hwnd, RGB(0, 0, 0));
 
-	// Load Window coordinates
+	// Load Window coordinates and remove invalid coordinates
+
+	if (WindowPosX < 0) {
+		WindowPosX = 0;
+	}
+
+	if (WindowPosY < 0) {
+		WindowPosY = 0;
+	}
 
 	if (WindowPosX == 0 && WindowPosY == 0) {
 		SetWindowPos(hwnd, NULL, 0, 0, screen_width, screen_height, SWP_NOZORDER | SWP_NOMOVE);
@@ -2809,8 +2834,8 @@ static void RunGUI()
 			ImGui::SameLine();
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 130);
-			ImGui::TextWrapped("VERSION 3.0.3");
+			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
+			ImGui::Text("VERSION 3.0.3.2");
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -2954,7 +2979,7 @@ static void RunGUI()
 					ImGui::Checkbox("Force-Set Chat Open Key to \"/\" (Most Stable)", &chatoverride);
 
 					ImGui::Separator();
-
+					
 					if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
 						InitializeSections();
 					}
@@ -3798,7 +3823,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.0.3";
+        std::string localVersion = "3.0.3.2";
 
         if (remoteVersion != localVersion) 
         {
@@ -4390,8 +4415,18 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// Save Window Positions and Size before closing
 	RECT windowrect;
 	GetWindowRect(hwnd, &windowrect);
-	WindowPosX = windowrect.left;
-	WindowPosY = windowrect.top;
+
+	if (windowrect.left < 0) {
+		WindowPosX = 0;
+	} else {
+		WindowPosX = windowrect.left;
+	}
+
+	if (windowrect.top < 0) {
+		WindowPosY = 0;
+	} else {
+		WindowPosY = windowrect.top;
+	}
 
 	RECT screen_rect;
 
