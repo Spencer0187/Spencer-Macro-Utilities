@@ -7,19 +7,19 @@ To Compile, run the project in Visual Studio 2022 and build it. The main source 
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 ### Known Issues
-If you get "0x0" or any other key immediately when binding, restart your PC.
+- If you get "0x0" or any other key immediately when binding, restart your PC.
 
-If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
+- If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
 
-If it doesn't launch at all, go into properties and select "Unblock" on the file.
+- If it doesn't launch at all, go into properties and select "Unblock" on the file.
 
-If you have another issue where keybinds don't work, restart your computer, it seems to fix it permanently.
+- If you have another issue where keybinds don't work, restart your computer, it seems to fix it permanently.
 
-In certain scenarios, when downgrading from a version with more features to a version with less features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
+- In certain scenarios, when downgrading from a version with more features to a version with less features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
 
-## [DOWNLOAD THE LATEST VERSION](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
+## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
