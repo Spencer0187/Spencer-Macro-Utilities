@@ -1,7 +1,8 @@
 # Spencer Macro Client
-An open-source Windows C++ Roblox ImGui Macro with many features.
+An open-source, Cross-Platform Windows + Linux C++ Roblox ImGui Macro with many features.
 
-To Compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp.
+To compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp. It is intended to be compiled through windows
+To compile the linux helper binary, there is a separate source code folder inside the Resource Files folder. Compile this with g++.
 
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
@@ -11,15 +12,17 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 - If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
 
-- If it doesn't launch at all, go into properties and select "Unblock" on the file.
+- If it doesn't launch at all in Windows, go into properties and select "Unblock" on the file.
 
-- If you have another issue where keybinds don't work, restart your computer, it seems to fix it permanently.
+- If you have another issue where keybinds don't work, restart your computer, and it seems to fix it permanently.
 
-- In certain scenarios, when downgrading from a version with more features to a version with less features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
+- In certain scenarios, when downgrading from a version with more features to a version with fewer features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
 
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
+- Windows Installation: Run the executable "suspend" file.
+- Linux Installation: Run the executable "suspend" file through [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download), and accept the Admin Confirmation. Works across nearly all distros.
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
@@ -61,6 +64,11 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
 
 | [<img src="https://avatars.githubusercontent.com/u/34448643?s=25&v=4" width="25">](https://about.signpath.io/) | Free code signing provided by [**SignPath.io**](https://about.signpath.io/), certificate by [**SignPath Foundation**](https://signpath.org/) |
 |----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+
+## Debugging Instructions
+  (To show printed messages)
+  - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
+  - Linux: Run using `DEBUG=1 wine suspend.exe`.  
 
 ### Team Roles
 - **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/)
