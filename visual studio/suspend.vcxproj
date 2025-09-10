@@ -191,7 +191,7 @@
     <ClCompile Include="macroframework.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Sviat\Downloads\ClipboardXX-0.5\ClipboardXX-0.5\include</AdditionalIncludeDirectories>
     </ClCompile>
-    <ClCompile Include="miniz.c" />
+    <ClCompile Include="Resource Files\miniz.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui-files\imconfig.h" />
@@ -203,10 +203,14 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="imgui-files\json.hpp" />
-    <ClInclude Include="miniz.h" />
+    <ClInclude Include="Resource Files\keymapping.h" />
+    <ClInclude Include="Resource Files\miniz.h" />
+    <ClInclude Include="Resource Files\save_system.h" />
+    <ClInclude Include="Resource Files\wine_compatibility_layer.h" />
     <ClInclude Include="resource.h">
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
+    <ClInclude Include="shared_mem.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">
@@ -214,11 +218,14 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Font Include="LSANS.TTF" />
+    <Image Include="Resource Files\favicon-16x16.ico" />
+    <Image Include="Resource Files\favicon.ico" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="favicon-16x16.ico" />
-    <Image Include="favicon.ico" />
+    <Font Include="Resource Files\LSANS.TTF" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resource Files\Suspend_Input_Helper_Linux_Binary" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

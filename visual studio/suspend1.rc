@@ -1,4 +1,4 @@
-// Microsoft Visual C++ generated resource script.
+    // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
@@ -52,9 +52,9 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON1               ICON                    "favicon.ico"
+IDI_ICON1               ICON                    "Resource Files/favicon.ico"
 
-IDI_ICON2               ICON                    "favicon-16x16.ico"
+IDI_ICON2               ICON                    "Resource Files/favicon-16x16.ico"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ IDI_ICON2               ICON                    "favicon-16x16.ico"
 // RCDATA
 //
 
-LSANS_TTF               RCDATA                  "LSANS.TTF"
+LSANS_TTF               RCDATA                  "Resource Files/LSANS.TTF"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -102,6 +102,14 @@ BEGIN
         VALUE "Translation", 0x409, 1200
     END
 END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Binary
+//
+
+IDR_BINARY1             Binary                  "Resource Files\\Suspend_Input_Helper_Linux_Binary"
 
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////

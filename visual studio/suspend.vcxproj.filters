@@ -45,8 +45,8 @@
     <ClCompile Include="imgui-files\imgui_impl_win32.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="miniz.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="Resource Files\miniz.c">
+      <Filter>Resource Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -80,7 +80,19 @@
     <ClInclude Include="imgui-files\json.hpp">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="miniz.h">
+    <ClInclude Include="shared_mem.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\wine_compatibility_layer.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\miniz.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\keymapping.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\save_system.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -90,16 +102,21 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="favicon-16x16.ico">
+    <Image Include="Resource Files\favicon.ico">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="favicon.ico">
+    <Image Include="Resource Files\favicon-16x16.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <Font Include="LSANS.TTF">
+    <Font Include="Resource Files\LSANS.TTF">
       <Filter>Resource Files</Filter>
     </Font>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Resource Files\Suspend_Input_Helper_Linux_Binary">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

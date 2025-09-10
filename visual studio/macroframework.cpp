@@ -5,13 +5,9 @@
 #include <iostream>
 #include <vector>
 #include <processthreadsapi.h>
-#include <Psapi.h>
-#include <fcntl.h>
-#include <io.h>
 #include <tchar.h>
 #include <thread>
 #include <chrono>
-#include <cwctype>
 #include <string>
 #include <atomic>
 #include <algorithm>  
@@ -25,9 +21,11 @@
 #include "imgui-files/imgui_impl_win32.h"
 #include "imgui-files/json.hpp"
 
-#include "miniz.h"
+#include "Resource Files/miniz.h"
+#include "Resource Files/keymapping.h"
+#include "Resource Files/wine_compatibility_layer.h"
+#include "Resource Files/save_system.h"
 
-#include <wininet.h>
 #include <comdef.h>
 #include <shlobj.h>
 #include <condition_variable>
@@ -46,7 +44,7 @@
 #include <shellscalingapi.h>
 
 // Library for HTTP (To get version data from my github page)
-#pragma comment(lib, "wininet.lib")
+
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 #pragma comment(lib, "shlwapi.lib")
@@ -218,6 +216,8 @@ std::unordered_map<int, std::string> vkToString = {
 // Window and UI settings
 int screen_width = GetSystemMetrics(SM_CXSCREEN) / 1.5;
 int screen_height = GetSystemMetrics(SM_CYSCREEN) / 1.5 + 10;
+int raw_window_width;
+int raw_window_height;
 int selected_dropdown = 0;
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
@@ -235,7 +235,7 @@ char ItemClipSlot[256] = "7";
 char ItemClipDelay[256] = "34";
 char BunnyHopDelayChar[256] = "10";
 char WallhopPixels[256] = "300";
-char WallhopDelayChar[256] = "17";
+char WallhopDelayChar[256] = "19";
 char WallhopBonusDelayChar[256] = "0";
 char WallhopDegrees[256] = "150";
 char SpamDelay[256] = "20";
@@ -244,10 +244,17 @@ char RobloxPixelValueChar[256] = "716";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
 char ChatKeyChar[2] = "/";
-char CustomTextChar[256] = "";
+char CustomTextChar[2048] = "";
 char RobloxFPSChar[256] = "60";
 char AntiAFKTimeChar[256] = "15";
 char PressKeyDelayChar[256] = "16";
+char PressKeyBonusDelayChar[256] = "0";
+char PasteDelayChar[256] = "1";
+char HHJLengthChar[16] = "243";
+char HHJFreezeDelayOverrideChar[16] = "0";
+char HHJDelay1Char[16] = "9";
+char HHJDelay2Char[16] = "17";
+char HHJDelay3Char[16] = "16";
 
 
 // Toggles and switches
@@ -282,6 +289,7 @@ bool bunnyhopsmart = true;
 bool presskeyinroblox = false;
 bool unequipinroblox = false;
 bool shortdescriptions = false;
+bool useoldpaste = false;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
@@ -314,8 +322,15 @@ int WallhopBonusDelay = 0;
 int AntiAFKTime = 15;
 int display_scale = 100;
 int PressKeyDelay = 16;
+int PressKeyBonusDelay = 0;
 int WindowPosX = 0;
 int WindowPosY = 0;
+int PasteDelay = 1;
+int HHJLength = 243;
+int HHJFreezeDelayOverride = 0;
+int HHJDelay1 = 9;
+int HHJDelay2 = 17;
+int HHJDelay3 = 16;
 
 // Dropdown options
 const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
@@ -345,150 +360,11 @@ static float PreviousWallWalkSide = 0;
 static float PreviousWallWalkValue = 0.5f;
 static float windowOpacityPercent = 100.0f;
 
-
-typedef LONG(NTAPI *NtSuspendProcess)(HANDLE ProcessHandle);
-typedef LONG(NTAPI *NtResumeProcess)(HANDLE ProcessHandle);
-
-
-// Helper function to suspend or resume a process
-static void SuspendOrResumeProcess(NtSuspendProcess pfnSuspend, NtResumeProcess pfnResume, const std::vector<HANDLE>& pids, bool suspend)
-{
-    for (HANDLE pid : pids)
-    {
-        if (suspend)
-        {
-		pfnSuspend(pid);
-        }
-        else
-        {
-		pfnResume(pid);
-        }
-    }
-}
-
-
 static INPUT createInput()
 {
 	INPUT inputkey = {};
 	inputkey.type = INPUT_KEYBOARD;
 	return inputkey;
-}
-
-// Hold a key down, self explanatory
-static void HoldKey(WORD scanCode)
-{
-	INPUT input = {};
-	input.type = INPUT_KEYBOARD;
-	input.ki.wScan = scanCode;
-	input.ki.dwFlags = SCAN_CODE_FLAGS;
-
-	SendInput(1, &input, sizeof(INPUT));
-}
-
-static void ReleaseKey(WORD scanCode)
-{
-	INPUT input = {};
-	input.type = INPUT_KEYBOARD;
-	input.ki.wScan = scanCode;
-	input.ki.dwFlags = RELEASE_FLAGS;
-
-	SendInput(1, &input, sizeof(INPUT));
-}
-
-// Use these only if the input comes from a bind
-
-static void HoldKeyBinded(WORD Vk_key)
-{
-    INPUT input = {};
-
-    // Check if Vk corresponds to M1, M2, or M3
-    if (Vk_key == VK_LBUTTON || Vk_key == VK_RBUTTON || Vk_key == VK_MBUTTON)
-    {
-        input.type = INPUT_MOUSE;
-        switch (Vk_key)
-        {
-        case VK_LBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-            break;
-        case VK_RBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-            break;
-        case VK_MBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
-            break;
-        }
-    }
-    else
-    {
-		Vk_key = MapVirtualKeyEx(Vk_key, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
-        input.type = INPUT_KEYBOARD;
-        input.ki.wScan = Vk_key;
-        input.ki.dwFlags = SCAN_CODE_FLAGS;
-    }
-
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-static void ReleaseKeyBinded(WORD Vk_key)
-{
-    INPUT input = {};
-
-    // Check if Vk corresponds to M1, M2, or M3
-    if (Vk_key == VK_LBUTTON || Vk_key == VK_RBUTTON || Vk_key == VK_MBUTTON)
-    {
-        input.type = INPUT_MOUSE;
-        switch (Vk_key)
-        {
-        case VK_LBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-            break;
-        case VK_RBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-            break;
-        case VK_MBUTTON:
-            input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
-            break;
-        }
-    }
-    else
-    {
-		Vk_key = MapVirtualKeyEx(Vk_key, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
-        input.type = INPUT_KEYBOARD;
-        input.ki.wScan = Vk_key;
-        input.ki.dwFlags = RELEASE_FLAGS;
-    }
-
-    SendInput(1, &input, sizeof(INPUT));
-}
-
-
-// Move your mouse to any coordinate
-static void MoveMouse(int dx, int dy)
-{
-	INPUT input = {0};
-	input.type = INPUT_MOUSE;
-	input.mi.dx = (dx * display_scale) / 100;
-	input.mi.dy = (dy * display_scale) / 100;
-	input.mi.dwFlags = MOUSEEVENTF_MOVE;
-
-	SendInput(1, &input, sizeof(INPUT));
-}
-
-static void PasteText(const std::string &text)
-{
-	for (char c : text) {
-        // Key down event
-        INPUT input = { 0 };
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = 0;
-        input.ki.wScan = c;
-        input.ki.dwFlags = KEYEVENTF_UNICODE;  // Unicode key down
-        SendInput(1, &input, sizeof(INPUT));
-
-        // Key up event
-        input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;  // Unicode key up
-        SendInput(1, &input, sizeof(INPUT));
-    }
 }
 
 // This is ran in a separate thread to avoid interfering with other functions
@@ -748,6 +624,11 @@ static void PressKeyThread() {
 			ReleaseKeyBinded(vk_zkey);
 		}
 
+		// Sleep for the bonus delay if applicable
+		if (PressKeyBonusDelay != 0) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyBonusDelay));
+		}
+
 		HoldKeyBinded(vk_dkey);
 		std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyDelay));
 		ReleaseKeyBinded(vk_dkey);
@@ -780,97 +661,6 @@ static std::vector<HWND> FindWindowByProcessHandle(const std::vector<HANDLE> &ha
     return windows;
 }
 
-// Find Process ID of latest Process in selection
-static std::vector<DWORD> GetProcessIdByName(bool takeallprocessids)
-{
-    // Convert target name from settingsBuffer to wide string
-    std::string targetName = settingsBuffer;
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    std::wstring targetNameW = converter.from_bytes(targetName);
-
-    // Create a snapshot of all processes
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot == INVALID_HANDLE_VALUE)
-    {
-        processFound = false;
-        return std::vector<DWORD>(); // Return empty vector on failure
-    }
-
-    PROCESSENTRY32 pe;
-    pe.dwSize = sizeof(PROCESSENTRY32);
-    std::vector<DWORD> result;
-
-    if (takeallprocessids)
-    {
-        // Collect all matching process IDs
-        if (Process32First(hSnapshot, &pe))
-        {
-            do
-            {
-                if (_wcsicmp(pe.szExeFile, targetNameW.c_str()) == 0)
-                {
-                    result.push_back(pe.th32ProcessID);
-                }
-            } while (Process32Next(hSnapshot, &pe));
-        }
-        processFound = !result.empty();
-    }
-    else
-    {
-        // Find the newest matching process
-        DWORD selectedPID = 0;
-        ULONGLONG newestCreationTime = 0;
-        bool foundAny = false;
-
-        if (Process32First(hSnapshot, &pe))
-        {
-            do
-            {
-                if (_wcsicmp(pe.szExeFile, targetNameW.c_str()) == 0)
-                {
-                    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
-                    if (hProcess)
-                    {
-                        FILETIME ftCreation, ftExit, ftKernel, ftUser;
-                        if (GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser))
-                        {
-                            ULONGLONG creationTime = (static_cast<ULONGLONG>(ftCreation.dwHighDateTime) << 32) | ftCreation.dwLowDateTime;
-                            if (!foundAny || creationTime > newestCreationTime)
-                            {
-                                newestCreationTime = creationTime;
-                                selectedPID = pe.th32ProcessID;
-                                foundAny = true;
-                            }
-                        }
-                        CloseHandle(hProcess);
-                    }
-                }
-            } while (Process32Next(hSnapshot, &pe));
-        }
-
-        if (foundAny)
-        {
-            result.push_back(selectedPID);
-        }
-        processFound = foundAny;
-    }
-
-    CloseHandle(hSnapshot);
-    return result;
-}
-
-static std::vector<HANDLE> GetProcessHandles(const std::vector<DWORD> &pids, DWORD accessRights)
-{
-    std::vector<HANDLE> handles;
-    for (DWORD pid : pids) {
-        HANDLE hProcess = OpenProcess(accessRights, FALSE, pid);
-        if (hProcess != NULL) { // Check if the handle is valid
-            handles.push_back(hProcess);
-        }
-    }
-    return handles;
-}
-
 static HWND FindNewestProcessWindow(const std::vector<HWND> &hwnds)
 {
     if (hwnds.empty()) {
@@ -887,7 +677,7 @@ static HWND FindNewestProcessWindow(const std::vector<HWND> &hwnds)
         GetWindowThreadProcessId(hwnd, &pid);
 
         // Open the process to get its creation time
-        HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+        HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
         if (hProcess) {
             FILETIME ftCreation, ftExit, ftKernel, ftUser;
             if (GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser)) {
@@ -908,6 +698,10 @@ static HWND FindNewestProcessWindow(const std::vector<HWND> &hwnds)
 
 static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
 {
+    if (g_isLinuxWine) {
+		return true;
+	}
+
     HWND foreground = GetForegroundWindow();
     if (!foreground) return false; // No foreground window
 
@@ -923,300 +717,45 @@ static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
     return false; // No match
 }
 
+static void PasteText(const std::string& text) {
+    if (useoldpaste && !g_isLinuxWine) {
+		// Original Windows Path: Use the efficient KEYEVENTF_UNICODE.
+		INPUT input = { 0 };
+		input.type = INPUT_KEYBOARD;
+		input.ki.wVk = 0;
+		input.ki.dwFlags = KEYEVENTF_UNICODE;
+		for (char c : text) {
+			// Windows can handle many characters directly with wScan
+			input.ki.wScan = c;
+			input.ki.dwFlags = KEYEVENTF_UNICODE;
+			SendInput(1, &input, sizeof(INPUT));
+			input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
+			SendInput(1, &input, sizeof(INPUT));
+		}
+	}
 
-static std::string Trim(const std::string &str)
-{ // Trim a string
-    auto start = str.begin();
-    while (start != str.end() && std::isspace(*start)) {
-        ++start;
-    }
+    if (!useoldpaste || g_isLinuxWine) {
+		for (char c : text) {
+			KeyAction action = CharToKeyAction_Compat(c);
 
-    auto end = str.end();
-    do {
-        --end;
-    } while (end != start && std::isspace(*end));
+			if (action.vk_code == 0) continue; // Skip unmappable characters
 
-    return std::string(start, end + 1);
+			if (action.needs_shift) {
+				HoldKeyBinded(VK_SHIFT);
+			}
+
+			HoldKeyBinded(action.vk_code);
+			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
+			ReleaseKeyBinded(action.vk_code);
+
+			if (action.needs_shift) {
+				ReleaseKeyBinded(VK_SHIFT);
+			}
+		}
+	}
 }
 
-static size_t OutputReleaseVersion(void *contents, size_t size, size_t nmemb, std::string *output)
-{
-    size_t totalSize = size * nmemb;
-    output->append((char*)contents, totalSize);
-    return totalSize;
-}
-
-
-// Generic function to get the content of a URL as a string.
-static std::string GetStringFromUrl(const wchar_t* url)
-{
-    DWORD timeout = 500;
-    
-    HINTERNET hInternet = InternetOpen(L"Spencer-Macro-Utilities-Updater", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (!hInternet) return "";
-
-    InternetSetOption(hInternet, INTERNET_OPTION_CONNECT_TIMEOUT, &timeout, sizeof(timeout));
-    InternetSetOption(hInternet, INTERNET_OPTION_RECEIVE_TIMEOUT, &timeout, sizeof(timeout));
-
-    HINTERNET hConnect = InternetOpenUrl(hInternet, url, NULL, 0, INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
-    if (!hConnect) {
-        InternetCloseHandle(hInternet);
-        return "";
-    }
-
-    char buffer[4096];
-    DWORD bytesRead;
-    std::string response;
-
-    while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
-        response.append(buffer, bytesRead);
-    }
-
-    InternetCloseHandle(hConnect);
-    InternetCloseHandle(hInternet);
-
-    return response;
-}
-
-static std::string GetRemoteVersion()
-{
-    return GetStringFromUrl(
-	    L"https://raw.githubusercontent.com/Spencer0187/Spencer-Macro-Utilities/main/version");
-}
-
-static std::string GetRemoteUpdateUrlTemplate()
-{
-    return GetStringFromUrl(
-	    L"https://raw.githubusercontent.com/Spencer0187/Spencer-Macro-Utilities/main/.github/autoupdaterurl");
-}
-
-// Generate file name for update
-static std::wstring GenerateRandomHexString()
-{
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> distrib(0, 15);
-
-    std::wstringstream wss;
-    for (int i = 0; i < 16; ++i) {
-	wss << std::hex << distrib(gen);
-    }
-    return wss.str();
-}
-
-bool DownloadToMemory(const std::wstring& url, std::vector<char>& data) {
-    HINTERNET hInternet = InternetOpen(L"Spencer-Macro-Utilities-Updater", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (!hInternet) {
-        return false;
-    }
-
-    HINTERNET hConnect = InternetOpenUrl(hInternet, url.c_str(), NULL, 0, INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE, 0);
-    if (!hConnect) {
-        InternetCloseHandle(hInternet);
-        return false;
-    }
-
-    char buffer[4096];
-    DWORD bytesRead;
-    
-    while (InternetReadFile(hConnect, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0) {
-        data.insert(data.end(), buffer, buffer + bytesRead);
-    }
-
-    InternetCloseHandle(hConnect);
-    InternetCloseHandle(hInternet);
-    
-    return !data.empty();
-}
-
-bool ExtractFileFromMemory(const std::vector<char>& zipBuffer, const std::string& fileNameToExtract, std::vector<char>& extractedData) {
-    mz_zip_archive zip_archive;
-    mz_zip_zero_struct(&zip_archive);
-
-    if (!mz_zip_reader_init_mem(&zip_archive, zipBuffer.data(), zipBuffer.size(), 0)) {
-        return false;
-    }
-
-    int file_index = mz_zip_reader_locate_file(&zip_archive, fileNameToExtract.c_str(), NULL, 0);
-    if (file_index < 0) {
-        mz_zip_reader_end(&zip_archive);
-        return false; // File not found in archive
-    }
-
-    size_t uncompressed_size = 0;
-    void* pBuffer = mz_zip_reader_extract_to_heap(&zip_archive, file_index, &uncompressed_size, 0);
-    if (!pBuffer) {
-        mz_zip_reader_end(&zip_archive);
-        return false; // Failed to extract
-    }
-    
-    extractedData.assign(static_cast<char*>(pBuffer), static_cast<char*>(pBuffer) + uncompressed_size);
-    
-    mz_free(pBuffer);
-    mz_zip_reader_end(&zip_archive);
-
-    return true;
-}
-
-void PerformUpdate(const std::string& newVersion, const std::string& localVersion) {
-    // 1. Get remote update URL template and construct the final download URL
-    std::string urlTemplateAnsi = GetRemoteUpdateUrlTemplate();
-    if (urlTemplateAnsi.empty()) {
-        MessageBox(NULL, L"Failed to retrieve update URL configuration.", L"Update Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-
-    // --- FIX 1: Replace ALL instances of the placeholder ---
-    std::string placeholder = "{VERSION}";
-    size_t start_pos = 0;
-    while((start_pos = urlTemplateAnsi.find(placeholder, start_pos)) != std::string::npos) {
-        urlTemplateAnsi.replace(start_pos, placeholder.length(), newVersion);
-        start_pos += newVersion.length();
-    }
-    
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    std::wstring downloadUrl = converter.from_bytes(urlTemplateAnsi);
-
-    // 2. Download the zip file into a memory buffer
-    std::vector<char> zipData;
-    if (!DownloadToMemory(downloadUrl, zipData)) {
-        MessageBox(NULL, L"Failed to download the update. Please check your internet connection.", L"Update Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-
-    // 3. Extract the target executable from the memory buffer into another memory buffer
-    std::vector<char> exeData;
-    const std::string exeNameInZip = "suspend.exe"; // The name of the EXE inside the .zip file
-    if (!ExtractFileFromMemory(zipData, exeNameInZip, exeData)) {
-        MessageBox(NULL, L"Failed to extract the update from the downloaded package. It may be corrupt.", L"Update Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-
-    // 4. Define paths and generate a random temporary filename
-    wchar_t currentExePathArr[MAX_PATH];
-    GetModuleFileNameW(NULL, currentExePathArr, MAX_PATH);
-    std::wstring currentExePath = currentExePathArr;
-    std::wstring currentExeName = PathFindFileNameW(currentExePathArr);
-
-    wchar_t workingDirArr[MAX_PATH];
-    wcscpy_s(workingDirArr, currentExePathArr);
-    PathRemoveFileSpecW(workingDirArr);
-    std::wstring workingDir = workingDirArr;
-
-    std::wstring randomFileName = GenerateRandomHexString();
-    std::wstring tempExePath = workingDir + L"\\" + randomFileName + L".tmp";
-
-    // 5. Write the in-memory EXE data to the temporary file on disk
-    HANDLE hFile = CreateFileW(tempExePath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) {
-        MessageBox(NULL, L"Could not create temporary update file. Please check folder permissions.", L"Update Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    DWORD bytesWritten;
-    if (!WriteFile(hFile, exeData.data(), exeData.size(), &bytesWritten, NULL) || bytesWritten != exeData.size()) {
-        CloseHandle(hFile);
-        DeleteFileW(tempExePath.c_str());
-        MessageBox(NULL, L"Failed to write update data to temporary file.", L"Update Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    CloseHandle(hFile);
-
-    // 6. Generate the appropriate batch script (conditionally)
-    std::wstring batchScriptContent;
-    std::wstring wLocalVersion = converter.from_bytes(localVersion);
-    std::wstring wNewVersion = converter.from_bytes(newVersion);
-
-    // --- START: Re-integrated folder rename logic ---
-    bool shouldRenameFolder = false;
-    std::wstring currentFolderPath = workingDir;
-    wchar_t folderNameBuffer[MAX_PATH];
-    wcscpy_s(folderNameBuffer, currentFolderPath.c_str());
-    PathStripPathW(folderNameBuffer);
-    std::wstring currentFolderName = folderNameBuffer;
-    
-    // Check if the folder name ends with the local version string
-    if (!currentFolderName.empty() && currentFolderName.length() > wLocalVersion.length() && 
-        currentFolderName.substr(currentFolderName.length() - wLocalVersion.length()) == wLocalVersion) {
-        // Check for a common separator before the version string to be safer
-        wchar_t separator = currentFolderName[currentFolderName.length() - wLocalVersion.length() - 1];
-        if (separator == L'-' || separator == L'_' || separator == L' ' || separator == 'V' || separator == 'v') {
-            shouldRenameFolder = true;
-        }
-    }
-    // --- END: Re-integrated folder rename logic ---
-
-    wchar_t tempDir[MAX_PATH];
-    GetTempPathW(MAX_PATH, tempDir);
-    std::wstring batchFilePath = std::wstring(tempDir) + L"updater-" + GenerateRandomHexString() + L".bat";
-
-    if (shouldRenameFolder) {
-        // --- BATCH SCRIPT GENERATION: WITH FOLDER RENAME ---
-        std::wstring newFolderName = currentFolderName.substr(0, currentFolderName.length() - wLocalVersion.length()) + wNewVersion;
-        
-        wchar_t parentOfCurrentArr[MAX_PATH];
-        wcscpy_s(parentOfCurrentArr, currentFolderPath.c_str());
-        PathRemoveFileSpecW(parentOfCurrentArr);
-        
-        std::wstring newFolderPath = std::wstring(parentOfCurrentArr) + L"\\" + newFolderName;
-        std::wstring newExePathInRenamedFolder = newFolderPath + L"\\" + currentExeName;
-
-		std::wstring tempExePathAfterRename = newFolderPath + L"\\" + randomFileName + L".tmp";
-		std::wstring finalExePathInNewFolder = newFolderPath + L"\\" + currentExeName;
-		// --- BATCH SCRIPT GENERATION: RENAME ---
-		batchScriptContent =
-			L"@echo off\n"
-			L"pushd \"%~dp0\"\n\n"
-			L"echo Updating and renaming folder...\n"
-			L"timeout /t 2 /nobreak > NUL\n\n"
-			// Use 'move' with the full destination path to rename the folder.
-			L"move \"" + currentFolderPath + L"\" \"" + newFolderPath + L"\"\n\n"
-			// 2. Delete the old executable (which is now at its new path).
-			L"del /F /Q \"" + finalExePathInNewFolder + L"\"\n"
-			// Rename the .tmp file to the final executable name.
-			L"move \"" + tempExePathAfterRename + L"\" \"" + finalExePathInNewFolder + L"\"\n\n"
-			// 4. Relaunch the application from its final location.
-			L"start \"\" \"" + finalExePathInNewFolder + L"\"\n"
-			// 5. Self-delete the batch script.
-			L"(goto) 2>nul & del \"%~f0\"";
-    } else {
-        // --- BATCH SCRIPT GENERATION: STANDARD (NO FOLDER RENAME) ---
-        batchScriptContent =
-            L"@echo off\n"
-			L"pushd \"%~dp0\"\n\n"
-            L"echo Updating in progress...\n"
-            L"timeout /t 2 /nobreak > NUL\n"
-            // Delete the original executable: %1 is current exe path
-            L"del /F /Q \"%~1\"\n"
-            // Rename the new temporary file (%2) to the original executable's name (%3)
-			L"move \"%~2\" \"%~1\"\n\n"
-            // Relaunch the newly updated application
-            L"start \"\" \"%~1\"\n"
-            // Self-delete the batch script
-            L"(goto) 2>nul & del \"%~f0\"";
-    }
-
-    // 7. Write and execute the batch script
-    HANDLE hBatchFile = CreateFileW(batchFilePath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hBatchFile != INVALID_HANDLE_VALUE) {
-        std::string mbBatchScript = converter.to_bytes(batchScriptContent);
-        DWORD batchBytesWritten;
-        WriteFile(hBatchFile, mbBatchScript.c_str(), mbBatchScript.length(), &batchBytesWritten, NULL);
-        CloseHandle(hBatchFile);
-
-        // Prepare parameters for ShellExecute. Each parameter must be quoted.
-        // For the standard case, we pass parameters. For the rename case, we don't, as the paths are hardcoded.
-        std::wstring params = L"";
-        if (!shouldRenameFolder) {
-            params = L"\"" + currentExePath + L"\" \"" + tempExePath + L"\" \"" + currentExeName + L"\"";
-        }
-        
-        ShellExecuteW(NULL, L"open", batchFilePath.c_str(), params.c_str(), NULL, SW_HIDE);
-        exit(0); // Exit the current application immediately
-    } else {
-        MessageBox(NULL, L"Could not create the updater script. Please check permissions.", L"Update Error", MB_OK | MB_ICONERROR);
-        DeleteFileW(tempExePath.c_str());
-    }
-}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -1236,6 +775,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
 			CreateRenderTarget();
 		}
+		// Update raw screen rects
+		RECT raw_screen_rect;
+		GetWindowRect(hwnd, &raw_screen_rect);
+		raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
+		raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
 		return 0;
 
     case WM_GETMINMAXINFO: {
@@ -1275,7 +819,7 @@ bool CreateDeviceD3D(HWND hWnd)
     sd.BufferDesc.Width = window_width;
     sd.BufferDesc.Height = window_height;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 120;
+    sd.BufferDesc.RefreshRate.Numerator = 100;
     sd.BufferDesc.RefreshRate.Denominator = 1;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.OutputWindow = hWnd;
@@ -1443,6 +987,13 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"WallhopDelayChar", {WallhopDelayChar, sizeof(WallhopDelayChar)}},
 	{"WallhopBonusDelayChar", {WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar)}},
 	{"PressKeyDelayChar", {PressKeyDelayChar, sizeof(PressKeyDelayChar)}},
+	{"PressKeyBonusDelayChar", {PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar)}},
+	{"PasteDelayChar", {PasteDelayChar, sizeof(PasteDelayChar)}},
+	{"HHJLengthChar", {HHJLengthChar, sizeof(HHJLengthChar)}},
+	{"HHJFreezeDelayOverrideChar", {HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar)}},
+	{"HHJDelay1Char", {HHJDelay1Char, sizeof(HHJDelay1Char)}},
+	{"HHJDelay2Char", {HHJDelay2Char, sizeof(HHJDelay2Char)}},
+	{"HHJDelay3Char", {HHJDelay3Char, sizeof(HHJDelay3Char)}},
 };
 
 void SaveSettings(const std::string& filepath, const std::string& profile_name) {
@@ -1501,7 +1052,7 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
                 // Check if any top-level key looks like a profile name (e.g., starts with "Profile ")
                 // This is a heuristic; adjust if your profile names have a different pattern.
                 for (const auto& item : existing_file_data.items()) {
-                    if (item.key().rfind("Profile ", 0) == 0 && item.value().is_object()) {
+                    if (item.key().rfind("(default)", 0) == 0 && item.value().is_object()) {
                         is_already_profile_format = true;
                         break;
                     }
@@ -2047,7 +1598,7 @@ namespace ProfileUI {
             menuHeight = std::min(menuHeight, 300.0f);
 
 
-            ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y));
+            ImGui::SetNextWindowPos(ImVec2(buttonPos.x - 3, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y));
             ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
@@ -2325,7 +1876,7 @@ std::vector<Section> sections;
 
 // Title + Description of Sections
 
-constexpr std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
+static std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Freeze", "Automatically Tab Glitch With a Button"},
     {"Item Desync", "Enable Item Collision (Hold Item Before Pressing)"},
     {"Helicopter High Jump", "Use COM Offset to Catapult Yourself Into The Air by Aligning your Back Angled to the Wall and Jumping and Letting Your Character Turn"},
@@ -2339,7 +1890,7 @@ constexpr std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
     {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
     {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
-    {"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
+	{g_isLinuxWine ? "Smart Bunnyhop (BROKEN ON LINUX)" : "Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
 }};
 
 static void InitializeSections()
@@ -2371,7 +1922,7 @@ static unsigned int BindKeyMode(unsigned int currentkey)
     if (bindingMode) {
 		rebindtime = std::chrono::steady_clock::now();
         for (int key = 0; key < 255; key++) {
-            if (GetAsyncKeyState(key) & 0x8000) {
+            if (IsKeyPressed(key)) {
                 bindingMode = false;
                 std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
                 unsigned int currentkeyint = std::stoul(currentkeystr, nullptr, 16); // Convert string into unsigned int
@@ -2407,7 +1958,7 @@ static unsigned int BindKeyModeAlt(unsigned int currentkey)
     if (bindingModealt) {
 		rebindtime = std::chrono::steady_clock::now();
         for (int key = 0; key < 255; key++) {
-            if (GetAsyncKeyState(key) & 0x8000) {
+            if (IsKeyPressed(key)) {
                 bindingModealt = false;
                 std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
                 unsigned int currentkeyint = std::stoul(currentkeystr, nullptr, 16); // Convert string into unsigned int
@@ -2451,7 +2002,7 @@ static void GetKeyNameFromHex(unsigned int hexKeyCode)
     // Attempt to get the readable key name
     if (GetKeyNameTextA(scanCode << 16, KeyBufferhuman, 256) > 0) {
         // Successfully retrieved the key name
-        return; // No further action needed
+        return;
     } else {
         // If GetKeyNameText fails, try to find the VK_ name
         auto it = vkToString.find(hexKeyCode);
@@ -2563,9 +2114,29 @@ void CheckDisplayScale(HWND hwnd, int display_scale) {
     }
 }
 
+static void SetWorkingDirectoryToExecutablePath() // Allows non-standard execution for save files
+{
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(nullptr, exePath, MAX_PATH)) {
+	// Remove the executable name to get the directory
+	char *lastSlash = strrchr(exePath, '\\');
+	if (lastSlash) {
+	    *lastSlash = '\0'; // Terminate the string at the last backslash
+	    SetCurrentDirectoryA(exePath);
+		}
+    }
+}
+
 // START OF PROGRAM
 static void RunGUI()
 {
+	// Set working directory to correct path
+    SetWorkingDirectoryToExecutablePath();
+
+	// Setup Linux Compatibility Layer if Needed
+	InitLinuxCompatLayer();
+
+	// Gui Thread has lower priority
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
 	// Initialize a basic Win32 window
@@ -2590,12 +2161,20 @@ static void RunGUI()
 
 	// Load Window coordinates and remove invalid coordinates
 
-	if (WindowPosX < 0) {
+	if (WindowPosX < 0 || WindowPosX > 15360) {
 		WindowPosX = 0;
 	}
 
-	if (WindowPosY < 0) {
+	if (WindowPosY < 0 || WindowPosY > 8640) {
 		WindowPosY = 0;
+	}
+
+	if (screen_width < 0 || screen_width > 15360) {
+		screen_width = 0;
+	}
+
+	if (screen_height < 0 || screen_height > 8640) {
+		screen_height = 0;
 	}
 
 	if (WindowPosX == 0 && WindowPosY == 0) {
@@ -2603,6 +2182,12 @@ static void RunGUI()
 	} else {
 		SetWindowPos(hwnd, NULL, WindowPosX, WindowPosY, screen_width, screen_height, SWP_NOZORDER);
 	}
+
+	// Get raw screen rect position
+	RECT raw_screen_rect;
+	GetWindowRect(hwnd, &raw_screen_rect);
+	raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
+	raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
 
     // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd)) {
@@ -2652,7 +2237,7 @@ static void RunGUI()
 
 	MSG msg;
 
-	// Update Specific Variables on startup (Convert chars to ints if they weren't saved beforehand)
+	// Update Specific Variables on startup (Update int values from the corresponding char values)
 
 	#define SAFE_CONVERT_INT(var, src) \
 		try { var = std::stoi(src); } catch (...) {}
@@ -2672,6 +2257,15 @@ static void RunGUI()
 	SAFE_CONVERT_INT(RobloxFPS, RobloxFPSChar);
 	SAFE_CONVERT_INT(AntiAFKTime, AntiAFKTimeChar);
 	SAFE_CONVERT_INT(PressKeyDelay, PressKeyDelayChar);
+	SAFE_CONVERT_INT(PressKeyBonusDelay, PressKeyBonusDelayChar);
+	SAFE_CONVERT_INT(PasteDelay, PasteDelayChar);
+	SAFE_CONVERT_INT(HHJLength, HHJLengthChar);
+	SAFE_CONVERT_INT(HHJFreezeDelayOverride, HHJFreezeDelayOverrideChar);
+	SAFE_CONVERT_INT(HHJDelay1, HHJDelay1Char);
+	SAFE_CONVERT_INT(HHJDelay2, HHJDelay2Char);
+	SAFE_CONVERT_INT(HHJDelay3, HHJDelay3Char);
+
+	chatkey = ChatKeyChar;
 
 	SAFE_CONVERT_DOUBLE(BunnyHopDelay, BunnyHopDelayChar);
 
@@ -2685,6 +2279,28 @@ static void RunGUI()
 		spam_delay = std::stof(SpamDelay);
 		real_delay = static_cast<int>((spam_delay + 0.5f) / 2);
 	} catch (...) {}
+
+	// Overwrite default RobloxPlayerBeta to sober if we're on linux
+	if (strcmp(settingsBuffer, "RobloxPlayerBeta.exe") == 0 && g_isLinuxWine) {
+		std::snprintf(settingsBuffer, sizeof(settingsBuffer), "sober");
+	}
+
+	// Change pasting delay to be more consistent if we're on linux
+	if (strcmp(PasteDelayChar, "1") == 0 && g_isLinuxWine) {
+		std::snprintf(PasteDelayChar, sizeof(PasteDelayChar), "35");
+		PasteDelay = 35;
+		chatoverride = false;
+	}
+
+	// Modify HHJ timings to switch to linux if we see regular timings active
+	if (HHJDelay1 == 9 && HHJDelay2 == 17 && HHJDelay3 == 16 && g_isLinuxWine) {
+		HHJDelay1 = 0;
+		std::snprintf(HHJDelay1Char, sizeof(HHJDelay1Char), "0");
+		HHJDelay2 = 0;
+		std::snprintf(HHJDelay2Char, sizeof(HHJDelay2Char), "0");
+		HHJDelay3 = 17;
+		std::snprintf(HHJDelay3Char, sizeof(HHJDelay3Char), "17");
+	}
 
     // Attach the GUI thread to the input of the main thread
     DWORD mainThreadId = GetWindowThreadProcessId(hwnd, NULL);
@@ -2760,7 +2376,7 @@ static void RunGUI()
             ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 
             // Create the main window with the specified flags
-            ImGui::Begin("My ImGUI Window", nullptr, window_flags); // Main ImGui window
+            ImGui::Begin("Main SMU Window", nullptr, window_flags); // Main ImGui window
 
 			// Enable ImGUI Debug Mode
 			// ImGui::ShowMetricsWindow();
@@ -2835,7 +2451,7 @@ static void RunGUI()
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-			ImGui::Text("VERSION 3.0.3.2");
+			ImGui::Text("VERSION 3.0.5");
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -2979,6 +2595,27 @@ static void RunGUI()
 					ImGui::Checkbox("Force-Set Chat Open Key to \"/\" (Most Stable)", &chatoverride);
 
 					ImGui::Separator();
+
+					ImGui::Checkbox("##Oldpaste", &useoldpaste);
+					ImGui::SameLine();
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 4);
+					ImGui::TextWrapped("Use Old Unicode Chat-Typing (Less security against anticheat but doesn't trigger other macros)");
+
+					ImGui::Separator();
+
+					ImGui::AlignTextToFramePadding();
+					ImGui::TextWrapped("Delay between every key press in chat (ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(30.0f);
+					if (ImGui::InputText("##PasteDelay", PasteDelayChar, sizeof(PasteDelayChar), ImGuiInputTextFlags_CharsDecimal |ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							PasteDelay = std::stoi(PasteDelayChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::Separator();
 					
 					if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
 						InitializeSections();
@@ -3115,8 +2752,13 @@ static void RunGUI()
             // Right section
             ImGui::SameLine(); // Move to the right of the left section
 
+			ImVec2 rightSectionSize(
+				display_size.x - 23 - left_panel_width,
+				display_size.y - settings_panel_height - 20 - 30
+			);
+
             // Right child window with dynamic sizing
-            ImGui::BeginChild("RightSection", ImVec2(display_size.x - 23 - left_panel_width, display_size.y - settings_panel_height - 20), true);
+			ImGui::BeginChild("RightSection", rightSectionSize, true);
 
             // Display different content based on the selected section
 			if (selected_section >= 0 && selected_section < sections.size()) {
@@ -3229,6 +2871,75 @@ static void RunGUI()
 					ImGui::SameLine();
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
 					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
+					ImGui::TextWrapped("Length of HHJ flicks (ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(52);
+					if (ImGui::InputText("##HHJLength", HHJLengthChar, sizeof(HHJLengthChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							HHJLength = std::stoi(HHJLengthChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::TextWrapped("(ADVANCED) Override current freeze delay (Non Zero) (ms): ");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(52);
+					if (ImGui::InputText("##HHJFreezeDelayOverride", HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							HHJFreezeDelayOverride = std::stoi(HHJFreezeDelayOverrideChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::TextWrapped("(ADVANCED) Delay after freezing before shiftlock is held (ms): ");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(52);
+					if (ImGui::InputText("##HHJDelay1", HHJDelay1Char, sizeof(HHJDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							HHJDelay1 = std::stoi(HHJDelay1Char);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held before spinning (ms): ");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(52);
+					if (ImGui::InputText("##HHJDelay2", HHJDelay2Char, sizeof(HHJDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							HHJDelay2 = std::stoi(HHJDelay2Char);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held after freezing (ms): ");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(52);
+					if (ImGui::InputText("##HHJDelay3", HHJDelay3Char, sizeof(HHJDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							HHJDelay3 = std::stoi(HHJDelay3Char);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
+					ImGui::TextColored(ImColor(50, 102, 205, 255), "What is this ("); ImGui::SameLine(0, 0);
+					ImGui::Text("?"); ImGui::SameLine(0, 0);
+					ImGui::TextColored(ImColor(50, 102, 205, 255), ")");
+					ImGui::SetCursorScreenPos(tooltipcursorpos);
+					ImGui::InvisibleButton("##tooltip", ImGui::CalcTextSize("What is this (?)"));
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+						ImGui::SetTooltip("These are advanced options configurable for HHJ.\nThey modify the logic of what occurs after the unfreeze.\n"
+										  "If you figure out a combination of these first two values that\nconsistently leads to higher HHJ's, please "
+										  "tell the Roblox Glitching Community Discord.\n\nThe Defaults of each option are 9, 17, and 16 by default for Windows,\nand "
+										  "0, 0, 17 on Linux Respectively.");
+					ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x + ImGui::CalcTextSize("What is this (?)").x, tooltipcursorpos.y));
+					ImGui::NewLine();
+
 					ImGui::Separator();
 					ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
 					ImGui::Separator();
@@ -3248,6 +2959,7 @@ static void RunGUI()
 					ImGui::TextWrapped("If you are struggling with the lag high jump timing part, you can try using the \"Automatically time inputs\" feature. "
 										"Align in the exact same way as stated above, but instead doing the lhj motion, just press the assigned key. This should time "
 										"the two jumps, as well as the w tap for you. This can also act as a demonstration for what to do, when using manual activation of the module.");
+
 				}
 
 				if (selected_section == 3) { // Speedglitch
@@ -3308,7 +3020,6 @@ static void RunGUI()
 					if (ImGui::InputText("##Gearslot", ItemSpeedSlot, sizeof(ItemSpeedSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							speed_slot = std::stoi(ItemSpeedSlot);
-							chatkey = ChatKeyChar;
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -3320,13 +3031,14 @@ static void RunGUI()
 					ImGui::SetNextItemWidth(700.0f);
 					ImGui::InputText("##CustomText", CustomTextChar, sizeof(CustomTextChar));
 
-					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override):");
+					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override in settings):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
 						if (strlen(ChatKeyChar) > 1) {
 							ChatKeyChar[1] = '\0';
 						}
+						chatkey = ChatKeyChar;
 						vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
 					}
 
@@ -3346,6 +3058,7 @@ static void RunGUI()
 					}
 					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
 					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
+
 					ImGui::Separator();
 					ImGui::TextWrapped("This module allows you to trick Roblox into thinking your centre of mass is elsewhere. This is used in the Helicopter "
 										"High Jump, Speed Glitch and Walless LHJ modules (may change in the future).");
@@ -3398,6 +3111,18 @@ static void RunGUI()
 						} catch (const std::out_of_range &e) {
 						}
 					}
+
+					ImGui::Text("Delay Before Second Press (ms):");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(80);
+					if (ImGui::InputText("##PressKeyBonusDelayChar", PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							PressKeyBonusDelay = std::stoi(PressKeyBonusDelayChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
 
 					ImGui::Checkbox("Make PressKey only work while tabbed into Roblox", &presskeyinroblox);
 
@@ -3654,7 +3379,7 @@ static void RunGUI()
 				}
 
 				if (selected_section == 13) { // Bunnyhop
-					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override):");
+					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override in settings):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
 					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
@@ -3695,28 +3420,64 @@ static void RunGUI()
                 ImGui::TextWrapped("Select a section to see its settings.");
             }
 
+			ImVec2 childpos = ImGui::GetWindowPos();
+			ImVec2 childsize = ImGui::GetWindowSize();
+			ImU32 lineColor = ImGui::GetColorU32(ImGuiCol_Border);
 
-			ImVec2 windowSize = ImGui::GetWindowSize();
-			float scrollY = ImGui::GetScrollY();
 
-			ImVec2 fixedPos = ImVec2(
-				windowSize.x - 625.0f,
-				windowSize.y - 36.0f + scrollY
+            ImGui::EndChild(); // End right section
+
+			ImDrawList *draw_list = ImGui::GetWindowDrawList();
+
+			// Draw a line at the bottom to remove the border, color it the same as the background
+			ImGui::GetWindowDrawList()->AddLine(
+				ImVec2(childpos.x, childpos.y + childsize.y - 1), 
+				ImVec2(childpos.x + childsize.x, childpos.y + childsize.y - 1), 
+				IM_COL32(21, 22, 23, 255),
+				1.0f
 			);
 
-			// Move cursor to Bottom Controls
-			ImGui::SetCursorPos(fixedPos);
+			// Add in an extra line to the bottom left to fill missing pixels
+			draw_list->AddLine(
+				ImVec2(childpos.x, childpos.y + childsize.y - 1),
+				ImVec2(childpos.x, childpos.y + childsize.y + 29),
+				lineColor,
+				1.0f
+			);
 
-			// Bottom Controls
-			ImGui::BeginGroup();
+			// Add in an extra line to the bottom right to fill missing pixels
+			draw_list->AddLine(
+				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y - 1),
+				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y + 29),
+				lineColor,
+				1.0f
+			);
+
+			// Draw in a fake line to add in a new border
+			ImGui::GetWindowDrawList()->AddLine(
+				ImVec2(childpos.x, childpos.y + childsize.y + 29), 
+				ImVec2(childpos.x + childsize.x, childpos.y + childsize.y + 29), 
+				lineColor,
+				1.0f
+			);
+
+
+			// Draw bottom controls
+			ImVec2 windowSize = ImGui::GetWindowSize();
+			ImGui::SetCursorPosY(windowSize.y - 27 - ImGui::GetStyle().WindowPadding.y);
+			ImGui::SetCursorPosX(windowSize.x - 624);
+
+			if (ImGui::BeginChild("BottomControls", ImVec2(0, 36), false,
+				ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
 			{
 				ImGui::AlignTextToFramePadding();
 				ImGui::Text("Always On-Top");
 				ImGui::SameLine();
-
+		
 				if (ImGui::Checkbox("##OnTopToggle", &ontoptoggle))
 				{
-					SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE );
+					SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST,
+						0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 				}
 
 				ImGui::SameLine();
@@ -3733,9 +3494,7 @@ static void RunGUI()
 
 				ProfileUI::DrawProfileManagerUI();
 			}
-			ImGui::EndGroup();
-
-            ImGui::EndChild(); // End right section
+			ImGui::EndChild();
 
             // Finish the main window
             ImGui::End(); // End main ImGui window
@@ -3759,20 +3518,6 @@ static void RunGUI()
 
     UnregisterClass(wc.lpszClassName, wc.hInstance);
     AttachThreadInput(mainThreadId, guiThreadId, FALSE);
-}
-
-
-static void SetWorkingDirectoryToExecutablePath() // Allows non-standard execution for save files
-{
-    char exePath[MAX_PATH];
-    if (GetModuleFileNameA(nullptr, exePath, MAX_PATH)) {
-	// Remove the executable name to get the directory
-	char *lastSlash = strrchr(exePath, '\\');
-	if (lastSlash) {
-	    *lastSlash = '\0'; // Terminate the string at the last backslash
-	    SetCurrentDirectoryA(exePath);
-		}
-    }
 }
 
 void DbgPrintf(const char* format, ...) {
@@ -3805,17 +3550,20 @@ void CreateDebugConsole() {
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     DisablePowerThrottling();
+
 	// Create Debug Console, use DbgPrintf, printf, or cout to use
-    // CreateDebugConsole();
+    char debugbuffer[16];
+    if (GetEnvironmentVariableA("DEBUG", debugbuffer, sizeof(debugbuffer)) && std::string(debugbuffer) == "1") {
+        CreateDebugConsole();
+    } else {
+		// CreateDebugConsole();
+	}
 
 	// Run timers with max precision
     timeBeginPeriod(1);
 
 	// I LOVE THREAD PRIORITY!!!!!!!!!!!!!!!
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-
-	// Set working directory
-    SetWorkingDirectoryToExecutablePath();
 
 	// Check for any updates
     std::string remoteVersion = GetRemoteVersion();
@@ -3859,10 +3607,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
 	// Setup suspension
-	const HMODULE hNtdll = GetModuleHandleA("ntdll");
-	NtSuspendProcess pfnSuspend = reinterpret_cast<NtSuspendProcess>(GetProcAddress(hNtdll, "NtSuspendProcess"));
-	NtResumeProcess pfnResume = reinterpret_cast<NtResumeProcess>(GetProcAddress(hNtdll, "NtResumeProcess"));
-	
 
 	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, lets functions run alongside
 	std::thread actionThread2(ItemDesyncLoop);
@@ -3875,10 +3619,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread9(PressKeyThread);
 	
 	std::thread guiThread(RunGUI);
-	std::thread KeyboardThread(KeyboardHookThread);
+
+	std::thread KeyboardThread;
+	if (!g_isLinuxWine) {
+		KeyboardThread = std::thread(KeyboardHookThread);
+	}
+
 	MSG msg;
 
-	std::vector<HANDLE> hProcess = GetProcessHandles(GetProcessIdByName(takeallprocessids), PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME);
+	std::vector<DWORD> targetPIDs = FindProcessIdsByName_Compat(settingsBuffer, takeallprocessids);
+
+    if (targetPIDs.empty()) {
+        processFound = false;
+    } else {
+		processFound = true;
+	}
+
+	std::vector<HANDLE> hProcess = GetProcessHandles_Compat(targetPIDs, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
 	std::vector<HWND> rbxhwnd = FindWindowByProcessHandle(hProcess); // SET ROBLOX WINDOW HWND RAHHHHH
 
 	// These variables are used for "one-click" functionalies for macros, so you can press a key and it runs every time that key is pressed (without overlapping itself)
@@ -3911,12 +3668,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		tabbedintoroblox = IsForegroundWindowProcess(hProcess);
 		// Freeze
 		if ((macrotoggled && notbinding && section_toggles[0])) {
-			bool isMButtonPressed = GetAsyncKeyState(vk_mbutton) & 0x8000;
+			bool isMButtonPressed = IsKeyPressed(vk_mbutton);
 
 			if (isfreezeswitch) {  // Toggle mode
 				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {  // Detect button press edge
 					isSuspended = !isSuspended;  // Toggle the freeze state
-					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, isSuspended);
+					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, isSuspended);
 
 					if (isSuspended) {
 						suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
@@ -3925,12 +3682,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			} else {  // Hold mode
 				if (isMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {
 					if (!isSuspended) {
-						SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);  // Freeze on hold
+						SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);  // Freeze on hold
 						isSuspended = true;
 						suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
 					}
 				} else if (isSuspended) {
-					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);  // Unfreeze on release
+					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);  // Unfreeze on release
 					isSuspended = false;
 				}
 			}
@@ -3941,9 +3698,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 				if (elapsed >= (maxfreezetime * 1000)) {
 					// Unsuspend for 50 ms
-					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 					std::this_thread::sleep_for(std::chrono::milliseconds(maxfreezeoverride));
-					SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
+					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);
 
 					// Reset the timer
 					suspendStartTime = std::chrono::steady_clock::now();
@@ -3955,7 +3712,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Item Desync Macro with anti-idiot design
-		if ((GetAsyncKeyState(vk_f5) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
+		if (IsKeyPressed(vk_f5) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
 			if (!isdesync) {
 				isdesyncloop.store(true, std::memory_order_relaxed);
 				isdesync = true;
@@ -3966,7 +3723,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// PressKey
-		if ((GetAsyncKeyState(vk_zkey) & 0x8000) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
+		if (IsKeyPressed(vk_zkey) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
 			if (!ispresskey) {
 				ispresskeythread.store(true, std::memory_order_relaxed);
 				ispresskey = true;
@@ -3977,7 +3734,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Wallhop (Ran in separate thread)
-		if ((GetAsyncKeyState(vk_xbutton2) & 0x8000) && macrotoggled && notbinding && section_toggles[6]) {
+		if (IsKeyPressed(vk_xbutton2) && macrotoggled && notbinding && section_toggles[6]) {
 			if (!iswallhop) {
 				iswallhopthread.store(true, std::memory_order_relaxed);
 				iswallhop = true;
@@ -3988,7 +3745,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
-		if ((GetAsyncKeyState(vk_f6) & 0x8000) && macrotoggled && notbinding && section_toggles[7]) {
+		if (IsKeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7]) {
 			if (!islhj) {
 				if (wallesslhjswitch) {
 					HoldKey(0x1E);
@@ -3998,7 +3755,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(15));
 				HoldKey(0x39);
 				std::this_thread::sleep_for(std::chrono::milliseconds(30));
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
+				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				if (wallesslhjswitch) {
 					ReleaseKey(0x1E);
@@ -4007,7 +3764,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 				HoldKey(scancode_shift);
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
 				ReleaseKey(scancode_shift);
 				ReleaseKey(0x39);
@@ -4018,7 +3775,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Speedglitch
-		if ((GetAsyncKeyState(vk_xkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
+		if (IsKeyPressed(vk_xkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -4031,7 +3788,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Gear Unequip COM Speed
-		if ((GetAsyncKeyState(vk_f8) & 0x8000) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
+		if (IsKeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -4039,14 +3796,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					PasteText(chatkey);
 				}
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				std::this_thread::sleep_for(std::chrono::milliseconds(17));
 				if (chatoverride) {
 					ReleaseKey(0x35);
 				}
 
 				if (strlen(CustomTextChar) >= 1) {
 					PasteText(CustomTextChar);
-					std::this_thread::sleep_for(std::chrono::milliseconds(50));
+					std::this_thread::sleep_for(std::chrono::milliseconds(25));
 					HoldKey(0x1C);
 
 					std::this_thread::sleep_for(std::chrono::milliseconds(35));
@@ -4056,7 +3813,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 
 				PasteText(text);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				HoldKey(0x1C);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(35));
@@ -4088,7 +3845,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Helicopter High jump
-		if ((GetAsyncKeyState(vk_xbutton1) & 0x8000) && macrotoggled && notbinding && section_toggles[2]) {
+		if (IsKeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
 			if (!HHJ) {
 
 				if (autotoggle) { // Auto-Key-Timer
@@ -4098,27 +3855,33 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					std::this_thread::sleep_for(std::chrono::milliseconds(68));
 				}
 
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, true);
-				if (!fasthhj) {
-					std::this_thread::sleep_for(std::chrono::milliseconds(300));
+				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);
+
+				// If the users custom freeze duration is zero or nothing, do regular stuff, else, use their custom duration
+				if (strcmp(HHJFreezeDelayOverrideChar, "0") == 0 || strcmp(HHJFreezeDelayOverrideChar, "") == 0) {
+					// FastHHJ lowers freeze time by 300 ms
+					if (!fasthhj) {
+						std::this_thread::sleep_for(std::chrono::milliseconds(300));
+					}
+					std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds(HHJFreezeDelayOverride));
 				}
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 				if (autotoggle) { // Auto-Key-Timer
 					ReleaseKey(0x39);
 					ReleaseKey(0x11);
 				}
 
-				SuspendOrResumeProcess(pfnSuspend, pfnResume, hProcess, false);
+				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 
-				std::this_thread::sleep_for(std::chrono::milliseconds(9));
+				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay1));
 				HoldKey(scancode_shift);
-				std::this_thread::sleep_for(std::chrono::milliseconds(17));
-
+				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
-				std::this_thread::sleep_for(std::chrono::milliseconds(16));
+				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
 				ReleaseKey(scancode_shift);
-				std::this_thread::sleep_for(std::chrono::milliseconds(243));
+				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
 				isHHJ.store(false, std::memory_order_relaxed);
 				HHJ = true;
 			}
@@ -4127,7 +3890,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Spamkey
-		if ((GetAsyncKeyState(vk_leftbracket) & 0x8000) && macrotoggled && notbinding && section_toggles[11]) {
+		if (IsKeyPressed(vk_leftbracket) && macrotoggled && notbinding && section_toggles[11]) {
 			if (!isspam) {
 				isspamloop = !isspamloop;
 				isspam = true;
@@ -4140,7 +3903,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Laughkey
-		if ((GetAsyncKeyState(vk_laughkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
+		if (IsKeyPressed(vk_laughkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -4187,7 +3950,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// Ledge Bounce
-		if ((GetAsyncKeyState(vk_bouncekey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
+		if (IsKeyPressed(vk_bouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
 				int turn90 = (camfixtoggle ? 250 : 180) / atof(RobloxSensValue);
 				int skey = 0x1F; // S key
@@ -4245,7 +4008,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// Item Clip
-		if ((GetAsyncKeyState(vk_clipkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
+		if (IsKeyPressed(vk_clipkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -4259,7 +4022,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 		// WallWalk
-		if ((GetAsyncKeyState(vk_wallkey) & 0x8000) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
+		if (IsKeyPressed(vk_wallkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -4271,14 +4034,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		bool can_process_bhop = GetAsyncKeyState(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
+		bool can_process_bhop = IsKeyPressed(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
 
-		if (GetAsyncKeyState(vk_chatkey) & 0x8000) {
+		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
 
 		if (bhoplocked) {
-			if (GetAsyncKeyState(VK_RETURN) & 0x8000 || GetAsyncKeyState(VK_LBUTTON) & 0x8000) {
+			if (IsKeyPressed(VK_RETURN) || IsKeyPressed(VK_LBUTTON)) {
 				bhoplocked = false;
 			}
 		}
@@ -4317,7 +4080,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (++counter % 100 == 0) {  // Check time every 100th iteration
 			now = std::chrono::steady_clock::now();
 			if (std::chrono::duration_cast<std::chrono::seconds>(now - processchecktime).count() >= 1) {
-				hProcess = GetProcessHandles(GetProcessIdByName(takeallprocessids), PROCESS_QUERY_INFORMATION | PROCESS_SUSPEND_RESUME);
+
+				targetPIDs = FindProcessIdsByName_Compat(settingsBuffer, takeallprocessids);
+
+				if (targetPIDs.empty()) {
+					processFound = false;
+				} else {
+					processFound = true;
+				}
+
+				hProcess = GetProcessHandles_Compat(targetPIDs, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
 				rbxhwnd = FindWindowByProcessHandle(hProcess);
 				counter = 0;
 				processchecktime = std::chrono::steady_clock::now();
@@ -4453,6 +4225,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 	guiThread.join();
+
+	ShutdownLinuxCompatLayer();
 
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
