@@ -23,6 +23,7 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 - Windows Installation: Run the executable "suspend" file.
 - Linux Installation: Run the executable "suspend" file through [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download), and accept the Admin Confirmation. Works across nearly all distros.
+(Zenity must be installed on Linux to launch, run `sudo apt-get install zenity` or equivalent command)
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
