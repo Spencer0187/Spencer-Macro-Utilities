@@ -403,7 +403,7 @@ const App = () => {
       <Container>
         <Header>
           <h1>Spencer Macro Utilities</h1>
-          <p>Windows automation tool that works alongside Roblox - no memory access, just input automation</p>
+          <p>Windows + Linux automation tool that works alongside Roblox - no memory access, just input automation</p>
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
@@ -575,7 +575,7 @@ const App = () => {
             </DownloadCount>
           </div>
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
-            Windows 10/11 · Portable EXE · No dependencies
+            Windows 10/11 / All Linux Distros · Portable EXE · No dependencies
           </p>
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
             Discord server features update pings and glitch discussion
