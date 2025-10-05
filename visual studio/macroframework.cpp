@@ -43,7 +43,7 @@
 #include <algorithm>
 #include <shellscalingapi.h>
 
-// Library for HTTP (To get version data from my github page)
+// Generic libraries for I forgot
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
@@ -107,7 +107,6 @@ INPUT inputhold = {};
 INPUT inputrelease = {};
 
 // Translate all VK's into variables so it's less annoying to debug it
-unsigned int scancode_shift = 0x2A;
 unsigned int vk_f5 = VK_F5;
 unsigned int vk_f6 = VK_F6;
 unsigned int vk_f8 = VK_F8;
@@ -118,19 +117,24 @@ unsigned int vk_spamkey = VK_LBUTTON;
 unsigned int vk_clipkey = VK_F3;
 unsigned int vk_wallkey = VK_F1;
 unsigned int vk_laughkey = VK_F7;
-unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF; // Use this for alphabet keys so it works across layouts
+// Use this for alphabet keys so it works across layouts
+unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
 unsigned int vk_bunnyhopkey = MapVirtualKey(0x39, MAPVK_VSC_TO_VK);
+unsigned int vk_shiftkey = VK_SHIFT;
+unsigned int vk_enterkey = VK_RETURN;
+unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
 
 // ADD KEYBIND VARIABLES FOR EACH SECTION
-static const std::unordered_map<unsigned int, unsigned int *> section_to_key = {
-	{0, &vk_mbutton},   {1, &vk_f5},       {2, &vk_xbutton1}, {3, &vk_xkey},
-	{4, &vk_f8},        {5, &vk_zkey},     {6, &vk_xbutton2}, {7, &vk_f6},
-	{8, &vk_clipkey},   {9, &vk_laughkey}, {10, &vk_wallkey}, {11, &vk_leftbracket},
+static const std::unordered_map<int, unsigned int *> section_to_key = {
+	{0, &vk_mbutton},    {1, &vk_f5},           {2, &vk_xbutton1}, {3, &vk_xkey},
+	{4, &vk_f8},         {5, &vk_zkey},         {6, &vk_xbutton2}, {7, &vk_f6},
+	{8, &vk_clipkey},    {9, &vk_laughkey},     {10, &vk_wallkey}, {11, &vk_leftbracket},
 	{12, &vk_bouncekey}, {13, &vk_bunnyhopkey}};
 
 
@@ -210,7 +214,9 @@ std::unordered_map<int, std::string> vkToString = {
     {VK_OEM_7, "VK_OEM_7"},
     {VK_OEM_8, "VK_OEM_8"},
     {VK_OEM_102, "VK_OEM_102"},
-	{0x0, "RESTART PC"}
+	{0x0, "RESTART PC"},
+	{256, "M_WHEEL_UP"},
+	{257, "M_WHEEL_DOWN"}
 };
 
 // Window and UI settings
@@ -221,7 +227,6 @@ int raw_window_height;
 int selected_dropdown = 0;
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
-std::string chatkey = "/";
 
 // Keybind and macro settings
 char settingsBuffer[256] = "RobloxPlayerBeta.exe"; // Default value for the textbox
@@ -243,8 +248,7 @@ char RobloxSensValue[256] = "0.5";
 char RobloxPixelValueChar[256] = "716";
 char RobloxWallWalkValueChar[256] = "-94";
 char RobloxWallWalkValueDelayChar[256] = "72720";
-char ChatKeyChar[2] = "/";
-char CustomTextChar[2048] = "";
+char CustomTextChar[8192] = "";
 char RobloxFPSChar[256] = "60";
 char AntiAFKTimeChar[256] = "15";
 char PressKeyDelayChar[256] = "16";
@@ -269,6 +273,12 @@ bool chatoverride = true;
 bool toggle_jump = true;
 bool toggle_flick = true;
 bool fasthhj = false;
+bool hhjzoomin = false;
+bool hhjzoominreverse = false;
+bool laughzoomin = false;
+bool laughzoominreverse = false;
+bool lhjzoomin = false;
+bool lhjzoominreverse = false;
 bool wallesslhjswitch = false;
 bool autotoggle = false;
 bool isspeedswitch = false;
@@ -289,7 +299,8 @@ bool bunnyhopsmart = true;
 bool presskeyinroblox = false;
 bool unequipinroblox = false;
 bool shortdescriptions = false;
-bool useoldpaste = false;
+bool useoldpaste = true;
+bool doublepressafkkey = true;
 
 // Section toggles and order
 constexpr int section_amounts = 14;
@@ -398,6 +409,75 @@ static void KeyboardHookThread()
 	
 	UnhookWindowsHookEx(g_keyboardHook);
 }
+
+// Special class to allow mouse scroll events to be found and used
+class MouseWheelHandler {
+private:
+    std::atomic<bool> wheelUp{false};
+    std::atomic<bool> wheelDown{false};
+
+    void SetWheelUp() {
+        wheelUp.store(true);
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            wheelUp.store(false);
+        }).detach();
+    }
+
+    void SetWheelDown() {
+        wheelDown.store(true);
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            wheelDown.store(false);
+        }).detach();
+    }
+
+public:
+    // Call this once when GUI initializes
+    bool Initialize(HWND windowhandle) {
+        RAWINPUTDEVICE rid;
+        rid.usUsagePage = 0x01; // Generic desktop
+        rid.usUsage = 0x02;     // Mouse
+        rid.dwFlags = RIDEV_INPUTSINK;
+        rid.hwndTarget = windowhandle; // The GUI window
+        
+        return RegisterRawInputDevices(&rid, 1, sizeof(rid));
+    }
+
+    // Call this from WndProc when you get WM_INPUT
+    void ProcessRawInput(LPARAM lParam) {
+        UINT dwSize = 0;
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
+        
+        if (dwSize > 0) {
+            LPBYTE lpb = new BYTE[dwSize];
+            if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize) {
+                RAWINPUT* raw = (RAWINPUT*)lpb;
+                
+                if (raw->header.dwType == RIM_TYPEMOUSE) {
+                    if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL) {
+                        short wheelDelta = (short)raw->data.mouse.usButtonData;
+                        if (wheelDelta > 0) {
+                            SetWheelUp();
+                        } else if (wheelDelta < 0) {
+                            SetWheelDown();
+                        }
+                    }
+                }
+            }
+            delete[] lpb;
+        }
+    }
+
+    bool IsWheelUp() const { return wheelUp.load(); }
+    bool IsWheelDown() const { return wheelDown.load(); }
+};
+
+MouseWheelHandler g_mouseWheel;
+
+// Tell the other file containg IsKeyPressed that these functionse exist 
+bool IsWheelUp() { return g_mouseWheel.IsWheelUp(); }
+bool IsWheelDown() { return g_mouseWheel.IsWheelDown(); }
 
 static void ItemDesyncLoop()
 {
@@ -717,29 +797,15 @@ static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
     return false; // No match
 }
 
-static void PasteText(const std::string& text) {
-    if (useoldpaste && !g_isLinuxWine) {
-		// Original Windows Path: Use the efficient KEYEVENTF_UNICODE.
-		INPUT input = { 0 };
-		input.type = INPUT_KEYBOARD;
-		input.ki.wVk = 0;
-		input.ki.dwFlags = KEYEVENTF_UNICODE;
-		for (char c : text) {
-			// Windows can handle many characters directly with wScan
-			input.ki.wScan = c;
-			input.ki.dwFlags = KEYEVENTF_UNICODE;
-			SendInput(1, &input, sizeof(INPUT));
-			input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
-			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
-			SendInput(1, &input, sizeof(INPUT));
-		}
-	}
-
-    if (!useoldpaste || g_isLinuxWine) {
+static void PasteText(const std::string &text)
+{
+	if (g_isLinuxWine) {
+		// Always use compat version for Linux/Wine
 		for (char c : text) {
 			KeyAction action = CharToKeyAction_Compat(c);
 
-			if (action.vk_code == 0) continue; // Skip unmappable characters
+			if (action.vk_code == 0)
+				continue; // Skip unmappable characters
 
 			if (action.needs_shift) {
 				HoldKeyBinded(VK_SHIFT);
@@ -748,6 +814,45 @@ static void PasteText(const std::string& text) {
 			HoldKeyBinded(action.vk_code);
 			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
 			ReleaseKeyBinded(action.vk_code);
+
+			if (action.needs_shift) {
+				ReleaseKeyBinded(VK_SHIFT);
+			}
+		}
+	} else if (useoldpaste) {
+		// Windows with old paste: Use Unicode method
+		INPUT input = {0};
+		input.type = INPUT_KEYBOARD;
+		input.ki.wVk = 0;
+		input.ki.dwFlags = KEYEVENTF_UNICODE;
+
+		for (char c : text) {
+			// Windows can handle many characters directly with wScan
+			input.ki.wScan = c;
+			input.ki.dwFlags = KEYEVENTF_UNICODE;
+			SendInput(1, &input, sizeof(INPUT));
+			input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+			SendInput(1, &input, sizeof(INPUT));
+			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
+		}
+	} else {
+		// Windows with new paste: Use global scan code method
+		for (char c : text) {
+			KeyAction action = CharToKeyAction_Global(c);
+
+			if (action.vk_code == 0)
+				continue; // Skip unmappable characters
+
+			if (action.needs_shift) {
+				HoldKeyBinded(VK_SHIFT); // Keep using VK_SHIFT for shift
+			}
+
+			bool extended = (action.scan_code & 0xE000) != 0;
+			WORD base_scan_code = action.scan_code & 0x00FF; // Remove extended flag
+
+			HoldKey(base_scan_code, extended);
+			std::this_thread::sleep_for(std::chrono::milliseconds(PasteDelay));
+			ReleaseKey(base_scan_code, extended);
 
 			if (action.needs_shift) {
 				ReleaseKeyBinded(VK_SHIFT);
@@ -763,25 +868,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return true; // Forward ImGUI-related messages
 
     switch (msg) {
-    case WM_SIZE:
-		// Get window size
-		GetWindowRect(hWnd, &screen_rect);
+    case WM_INPUT: {
+	    g_mouseWheel.ProcessRawInput(lParam);
+	    break;
+    }
+    case WM_SIZE: {
+	    // Get window size
+	    GetWindowRect(hWnd, &screen_rect);
 
-		screen_width = screen_rect.right - screen_rect.left;
-		screen_height = screen_rect.bottom - screen_rect.top;
+	    screen_width = screen_rect.right - screen_rect.left;
+	    screen_height = screen_rect.bottom - screen_rect.top;
 
-		if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED) {
-			CleanupRenderTarget();
-			g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam), DXGI_FORMAT_UNKNOWN, 0);
-			CreateRenderTarget();
-		}
-		// Update raw screen rects
-		RECT raw_screen_rect;
-		GetWindowRect(hwnd, &raw_screen_rect);
-		raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
-		raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
-		return 0;
-
+	    if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED) {
+		    CleanupRenderTarget();
+		    g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam),
+						DXGI_FORMAT_UNKNOWN, 0);
+		    CreateRenderTarget();
+	    }
+	    // Update raw screen rects
+	    RECT raw_screen_rect;
+	    GetWindowRect(hwnd, &raw_screen_rect);
+	    raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
+	    raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
+	    return 0;
+    }
     case WM_GETMINMAXINFO: {
         MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
 
@@ -790,7 +900,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         mmi->ptMinTrackSize.y = 780;
         return 0;
     }
-
     case WM_SYSCOMMAND:
 		if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
 			return 0;
@@ -906,6 +1015,12 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"wallwalktoggleside", &wallwalktoggleside},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
+	{"hhjzoomin", &hhjzoomin},
+	{"hhjzoominreverse", &hhjzoominreverse},
+	{"laughzoomin", &laughzoomin},
+	{"laughzoominreverse", &laughzoominreverse},
+	{"lhjzoomin", &lhjzoomin},
+	{"lhjzoominreverse", &lhjzoominreverse},
 	{"wallesslhjswitch", &wallesslhjswitch},
 	{"chatoverride", &chatoverride},
 	{"bounceautohold", &bounceautohold},
@@ -918,11 +1033,12 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"bunnyhopsmart", &bunnyhopsmart},
 	{"presskeyinroblox", &presskeyinroblox},
 	{"unequipinroblox", &unequipinroblox},
+	{"doublepressafkkey", &doublepressafkkey},
+	{"useoldpaste", &useoldpaste},
 };
 
 // Numeric variables to save
 const std::unordered_map<std::string, NumericVar> numeric_vars = {
-	{"scancode_shift", &scancode_shift},
 	{"vk_f5", &vk_f5},
 	{"vk_f6", &vk_f6},
 	{"vk_f8", &vk_f8},
@@ -938,6 +1054,10 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_laughkey", &vk_laughkey},
 	{"vk_bouncekey", &vk_bouncekey},
 	{"vk_bunnyhopkey", &vk_bunnyhopkey},
+	{"vk_shiftkey", &vk_shiftkey},
+	{"vk_enterkey", &vk_enterkey},
+	{"vk_chatkey", &vk_chatkey},
+	{"vk_afkkey", &vk_afkkey},
 	{"selected_dropdown", &selected_dropdown},
 	{"vk_wallkey", &vk_wallkey},
 	{"PreviousWallWalkSide", &PreviousWallWalkSide},
@@ -980,7 +1100,6 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
     {"WallhopPixels", {WallhopPixels, sizeof(WallhopPixels)}},
     {"SpamDelay", {SpamDelay, sizeof(SpamDelay)}},
     {"RobloxPixelValueChar", {RobloxPixelValueChar, sizeof(RobloxPixelValueChar)}},
-    {"ChatKeyChar", {ChatKeyChar, sizeof(ChatKeyChar)}},
     {"CustomTextChar", {CustomTextChar, sizeof(CustomTextChar)}},
 	{"RobloxFPSChar", {RobloxFPSChar, sizeof(RobloxFPSChar)}},
 	{"AntiAFKTimeChar", {AntiAFKTimeChar, sizeof(AntiAFKTimeChar)}},
@@ -1273,6 +1392,10 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
         }
         if (settings_to_load.contains("screen_height") && settings_to_load["screen_height"].is_number_integer()) {
             screen_height = settings_to_load.value("screen_height", screen_height);
+        }
+
+		if (settings_to_load.contains("RobloxFPSChar") && settings_to_load["RobloxFPSChar"].is_string()) {
+            RobloxFPS = std::stoi(RobloxFPSChar);
         }
 
 		// Load global variables in metadata (applies across all profiles)
@@ -1598,7 +1721,7 @@ namespace ProfileUI {
             menuHeight = std::min(menuHeight, 300.0f);
 
 
-            ImGui::SetNextWindowPos(ImVec2(buttonPos.x - 3, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y));
+            ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
             ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
@@ -1915,156 +2038,135 @@ static void InitializeSections()
 	}
 }
 
-static unsigned int BindKeyMode(unsigned int currentkey)
+struct BindingState {
+    bool bindingMode = false;
+    bool notBinding = true;
+    std::chrono::steady_clock::time_point rebindTime;
+    char keyBuffer[32] = "0x00";
+    char keyBufferHuman[32] = "None";  // Make sure this exists!
+    std::string buttonText = "Click to Bind Key";
+    bool keyWasPressed[258] = {false};
+    bool firstRun = true;
+    int lastSelectedSection = -1;
+};
+
+// Global map to store binding states for each key variable
+static std::unordered_map<unsigned int *, BindingState> g_bindingStates;
+
+static unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int selected_section)
 {
-    static int lastSelectedSection = -1; // Initialize with a value that won't match any valid section
-
-    if (bindingMode) {
-		rebindtime = std::chrono::steady_clock::now();
-        for (int key = 0; key < 255; key++) {
-            if (IsKeyPressed(key)) {
-                bindingMode = false;
-                std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
-                unsigned int currentkeyint = std::stoul(currentkeystr, nullptr, 16); // Convert string into unsigned int
-                std::snprintf(KeyBuffer, sizeof(KeyBuffer), "0x%02x", currentkeyint); // Update KeyBuffer text to the key
-                return currentkeyint;
+    // Get or create the state for this specific key variable
+    BindingState& state = g_bindingStates[keyVar];
+    if (state.bindingMode) {
+	    notbinding = false;
+        state.rebindTime = std::chrono::steady_clock::now();
+        // Initialize key states on first run in binding mode
+        if (state.firstRun) {
+            for (int key = 1; key < 258; key++) {
+                state.keyWasPressed[key] = IsKeyPressed(key);
             }
+            state.firstRun = false;
         }
-    } else { 
-        // Check if the selected_section has changed
-        if (selected_section != lastSelectedSection) {
-            std::snprintf(KeyBuffer, sizeof(KeyBuffer), "0x%02x", currentkey); // Update KeyBuffer for the new section
-            lastSelectedSection = selected_section; // Update lastSelectedSection to the current
-        }
-		
-        KeyButtonText = "Click to Bind Key";
+		// Check side-specific shifts first to avoid ambiguity
+		static const int priorityKeys[] = {0xA1, 0xA0, 0x10}; // VK_RSHIFT, VK_LSHIFT, VK_SHIFT
+		for (int priorityKey : priorityKeys) {
+			bool currentlyPressed = IsKeyPressed(priorityKey);
+			if (currentlyPressed && !state.keyWasPressed[priorityKey]) {
+				state.bindingMode = false;
+				state.firstRun = true;
+				state.keyWasPressed[priorityKey] = true;
+				std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", priorityKey);
+				return priorityKey;
+			}
+			state.keyWasPressed[priorityKey] = currentlyPressed;
+		}
 
-        auto currentTime = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsedtime = currentTime - rebindtime;
-
-        if (elapsedtime.count() >= 0.2) { // .2 Second Delay between binds
-            notbinding = true;
-        }
-
-        return currentkey;
-    }
-}
-
-
-static unsigned int BindKeyModeAlt(unsigned int currentkey)
-{
-    static int lastSelectedSection = -1; // Initialize with a value that won't match any valid section
-
-    if (bindingModealt) {
-		rebindtime = std::chrono::steady_clock::now();
-        for (int key = 0; key < 255; key++) {
-            if (IsKeyPressed(key)) {
-                bindingModealt = false;
-                std::string currentkeystr = std::format("{:02x}", key); // Convert key into string
-                unsigned int currentkeyint = std::stoul(currentkeystr, nullptr, 16); // Convert string into unsigned int
-                std::snprintf(KeyBufferalt, sizeof(KeyBufferalt), "0x%02x", currentkeyint); // Update KeyBuffer text to your key
-                return currentkeyint;
-            }
-        }
-    } else { 
-        // Check if the selected_section has changed
-        if (selected_section != lastSelectedSection) {
-            std::snprintf(KeyBufferalt, sizeof(KeyBufferalt), "0x%02x", currentkey); // Update KeyBuffer for the new section
-            lastSelectedSection = selected_section; // Update lastSelectedSection to the current
-        }
+		// Check all other keys
+		for (int key = 1; key < 258; key++) {
+			// Skip the priority keys we already checked
+			if (key == 0xA1 || key == 0xA0 || key == 0x10) continue;
+    
+			bool currentlyPressed = IsKeyPressed(key);
+			// Key was previously pressed and is now released - reset it
+			if (state.keyWasPressed[key] && !currentlyPressed) {
+				state.keyWasPressed[key] = false;
+			}
+			// Key is pressed now AND it wasn't pressed before (fresh press)
+			if (currentlyPressed && !state.keyWasPressed[key]) {
+				state.bindingMode = false;
+				state.firstRun = true;
+				state.keyWasPressed[key] = true;
         
-        KeyButtonTextalt = "Click to Bind Key";
-
-        auto currentTime = std::chrono::steady_clock::now();
-        std::chrono::duration<double> elapsedtime = currentTime - rebindtime;
-
-        if (elapsedtime.count() >= 0.2) { // .2 Second Delay between binds
-            notbinding = true;
+				std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", key);
+				return key;
+			}
+			// Update the previous state
+			state.keyWasPressed[key] = currentlyPressed;
+		}
+    } else {
+        // Reset firstRun when not in binding mode
+        state.firstRun = true;
+        // Check if the selected_section has changed
+        if (selected_section != state.lastSelectedSection) {
+            std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", currentkey);
+            state.lastSelectedSection = selected_section;
         }
+		// Fix for settings menu being broken if no other menu is open
+		if (selected_section == -1) {
+			std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", currentkey);
+		}
+        state.buttonText = "Click to Bind Key";
+        auto currentTime = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsedtime = currentTime - state.rebindTime;
 
-        return currentkey;
+		// Wait .3 seconds after binding before allowing macro to trigger
+        if (elapsedtime.count() >= 0.3) {
+            state.notBinding = true; // I honestly forgot the point of this line
+			notbinding = true;
+        }
     }
+    
+    return currentkey;
 }
 
-
-static void GetKeyNameFromHex(unsigned int hexKeyCode)
+static void GetKeyNameFromHex(unsigned int hexKeyCode, char* buffer, size_t bufferSize)
 {
     // Clear the buffer
-    memset(KeyBufferhuman, 0, 256);
+    memset(buffer, 0, bufferSize);
 
     // Map the virtual key code to a scan code
     UINT scanCode = MapVirtualKey(hexKeyCode, MAPVK_VK_TO_VSC);
 
-	if (bindingMode) { // Turn off Key-Finding while binding
+    // Check if THIS specific key is currently being bound
+    bool thisKeyIsBinding = false;
+    for (auto &[keyPtr, state] : g_bindingStates) {
+	    if (state.bindingMode && *keyPtr == hexKeyCode) {
+		    thisKeyIsBinding = true;
+		    break;
+	    }
+    }
+
+    if (thisKeyIsBinding) { // Only disable for the key being bound
 	    return;
-	}
+    }
 
     // Attempt to get the readable key name
-    if (GetKeyNameTextA(scanCode << 16, KeyBufferhuman, 256) > 0) {
+    if (GetKeyNameTextA(scanCode << 16, buffer, bufferSize) > 0) {
         // Successfully retrieved the key name
         return;
     } else {
         // If GetKeyNameText fails, try to find the VK_ name
         auto it = vkToString.find(hexKeyCode);
         if (it != vkToString.end()) {
-            strncpy(KeyBufferhuman, it->second.c_str(), 256);
+            strncpy(buffer, it->second.c_str(), bufferSize - 1);
+            buffer[bufferSize - 1] = '\0'; // Ensure null termination
         } else {
             // If not found, return a default hex representation
-            snprintf(KeyBufferhuman, 256, "0x%X", hexKeyCode);
+            snprintf(buffer, bufferSize - 1, "0x%X", hexKeyCode);
+            buffer[bufferSize - 1] = '\0';
         }
     }
 }
-
-static void GetKeyNameFromHexAlt(unsigned int hexKeyCode)
-{
-    // Clear the buffer
-    memset(KeyBufferhumanalt, 0, 256);
-
-    // Map the virtual key code to a scan code
-    UINT scanCode = MapVirtualKey(hexKeyCode, MAPVK_VK_TO_VSC);
-
-	if (bindingModealt) { // Turn off Key-Finding while binding
-	    return;
-	}
-
-    // Attempt to get the readable key name
-	if (GetKeyNameTextA(scanCode << 16, KeyBufferhumanalt, 256) > 0) {
-        // Successfully retrieved the key name
-        return; // No further action needed
-    } else {
-        // If GetKeyNameText fails, try to find the VK_ name
-        auto it = vkToString.find(hexKeyCode);
-        if (it != vkToString.end()) {
-            strncpy(KeyBufferhumanalt, it->second.c_str(), 256);
-        } else {
-            // If not found, return a default hex representation
-            snprintf(KeyBufferhumanalt, 256, "0x%X", hexKeyCode);
-        }
-    }
-}
-
-UINT ChatKeyCharToVK(const char* input) {
-    if (!input || strlen(input) == 0) {
-        return 0;
-    }
-
-    wchar_t wideChar;
-    if (MultiByteToWideChar(CP_ACP, 0, input, 1, &wideChar, 1) == 0) {
-        return 0;
-    }
-
-    HKL keyboardLayout = GetKeyboardLayout(0);
-    
-    SHORT vkAndShift = VkKeyScanExW(wideChar, keyboardLayout);
-    if (vkAndShift == -1) {
-        return 0; // Character not available
-    }
-
-    // Extract the virtual key code (low byte)
-    return static_cast<UINT>(LOBYTE(vkAndShift));
-}
-
-unsigned int vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
 
 // Make the Title Bar Black
 static bool SetTitleBarColor(HWND hwnd, COLORREF color) {
@@ -2157,6 +2259,7 @@ static void RunGUI()
 	RegisterClassEx(&wc);
 	HWND hwnd = CreateWindow(wc.lpszClassName, _T("Spencer Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
 	::hwnd = hwnd;
+	g_mouseWheel.Initialize(hwnd);
 	SetTitleBarColor(hwnd, RGB(0, 0, 0));
 
 	// Load Window coordinates and remove invalid coordinates
@@ -2253,7 +2356,6 @@ static void RunGUI()
 	SAFE_CONVERT_INT(clip_slot, ItemClipSlot);
 	SAFE_CONVERT_INT(desync_slot, ItemDesyncSlot);
 	SAFE_CONVERT_INT(clip_delay, ItemClipDelay);
-	SAFE_CONVERT_INT(vk_chatkey, ChatKeyChar);
 	SAFE_CONVERT_INT(RobloxFPS, RobloxFPSChar);
 	SAFE_CONVERT_INT(AntiAFKTime, AntiAFKTimeChar);
 	SAFE_CONVERT_INT(PressKeyDelay, PressKeyDelayChar);
@@ -2264,8 +2366,6 @@ static void RunGUI()
 	SAFE_CONVERT_INT(HHJDelay1, HHJDelay1Char);
 	SAFE_CONVERT_INT(HHJDelay2, HHJDelay2Char);
 	SAFE_CONVERT_INT(HHJDelay3, HHJDelay3Char);
-
-	chatkey = ChatKeyChar;
 
 	SAFE_CONVERT_DOUBLE(BunnyHopDelay, BunnyHopDelayChar);
 
@@ -2348,12 +2448,14 @@ static void RunGUI()
 
 		if (renderfirstframe) {
 			amIFocused = true;
+			renderfirstframe = false;
 		}
 
-		if (!amIFocused) {
+		if (!amIFocused && !g_isLinuxWine) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(200));
 			continue; // Skip the rest of this iteration
 		}
+
 
 		// Check if it's time to render
 		auto currentTime = std::chrono::steady_clock::now();
@@ -2439,19 +2541,26 @@ static void RunGUI()
 				ImGui::TextWrapped("Roblox Not Found");
 			}
 
-			if (shiftswitch) {
-				scancode_shift = 0x1D;
-			} else {
-				scancode_shift = 0x2A;
-			}
+			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
+			ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
+			ImGui::Text("Toggle Anti-AFK ("); ImGui::SameLine(0, 0);
+			ImGui::TextColored(ImColor(50, 102, 205, 255), "?"); ImGui::SameLine(0, 0);
+			ImGui::Text("):");
+			ImGui::SetCursorScreenPos(tooltipcursorpos);
+			ImVec2 TextSizeCalc = ImGui::CalcTextSize("Toggle Anti-AFK (?)");
+			ImGui::InvisibleButton("##tooltip", TextSizeCalc);
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+				ImGui::SetTooltip("Anti-AFK only works on Windows right now due to Linux restraints.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into roblox\n"
+									"and you press any key on your keyboard, the timer resets.\nIf the timer expires, if the current active window is Roblox, it will press the \"\\\" key\n"
+									"two times, which will toggle on and off UI navigation.\n\nIf you are outside of Roblox, it will manually tab into Roblox, and then perform the action.\n"
+									"You may change the key anti-afk presses. If you find a less instrusive\nkey that still works against Roblox's AFK timeout, please join and tell the discord.");
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 340);
-			ImGui::Text("Toggle Anti-AFK:");
-			ImGui::SameLine();
+			ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x + TextSizeCalc.x, tooltipcursorpos.y));
+			ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-			ImGui::Text("VERSION 3.0.5");
+			ImGui::Text("VERSION 3.1.0");
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -2459,6 +2568,18 @@ static void RunGUI()
 			ImGui::SetNextItemWidth(70.0f);
 			if (ImGui::InputText("##Sens", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 				PreviousSensValue = -1;
+				// Update Wallhop Degrees every change only if sensitivity is not zero/null
+				float sensValue = std::atof(RobloxSensValue);
+				if (sensValue != 0.0f) {
+					float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * sensValue);
+					snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
+					try {
+						wallhop_dx = std::round(std::stoi(WallhopPixels));
+						wallhop_dy = -std::round(std::stoi(WallhopPixels));
+					} catch (const std::invalid_argument &e) {
+					} catch (const std::out_of_range &e) {
+					}
+				}
 			}
 			ImGui::SameLine();
 			ImGui::TextWrapped("Your Roblox FPS:");
@@ -2520,7 +2641,6 @@ static void RunGUI()
 				PreviousSensValue = CurrentSensValue;
 				sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
 				try { // Error Handling
-					chatkey = ChatKeyChar;
 					speed_strengthx = std::stoi(RobloxPixelValueChar);
 					speed_strengthy = -std::stoi(RobloxPixelValueChar);
 				} catch (const std::invalid_argument &e) {
@@ -2531,8 +2651,8 @@ static void RunGUI()
 
 			static bool show_settings_menu = false;
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 90);
-			if (ImGui::Button("Settings:")) {
+			ImGui::SameLine(ImGui::GetWindowWidth() - 100);
+			if (show_settings_menu ? ImGui::Button("Settings <") : ImGui::Button("Settings >")) {
 				show_settings_menu = !show_settings_menu;
 			}
 
@@ -2574,21 +2694,34 @@ static void RunGUI()
 
 					ImGui::Separator();
 
-					ImGui::AlignTextToFramePadding();
-					ImGui::Text("Amount of Minutes Between Anti-AFK Runs:");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
-					if (ImGui::InputText("##AntiAFKTime", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							AntiAFKTime = std::stoi(AntiAFKTimeChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+					BindingState& shiftState = g_bindingStates[&vk_shiftkey];
+    
+					ImGui::TextWrapped("Custom Shiftlock Key:");
+    
+					if (ImGui::Button((shiftState.buttonText + "##ShiftKey").c_str())) {
+						shiftState.bindingMode = true;
+						shiftState.notBinding = false;
+						shiftState.buttonText = "Press a Key...";
 					}
-
-					ImGui::Separator();
-
-					ImGui::Checkbox("Switch Macro From \"Left Shift\" to \"Control\" for Shiftlock", &shiftswitch); // Checkbox for toggling
+    
+					ImGui::SameLine();
+					vk_shiftkey = BindKeyMode(&vk_shiftkey, vk_shiftkey, selected_section);
+    
+					// Human readable display
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_shiftkey, shiftState.keyBufferHuman, sizeof(shiftState.keyBufferHuman));
+					ImGui::InputText("##ShiftKeyHuman", shiftState.keyBufferHuman, sizeof(shiftState.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+					ImGui::SameLine();
+					ImGui::TextWrapped("Key Binding");
+    
+					// Hexadecimal display
+					ImGui::SetNextItemWidth(50.0f);
+					ImGui::PushID("ShiftKeyHex");
+					ImGui::SameLine();
+					ImGui::InputText("##ShiftKeyHex", shiftState.keyBuffer, sizeof(shiftState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+					ImGui::PopID();
+					ImGui::SameLine();
+					ImGui::TextWrapped("Hex");
 
 					ImGui::Separator();
 
@@ -2596,10 +2729,43 @@ static void RunGUI()
 
 					ImGui::Separator();
 
+					BindingState& chatState = g_bindingStates[&vk_chatkey];
+
+					ImGui::TextWrapped("Custom Chat Key (Must disable Force-Set):");
+
+					// Bind button
+					if (ImGui::Button((chatState.buttonText + "##ChatKey").c_str())) {
+						chatState.bindingMode = true;
+						chatState.notBinding = false;
+						chatState.buttonText = "Press a Key...";
+					}
+
+					ImGui::SameLine();
+					vk_chatkey = BindKeyMode(&vk_chatkey, vk_chatkey, selected_section);
+
+					// Human readable display
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_chatkey, chatState.keyBufferHuman, sizeof(chatState.keyBufferHuman));
+					ImGui::InputText("##ChatKeyHuman", chatState.keyBufferHuman, sizeof(chatState.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+					ImGui::SameLine();
+					ImGui::TextWrapped("Key Binding");
+
+					// Hexadecimal display
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(50.0f);
+					ImGui::PushID("ChatKeyHex");
+					ImGui::InputText("##ChatKeyHex", chatState.keyBuffer, sizeof(chatState.keyBuffer), 
+									 ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+					ImGui::PopID();
+					ImGui::SameLine();
+					ImGui::TextWrapped("Hex");
+
+					ImGui::Separator();
+
 					ImGui::Checkbox("##Oldpaste", &useoldpaste);
 					ImGui::SameLine();
 					ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 4);
-					ImGui::TextWrapped("Use Old Unicode Chat-Typing (Less security against anticheat but doesn't trigger other macros)");
+					ImGui::TextWrapped("Old Unicode Chat-Typing (Works across languages but may be blocked by some anticheats)");
 
 					ImGui::Separator();
 
@@ -2614,6 +2780,56 @@ static void RunGUI()
 						} catch (const std::out_of_range &e) {
 						}
 					}
+
+					ImGui::Separator();
+
+					BindingState& afkState = g_bindingStates[&vk_afkkey];
+
+					ImGui::TextWrapped("Custom Anti-AFK Key (That the macro uses):");
+
+					// Bind button
+					if (ImGui::Button((afkState.buttonText + "##Afkkey").c_str())) {
+						afkState.bindingMode = true;
+						afkState.notBinding = false;
+						afkState.buttonText = "Press a Key...";
+					}
+
+					ImGui::SameLine();
+					vk_afkkey = BindKeyMode(&vk_afkkey, vk_afkkey, selected_section);
+
+					// Human readable display
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_afkkey, afkState.keyBufferHuman, sizeof(afkState.keyBufferHuman));
+					ImGui::InputText("##AFKKeyHuman", afkState.keyBufferHuman, sizeof(afkState.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+					ImGui::SameLine();
+					ImGui::TextWrapped("Key Binding");
+
+					// Hexadecimal display
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(50.0f);
+					ImGui::PushID("AfkkeyHex");
+					ImGui::InputText("##AfkkeyHex", afkState.keyBuffer, sizeof(afkState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+					ImGui::PopID();
+					ImGui::SameLine();
+					ImGui::TextWrapped("Hex");
+
+					ImGui::Separator();
+
+					ImGui::AlignTextToFramePadding();
+					ImGui::Text("Amount of Minutes Between Anti-AFK Runs:");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(30.0f);
+					if (ImGui::InputText("##AntiAFKTime", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try {
+							AntiAFKTime = std::stoi(AntiAFKTimeChar);
+						} catch (const std::invalid_argument &e) {
+						} catch (const std::out_of_range &e) {
+						}
+					}
+
+					ImGui::Separator();
+
+					ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
 
 					ImGui::Separator();
 					
@@ -2760,8 +2976,12 @@ static void RunGUI()
             // Right child window with dynamic sizing
 			ImGui::BeginChild("RightSection", rightSectionSize, true);
 
-            // Display different content based on the selected section
+			// Display different content based on the selected section
 			if (selected_section >= 0 && selected_section < sections.size()) {
+				// Get the binding state for this section's key
+				unsigned int* currentKey = section_to_key.at(selected_section);
+				BindingState& state = g_bindingStates[currentKey];
+    
 				// Display section title and keybind UI
 				ImGui::TextWrapped("Settings for %s", sections[selected_section].title.c_str());
 				ImGui::Separator();
@@ -2769,39 +2989,42 @@ static void RunGUI()
 				ImGui::TextWrapped("Keybind:");
 				ImGui::SameLine();
 
-				// Keybind button
-				if (ImGui::Button(KeyButtonText.c_str())) {
-					notbinding = false;
-					bindingMode = true;
-					KeyButtonText = "Press a Key...";
+				// Keybind button - use the state's buttonText
+				if (ImGui::Button(state.buttonText.c_str())) {
+					state.bindingMode = true;
+					state.notBinding = false;
+					state.buttonText = "Press a Key...";
 				}
 
 				ImGui::SameLine();
 
 				// Handle key bindings for all sections
 				if (section_to_key.count(selected_section)) {
-					unsigned int* key = section_to_key.at(selected_section);
-					*key = BindKeyMode(*key);
+					*currentKey = BindKeyMode(currentKey, *currentKey, selected_section);
 					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHex(*key);
+        
+					GetKeyNameFromHex(*currentKey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
 				}
 
-				ImGui::InputText("##KeyBufferHuman", KeyBufferhuman, sizeof(KeyBufferhuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+				// Use the state's keyBuffer for display
+				ImGui::InputText("##KeyBufferHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding");
 				ImGui::SameLine();
 				ImGui::SetNextItemWidth(50.0f);
 
-				ImGui::InputText("##KeyBuffer", KeyBuffer, sizeof(KeyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+				ImGui::InputText("##KeyBuffer", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
 
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding (Hexadecimal)");
-				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? 
+										ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 				ImGui::TextWrapped("Enable This Macro:");
 				ImGui::PopStyleColor();
 				ImGui::SameLine();
 				if (selected_section >= 0 && selected_section < section_amounts) {
-					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), &section_toggles[selected_section]);
+					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), 
+									&section_toggles[selected_section]);
 				}
 				ImGui::SameLine(243);
 				ImGui::TextWrapped("(Human-Readable)");
@@ -2871,6 +3094,9 @@ static void RunGUI()
 					ImGui::SameLine();
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
 					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
+					ImGui::Checkbox("Replace Shiftlock with Zooming In", &hhjzoomin);
+					ImGui::SameLine();
+					ImGui::Checkbox("Reverse Direction?", &hhjzoominreverse);
 					ImGui::TextWrapped("Length of HHJ flicks (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(52);
@@ -3013,7 +3239,7 @@ static void RunGUI()
 );
 				}
 
-				if (selected_section == 4) { // Gear Unequip COM speed
+				if (selected_section == 4) { // Gear Unequip COM offset
 					ImGui::TextWrapped("Gear Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
@@ -3028,19 +3254,8 @@ static void RunGUI()
 					ImGui::TextWrapped("Type in a custom chat message! (Disables gear equipping, just pastes your message in chat)");
 					ImGui::TextWrapped("(Leave this blank if you don't want a custom message)");
 					ImGui::SameLine();
-					ImGui::SetNextItemWidth(700.0f);
+					ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
 					ImGui::InputText("##CustomText", CustomTextChar, sizeof(CustomTextChar));
-
-					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override in settings):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
-					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
-						if (strlen(ChatKeyChar) > 1) {
-							ChatKeyChar[1] = '\0';
-						}
-						chatkey = ChatKeyChar;
-						vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
-					}
 
 					ImGui::SetNextItemWidth(150.0f);
 					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
@@ -3056,6 +3271,32 @@ static void RunGUI()
 						}
 						ImGui::EndCombo();
 					}
+
+					// Get the binding state for vk_dkey
+					BindingState& enterkeyState = g_bindingStates[&vk_enterkey];
+    
+					ImGui::AlignTextToFramePadding();
+					ImGui::TextWrapped("Key to Press After Message/Emote paste:");
+					ImGui::SameLine();
+    
+					if (ImGui::Button((enterkeyState.buttonText + "##EnterKey").c_str())) {
+						enterkeyState.bindingMode = true;
+						enterkeyState.notBinding = false;
+						enterkeyState.buttonText = "Press a Key...";
+					}
+    
+					ImGui::SameLine();
+					vk_enterkey = BindKeyMode(&vk_enterkey, vk_enterkey, selected_section);
+					ImGui::SetNextItemWidth(150.0f);
+					GetKeyNameFromHex(vk_enterkey, enterkeyState.keyBufferHuman, sizeof(enterkeyState.keyBufferHuman));
+					ImGui::InputText("Hex:", enterkeyState.keyBufferHuman, sizeof(enterkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(50.0f);
+					ImGui::PushID("Press2");
+					// Use the state's keyBuffer for hex display
+					ImGui::InputText("##HumanKey", enterkeyState.keyBuffer, sizeof(enterkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+					ImGui::PopID();
+
 					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
 					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
 
@@ -3078,22 +3319,28 @@ static void RunGUI()
 				}
 
 				if (selected_section == 5) { // Presskey / Press a Key
+					// Get the binding state for vk_dkey
+					BindingState& dkeyState = g_bindingStates[&vk_dkey];
+    
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
-					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
-						notbinding = false;
-						bindingModealt = true;
-						KeyButtonTextalt = "Press a Key...";
-						}
+    
+					if (ImGui::Button((dkeyState.buttonText + "##DKey").c_str())) {
+						dkeyState.bindingMode = true;
+						dkeyState.notBinding = false;
+						dkeyState.buttonText = "Press a Key...";
+					}
+    
 					ImGui::SameLine();
-					vk_dkey = BindKeyModeAlt(vk_dkey);
+					vk_dkey = BindKeyMode(&vk_dkey, vk_dkey, selected_section);
 					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHexAlt(vk_dkey);
-					ImGui::InputText("Key to Press", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+					GetKeyNameFromHex(vk_dkey, dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman));
+					ImGui::InputText("Key to Press", dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(50.0f);
 					ImGui::PushID("Press2");
-					ImGui::InputText("Key to Press", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+					// Use the state's keyBuffer for hex display
+					ImGui::InputText("Key to Press", dkeyState.keyBuffer, sizeof(dkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
 					ImGui::NewLine();
 					ImGui::SameLine(276);
@@ -3137,7 +3384,10 @@ static void RunGUI()
 					ImGui::TextWrapped("Flick Degrees (Estimated):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
+					float sensValue = std::atof(RobloxSensValue);
+					if (sensValue != 0.0f) {
+						snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
+					}
 					
 					if (ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue));
@@ -3251,6 +3501,9 @@ static void RunGUI()
 
 				if (selected_section == 9) { // Laugh Clip
 					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
+					ImGui::Checkbox("Replace Shiftlock with Zooming In", &laughzoomin);
+					ImGui::SameLine();
+					ImGui::Checkbox("Reverse Direction?", &laughzoominreverse);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -3318,22 +3571,24 @@ static void RunGUI()
 			}
 
 				if (selected_section == 11) { // Spamkey
+					BindingState& spamState = g_bindingStates[&vk_spamkey];
+    
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
-					if (ImGui::Button((KeyButtonTextalt + "##").c_str())) {
-						bindingModealt = true;
-						notbinding = false;
-						KeyButtonTextalt = "Press a Key...";
+					if (ImGui::Button((spamState.buttonText + "##").c_str())) {
+						spamState.bindingMode = true;
+						spamState.notBinding = false;
+						spamState.buttonText = "Press a Key...";
 					}
 					ImGui::SameLine();
-					vk_spamkey = BindKeyModeAlt(vk_spamkey);
+					vk_spamkey = BindKeyMode(&vk_spamkey, vk_spamkey, selected_section);
 					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHexAlt(vk_spamkey);
-					ImGui::InputText("Key to Press", KeyBufferhumanalt, sizeof(KeyBufferhumanalt), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+					GetKeyNameFromHex(vk_spamkey, spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman));
+					ImGui::InputText("Key to Press", spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(50.0f);
 					ImGui::PushID("Press2");
-					ImGui::InputText("Key to Press", KeyBufferalt, sizeof(KeyBufferalt), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+					ImGui::InputText("Key to Press", spamState.keyBuffer, sizeof(spamState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
 					ImGui::NewLine();
 					ImGui::SameLine(276);
@@ -3379,16 +3634,6 @@ static void RunGUI()
 				}
 
 				if (selected_section == 13) { // Bunnyhop
-					ImGui::TextWrapped("Custom Key to Open Chat (Must disable Force-override in settings):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
-					if (ImGui::InputText("##Chatkey", ChatKeyChar, sizeof(ChatKeyChar), ImGuiInputTextFlags_CharsNoBlank)) {
-						if (strlen(ChatKeyChar) > 1) {
-							ChatKeyChar[1] = '\0';
-						}
-						vk_chatkey = ChatKeyCharToVK(ChatKeyChar);
-					}
-
 					ImGui::TextWrapped("Bunnyhop Delay in Milliseconds (Default 10ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
@@ -3476,8 +3721,7 @@ static void RunGUI()
 		
 				if (ImGui::Checkbox("##OnTopToggle", &ontoptoggle))
 				{
-					SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST,
-						0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+					SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 				}
 
 				ImGui::SameLine();
@@ -3571,7 +3815,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.0.5";
+        std::string localVersion = "3.1.0";
 
         if (remoteVersion != localVersion) 
         {
@@ -3763,10 +4007,23 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					ReleaseKey(0x20);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
-				HoldKey(scancode_shift);
+
+				if (!lhjzoomin) {
+					HoldKeyBinded(vk_shiftkey);
+				} else {
+					INPUT mousezoominput = {0};
+					mousezoominput.type = INPUT_MOUSE;
+					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
+					mousezoominput.mi.mouseData = lhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+
+					SendInput(1, &mousezoominput, sizeof(INPUT));
+				}
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				ReleaseKey(scancode_shift);
+				if (!lhjzoomin) {
+					ReleaseKeyBinded(vk_shiftkey);
+				}
+
 				ReleaseKey(0x39);
 				islhj = true;
 			}
@@ -3787,13 +4044,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		// Gear Unequip COM Speed
+		// Gear Unequip COM Offset
 		if (IsKeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
 				} else {
-					PasteText(chatkey);
+					HoldKeyBinded(vk_chatkey);
+					std::this_thread::sleep_for(std::chrono::milliseconds(17));
+					ReleaseKeyBinded(vk_chatkey);
 				}
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(17));
@@ -3804,20 +4063,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (strlen(CustomTextChar) >= 1) {
 					PasteText(CustomTextChar);
 					std::this_thread::sleep_for(std::chrono::milliseconds(25));
-					HoldKey(0x1C);
+					HoldKeyBinded(vk_enterkey);
 
 					std::this_thread::sleep_for(std::chrono::milliseconds(35));
-					ReleaseKey(0x1C);
+					ReleaseKeyBinded(vk_enterkey);
 					isunequipspeed = true;
 					continue;
 				}
 
 				PasteText(text);
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
-				HoldKey(0x1C);
+				HoldKeyBinded(vk_enterkey);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(35));
-				ReleaseKey(0x1C);
+				ReleaseKeyBinded(vk_enterkey);
 				if (selected_dropdown == 2) { // Cheer
 					std::this_thread::sleep_for(std::chrono::milliseconds(16));
 				} else {
@@ -3876,11 +4135,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay1));
-				HoldKey(scancode_shift);
+				if (!hhjzoomin) {
+					HoldKeyBinded(vk_shiftkey);
+				} else {
+					INPUT mousezoominput = {0};
+					mousezoominput.type = INPUT_MOUSE;
+					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
+					mousezoominput.mi.mouseData = hhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+
+					SendInput(1, &mousezoominput, sizeof(INPUT));
+				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
-				ReleaseKey(scancode_shift);
+				if (!hhjzoomin) {
+					ReleaseKeyBinded(vk_shiftkey);
+				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
 				isHHJ.store(false, std::memory_order_relaxed);
 				HHJ = true;
@@ -3908,7 +4178,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (chatoverride) {
 					HoldKey(0x35);
 				} else {
-					PasteText(chatkey);
+					HoldKeyBinded(vk_chatkey);
+					std::this_thread::sleep_for(std::chrono::milliseconds(17));
+					ReleaseKeyBinded(vk_chatkey);
 				}
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -3926,7 +4198,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(248));
 
 				HoldKey(0x39); // Jump
-				HoldKey(scancode_shift);
+				if (!laughzoomin) {
+					HoldKeyBinded(vk_shiftkey);
+				} else {
+					INPUT mousezoominput = {0};
+					mousezoominput.type = INPUT_MOUSE;
+					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
+					mousezoominput.mi.mouseData = laughzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+
+					SendInput(1, &mousezoominput, sizeof(INPUT));
+				}
 
 				if (!laughmoveswitch) {
 					HoldKey(0x1F); // S
@@ -3934,7 +4215,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				ReleaseKey(0x39);
-				ReleaseKey(scancode_shift);
+
+				if (!laughzoomin) {
+					ReleaseKeyBinded(vk_shiftkey);
+				}
 				ReleaseKey(0x1C);
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 
@@ -4097,57 +4381,85 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		// Anti AFK (MUST STAY AT THE LOWEST PART OF THE LIST!!!)
-		if (!isafk && tabbedintoroblox) {
+		if ((!isafk && tabbedintoroblox) || !antiafktoggle) {
 			// Not Afk, reset lastpresstime
 			lastPressTime = std::chrono::steady_clock::now();
 		} else {
-			if (processFound && antiafktoggle && isafk) {
+			if (processFound && antiafktoggle && isafk && !g_isLinuxWine) {
 				// Check if AntiAFKTime has passed
 				auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - lastPressTime).count();
+
 				if (elapsedMinutes >= AntiAFKTime) {
 					HWND originalHwnd = GetForegroundWindow();
-					INPUT input = {0};
-					input.type = INPUT_MOUSE;
-					input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-					if (!IsForegroundWindowProcess(hProcess)) { // Extremely long process to simulate going to roblox and typing .
+					// Not tabbed into Roblox AntiAFK
+					if (!IsForegroundWindowProcess(hProcess)) {
+						// Save User Mouse Position to return to later
+						POINT originalMousePos;
+						GetCursorPos(&originalMousePos);
+
 						HWND windowhwnd = FindNewestProcessWindow(rbxhwnd);
 						SetWindowPos(windowhwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(windowhwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-						Sleep(1000);
-						SendInput(1, &input, sizeof(INPUT));
-						input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+
+						// Get roblox rectangle coords
+						RECT robloxRect;
+						if (!GetWindowRect(windowhwnd, &robloxRect)) {
+							std::cerr << "Failed to get window rect" << std::endl;
+							continue; // or break depending on your loop
+						}
+
+						// Calculate center coordinates
+						int centerX = robloxRect.left + (robloxRect.right - robloxRect.left) / 2;
+						int centerY = robloxRect.top + (robloxRect.bottom - robloxRect.top) / 2;
+
+						Sleep(300);
+
+						// Move mouse to center of the wanted window using SetCursorPos
+						SetCursorPos(centerX, centerY);
+
+						// Click and Unclick LMB to get window focus
+						INPUT mclickinput = {0};
+						mclickinput.type = INPUT_MOUSE;
+						mclickinput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+						SendInput(1, &mclickinput, sizeof(INPUT));
+						mclickinput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
 						Sleep(50);
-						SendInput(1, &input, sizeof(INPUT));
+						SendInput(1, &mclickinput, sizeof(INPUT));
+
 						Sleep(500);
-						if (chatoverride) {
-							HoldKey(0x35);
-						} else {
-							PasteText(chatkey);
-						}
-						if (chatoverride) {
+
+						if (doublepressafkkey) {
+							HoldKeyBinded(vk_afkkey);
 							Sleep(20);
-							ReleaseKey(0x35);
+							ReleaseKeyBinded(vk_afkkey);
+							Sleep(20);
+							HoldKeyBinded(vk_afkkey);
+							Sleep(20);
+							ReleaseKeyBinded(vk_afkkey);
+						} else {
+							HoldKeyBinded(vk_afkkey);
+							Sleep(20);
+							ReleaseKeyBinded(vk_afkkey);
 						}
-						Sleep(20);
-						HoldKey(0x34);
-						Sleep(20);
-						ReleaseKey(0x34);
-						Sleep(20);
-						HoldKey(0x1C);
-						Sleep(20);
-						ReleaseKey(0x1C);
-						Sleep(500);
+						Sleep(200);
 						SetWindowPos(originalHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 						SetWindowPos(originalHwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-						Sleep(1000);
+						Sleep(50);
 						SetForegroundWindow(originalHwnd);
+						Sleep(1000);
+
+						SetCursorPos(originalMousePos.x, originalMousePos.y);
+
 						lastPressTime = std::chrono::steady_clock::now();
 					}
-					if (IsForegroundWindowProcess(hProcess)) {
+					// Pre Tabbed into Roblox
+					if (IsForegroundWindowProcess(hProcess) && !g_isLinuxWine) {
 						if (chatoverride) {
 							HoldKey(0x35);
 						} else {
-							PasteText(chatkey);
+							HoldKeyBinded(vk_chatkey);
+							std::this_thread::sleep_for(std::chrono::milliseconds(17));
+							ReleaseKeyBinded(vk_chatkey);
 						}
 						if (chatoverride) {
 							Sleep(20);

@@ -10,6 +10,13 @@
 #include "shared_mem.h"
 #include "resource.h"
 
+// Special reserved values for wheel usage
+#define VK_MOUSE_WHEEL_UP 256
+#define VK_MOUSE_WHEEL_DOWN 257
+
+bool IsWheelUp();
+bool IsWheelDown();
+
 // --- Global state for the compatibility layer ---
 static bool g_isLinuxWine = false;
 static SharedMemory *g_sharedData = nullptr;
@@ -19,6 +26,8 @@ const char *LINUX_HELPER_BINARY_NAME = "Suspend_Input_Helper_Linux_Binary";
 const char *LINUX_SHARED_MEM_FILE_WINE_PATH = "Z:\\tmp\\cross_input_shm_file";
 std::string g_linuxHelperPath_Windows;
 
+// Allow display_scale to be read in this file
+extern int display_scale;
 
 // Declare hNtdll early
 const HMODULE hNtdll = GetModuleHandleA("ntdll");
@@ -372,6 +381,14 @@ static bool IsKeyPressed(WORD vk_key)
 			return false;
 		return g_sharedData->key_states[vk_key].load(std::memory_order_acquire);
 	}
+
+	if (vk_key == VK_MOUSE_WHEEL_UP) {
+		return IsWheelUp();
+    }
+
+	if (vk_key == VK_MOUSE_WHEEL_DOWN) {
+		return IsWheelDown();
+	}
 	return ::GetAsyncKeyState(vk_key) & 0x8000;
 }
 
@@ -398,6 +415,24 @@ static void HoldKey(WORD scanCode)
 	}
 }
 
+static void HoldKey(WORD scanCode, bool extended)
+{
+    if (g_isLinuxWine) {
+        // Linux/Wine doesn't need extended flag - use the original function
+        HoldKey(scanCode);
+    } else {
+        // Windows method with extended flag
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wScan = scanCode;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE;
+        if (extended) {
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        }
+        SendInput(1, &input, sizeof(INPUT));
+    }
+}
+
 static void ReleaseKey(WORD scanCode)
 {
 	if (g_isLinuxWine) {
@@ -421,6 +456,24 @@ static void ReleaseKey(WORD scanCode)
 	}
 }
 
+static void ReleaseKey(WORD scanCode, bool extended)
+{
+    if (g_isLinuxWine) {
+        // Linux/Wine doesn't need extended flag - use the original function
+        ReleaseKey(scanCode);
+    } else {
+        // Windows method with extended flag
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wScan = scanCode;
+        input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+        if (extended) {
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        }
+        SendInput(1, &input, sizeof(INPUT));
+    }
+}
+
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         Command cmd = {};
@@ -430,8 +483,20 @@ static void HoldKeyBinded(WORD Vk_key) {
         EnqueueCommand(cmd);
     } else {
         INPUT input = {};
-        // Mouse inputs are special and don't have scan codes.
-        if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
+        
+        // Handle mouse wheel inputs
+        if (Vk_key == VK_MOUSE_WHEEL_UP) {
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            input.mi.mouseData = WHEEL_DELTA; // Positive for wheel up
+        }
+        else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            input.mi.mouseData = -WHEEL_DELTA; // Negative for wheel down
+        }
+        // Existing mouse button handling
+        else if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
             input.type = INPUT_MOUSE;
             if (Vk_key == VK_LBUTTON) input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
             else if (Vk_key == VK_RBUTTON) input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
@@ -440,7 +505,6 @@ static void HoldKeyBinded(WORD Vk_key) {
             else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XDOWN; input.mi.mouseData = XBUTTON2; }
         } else {
             input.type = INPUT_KEYBOARD;
-            // Convert the virtual key to a hardware scan code to prevent programs reading our synthetic input
             input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
             input.ki.dwFlags = KEYEVENTF_SCANCODE;
         }
@@ -466,7 +530,7 @@ static void ReleaseKeyBinded(WORD Vk_key) {
             else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XUP; input.mi.mouseData = XBUTTON2; }
         } else {
             input.type = INPUT_KEYBOARD;
-		    // Convert the virtual key to a hardware scan code to prevent programs reading our synthetic input
+		    // Convert the virtual key to a hardware scan code to prevent anticheats blocking synthetic input
             input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
             input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
         }
@@ -485,6 +549,9 @@ static void MoveMouse(int dx, int dy)
 	} else {
 		INPUT input = {0};
 		input.type = INPUT_MOUSE;
+        // Scale dx and dy with display scale
+		dx = static_cast<int>(static_cast<int64_t>(dx) * display_scale / 100);
+		dy = static_cast<int>(static_cast<int64_t>(dy) * display_scale / 100);
 		input.mi.dx = dx;
 		input.mi.dy = dy;
 		input.mi.dwFlags = MOUSEEVENTF_MOVE;
@@ -683,8 +750,9 @@ static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, std:
 }
 
 struct KeyAction {
-    WORD vk_code;      // The virtual-key code to press (e.g., '1' for '!')
-    bool needs_shift;  // Whether the SHIFT key must be held down
+    WORD vk_code;
+    WORD scan_code;
+    bool needs_shift;
 };
 
 // This translates a single character into the key actions needed to type it on a standard US keyboard.
@@ -750,5 +818,113 @@ static KeyAction CharToKeyAction_Compat(char c) {
             // This character cannot be typed with our current mapping.
             // Returning a vk_code of 0 signals failure.
             return { 0, false };
+    }
+}
+
+static KeyAction CharToKeyAction_Global(char c) {
+    // Use VkKeyScanA to get the virtual key code and shift state for this character
+    SHORT vk_scan = VkKeyScanA(c);
+    
+    if (vk_scan != -1) {
+        // Extract virtual key code (low byte) and shift state (high byte)
+        WORD vk_code = LOBYTE(vk_scan);
+        bool needs_shift = (HIBYTE(vk_scan) & 1) != 0; // Shift flag is bit 0
+        
+        // Get the scan code for this virtual key
+        WORD scan_code = (WORD)MapVirtualKeyA(vk_code, MAPVK_VK_TO_VSC);
+        
+        // Handle extended keys (keys that need the extended flag)
+        switch (vk_code) {
+            case VK_INSERT:
+            case VK_DELETE:
+            case VK_HOME:
+            case VK_END:
+            case VK_PRIOR: // PAGE UP
+            case VK_NEXT:  // PAGE DOWN
+            case VK_LEFT:
+            case VK_RIGHT:
+            case VK_UP:
+            case VK_DOWN:
+            case VK_NUMLOCK:
+            case VK_RCONTROL:
+            case VK_RMENU: // Right Alt
+            case VK_DIVIDE: // Numpad divide
+                scan_code |= 0xE000; // Extended key flag
+                break;
+        }
+        
+        return { vk_code, scan_code, needs_shift };
+    }
+    
+    // Fallback for common characters that VkKeyScanA might miss
+    // Lowercase letters
+    if (c >= 'a' && c <= 'z') {
+        WORD vk_code = (WORD)(toupper(c));
+        WORD scan_code = (WORD)MapVirtualKeyA(vk_code, MAPVK_VK_TO_VSC);
+        return { vk_code, scan_code, false };
+    }
+    // Uppercase letters
+    if (c >= 'A' && c <= 'Z') {
+        WORD vk_code = (WORD)c;
+        WORD scan_code = (WORD)MapVirtualKeyA(vk_code, MAPVK_VK_TO_VSC);
+        return { vk_code, scan_code, true };
+    }
+    // Numbers
+    if (c >= '0' && c <= '9') {
+        WORD vk_code = (WORD)c;
+        WORD scan_code = (WORD)MapVirtualKeyA(vk_code, MAPVK_VK_TO_VSC);
+        return { vk_code, scan_code, false };
+    }
+    
+    // Fallback for common symbols using VK_OEM_* codes with scan codes
+    switch (c) {
+        case ' ': 
+            return { VK_SPACE, (WORD)MapVirtualKeyA(VK_SPACE, MAPVK_VK_TO_VSC), false };
+        case '\n': 
+            return { VK_RETURN, (WORD)MapVirtualKeyA(VK_RETURN, MAPVK_VK_TO_VSC), false };
+        case '\t': 
+            return { VK_TAB, (WORD)MapVirtualKeyA(VK_TAB, MAPVK_VK_TO_VSC), false };
+            
+        // Number row symbols (require shift)
+        case '!': return { '1', (WORD)MapVirtualKeyA('1', MAPVK_VK_TO_VSC), true };
+        case '@': return { '2', (WORD)MapVirtualKeyA('2', MAPVK_VK_TO_VSC), true };
+        case '#': return { '3', (WORD)MapVirtualKeyA('3', MAPVK_VK_TO_VSC), true };
+        case '$': return { '4', (WORD)MapVirtualKeyA('4', MAPVK_VK_TO_VSC), true };
+        case '%': return { '5', (WORD)MapVirtualKeyA('5', MAPVK_VK_TO_VSC), true };
+        case '^': return { '6', (WORD)MapVirtualKeyA('6', MAPVK_VK_TO_VSC), true };
+        case '&': return { '7', (WORD)MapVirtualKeyA('7', MAPVK_VK_TO_VSC), true };
+        case '*': return { '8', (WORD)MapVirtualKeyA('8', MAPVK_VK_TO_VSC), true };
+        case '(': return { '9', (WORD)MapVirtualKeyA('9', MAPVK_VK_TO_VSC), true };
+        case ')': return { '0', (WORD)MapVirtualKeyA('0', MAPVK_VK_TO_VSC), true };
+
+        // Punctuation (unshifted)
+        case '`': return { VK_OEM_3, (WORD)MapVirtualKeyA(VK_OEM_3, MAPVK_VK_TO_VSC), false };
+        case '-': return { VK_OEM_MINUS, (WORD)MapVirtualKeyA(VK_OEM_MINUS, MAPVK_VK_TO_VSC), false };
+        case '=': return { VK_OEM_PLUS, (WORD)MapVirtualKeyA(VK_OEM_PLUS, MAPVK_VK_TO_VSC), false };
+        case '[': return { VK_OEM_4, (WORD)MapVirtualKeyA(VK_OEM_4, MAPVK_VK_TO_VSC), false };
+        case ']': return { VK_OEM_6, (WORD)MapVirtualKeyA(VK_OEM_6, MAPVK_VK_TO_VSC), false };
+        case '\\': return { VK_OEM_5, (WORD)MapVirtualKeyA(VK_OEM_5, MAPVK_VK_TO_VSC), false };
+        case ';': return { VK_OEM_1, (WORD)MapVirtualKeyA(VK_OEM_1, MAPVK_VK_TO_VSC), false };
+        case '\'': return { VK_OEM_7, (WORD)MapVirtualKeyA(VK_OEM_7, MAPVK_VK_TO_VSC), false };
+        case ',': return { VK_OEM_COMMA, (WORD)MapVirtualKeyA(VK_OEM_COMMA, MAPVK_VK_TO_VSC), false };
+        case '.': return { VK_OEM_PERIOD, (WORD)MapVirtualKeyA(VK_OEM_PERIOD, MAPVK_VK_TO_VSC), false };
+        case '/': return { VK_OEM_2, (WORD)MapVirtualKeyA(VK_OEM_2, MAPVK_VK_TO_VSC), false };
+        
+        // Punctuation (shifted)
+        case '~': return { VK_OEM_3, (WORD)MapVirtualKeyA(VK_OEM_3, MAPVK_VK_TO_VSC), true };
+        case '_': return { VK_OEM_MINUS, (WORD)MapVirtualKeyA(VK_OEM_MINUS, MAPVK_VK_TO_VSC), true };
+        case '+': return { VK_OEM_PLUS, (WORD)MapVirtualKeyA(VK_OEM_PLUS, MAPVK_VK_TO_VSC), true };
+        case '{': return { VK_OEM_4, (WORD)MapVirtualKeyA(VK_OEM_4, MAPVK_VK_TO_VSC), true };
+        case '}': return { VK_OEM_6, (WORD)MapVirtualKeyA(VK_OEM_6, MAPVK_VK_TO_VSC), true };
+        case '|': return { VK_OEM_5, (WORD)MapVirtualKeyA(VK_OEM_5, MAPVK_VK_TO_VSC), true };
+        case ':': return { VK_OEM_1, (WORD)MapVirtualKeyA(VK_OEM_1, MAPVK_VK_TO_VSC), true };
+        case '"': return { VK_OEM_7, (WORD)MapVirtualKeyA(VK_OEM_7, MAPVK_VK_TO_VSC), true };
+        case '<': return { VK_OEM_COMMA, (WORD)MapVirtualKeyA(VK_OEM_COMMA, MAPVK_VK_TO_VSC), true };
+        case '>': return { VK_OEM_PERIOD, (WORD)MapVirtualKeyA(VK_OEM_PERIOD, MAPVK_VK_TO_VSC), true };
+        case '?': return { VK_OEM_2, (WORD)MapVirtualKeyA(VK_OEM_2, MAPVK_VK_TO_VSC), true };
+
+        default:
+            // This character cannot be typed with our current mapping
+            return { 0, 0, false };
     }
 }
