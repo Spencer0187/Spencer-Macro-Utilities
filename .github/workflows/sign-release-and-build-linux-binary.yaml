@@ -4,7 +4,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-helper-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      source_changed: ${{ steps.filter.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            source:
+              - 'visual studio/Resource Files/Suspend_Input_Helper_Source/**'
+
   build-linux:
+    needs: check-helper-changes
+    if: needs.check-helper-changes.outputs.source_changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
