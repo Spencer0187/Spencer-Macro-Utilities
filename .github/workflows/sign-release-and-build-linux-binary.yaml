@@ -95,6 +95,12 @@ jobs:
         run: Remove-Item -Recurse -Force staging
         shell: pwsh
 
+      - name: Pull latest changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git pull origin ${{ github.ref }}
+
       - name: Commit and push signed executable to repo
         run: |
           git config user.name "github-actions[bot]"
