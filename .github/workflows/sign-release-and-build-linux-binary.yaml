@@ -16,7 +16,7 @@ jobs:
       - id: filter
         uses: dorny/paths-filter@v3
         with:
-          base: ${{ github.event.before || 'HEAD~1' }}
+          base: github.event.before
           head: HEAD
           filters: |
             source:
