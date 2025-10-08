@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-check-helper-changes:
+  check-helper-changes:
     runs-on: ubuntu-latest
     outputs:
       source_changed: ${{ steps.check.outputs.changed }}
@@ -31,7 +31,7 @@ check-helper-changes:
         shell: bash
 
 
-build-linux:
+  build-linux:
     needs: check-helper-changes
     if: needs.check-helper-changes.outputs.source_changed == 'true'
     runs-on: ubuntu-latest
