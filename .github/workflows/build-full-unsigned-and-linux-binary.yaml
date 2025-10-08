@@ -1,0 +1,65 @@
+name: Build Unsigned exe and Linux Helper
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Build linux binary
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+          g++ -o ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Source/linux_helper.cpp -O3 -std=c++11
+
+      - name: Upload linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          path: visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary
+          name: Suspend_Input_Helper_Linux_Binary
+      
+      - name: Commit and push linux binary to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add "visual studio/Resource Files/Suspend_Input_Helper_Linux_Binary"
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Update linux binary"
+            git push
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+  sign:
+    needs: build-linux # Ensure linux build completes first
+    runs-on: windows-latest
+    
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Build project
+        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 /p:ClCompileOptimization=MaxSpeed
+
+      - name: Upload Unsigned EXE to Repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git add -f x64/Release/suspend.exe
+          git commit -m "Upload unsigned executable"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
