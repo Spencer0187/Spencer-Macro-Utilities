@@ -4,36 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-helper-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      source_changed: ${{ steps.check.outputs.changed }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - id: check
-        run: |
-          if [ -z "${GITHUB_EVENT_BEFORE}" ] || [ "${GITHUB_EVENT_BEFORE}" = "0000000000000000000000000000000000000000" ]; then
-            BASE_COMMIT=$(git hash-object -t tree /dev/null)
-          else
-            BASE_COMMIT=$GITHUB_EVENT_BEFORE
-          fi
-
-          echo "Comparing against $BASE_COMMIT"
-          
-          if git diff --quiet $BASE_COMMIT HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-          fi
-        shell: bash
-
-
   build-linux:
-    needs: check-helper-changes
-    if: needs.check-helper-changes.outputs.source_changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -57,12 +28,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git add visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary
-          git commit -m "Update linux binary"
-          git push
+          git add "visual studio/Resource Files/Suspend_Input_Helper_Linux_Binary"
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Update linux binary"
+            git push
+          fi
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
   sign:
     needs: build-linux # Ensure linux build completes first
     runs-on: windows-latest
