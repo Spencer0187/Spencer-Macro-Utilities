@@ -4,26 +4,34 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-helper-changes:
+check-helper-changes:
     runs-on: ubuntu-latest
     outputs:
-      source_changed: ${{ steps.filter.outputs.source }}
+      source_changed: ${{ steps.check.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          base: github.event.before
-          head: HEAD
-          filters: |
-            source:
-              - 'visual studio/Resource Files/Suspend_Input_Helper_Source/**'
+      - id: check
+        run: |
+          if [ -z "${GITHUB_EVENT_BEFORE}" ] || [ "${GITHUB_EVENT_BEFORE}" = "0000000000000000000000000000000000000000" ]; then
+            BASE_COMMIT=$(git hash-object -t tree /dev/null)
+          else
+            BASE_COMMIT=$GITHUB_EVENT_BEFORE
+          fi
+
+          echo "Comparing against $BASE_COMMIT"
+          
+          if git diff --quiet $BASE_COMMIT HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
 
 
-  build-linux:
+build-linux:
     needs: check-helper-changes
     if: needs.check-helper-changes.outputs.source_changed == 'true'
     runs-on: ubuntu-latest
