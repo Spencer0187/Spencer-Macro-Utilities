@@ -4322,19 +4322,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		bool can_process_bhop = IsKeyPressed(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
-		std::cout << "Can Process Bhop: " << can_process_bhop << std::endl;
 		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
-
+		
 		if (bhoplocked) {
 			if (IsKeyPressed(VK_RETURN) || IsKeyPressed(VK_LBUTTON)) {
 				bhoplocked = false;
 			}
 		}
-
+		
 		if (can_process_bhop) {
 			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsKeyPressed(vk_bunnyhopkey);
+			std::cout << "Held: " << is_bunnyhop_key_considered_held << std::endl;
 
 			if (bunnyhopsmart) {
 				if (!bhoplocked && is_bunnyhop_key_considered_held) {
