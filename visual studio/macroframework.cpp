@@ -2519,11 +2519,11 @@ static void RunGUI()
 
 			ImGui::PopStyleColor();
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name or PIDs (Space Separated)" : "Roblox Executable Name");
+			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name/PIDs (Space Separated)" : "Roblox Executable Name");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
-			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
+			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), g_isLinuxWine ? 0 : ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
 
 			ImGui::SameLine();
 
@@ -2537,7 +2537,7 @@ static void RunGUI()
 
 			if (!processFound) {
 				ImGui::SameLine();
-				ImGui::TextWrapped("Roblox Not Found");
+				if (!g_isLinuxWine){ImGui::TextWrapped("Roblox Not Found");}
 			}
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
