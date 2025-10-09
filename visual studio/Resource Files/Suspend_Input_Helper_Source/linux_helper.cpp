@@ -364,6 +364,30 @@ std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) 
     // Add valid PIDs directly
     pids.insert(pids.end(), pid_tokens.begin(), pid_tokens.end());
 
+    // Check if PIDs are valid processes
+    pids.erase(std::remove_if(pids.begin(), pids.end(), [](pid_t pid) {
+        errno = 0;
+        bool invalid = (kill(pid, 0) != 0 && errno != EPERM);
+
+        printf("[Helper] Validating PID: %d - %s\n", pid, invalid ? "Invalid" : "Valid");
+
+        if (!invalid) {
+            std::string proc_path = "/proc/" + std::to_string(pid) + "/comm";
+            std::ifstream file(proc_path);
+            if (file.is_open()) {
+                std::string name;
+                std::getline(file, name);
+                file.close();
+                printf("[Helper] PID: %d - Name: %s\n", pid, name.c_str());
+            } else {
+                printf("[Helper] PID: %d - Unable to read name\n", pid);
+            }
+        }
+
+        return invalid;
+    }), pids.end());
+
+
     // If there are no executable names, we’re done
     if (exe_names.empty()) return pids;
 
@@ -383,12 +407,14 @@ std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) 
         link_target[len] = '\0';
         std::string target_path(link_target);
 
+        bool matched = false;
         for (const auto& exe : exe_names) {
             if (target_path.size() >= exe.size() &&
                 target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
+                matched = true;
                 pids.push_back(pid);
-                break; // matched one, no need to check other names
             }
+            if (matched) break;
         }
     }
 

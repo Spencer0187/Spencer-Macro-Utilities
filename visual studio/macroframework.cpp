@@ -395,6 +395,10 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
 }
 
+static void setBunnyHopState(bool state) {
+	g_isVk_BunnyhopHeldDown.store(state, std::memory_order_relaxed); // For linux compatibility
+}
+
 static void KeyboardHookThread() 
 {
 	HINSTANCE hMod = GetModuleHandle(NULL);
@@ -2012,7 +2016,7 @@ static std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
     {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
     {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
-	{g_isLinuxWine ? "Smart Bunnyhop (BROKEN ON LINUX)" : "Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
+	{"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
 }};
 
 static void InitializeSections()
@@ -4318,7 +4322,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		bool can_process_bhop = IsKeyPressed(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
-
+		std::cout << "Can Process Bhop: " << can_process_bhop << std::endl;
 		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
@@ -4330,7 +4334,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		if (can_process_bhop) {
-			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed);
+			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsKeyPressed(vk_bunnyhopkey);
 
 			if (bunnyhopsmart) {
 				if (!bhoplocked && is_bunnyhop_key_considered_held) {
