@@ -45,7 +45,7 @@ void evdev_reader_thread(const std::string& device_path);
 void command_processor_thread();
 void special_action_thread();
 pid_t find_main_process_by_name(const std::string& name);
-std::vector<pid_t> find_all_processes_by_exe(const std::string& name);
+std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& name);
 
 // ********************************************************************
 // *                  CORE HELPER FUNCTIONS                           *
@@ -312,7 +312,7 @@ void special_action_thread() {
                     success = true;
                 }
             } else if (cmd == SA_FIND_ALL_PROCESSES) {
-                std::vector<pid_t> pids = find_all_processes_by_exe(name);
+                std::vector<pid_t> pids = find_all_processes_by_exes_or_pids(name);
                 if (!pids.empty()) {
                     for (size_t i = 0; i < pids.size() && i < 128; ++i) {
                         shared_data->special_action.response_pids[i] = pids[i];
@@ -334,28 +334,64 @@ void special_action_thread() {
 // *                  UNCHANGED SUPPORTING FUNCTIONS                  *
 // ********************************************************************
 
-std::vector<pid_t> find_all_processes_by_exe(const std::string& name) {
+std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) {
     std::vector<pid_t> pids;
+    std::vector<std::string> exe_names;
+    std::vector<pid_t> pid_tokens;
+
+    // Split input by spaces
+    std::istringstream iss(input);
+    std::string token;
+    while (iss >> token) {
+        bool is_pid = true;
+        for (char c : token) {
+            if (!isdigit(c)) {
+                is_pid = false;
+                break;
+            }
+        }
+
+        if (is_pid) {
+            try {
+                pid_t pid = std::stoi(token);
+                if (pid > 0) pid_tokens.push_back(pid);
+            } catch (...) {}
+        } else {
+            exe_names.push_back(token);
+        }
+    }
+
+    // Add valid PIDs directly
+    pids.insert(pids.end(), pid_tokens.begin(), pid_tokens.end());
+
+    // If there are no executable names, we’re done
+    if (exe_names.empty()) return pids;
+
+    // Scan /proc for processes matching executable names
     DIR* dir = opendir("/proc");
     if (!dir) return pids;
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         pid_t pid = atoi(entry->d_name);
-        if (pid > 0) {
-            std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
-            char link_target[4096] = {0};
-            ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
-            if (len != -1) {
-                link_target[len] = '\0';
-                std::string target_path(link_target);
-                if (target_path.length() >= name.length() &&
-                    target_path.substr(target_path.length() - name.length()) == name) {
-                    pids.push_back(pid);
-                }
+        if (pid <= 0) continue;
+
+        std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
+        char link_target[4096] = {0};
+        ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
+        if (len == -1) continue; // cannot read (permission or gone)
+        link_target[len] = '\0';
+        std::string target_path(link_target);
+
+        for (const auto& exe : exe_names) {
+            if (target_path.size() >= exe.size() &&
+                target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
+                pids.push_back(pid);
+                break; // matched one, no need to check other names
             }
         }
     }
+
     closedir(dir);
     return pids;
 }
@@ -367,7 +403,7 @@ std::vector<pid_t> find_all_processes_by_exe(const std::string& name) {
  * which of its processes has a parent that is NOT part of the application itself.
  */
 pid_t find_main_process_by_name(const std::string& name) {
-    std::vector<pid_t> pids = find_all_processes_by_exe(name);
+    std::vector<pid_t> pids = find_all_processes_by_exes_or_pids(name);
     if (pids.empty()) {
         return -1;
     }

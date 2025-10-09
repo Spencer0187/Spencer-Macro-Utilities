@@ -40,7 +40,6 @@
 #include <synchapi.h>
 #include <dwmapi.h>
 #include <variant>
-#include <algorithm>
 #include <shellscalingapi.h>
 
 // Generic libraries for I forgot
@@ -2520,7 +2519,7 @@ static void RunGUI()
 
 			ImGui::PopStyleColor();
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextWrapped("Roblox Executable Name:");
+			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name or PIDs (Space Separated)" : "Roblox Executable Name");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
