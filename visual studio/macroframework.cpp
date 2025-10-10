@@ -4321,7 +4321,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		bool can_process_bhop = IsKeyPressed(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
+		bool can_process_bhop = tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
 		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
@@ -4334,7 +4334,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		
 		if (can_process_bhop) {
 			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsKeyPressed(vk_bunnyhopkey);
-			std::cout << "Held: " << is_bunnyhop_key_considered_held << std::endl;
 
 			if (bunnyhopsmart) {
 				if (!bhoplocked && is_bunnyhop_key_considered_held) {
