@@ -4322,7 +4322,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		bool can_process_bhop = tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
-		std::cout << can_process_bhop << "\n";
 		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
