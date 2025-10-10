@@ -11,13 +11,14 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check for changes
         id: check_diff
         run: |
-          git fetch origin ${{ github.ref }}
-          # Check if there are any changes in the source folder
-          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
+          # Check if there are any changes in the source folder compared to the last commit
+          if git diff --quiet -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
             echo "no_change=true" >> $GITHUB_OUTPUT
           else
             echo "no_change=false" >> $GITHUB_OUTPUT
@@ -30,7 +31,7 @@ jobs:
           sudo apt-get install -y build-essential
           g++ -o ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Source/linux_helper.cpp -O3 -std=c++11
 
-      - name: Upload linux binary to artifacts
+      - name: Upload linux binary
         if: steps.check_diff.outputs.no_change == 'false'
         uses: actions/upload-artifact@v4
         with:
@@ -47,6 +48,7 @@ jobs:
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-windows:
     needs: build-linux # Ensure linux build completes first
     runs-on: windows-latest
