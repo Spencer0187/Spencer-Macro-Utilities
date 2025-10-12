@@ -278,6 +278,8 @@ bool laughzoomin = false;
 bool laughzoominreverse = false;
 bool lhjzoomin = false;
 bool lhjzoominreverse = false;
+bool globalzoomin = false;
+bool globalzoominreverse = false;
 bool wallesslhjswitch = false;
 bool autotoggle = false;
 bool isspeedswitch = false;
@@ -1024,6 +1026,8 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"laughzoominreverse", &laughzoominreverse},
 	{"lhjzoomin", &lhjzoomin},
 	{"lhjzoominreverse", &lhjzoominreverse},
+	{"globalzoomin", &globalzoomin},
+	{"globalzoominreverse", &globalzoominreverse},
 	{"wallesslhjswitch", &wallesslhjswitch},
 	{"chatoverride", &chatoverride},
 	{"bounceautohold", &bounceautohold},
@@ -2832,6 +2836,12 @@ static void RunGUI()
 
 					ImGui::Separator();
 
+					ImGui::Checkbox("Replace shiftlock with zooming in (Global)", &globalzoomin);
+					ImGui::SameLine();
+					ImGui::Checkbox("Reverse Direction?", &globalzoominreverse);
+
+					ImGui::Separator();
+
 					ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
 
 					ImGui::Separator();
@@ -4017,7 +4027,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = lhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = lhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
@@ -4138,20 +4148,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay1));
-				if (!hhjzoomin) {
+				if (!hhjzoomin || !globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = hhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = hhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
-				if (!hhjzoomin) {
+				if (!hhjzoomin || !globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
@@ -4201,13 +4211,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(248));
 
 				HoldKey(0x39); // Jump
-				if (!laughzoomin) {
+				if (!laughzoomin || !globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = laughzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = laughzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
@@ -4219,7 +4229,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				ReleaseKey(0x39);
 
-				if (!laughzoomin) {
+				if (!laughzoomin || !globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				ReleaseKey(0x1C);
