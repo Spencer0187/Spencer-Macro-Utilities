@@ -4021,7 +4021,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-				if (!lhjzoomin) {
+				if (!lhjzoomin || !globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
 					INPUT mousezoominput = {0};
@@ -4033,7 +4033,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				if (!lhjzoomin) {
+				if (!lhjzoomin || !globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 
