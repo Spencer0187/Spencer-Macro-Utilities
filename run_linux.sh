@@ -1,4 +1,4 @@
-sudo su -c "" # Get root permissions for kernel to cache
+sudo su -c "" # Get root permissions temporarily
 
 wine ./visual\ studio/x64/Release/suspend.exe &
 sleep 0.6

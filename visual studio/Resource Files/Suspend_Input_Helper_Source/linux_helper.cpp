@@ -263,12 +263,17 @@ void command_processor_thread() {
                 uint8_t win_vk = cmd.win_vk_code.load(std::memory_order_relaxed);
                 uint16_t evdev_key = win_vkey_to_evdev_key(win_vk);
                 if (evdev_key != EVDEV_UNASSIGNED) {
+                    printf("[Helper] Emitting key event: VK=0x%02X EVDEV=%d VAL=%d\n", win_vk, evdev_key, cmd.value.load(std::memory_order_relaxed));
                     emit_uinput(EV_KEY, evdev_key, cmd.value.load(std::memory_order_relaxed));
                 }
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             } else if (type == CMD_MOUSE_MOVE_RELATIVE) {
                 emit_uinput(EV_REL, REL_X, cmd.rel_x.load(std::memory_order_relaxed));
                 emit_uinput(EV_REL, REL_Y, cmd.rel_y.load(std::memory_order_relaxed));
+                emit_uinput(EV_SYN, SYN_REPORT, 0);
+            } else if (type == CMD_MOUSE_WHEEL) {
+                int32_t delta = cmd.value.load(std::memory_order_relaxed);
+                emit_uinput(EV_REL, REL_WHEEL, delta);  // Emit wheel event (+ = up, - = down)
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             }
             
@@ -565,6 +570,7 @@ int setup_uinput_device() {
     ioctl(fd, UI_SET_EVBIT, EV_REL);
     ioctl(fd, UI_SET_RELBIT, REL_X);
     ioctl(fd, UI_SET_RELBIT, REL_Y);
+    ioctl(fd, UI_SET_RELBIT, REL_WHEEL);
 
     struct uinput_user_dev uidev;
     memset(&uidev, 0, sizeof(uidev));
