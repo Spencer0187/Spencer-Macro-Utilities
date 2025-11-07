@@ -2835,9 +2835,6 @@ static void RunGUI()
 					ImGui::Separator();
 
 					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
-					ImGui::Checkbox("Replace Shiftlock with Zooming In", &laughzoomin);
-					ImGui::SameLine();
-					ImGui::Checkbox("Reverse Direction?", &laughzoominreverse);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
