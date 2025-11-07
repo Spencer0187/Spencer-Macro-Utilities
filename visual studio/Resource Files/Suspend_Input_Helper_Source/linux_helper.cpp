@@ -273,8 +273,8 @@ void command_processor_thread() {
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             } else if (type == CMD_MOUSE_WHEEL) {
                 int32_t delta = cmd.value.load(std::memory_order_relaxed);
-                emit_uinput(EV_REL, REL_WHEEL, delta);  // Emit wheel event (+ = up, - = down)
                 printf("[Helper] Emitting mouse wheel event: DELTA=%d\n", delta);
+                emit_uinput(EV_REL, REL_WHEEL, delta);  // Emit wheel event (+ = up, - = down)
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             }
             

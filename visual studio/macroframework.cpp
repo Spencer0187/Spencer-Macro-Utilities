@@ -272,12 +272,6 @@ bool chatoverride = true;
 bool toggle_jump = true;
 bool toggle_flick = true;
 bool fasthhj = false;
-bool hhjzoomin = false;
-bool hhjzoominreverse = false;
-bool laughzoomin = false;
-bool laughzoominreverse = false;
-bool lhjzoomin = false;
-bool lhjzoominreverse = false;
 bool globalzoomin = false;
 bool globalzoominreverse = false;
 bool wallesslhjswitch = false;
@@ -1020,12 +1014,6 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"wallwalktoggleside", &wallwalktoggleside},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
-	{"hhjzoomin", &hhjzoomin},
-	{"hhjzoominreverse", &hhjzoominreverse},
-	{"laughzoomin", &laughzoomin},
-	{"laughzoominreverse", &laughzoominreverse},
-	{"lhjzoomin", &lhjzoomin},
-	{"lhjzoominreverse", &lhjzoominreverse},
 	{"globalzoomin", &globalzoomin},
 	{"globalzoominreverse", &globalzoominreverse},
 	{"wallesslhjswitch", &wallesslhjswitch},
@@ -2780,13 +2768,15 @@ static void RunGUI()
 					ImGui::TextWrapped("Delay between every key press in chat (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
-					if (ImGui::InputText("##PasteDelay", PasteDelayChar, sizeof(PasteDelayChar), ImGuiInputTextFlags_CharsDecimal |ImGuiInputTextFlags_CharsNoBlank)) {
+					if (ImGui::InputText("##PasteDelay", PasteDelayChar, sizeof(PasteDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							PasteDelay = std::stoi(PasteDelayChar);
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
 					}
+					ImGui::SameLine();
+					ImGui::Text("ms");
 
 					ImGui::Separator();
 
@@ -2825,7 +2815,7 @@ static void RunGUI()
 					ImGui::AlignTextToFramePadding();
 					ImGui::Text("Amount of Minutes Between Anti-AFK Runs:");
 					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
+					ImGui::SetNextItemWidth(30);
 					if (ImGui::InputText("##AntiAFKTime", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							AntiAFKTime = std::stoi(AntiAFKTimeChar);
@@ -2833,639 +2823,32 @@ static void RunGUI()
 						} catch (const std::out_of_range &e) {
 						}
 					}
+					ImGui::SameLine();
+					ImGui::Text("minutes");
 
 					ImGui::Separator();
 
-					ImGui::Checkbox("Replace shiftlock with zooming in (Global)", &globalzoomin);
+					ImGui::Checkbox("Replace shiftlock with zooming in", &globalzoomin);
 					ImGui::SameLine();
 					ImGui::Checkbox("Reverse Direction?", &globalzoominreverse);
 
 					ImGui::Separator();
 
-					ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
-
-					ImGui::Separator();
-					
-					if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
-						InitializeSections();
-					}
-
-					ImGui::Separator();
-
-					ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight() * 0.5f));
-
-					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(50, 102, 205, 255)); // Blue
-					ImGui::Text("%s", "Want to Donate directly to my Github?");
-					if (ImGui::IsItemHovered()) {
-						ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-						if (ImGui::IsItemClicked()) {
-							ShellExecuteA(NULL, "open", "https://github.com/sponsors/Spencer0187", NULL, NULL, SW_SHOWNORMAL);
-						}
-					}
-					ImGui::PopStyleColor();
-
-					ImGui::Text("%s", "Github Doesn't take any of the profits.");
-
-					// End the scrollable child region
-					ImGui::EndChild();
-				}
-				ImGui::End();
-			}
-
-            ImGui::EndChild(); // End Global Settings child window
-
-			// Calculate left panel width and height
-			float left_panel_width = ImGui::GetWindowSize().x * 0.3f - 23;
-
-			ImGui::BeginChild("LeftScrollSection", ImVec2(left_panel_width, ImGui::GetWindowSize().y - settings_panel_height - 20), true);
-
-			for (size_t display_index = 0; display_index < section_amounts; ++display_index) {
-
-				int i = section_order[display_index]; // Get section index from order array
-
-				ImGui::PushID(i);
-
-				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;
-
-				// Set up button colors based on toggle state
-				if (section_toggles[i]) {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.29f, 0.45f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.06f, 0.53f, 0.98f, 1.0f));
-				} else {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.45f, 0.29f, 0.15f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.98f, 0.59f, 0.26f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.98f, 0.53f, 0.06f, 1.0f));
-				}
-
-				// Calculate button height based on text
-				ImVec2 titleSize = ImGui::CalcTextSize(sections[i].title.c_str(), nullptr, true);
-				ImVec2 descriptionSize = ImGui::CalcTextSize(sections[i].description.c_str(), nullptr, true, buttonWidth - 20);
-				float buttonHeight = titleSize.y + descriptionSize.y + ImGui::GetStyle().FramePadding.y * 2;
-
-
-				// Create the button with a custom layout
-				if (ImGui::GetScrollMaxY() == 0) {
-					if (ImGui::Button("", ImVec2(buttonWidth - 7, buttonHeight))) {
-						selected_section = i;
-					}
-				} else {
-					if (ImGui::Button("", ImVec2(buttonWidth - 18, buttonHeight))) {
-						selected_section = i;
-					}
-				}
-
-
-				// Drag and Drop Source
-				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
-					ImGui::SetDragDropPayload("DND_SECTION", &display_index, sizeof(int)); // Dragging by visual index
-					ImGui::EndDragDropSource();
-				}
-
-				if (ImGui::BeginDragDropTarget()) {
-					if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DND_SECTION")) {
-						int payload_index = *(const int *)payload->Data;
-						std::swap(section_order[payload_index], section_order[display_index]);
-					}
-					ImGui::EndDragDropTarget();
-				}
-
-				// Custom text rendering on buttons
-
-				ImVec2 buttonPos = ImGui::GetItemRectMin();
-				ImVec2 textPos = ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y);
-				ImDrawList* drawList = ImGui::GetWindowDrawList();
-				drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), sections[i].title.c_str());
-
-				// Wrap and draw description
-				std::stringstream ss(sections[i].description);
-				std::string word, currentLine;
-				textPos.y += titleSize.y;
-				while (ss >> word) {
-					std::string potentialLine = currentLine + (currentLine.empty() ? "" : " ") + word;
-					ImVec2 potentialLineSize = ImGui::CalcTextSize(potentialLine.c_str());
-
-				if (ImGui::GetScrollMaxY() == 0) { // No scrollbar
-					if (potentialLineSize.x > buttonWidth - 7) {
-						// Draw the current line and move to the next
-						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
-						textPos.y += potentialLineSize.y;
-						currentLine = word;
-					} else {
-						currentLine = potentialLine;
-					}
-				} else {
-					if (potentialLineSize.x > buttonWidth - 18) { // Scrollbar
-						// Draw the current line and move to the next
-						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
-						textPos.y += potentialLineSize.y;
-						currentLine = word;
-					} else {
-						currentLine = potentialLine;
-					}
-				}
-				}
-
-				if (!currentLine.empty()) {
-					drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
-				}
-
-				ImGui::PopStyleColor(3);
-				ImGui::PopID();
-
-				ImGui::Separator();
-			}
-
-			ImGui::EndChild();
-
-            // Right section
-            ImGui::SameLine(); // Move to the right of the left section
-
-			ImVec2 rightSectionSize(
-				display_size.x - 23 - left_panel_width,
-				display_size.y - settings_panel_height - 20 - 30
-			);
-
-            // Right child window with dynamic sizing
-			ImGui::BeginChild("RightSection", rightSectionSize, true);
-
-			// Display different content based on the selected section
-			if (selected_section >= 0 && selected_section < sections.size()) {
-				// Get the binding state for this section's key
-				unsigned int* currentKey = section_to_key.at(selected_section);
-				BindingState& state = g_bindingStates[currentKey];
-    
-				// Display section title and keybind UI
-				ImGui::TextWrapped("Settings for %s", sections[selected_section].title.c_str());
-				ImGui::Separator();
-				ImGui::NewLine();
-				ImGui::TextWrapped("Keybind:");
-				ImGui::SameLine();
-
-				// Keybind button - use the state's buttonText
-				if (ImGui::Button(state.buttonText.c_str())) {
-					state.bindingMode = true;
-					state.notBinding = false;
-					state.buttonText = "Press a Key...";
-				}
-
-				ImGui::SameLine();
-
-				// Handle key bindings for all sections
-				if (section_to_key.count(selected_section)) {
-					*currentKey = BindKeyMode(currentKey, *currentKey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
-        
-					GetKeyNameFromHex(*currentKey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-				}
-
-				// Use the state's keyBuffer for display
-				ImGui::InputText("##KeyBufferHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
-				ImGui::SameLine();
-				ImGui::TextWrapped("Key Binding");
-				ImGui::SameLine();
-				ImGui::SetNextItemWidth(50.0f);
-
-				ImGui::InputText("##KeyBuffer", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
-
-				ImGui::SameLine();
-				ImGui::TextWrapped("Key Binding (Hexadecimal)");
-				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? 
-										ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-				ImGui::TextWrapped("Enable This Macro:");
-				ImGui::PopStyleColor();
-				ImGui::SameLine();
-				if (selected_section >= 0 && selected_section < section_amounts) {
-					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), 
-									&section_toggles[selected_section]);
-				}
-				ImGui::SameLine(243);
-				ImGui::TextWrapped("(Human-Readable)");
-
-				if (selected_section == 0) { // Freeze Macro
-					ImGui::TextWrapped("Automatically Unfreeze for default 50ms after this amount of seconds (Anti-Internet-Kick)");
-					ImGui::SetNextItemWidth(60.0f);
-					ImGui::InputFloat("##FreezeFloat", &maxfreezetime, 0.0f, 0.0f, "%.2f");
+					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
+					ImGui::Checkbox("Replace Shiftlock with Zooming In", &laughzoomin);
 					ImGui::SameLine();
-					ImGui::SetNextItemWidth(300.0f);
-					ImGui::SliderFloat("##FreezeSlider", &maxfreezetime, 0.0f, 9.8f, "%.2f Seconds");
-
-					char maxfreezeoverrideBuffer[16];
-					std::snprintf(maxfreezeoverrideBuffer, sizeof(maxfreezeoverrideBuffer), "%d", maxfreezeoverride);
-
-					ImGui::SetNextItemWidth(50.0f);
-					if (ImGui::InputText("Modify 50ms Default Unfreeze Time (MS)", maxfreezeoverrideBuffer, sizeof(maxfreezeoverrideBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						maxfreezeoverride = std::atoi(maxfreezeoverrideBuffer);
-					}
-
-					ImGui::Checkbox("Allow Roblox to be frozen while not tabbed in", &freezeoutsideroblox);
-					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
-					if (isfreezeswitch || takeallprocessids) {
-						freezeoutsideroblox = true;
-					}
-
-					ImGui::Checkbox("Freeze all Found Processes Instead of Newest", &takeallprocessids);
-
-					ImGui::SameLine();
-					ImGui::TextWrapped("(ONLY EVER USE FOR COMPATIBILITY ISSUES WITH NON-ROBLOX GAMES)");
+					ImGui::Checkbox("Reverse Direction?", &laughzoominreverse);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses "
-										"ALL network and physics activity that the server sends or recieves from you.");
+					ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6!");
+					ImGui::TextWrapped("Go against a wall unshiftlocked and angle your camera DIRECTLY OPPOSITE TO THE WALL. "
+										"The Macro will Automatically type out /e laugh using the settings inside of the \"Unequip Com\" section. "
+										"It will automatically time your shiftlock and jump to laugh clip through up to ~1.3 studs.");
 
 				}
 
-				if (selected_section == 1) { // Item Desync
-					ImGui::TextWrapped("Gear Slot:");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
-					ImGui::InputText("##ItemDesync", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-					try {
-						desync_slot = std::stoi(ItemDesyncSlot);
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
-					}
-					ImGui::Separator();
-					ImGui::TextWrapped("Equip your item inside of the slot you have picked here, then hold the keybind for 4-7 seconds");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("This Macro rapidly sends number inputs to your roblox client, enough that the server begins to throttle "
-										"you. The item that you're holding must not make a serverside sound, else desyncing yourself will be "
-										"very buggy, and you will be unable to send any physics data to the server. Once you have desynced, "
-										"the server will assume you're not holding an item, but your client will, which permanently enables "
-										"client-side collision on the item.");
-					ImGui::Separator();
-					ImGui::TextWrapped(
-										"Also, for convenience sake, you cannot activate desync unless you're tabbed into roblox, You will "
-										"most likely crash any other program if you activate it in there.");
-				}
-
-				if (selected_section == 2) { // HHJ
-					ImGui::Checkbox("Automatically time inputs", &autotoggle);
-					ImGui::SameLine();
-					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
-					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
-					ImGui::Checkbox("Replace Shiftlock with Zooming In", &hhjzoomin);
-					ImGui::SameLine();
-					ImGui::Checkbox("Reverse Direction?", &hhjzoominreverse);
-					ImGui::TextWrapped("Length of HHJ flicks (ms):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJLength", HHJLengthChar, sizeof(HHJLengthChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJLength = std::stoi(HHJLengthChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("(ADVANCED) Override current freeze delay (Non Zero) (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJFreezeDelayOverride", HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJFreezeDelayOverride = std::stoi(HHJFreezeDelayOverrideChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("(ADVANCED) Delay after freezing before shiftlock is held (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay1", HHJDelay1Char, sizeof(HHJDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay1 = std::stoi(HHJDelay1Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held before spinning (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay2", HHJDelay2Char, sizeof(HHJDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay2 = std::stoi(HHJDelay2Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held after freezing (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay3", HHJDelay3Char, sizeof(HHJDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay3 = std::stoi(HHJDelay3Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
-					ImGui::TextColored(ImColor(50, 102, 205, 255), "What is this ("); ImGui::SameLine(0, 0);
-					ImGui::Text("?"); ImGui::SameLine(0, 0);
-					ImGui::TextColored(ImColor(50, 102, 205, 255), ")");
-					ImGui::SetCursorScreenPos(tooltipcursorpos);
-					ImGui::InvisibleButton("##tooltip", ImGui::CalcTextSize("What is this (?)"));
-					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-						ImGui::SetTooltip("These are advanced options configurable for HHJ.\nThey modify the logic of what occurs after the unfreeze.\n"
-										  "If you figure out a combination of these first two values that\nconsistently leads to higher HHJ's, please "
-										  "tell the Roblox Glitching Community Discord.\n\nThe Defaults of each option are 9, 17, and 16 by default for Windows,\nand "
-										  "0, 0, 17 on Linux Respectively.");
-					ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x + ImGui::CalcTextSize("What is this (?)").x, tooltipcursorpos.y));
-					ImGui::NewLine();
-
-					ImGui::Separator();
-					ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
-					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("Have your Sensitivity and Cam-Fix options set before using this module.");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("Assuming unequip com offset set to /e dance2 is used prior to offset com, to perform a Helicopter High Jump, "
-										"you want to align yourself with your back against the wall, and rotate slightly to the left (around 5-15 degrees). "
-										"Now, turn your camera to face directly towards the wall, turn it towards the left a similar amount (5-15 degrees), "
-										"in such a way that when you hold W, you turn INTO the wall, instead of away from it (the smaller the angle, the more "
-										"successful you'll be). Now, still keeping the alignment and camera angle, perform a normal lag high jump without "
-										"holding any movement keys. Instead of lagging, hold w, and press the assigned hotkey.");
-
-					ImGui::Separator();
-					ImGui::TextWrapped("If you are struggling with the lag high jump timing part, you can try using the \"Automatically time inputs\" feature. "
-										"Align in the exact same way as stated above, but instead doing the lhj motion, just press the assigned key. This should time "
-										"the two jumps, as well as the w tap for you. This can also act as a demonstration for what to do, when using manual activation of the module.");
-
-				}
-
-				if (selected_section == 3) { // Speedglitch
-
-					float CurrentSensValue = atof(RobloxSensValue);
-					if (CurrentSensValue != PreviousSensValue) {
-						if (camfixtoggle) {
-							try {
-								RobloxPixelValue = static_cast<int>(((500.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
-							} catch (const std::invalid_argument &e) {
-							} catch (const std::out_of_range &e) {
-							}
-							
-						} else {
-							try {
-								RobloxPixelValue = static_cast<int>(((360.0f / CurrentSensValue) * (static_cast<float>(359) / 360)) + 0.5f);
-							} catch (const std::invalid_argument &e) {
-							} catch (const std::out_of_range &e) {
-							}
-						}
-						PreviousSensValue = CurrentSensValue;
-						sprintf(RobloxPixelValueChar, "%d", RobloxPixelValue);
-					}
-
-					ImGui::TextWrapped("Pixel Value for 180 Degree Turn BASED ON SENSITIVITY:");
-					ImGui::SetNextItemWidth(90.0f);
-					ImGui::SameLine();
-					if (ImGui::InputText("##PixelValue", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							speed_strengthx = std::stoi(RobloxPixelValueChar);
-							speed_strengthy = -std::stoi(RobloxPixelValueChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspeedswitch);
-					ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
-					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT: Have your Sensitivity and Cam-Fix options set before using this module.");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-
-					ImGui::TextWrapped("Assuming unequip \"/e dance2\" is used prior to offset com, to activate a speed glitch, enable shiftlock mode "
-										"(found in roblox settings), and press the keybind once to start the macro (or hold down if you are using the hold key option). "
-										"Note that the macro should rotate you exactly 180 degrees. If not, verify your Roblox sensitivity in the settings matches the Macros sensitivity value, "
-										"also, test out speedglitch with the \"Cam-Fix\" at the top left set to both true and false. Once the macro is activated, simply jump, and hold w. "
-										"As long as you are in the air, you will start to gain immense velocity towards the direction you are facing (assuming shiftlock has been held, and "
-										", and you are holding w). "
-);
-				}
-
-				if (selected_section == 4) { // Gear Unequip COM offset
-					ImGui::TextWrapped("Gear Slot:");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(30.0f);
-					if (ImGui::InputText("##Gearslot", ItemSpeedSlot, sizeof(ItemSpeedSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							speed_slot = std::stoi(ItemSpeedSlot);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("Type in a custom chat message! (Disables gear equipping, just pastes your message in chat)");
-					ImGui::TextWrapped("(Leave this blank if you don't want a custom message)");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
-					ImGui::InputText("##CustomText", CustomTextChar, sizeof(CustomTextChar));
-
-					ImGui::SetNextItemWidth(150.0f);
-					if (ImGui::BeginCombo("Select Emote", optionsforoffset[selected_dropdown])) {
-						for (int i = 0; i < IM_ARRAYSIZE(optionsforoffset); i++) {
-							bool is_selected = (selected_dropdown == i);
-							if (ImGui::Selectable(optionsforoffset[i], is_selected)) {
-								selected_dropdown = i;  // Update the selected option
-								text = optionsforoffset[selected_dropdown];
-							}
-							if (is_selected) {
-								ImGui::SetItemDefaultFocus();  // Ensure the selected item has focus
-							}
-						}
-						ImGui::EndCombo();
-					}
-
-					// Get the binding state for vk_dkey
-					BindingState& enterkeyState = g_bindingStates[&vk_enterkey];
-    
-					ImGui::AlignTextToFramePadding();
-					ImGui::TextWrapped("Key to Press After Message/Emote paste:");
-					ImGui::SameLine();
-    
-					if (ImGui::Button((enterkeyState.buttonText + "##EnterKey").c_str())) {
-						enterkeyState.bindingMode = true;
-						enterkeyState.notBinding = false;
-						enterkeyState.buttonText = "Press a Key...";
-					}
-    
-					ImGui::SameLine();
-					vk_enterkey = BindKeyMode(&vk_enterkey, vk_enterkey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHex(vk_enterkey, enterkeyState.keyBufferHuman, sizeof(enterkeyState.keyBufferHuman));
-					ImGui::InputText("Hex:", enterkeyState.keyBufferHuman, sizeof(enterkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(50.0f);
-					ImGui::PushID("Press2");
-					// Use the state's keyBuffer for hex display
-					ImGui::InputText("##HumanKey", enterkeyState.keyBuffer, sizeof(enterkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
-					ImGui::PopID();
-
-					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
-					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
-
-					ImGui::Separator();
-					ImGui::TextWrapped("This module allows you to trick Roblox into thinking your centre of mass is elsewhere. This is used in the Helicopter "
-										"High Jump, Speed Glitch and Walless LHJ modules (may change in the future).");
-					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT: This ONLY works in R6. Although the glitch is possible in R15, the macro isn't built around that rig type. "
-										"An Item is also required, and must be placed in the corresponding gear slot (3 by default).");
-					ImGui::NewLine();
-					ImGui::TextWrapped("Usage:");
-					ImGui::TextWrapped("Assuming you have a gear ready, to get an offset com, put the gear into the corresponding gear slot (set above), "
-										"and press the keybind (F8 is used with the fn key). Note if the emote bugs out such as restarting halfway through, "
-										"or starting late due to a delay, your com may not be in its most offset state. Reusing the macro until the emote "
-										"plays out error free will fix this.");
-					ImGui::NewLine();
-					ImGui::TextWrapped(
-						"In most cases, you will be using the \"/e dance2\" emote, as that provides you with the furthest offset, although the other emotes "
-						"are still useful occasionaly, such as \"/e laugh\" for wraparounds, and \"/e cheer\" for walless lhjs.");
-				}
-
-				if (selected_section == 5) { // Presskey / Press a Key
-					// Get the binding state for vk_dkey
-					BindingState& dkeyState = g_bindingStates[&vk_dkey];
-    
-					ImGui::TextWrapped("Key to Press:");
-					ImGui::SameLine();
-    
-					if (ImGui::Button((dkeyState.buttonText + "##DKey").c_str())) {
-						dkeyState.bindingMode = true;
-						dkeyState.notBinding = false;
-						dkeyState.buttonText = "Press a Key...";
-					}
-    
-					ImGui::SameLine();
-					vk_dkey = BindKeyMode(&vk_dkey, vk_dkey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
-					GetKeyNameFromHex(vk_dkey, dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman));
-					ImGui::InputText("Key to Press", dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(50.0f);
-					ImGui::PushID("Press2");
-					// Use the state's keyBuffer for hex display
-					ImGui::InputText("Key to Press", dkeyState.keyBuffer, sizeof(dkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
-					ImGui::PopID();
-					ImGui::NewLine();
-					ImGui::SameLine(276);
-					ImGui::Text("(Human-Readable)");
-					ImGui::SameLine(510);
-					ImGui::Text("(Hexadecimal)");
-
-					ImGui::Text("Length of Second Button Press (ms):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(80);
-					if (ImGui::InputText("##PressKeyDelayChar", PressKeyDelayChar, sizeof(PressKeyDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							PressKeyDelay = std::stoi(PressKeyDelayChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::Text("Delay Before Second Press (ms):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(80);
-					if (ImGui::InputText("##PressKeyBonusDelayChar", PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							PressKeyBonusDelay = std::stoi(PressKeyBonusDelayChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-
-					ImGui::Checkbox("Make PressKey only work while tabbed into Roblox", &presskeyinroblox);
-
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind. "
-										"This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
-				}
-
-				if (selected_section == 6) { // Wallhop
-					ImGui::TextWrapped("Flick Degrees (Estimated):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					float sensValue = std::atof(RobloxSensValue);
-					if (sensValue != 0.0f) {
-						snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
-					}
-					
-					if (ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue));
-						snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
-						try {
-							wallhop_dx = std::round(std::stoi(WallhopPixels));
-							wallhop_dy = -std::round(std::stoi(WallhopPixels));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("Flick Pixel Amount:");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopPixels", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							wallhop_dx = std::round(std::stoi(WallhopPixels));
-							wallhop_dy = -std::round(std::stoi(WallhopPixels));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("Wallhop Length (ms):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopDelay", WallhopDelayChar, sizeof(WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							WallhopDelay = std::round(std::stoi(WallhopDelayChar));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::TextWrapped("Bonus Wallhop Delay Before Jumping (ms):");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopBonusDelay", WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							WallhopBonusDelay = std::round(std::stoi(WallhopBonusDelayChar));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
-
-					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
-					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
-					ImGui::Checkbox("Flick-Back During Wallhop", &toggle_flick);
-
-					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT:");
-					ImGui::TextWrapped("THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY. "
-										"If you want to pick a SPECIFIC ANGLE, heres how. "
-										"For games without the cam-fix module, 180 degrees is equal to 360 divided by your Roblox Sensitivity. "
-										"For games with the cam-fix module, 180 degrees is equal to 500 divided by your Roblox Sensitivity. "
-										"Ex: 0.6 sens with no cam fix = 600 pixels, which means 600 / 4 (150) is equal to a 45 degree turn.");
-					ImGui::TextWrapped("INTEGERS ONLY!");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("This Macro automatically flicks your screen AND jumps at the same time, performing a wallhop.");
-				}
-
-				if (selected_section == 7) { // Walless LHJ
+				if (selected_section == 9) { // Walless LHJ
 					ImGui::Checkbox("Switch to Left-Sided LHJ", &wallesslhjswitch); // Left Sided lhj switch
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
@@ -3475,7 +2858,7 @@ static void RunGUI()
 										"in order to do it.");
 				}
 
-				if (selected_section == 8) { // Item Clip
+				if (selected_section == 10) { // Item Clip
 					ImGui::TextWrapped("Item Clip Slot:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(30.0f);
@@ -3511,77 +2894,6 @@ static void RunGUI()
 										"The item in the best scenario should be big and stretch far into the wall. ");
 					ImGui::TextWrapped("Also, for convenience sake, you cannot activate item clip unless you're tabbed into roblox.");
 				}
-
-				if (selected_section == 9) { // Laugh Clip
-					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
-					ImGui::Checkbox("Replace Shiftlock with Zooming In", &laughzoomin);
-					ImGui::SameLine();
-					ImGui::Checkbox("Reverse Direction?", &laughzoominreverse);
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6!");
-					ImGui::TextWrapped("Go against a wall unshiftlocked and angle your camera DIRECTLY OPPOSITE TO THE WALL. "
-										"The Macro will Automatically type out /e laugh using the settings inside of the \"Unequip Com\" section. "
-										"It will automatically time your shiftlock and jump to laugh clip through up to ~1.3 studs.");
-				}
-
-				if (selected_section == 10) { // Wall-Walk
-
-					float CurrentWallWalkValue = atof(RobloxSensValue);
-					float CurrentWallwalkSide = camfixtoggle;
-
-
-					if (CurrentWallWalkValue != PreviousWallWalkValue) {
-						if (camfixtoggle) {
-							wallwalk_strengthx = static_cast<int>(round((500.0f / CurrentWallWalkValue) * 0.13f));
-							wallwalk_strengthy = -static_cast<int>(round((500.0f / CurrentWallWalkValue) * 0.13f));
-						} else {
-							wallwalk_strengthx = static_cast<int>(round((360.0f / CurrentWallWalkValue) * 0.13f));
-							wallwalk_strengthy = -static_cast<int>(round((360.0f / CurrentWallWalkValue) * 0.13f));
-						}
-					}
-
-					PreviousWallWalkValue = CurrentWallWalkValue;
-					sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
-
-					ImGui::TextWrapped("Wall-Walk Pixel Value BASED ON SENSITIVITY (meant to be low):");
-					ImGui::SetNextItemWidth(90.0f);
-					ImGui::SameLine();
-					ImGui::InputText("##PixelValue", RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-
-					ImGui::Checkbox("Switch to Left-Flick Wallwalk", &wallwalktoggleside);
-
-					ImGui::SetNextItemWidth(100.0f);
-					ImGui::InputText("Delay Between Flicks (Don't change from 72720 unless neccessary):", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
-
-					try {
-						RobloxWallWalkValueDelay = atof(RobloxWallWalkValueDelayChar);
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
-					}
-
-					try { // Error Handling
-						wallwalk_strengthx = std::stoi(RobloxWallWalkValueChar);
-						wallwalk_strengthy = -std::stoi(RobloxWallWalkValueChar);
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
-					}
-
-					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &iswallwalkswitch);
-					ImGui::Separator();
-					ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
-					ImGui::TextWrapped("THE HIGHER FPS YOU ARE, THE MORE STABLE IT GETS, HOWEVER 60 FPS IS ENOUGH FOR INFINITE DISTANCE");
-					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
-										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
-										"You can also toggle whether it's right facing or left facing (Makes its respective side easier) "
-										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
-					ImGui::Separator();
-					ImGui::TextWrapped("Explanation:");
-					ImGui::NewLine();
-					ImGui::TextWrapped("This macro abuses the way leg raycast physics work to permanently keep wallhopping, without jumping "
-										"you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across.");
-			}
 
 				if (selected_section == 11) { // Spamkey
 					BindingState& spamState = g_bindingStates[&vk_spamkey];
@@ -3929,12 +3241,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 			if (isfreezeswitch) {  // Toggle mode
 				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {  // Detect button press edge
-					isSuspended = !isSuspended;  // Toggle the freeze state
-					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, isSuspended);
+				 isSuspended = !isSuspended;  // Toggle the freeze state
+				 SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, isSuspended);
 
-					if (isSuspended) {
-						suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
-					}
+				 if (isSuspended) {
+					 suspendStartTime = std::chrono::steady_clock::now();  // Start the timer
+				 }
 				}
 			} else {  // Hold mode
 				if (isMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {
@@ -4021,147 +3333,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-				if (!lhjzoomin || !globalzoomin) {
-					HoldKeyBinded(vk_shiftkey);
-				} else {
+				if (globalzoomin) {
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = lhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
-				}
-				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
-				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				if (!lhjzoomin || !globalzoomin) {
-					ReleaseKeyBinded(vk_shiftkey);
-				}
-
-				ReleaseKey(0x39);
-				islhj = true;
-			}
-		} else {
-			islhj = false;
-		}
-
-		// Speedglitch
-		if (IsKeyPressed(vk_xkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
-			if (!isspeedglitch) {
-				isspeed = !isspeed;
-				isspeedglitch = true;
-			}
-		} else {
-			isspeedglitch = false;
-			if (isspeedswitch) {
-				isspeed = false;
-			}
-		}
-
-		// Gear Unequip COM Offset
-		if (IsKeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
-			if (!isunequipspeed) {
-				if (chatoverride) {
-					HoldKey(0x35);
 				} else {
-					HoldKeyBinded(vk_chatkey);
-					std::this_thread::sleep_for(std::chrono::milliseconds(17));
-					ReleaseKeyBinded(vk_chatkey);
-				}
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(17));
-				if (chatoverride) {
-					ReleaseKey(0x35);
-				}
-
-				if (strlen(CustomTextChar) >= 1) {
-					PasteText(CustomTextChar);
-					std::this_thread::sleep_for(std::chrono::milliseconds(25));
-					HoldKeyBinded(vk_enterkey);
-
-					std::this_thread::sleep_for(std::chrono::milliseconds(35));
-					ReleaseKeyBinded(vk_enterkey);
-					isunequipspeed = true;
-					continue;
-				}
-
-				PasteText(text);
-				std::this_thread::sleep_for(std::chrono::milliseconds(25));
-				HoldKeyBinded(vk_enterkey);
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(35));
-				ReleaseKeyBinded(vk_enterkey);
-				if (selected_dropdown == 2) { // Cheer
-					std::this_thread::sleep_for(std::chrono::milliseconds(16));
-				} else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(65));
-				}
-
-				if (selected_dropdown == 0) { // Dance
-					std::this_thread::sleep_for(std::chrono::milliseconds(815));
-				}
-				if (selected_dropdown == 1) { // Laugh
-					std::this_thread::sleep_for(std::chrono::milliseconds(175));
-				}
-				HoldKey(speed_slot + 1);
-				std::this_thread::sleep_for(std::chrono::milliseconds(4));
-				ReleaseKey(speed_slot + 1);
-				std::this_thread::sleep_for(std::chrono::milliseconds(4));
-				if (!unequiptoggle) {
-					HoldKey(speed_slot + 1);
-				}
-				ReleaseKey(speed_slot + 1);
-				isunequipspeed = true;
-			}
-		} else {
-			isunequipspeed = false;
-		}
-
-		// Helicopter High jump
-		if (IsKeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
-			if (!HHJ) {
-
-				if (autotoggle) { // Auto-Key-Timer
-					HoldKey(0x39);
-					std::this_thread::sleep_for(std::chrono::milliseconds(550));
-					HoldKey(0x11);
-					std::this_thread::sleep_for(std::chrono::milliseconds(68));
-				}
-
-				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);
-
-				// If the users custom freeze duration is zero or nothing, do regular stuff, else, use their custom duration
-				if (strcmp(HHJFreezeDelayOverrideChar, "0") == 0 || strcmp(HHJFreezeDelayOverrideChar, "") == 0) {
-					// FastHHJ lowers freeze time by 300 ms
-					if (!fasthhj) {
-						std::this_thread::sleep_for(std::chrono::milliseconds(300));
-					}
-					std::this_thread::sleep_for(std::chrono::milliseconds(200));
-				} else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(HHJFreezeDelayOverride));
-				}
-
-				if (autotoggle) { // Auto-Key-Timer
-					ReleaseKey(0x39);
-					ReleaseKey(0x11);
-				}
-
-				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay1));
-				if (!hhjzoomin || !globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
-				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = hhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
-				if (!hhjzoomin || !globalzoomin) {
+				if (globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
@@ -4211,15 +3396,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(248));
 
 				HoldKey(0x39); // Jump
-				if (!laughzoomin || !globalzoomin) {
-					HoldKeyBinded(vk_shiftkey);
-				} else {
+				if (globalzoomin) {
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = laughzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
+				} else {
+					HoldKeyBinded(vk_shiftkey);
 				}
 
 				if (!laughmoveswitch) {
@@ -4229,7 +3414,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				ReleaseKey(0x39);
 
-				if (!laughzoomin || !globalzoomin) {
+				if (globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				ReleaseKey(0x1C);
@@ -4327,7 +3512,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		} else {
 			iswallwalk = false;
 			if (iswallwalkswitch) {
-				iswallwalkloop = false;
+			 iswallwalkloop = false;
 			}
 		}
 
@@ -4361,12 +3546,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (is_bunnyhop_key_considered_held) {
 					if (!isbhop) {
 						isbhoploop = true;
-						isbhop = true;
+					 isbhop = true;
 					}
 				} else {
 					if (isbhop) {
-						isbhoploop = false;
-						isbhop = false;
+					 isbhoploop = false;
+					 isbhop = false;
 					}
 				}
 			}
