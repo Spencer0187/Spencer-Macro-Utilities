@@ -473,15 +473,20 @@ static void ReleaseKey(WORD scanCode, bool extended)
         SendInput(1, &input, sizeof(INPUT));
     }
 }
-
+static void SendLinuxMouseWheel(int delta) {
+    Command cmd = {};
+    cmd.type.store(CMD_MOUSE_WHEEL, std::memory_order_relaxed);
+    cmd.value.store(delta, std::memory_order_relaxed);  // + or - delta value
+    EnqueueCommand(cmd);
+}
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         // Scroll wheel handling
         if (Vk_key == VK_MOUSE_WHEEL_UP) {
-            SendMouseWheel(WHEEL_DELTA);  // Scroll up
+            SendLinuxMouseWheel(WHEEL_DELTA);  // Scroll up
             return;
         } else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
-            SendMouseWheel(-WHEEL_DELTA);  // Scroll down
+            SendLinuxMouseWheel(-WHEEL_DELTA);  // Scroll down
             return;
         }
         
@@ -566,22 +571,6 @@ static void MoveMouse(int dx, int dy)
 		input.mi.dwFlags = MOUSEEVENTF_MOVE;
 		SendInput(1, &input, sizeof(INPUT));
 	}
-}
-
-static void SendMouseWheel(int delta) {
-    if (g_isLinuxWine) {
-        Command cmd = {};
-        cmd.type.store(CMD_MOUSE_WHEEL, std::memory_order_relaxed);
-        cmd.value.store(delta, std::memory_order_relaxed);  // + or - delta value
-        EnqueueCommand(cmd);
-    } else {
-        // Fallback to Windows SendInput
-        INPUT input = {0};
-        input.type = INPUT_MOUSE;
-        input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-        input.mi.mouseData = delta;
-        SendInput(1, &input, sizeof(INPUT));
-    }
 }
 
 // Special Action script to send a command to linux to freeze a PID
