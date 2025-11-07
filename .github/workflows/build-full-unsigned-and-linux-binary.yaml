@@ -12,16 +12,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
       - name: Check for changes
         id: check_diff
         run: |
-          # Check if there are any changes in the source folder compared to the last commit
-          if git diff --quiet -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
-            echo "no_change=true" >> $GITHUB_OUTPUT
+          # check if there are any changes in that folder since the last commit
+          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
+            echo "no_change=true" >> "$GITHUB_OUTPUT"
           else
-            echo "no_change=false" >> $GITHUB_OUTPUT
+            echo "no_change=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build linux binary
