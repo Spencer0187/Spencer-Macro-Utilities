@@ -593,13 +593,27 @@ void evdev_reader_thread(const std::string& device_path) {
         if (ev.type == EV_KEY) {
             uint8_t vk_code = evdev_to_win_vkey(ev.code);
             if (vk_code != VK_UNASSIGNED) {
-                if (isbhop && ev.code == KEY_SPACE)
-                    continue; // block space when bhop on
-
-                if (shared_data)
+                if (isbhop && vk_code == 0x20) {
+                    // Ignore space key state updates when bhop is enabled
+                } else {
                     shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
+                }
             }
+            emit_uinput(EV_KEY, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
+        
+        else if (ev.type == EV_REL) {
+            emit_uinput(EV_REL, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+        
+        else if (ev.type == EV_ABS) {
+            emit_uinput(EV_ABS, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+
+        
     }
 
     ioctl(evdev_fd, EVIOCGRAB, 0); // release grab
