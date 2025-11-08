@@ -478,7 +478,6 @@ static void SendLinuxMouseWheel(int delta) {
     cmd.type.store(CMD_MOUSE_WHEEL, std::memory_order_relaxed);
     cmd.value.store(delta, std::memory_order_relaxed);  // + or - delta value
     EnqueueCommand(cmd);
-    printf("[Compat Layer] Enqueued mouse wheel command with delta: %d\n", delta);
 }
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {

@@ -263,7 +263,7 @@ void command_processor_thread() {
                 uint8_t win_vk = cmd.win_vk_code.load(std::memory_order_relaxed);
                 uint16_t evdev_key = win_vkey_to_evdev_key(win_vk);
                 if (evdev_key != EVDEV_UNASSIGNED) {
-                    // printf("[Helper] Emitting key event: VK=0x%02X EVDEV=%d VAL=%d\n", win_vk, evdev_key, cmd.value.load(std::memory_order_relaxed)); // Key event logging
+                    printf("[Helper] Emitting key event: VK=0x%02X EVDEV=%d VAL=%d\n", win_vk, evdev_key, cmd.value.load(std::memory_order_relaxed)); // Key event logging
                     emit_uinput(EV_KEY, evdev_key, cmd.value.load(std::memory_order_relaxed));
                 }
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
