@@ -1,7 +1,7 @@
 # Spencer Macro Client
 An open-source, Cross-Platform Windows + Linux C++ Roblox ImGui Macro with many features.
 
-To compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp. It is intended to be compiled through windows
+To compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp. It is intended to be compiled through windows.
 To compile the linux helper binary, there is a separate source code folder inside the Resource Files folder. Compile this with g++.
 
 ### Is this A CHEAT???
