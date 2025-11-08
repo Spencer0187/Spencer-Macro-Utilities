@@ -484,10 +484,10 @@ static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         // Scroll wheel handling
         if (Vk_key == VK_MOUSE_WHEEL_UP) {
-            SendLinuxMouseWheel(WHEEL_DELTA);  // Scroll up
+            SendLinuxMouseWheel(WHEEL_DELTA * 100);  // Scroll up
             return;
         } else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
-            SendLinuxMouseWheel(-WHEEL_DELTA);  // Scroll down
+            SendLinuxMouseWheel(-WHEEL_DELTA * 100);  // Scroll down
             return;
         }
         
@@ -503,12 +503,12 @@ static void HoldKeyBinded(WORD Vk_key) {
         if (Vk_key == VK_MOUSE_WHEEL_UP) {
             input.type = INPUT_MOUSE;
             input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = WHEEL_DELTA; // Positive for wheel up
+            input.mi.mouseData = WHEEL_DELTA * 100; // Positive for wheel up
         }
         else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
             input.type = INPUT_MOUSE;
             input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = -WHEEL_DELTA; // Negative for wheel down
+            input.mi.mouseData = -WHEEL_DELTA * 100; // Negative for wheel down
         }
         // Existing mouse button handling
         else if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {

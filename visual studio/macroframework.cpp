@@ -4004,12 +4004,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -4131,12 +4126,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
@@ -4194,12 +4184,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 
 				if (!laughmoveswitch) {
