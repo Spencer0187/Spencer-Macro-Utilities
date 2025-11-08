@@ -32,6 +32,7 @@ enum SpecialActionCommand {
 	SA_NONE = 0,
 	SA_FIND_NEWEST_PROCESS,
 	SA_FIND_ALL_PROCESSES, // For the "takeallprocessids" feature
+	SA_SET_BHOP_DELAY
 };
 
 struct SpecialAction {
