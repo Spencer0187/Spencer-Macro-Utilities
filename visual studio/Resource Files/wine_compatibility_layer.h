@@ -584,34 +584,23 @@ static void MoveMouse(int dx, int dy)
 	}
 }
 
-static void SetBhopDelay(int delay_ms) {
-    SpecialAction action = {};
-    action.command.store(SA_SET_BHOP_DELAY);
-    action.response_success.store(false);
-    action.response_pid_count.store(0);
-    strcpy_s(action.process_name, sizeof(action.process_name), ""); // No process name needed
-
-    snprintf(action.process_name, sizeof(action.process_name), "%d", delay_ms);
-
-    Linux_ExecuteSpecialAction(action);
-}
 
 // Special Action script to send a command to linux to freeze a PID
 static bool Linux_ExecuteSpecialAction(SpecialAction& action_data, int timeout_ms = 1000) {
     if (!g_isLinuxWine || !g_sharedData) return false;
-
+    
     // Wait for the mailbox to be free
     auto start_wait = std::chrono::steady_clock::now();
     while (g_sharedData->special_action.request_ready.load() || g_sharedData->special_action.response_ready.load()) {
         if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_wait).count() > timeout_ms) return false;
         Sleep(1);
     }
-
+    
     // Place the command in the mailbox
     strcpy_s(g_sharedData->special_action.process_name, sizeof(g_sharedData->special_action.process_name), action_data.process_name);
     g_sharedData->special_action.command.store(action_data.command.load(), std::memory_order_relaxed);
     g_sharedData->special_action.request_ready.store(true, std::memory_order_release);
-
+    
     // Wait for the response
     auto start_response = std::chrono::steady_clock::now();
     while (!g_sharedData->special_action.response_ready.load(std::memory_order_acquire)) {
@@ -637,6 +626,18 @@ static bool Linux_ExecuteSpecialAction(SpecialAction& action_data, int timeout_m
     return success;
 }
 
+static void SetBhopDelay(int delay_ms) {
+    SpecialAction action = {};
+    action.command.store(SA_SET_BHOP_DELAY);
+    action.response_success.store(false);
+    action.response_pid_count.store(0);
+    strcpy_s(action.process_name, sizeof(action.process_name), ""); // No process name needed
+
+    snprintf(action.process_name, sizeof(action.process_name), "%d", delay_ms);
+
+    Linux_ExecuteSpecialAction(action);
+}
+
 static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
     if (g_isLinuxWine) {
         // On Linux, we ignore the (empty) handles vector and use the PIDs.
@@ -650,7 +651,7 @@ static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, cons
     else {
         // On Windows, we ignore the PIDs and use the pre-opened handles for max performance.
         if (handles.empty()) return;
-
+        
         if (suspend) {
             if (!pfnSuspend) return;
             for (HANDLE hProcess : handles) {
