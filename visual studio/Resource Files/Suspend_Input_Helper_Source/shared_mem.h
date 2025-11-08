@@ -13,7 +13,9 @@ enum CommandType {
 	CMD_MOUSE_MOVE_RELATIVE,
 	CMD_MOUSE_WHEEL,
 	CMD_SUSPEND_PROCESS,
-	CMD_RESUME_PROCESS
+	CMD_RESUME_PROCESS,
+	CMD_BHOP_ENABLE,
+	CMD_BHOP_DISABLE
 };
 const uint32_t COMMAND_BUFFER_SIZE = 256;
 struct Command {
@@ -29,7 +31,8 @@ struct Command {
 enum SpecialActionCommand {
 	SA_NONE = 0,
 	SA_FIND_NEWEST_PROCESS,
-	SA_FIND_ALL_PROCESSES // For the "takeallprocessids" feature
+	SA_FIND_ALL_PROCESSES, // For the "takeallprocessids" feature
+	SA_SET_BHOP_DELAY
 };
 
 struct SpecialAction {

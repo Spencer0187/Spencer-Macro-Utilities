@@ -632,15 +632,24 @@ static void WallWalkLoop()
 
 static void BhopLoop()
 {
-    while (true) {
-        while (!isbhoploop.load(std::memory_order_acquire)) {
+	if (!g_isLinuxWine) {
+		while (true) {
+			while (!isbhoploop.load(std::memory_order_acquire)) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			HoldKeyBinded(vk_bunnyhopkey);
+			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+			ReleaseKeyBinded(vk_bunnyhopkey);
+			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+		}
+	} else {
+		while (true)
+		{
+			SetLinuxBhopState(isbhoploop.load(std::memory_order_acquire));
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-        HoldKeyBinded(vk_bunnyhopkey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-        ReleaseKeyBinded(vk_bunnyhopkey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-    }
+		}
+		
+	}
 }
 
 static void WallhopThread() {
@@ -3633,6 +3642,10 @@ static void RunGUI()
 					if (ImGui::InputText("##BunnyhopDelay", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							BunnyHopDelay = atof(BunnyHopDelayChar);
+							if (g_isLinuxWine) {
+								Linux_ExecuteSpecialAction(SA_SET_BHOP_DELAY, static_cast<int>(BunnyHopDelay));
+							}
+
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}

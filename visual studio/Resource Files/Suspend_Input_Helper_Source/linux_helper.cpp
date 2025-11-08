@@ -35,6 +35,8 @@
 SharedMemory* shared_data = nullptr;
 int uinput_fd = -1;
 const char* MM_FILE_PATH = "/tmp/cross_input_shm_file";
+bool isbhop = false;
+int bhop_delay = 10;
 
 // --- Function Prototypes ---
 void cleanup(int);
@@ -44,6 +46,8 @@ void emit_uinput(int type, int code, int val);
 void evdev_reader_thread(const std::string& device_path);
 void command_processor_thread();
 void special_action_thread();
+void bhop_thread();
+
 pid_t find_main_process_by_name(const std::string& name);
 std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& name);
 
@@ -228,11 +232,13 @@ int main(int argc, char* argv[]) {
     std::thread mouse_reader(evdev_reader_thread, mouse_path);
     std::thread processor(command_processor_thread);
     std::thread special_actions(special_action_thread);
+    std::thread bhop(bhop_thread);
 
     keyboard_reader.join();
     mouse_reader.join();
     processor.join();
     special_actions.join();
+    bhop.join();
     
     cleanup(0);
     return 0;
@@ -249,6 +255,24 @@ void cleanup(int signum) {
     }
     unlink(MM_FILE_PATH);
     exit(0);
+}
+
+
+void bhop_thread() {
+    while (isbhop) {
+        bool space_pressed = shared_data->key_states[0x20].load(std::memory_order_acquire);
+        if (isbhop && space_pressed) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
+            // Simulate releasing the space key
+            emit_uinput(EV_KEY, KEY_SPACE, 0);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
+            // Simulate pressing the space key again
+            emit_uinput(EV_KEY, KEY_SPACE, 1);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 void command_processor_thread() {
@@ -290,8 +314,15 @@ void command_processor_thread() {
                 if (pid > 0) {
                     hybrid_suspend_or_resume(pid, false);
                 }
+            } else if (type == CMD_BHOP_ENABLE) {
+                printf("[Helper] Received CMD_BHOP_ENABLE\n");
+                isbhop = true;
+                
+            } else if (type == CMD_BHOP_DISABLE) {
+                printf("[Helper] Received CMD_BHOP_DISABLE\n");
+                isbhop = false;
             }
-            
+
             shared_data->read_index.store((read_idx + 1) & (COMMAND_BUFFER_SIZE - 1), std::memory_order_release);
         } else {
             std::this_thread::sleep_for(std::chrono::microseconds(500));
@@ -325,6 +356,13 @@ void special_action_thread() {
                         pid_count++;
                     }
                     success = true;
+                }
+            } else if (cmd == SA_SET_BHOP_DELAY) {
+                int32_t delay = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
+                if (delay >= 0) {
+                    bhop_delay = delay;
+                    success = true;
+                    printf("[Helper] Bhop delay set to %d ms\n", bhop_delay);
                 }
             }
             
@@ -534,25 +572,40 @@ bool interactive_device_detection(std::string& out_keyboard_path, std::string& o
 }
 
 void evdev_reader_thread(const std::string& device_path) {
-    int evdev_fd = open(device_path.c_str(), O_RDONLY);
+    int evdev_fd = open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
     if (evdev_fd < 0) {
         perror(("[ReaderThread] Failed to open " + device_path).c_str());
         return;
     }
 
+    ioctl(evdev_fd, EVIOCGRAB, 1); // optional: grab device
+
     struct input_event ev;
     while (true) {
-        if (read(evdev_fd, &ev, sizeof(ev)) < sizeof(ev)) continue;
-        
+        ssize_t n = read(evdev_fd, &ev, sizeof(ev));
+        if (n != sizeof(ev)) {
+            if (n < 0 && errno != EAGAIN && errno != EINTR)
+                perror("[ReaderThread] read()");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
         if (ev.type == EV_KEY) {
             uint8_t vk_code = evdev_to_win_vkey(ev.code);
             if (vk_code != VK_UNASSIGNED) {
-                shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
+                if (isbhop && ev.code == KEY_SPACE)
+                    continue; // block space when bhop on
+
+                if (shared_data)
+                    shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
             }
         }
     }
+
+    ioctl(evdev_fd, EVIOCGRAB, 0); // release grab
     close(evdev_fd);
 }
+
 
 int setup_uinput_device() {
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
@@ -575,7 +628,7 @@ int setup_uinput_device() {
 
     struct uinput_user_dev uidev;
     memset(&uidev, 0, sizeof(uidev));
-    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "Wine Helper Input");
+    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "Macro Helper Input");
     uidev.id.bustype = BUS_USB;
     uidev.id.vendor  = 0x1234;
     uidev.id.product = 0xfedc;

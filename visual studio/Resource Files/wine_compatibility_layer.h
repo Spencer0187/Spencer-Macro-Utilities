@@ -479,6 +479,17 @@ static void SendLinuxMouseWheel(int delta) {
     cmd.value.store(delta, std::memory_order_relaxed);  // + or - delta value
     EnqueueCommand(cmd);
 }
+
+static void SetLinuxBhopState(bool enable) {
+    Command cmd = {};
+    if (enable) {
+        cmd.type.store(CMD_BHOP_ENABLE, std::memory_order_relaxed);
+    } else {
+        cmd.type.store(CMD_BHOP_DISABLE, std::memory_order_relaxed);
+    }
+    EnqueueCommand(cmd);
+}
+
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         // Scroll wheel handling
