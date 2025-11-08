@@ -4007,7 +4007,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = lhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
@@ -4134,7 +4134,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = hhjzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
@@ -4197,7 +4197,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					INPUT mousezoominput = {0};
 					mousezoominput.type = INPUT_MOUSE;
 					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = laughzoominreverse || globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
+					mousezoominput.mi.mouseData = globalzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
 
 					SendInput(1, &mousezoominput, sizeof(INPUT));
 				}
