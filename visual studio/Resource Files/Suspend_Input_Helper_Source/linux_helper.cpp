@@ -35,6 +35,8 @@
 SharedMemory* shared_data = nullptr;
 int uinput_fd = -1;
 const char* MM_FILE_PATH = "/tmp/cross_input_shm_file";
+bool isbhop = false;
+int bhop_delay = 10;
 
 // --- Function Prototypes ---
 void cleanup(int);
@@ -44,8 +46,10 @@ void emit_uinput(int type, int code, int val);
 void evdev_reader_thread(const std::string& device_path);
 void command_processor_thread();
 void special_action_thread();
+void bhop_thread();
+
 pid_t find_main_process_by_name(const std::string& name);
-std::vector<pid_t> find_all_processes_by_exe(const std::string& name);
+std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& name);
 
 // ********************************************************************
 // *                  CORE HELPER FUNCTIONS                           *
@@ -228,11 +232,13 @@ int main(int argc, char* argv[]) {
     std::thread mouse_reader(evdev_reader_thread, mouse_path);
     std::thread processor(command_processor_thread);
     std::thread special_actions(special_action_thread);
+    std::thread bhop(bhop_thread);
 
     keyboard_reader.join();
     mouse_reader.join();
     processor.join();
     special_actions.join();
+    bhop.join();
     
     cleanup(0);
     return 0;
@@ -251,6 +257,24 @@ void cleanup(int signum) {
     exit(0);
 }
 
+
+void bhop_thread() {
+    while (isbhop) {
+        bool space_pressed = shared_data->key_states[0x20].load(std::memory_order_acquire);
+        if (isbhop && space_pressed) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
+            // Simulate releasing the space key
+            emit_uinput(EV_KEY, KEY_SPACE, 0);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
+            // Simulate pressing the space key again
+            emit_uinput(EV_KEY, KEY_SPACE, 1);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
 void command_processor_thread() {
     while (true) {
         uint32_t read_idx = shared_data->read_index.load(std::memory_order_acquire);
@@ -263,12 +287,18 @@ void command_processor_thread() {
                 uint8_t win_vk = cmd.win_vk_code.load(std::memory_order_relaxed);
                 uint16_t evdev_key = win_vkey_to_evdev_key(win_vk);
                 if (evdev_key != EVDEV_UNASSIGNED) {
+                    printf("[Helper] Emitting key event: VK=0x%02X EVDEV=%d VAL=%d\n", win_vk, evdev_key, cmd.value.load(std::memory_order_relaxed)); // Key event logging
                     emit_uinput(EV_KEY, evdev_key, cmd.value.load(std::memory_order_relaxed));
                 }
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             } else if (type == CMD_MOUSE_MOVE_RELATIVE) {
                 emit_uinput(EV_REL, REL_X, cmd.rel_x.load(std::memory_order_relaxed));
                 emit_uinput(EV_REL, REL_Y, cmd.rel_y.load(std::memory_order_relaxed));
+                emit_uinput(EV_SYN, SYN_REPORT, 0);
+            } else if (type == CMD_MOUSE_WHEEL) {
+                int32_t delta = cmd.value.load(std::memory_order_relaxed);
+                printf("[Helper] Emitting mouse wheel event: DELTA=%d\n", delta);
+                emit_uinput(EV_REL, REL_WHEEL, delta);  // Emit wheel event (+ = up, - = down)
                 emit_uinput(EV_SYN, SYN_REPORT, 0);
             }
             
@@ -284,8 +314,15 @@ void command_processor_thread() {
                 if (pid > 0) {
                     hybrid_suspend_or_resume(pid, false);
                 }
+            } else if (type == CMD_BHOP_ENABLE) {
+                printf("[Helper] Received CMD_BHOP_ENABLE\n");
+                isbhop = true;
+                
+            } else if (type == CMD_BHOP_DISABLE) {
+                printf("[Helper] Received CMD_BHOP_DISABLE\n");
+                isbhop = false;
             }
-            
+
             shared_data->read_index.store((read_idx + 1) & (COMMAND_BUFFER_SIZE - 1), std::memory_order_release);
         } else {
             std::this_thread::sleep_for(std::chrono::microseconds(500));
@@ -312,13 +349,20 @@ void special_action_thread() {
                     success = true;
                 }
             } else if (cmd == SA_FIND_ALL_PROCESSES) {
-                std::vector<pid_t> pids = find_all_processes_by_exe(name);
+                std::vector<pid_t> pids = find_all_processes_by_exes_or_pids(name);
                 if (!pids.empty()) {
                     for (size_t i = 0; i < pids.size() && i < 128; ++i) {
                         shared_data->special_action.response_pids[i] = pids[i];
                         pid_count++;
                     }
                     success = true;
+                }
+            } else if (cmd == SA_SET_BHOP_DELAY) {
+                int32_t delay = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
+                if (delay >= 0) {
+                    bhop_delay = delay;
+                    success = true;
+                    printf("[Helper] Bhop delay set to %d ms\n", bhop_delay);
                 }
             }
             
@@ -334,28 +378,90 @@ void special_action_thread() {
 // *                  UNCHANGED SUPPORTING FUNCTIONS                  *
 // ********************************************************************
 
-std::vector<pid_t> find_all_processes_by_exe(const std::string& name) {
+std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) {
     std::vector<pid_t> pids;
+    std::vector<std::string> exe_names;
+    std::vector<pid_t> pid_tokens;
+
+    // Split input by spaces
+    std::istringstream iss(input);
+    std::string token;
+    while (iss >> token) {
+        bool is_pid = true;
+        for (char c : token) {
+            if (!isdigit(c)) {
+                is_pid = false;
+                break;
+            }
+        }
+
+        if (is_pid) {
+            try {
+                pid_t pid = std::stoi(token);
+                if (pid > 0) pid_tokens.push_back(pid);
+            } catch (...) {}
+        } else {
+            exe_names.push_back(token);
+        }
+    }
+
+    // Add valid PIDs directly
+    pids.insert(pids.end(), pid_tokens.begin(), pid_tokens.end());
+
+    // Check if PIDs are valid processes
+    pids.erase(std::remove_if(pids.begin(), pids.end(), [](pid_t pid) {
+        errno = 0;
+        bool invalid = (kill(pid, 0) != 0 && errno != EPERM);
+
+        printf("[Helper] Validating PID: %d - %s\n", pid, invalid ? "Invalid" : "Valid");
+
+        if (!invalid) {
+            std::string proc_path = "/proc/" + std::to_string(pid) + "/comm";
+            std::ifstream file(proc_path);
+            if (file.is_open()) {
+                std::string name;
+                std::getline(file, name);
+                file.close();
+                printf("[Helper] PID: %d - Name: %s\n", pid, name.c_str());
+            } else {
+                printf("[Helper] PID: %d - Unable to read name\n", pid);
+            }
+        }
+
+        return invalid;
+    }), pids.end());
+
+
+    // If there are no executable names, we’re done
+    if (exe_names.empty()) return pids;
+
+    // Scan /proc for processes matching executable names
     DIR* dir = opendir("/proc");
     if (!dir) return pids;
 
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         pid_t pid = atoi(entry->d_name);
-        if (pid > 0) {
-            std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
-            char link_target[4096] = {0};
-            ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
-            if (len != -1) {
-                link_target[len] = '\0';
-                std::string target_path(link_target);
-                if (target_path.length() >= name.length() &&
-                    target_path.substr(target_path.length() - name.length()) == name) {
-                    pids.push_back(pid);
-                }
+        if (pid <= 0) continue;
+
+        std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
+        char link_target[4096] = {0};
+        ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
+        if (len == -1) continue; // cannot read (permission or gone)
+        link_target[len] = '\0';
+        std::string target_path(link_target);
+
+        bool matched = false;
+        for (const auto& exe : exe_names) {
+            if (target_path.size() >= exe.size() &&
+                target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
+                matched = true;
+                pids.push_back(pid);
             }
+            if (matched) break;
         }
     }
+
     closedir(dir);
     return pids;
 }
@@ -367,7 +473,7 @@ std::vector<pid_t> find_all_processes_by_exe(const std::string& name) {
  * which of its processes has a parent that is NOT part of the application itself.
  */
 pid_t find_main_process_by_name(const std::string& name) {
-    std::vector<pid_t> pids = find_all_processes_by_exe(name);
+    std::vector<pid_t> pids = find_all_processes_by_exes_or_pids(name);
     if (pids.empty()) {
         return -1;
     }
@@ -466,25 +572,54 @@ bool interactive_device_detection(std::string& out_keyboard_path, std::string& o
 }
 
 void evdev_reader_thread(const std::string& device_path) {
-    int evdev_fd = open(device_path.c_str(), O_RDONLY);
+    int evdev_fd = open(device_path.c_str(), O_RDONLY | O_NONBLOCK);
     if (evdev_fd < 0) {
         perror(("[ReaderThread] Failed to open " + device_path).c_str());
         return;
     }
 
+    ioctl(evdev_fd, EVIOCGRAB, 1); // optional: grab device
+
     struct input_event ev;
     while (true) {
-        if (read(evdev_fd, &ev, sizeof(ev)) < sizeof(ev)) continue;
-        
+        ssize_t n = read(evdev_fd, &ev, sizeof(ev));
+        if (n != sizeof(ev)) {
+            if (n < 0 && errno != EAGAIN && errno != EINTR)
+                perror("[ReaderThread] read()");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
         if (ev.type == EV_KEY) {
             uint8_t vk_code = evdev_to_win_vkey(ev.code);
             if (vk_code != VK_UNASSIGNED) {
-                shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
+                if (isbhop && vk_code == 0x20) {
+                    // Ignore space key state updates when bhop is enabled
+                } else {
+                    shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
+                }
             }
+            emit_uinput(EV_KEY, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
+        
+        else if (ev.type == EV_REL) {
+            emit_uinput(EV_REL, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+        
+        else if (ev.type == EV_ABS) {
+            emit_uinput(EV_ABS, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+
+        
     }
+
+    ioctl(evdev_fd, EVIOCGRAB, 0); // release grab
     close(evdev_fd);
 }
+
 
 int setup_uinput_device() {
     int fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
@@ -503,10 +638,11 @@ int setup_uinput_device() {
     ioctl(fd, UI_SET_EVBIT, EV_REL);
     ioctl(fd, UI_SET_RELBIT, REL_X);
     ioctl(fd, UI_SET_RELBIT, REL_Y);
+    ioctl(fd, UI_SET_RELBIT, REL_WHEEL);
 
     struct uinput_user_dev uidev;
     memset(&uidev, 0, sizeof(uidev));
-    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "Wine Helper Input");
+    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "Macro Helper Input");
     uidev.id.bustype = BUS_USB;
     uidev.id.vendor  = 0x1234;
     uidev.id.product = 0xfedc;

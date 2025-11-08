@@ -11,32 +11,43 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes
+        id: check_diff
+        run: |
+          # check if there are any changes in that folder since the last commit
+          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
+            echo "no_change=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "no_change=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build linux binary
+        if: steps.check_diff.outputs.no_change == 'false'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
           g++ -o ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Source/linux_helper.cpp -O3 -std=c++11
 
       - name: Upload linux binary
+        if: steps.check_diff.outputs.no_change == 'false'
         uses: actions/upload-artifact@v4
         with:
           path: visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary
           name: Suspend_Input_Helper_Linux_Binary
       
       - name: Commit and push linux binary to repo
+        if: steps.check_diff.outputs.no_change == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
           git add "visual studio/Resource Files/Suspend_Input_Helper_Linux_Binary"
-          if git diff --cached --quiet; then
-            echo "Nothing to commit"
-          else
-            git commit -m "Update linux binary"
-            git push
-          fi
+          git commit -m "Update linux binary"
+          git push
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   sign:
     needs: build-linux # Ensure linux build completes first
     runs-on: windows-latest

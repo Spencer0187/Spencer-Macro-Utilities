@@ -473,9 +473,34 @@ static void ReleaseKey(WORD scanCode, bool extended)
         SendInput(1, &input, sizeof(INPUT));
     }
 }
+static void SendLinuxMouseWheel(int delta) {
+    Command cmd = {};
+    cmd.type.store(CMD_MOUSE_WHEEL, std::memory_order_relaxed);
+    cmd.value.store(delta, std::memory_order_relaxed);  // + or - delta value
+    EnqueueCommand(cmd);
+}
+
+static void SetLinuxBhopState(bool enable) {
+    Command cmd = {};
+    if (enable) {
+        cmd.type.store(CMD_BHOP_ENABLE, std::memory_order_relaxed);
+    } else {
+        cmd.type.store(CMD_BHOP_DISABLE, std::memory_order_relaxed);
+    }
+    EnqueueCommand(cmd);
+}
 
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
+        // Scroll wheel handling
+        if (Vk_key == VK_MOUSE_WHEEL_UP) {
+            SendLinuxMouseWheel(WHEEL_DELTA * 100);  // Scroll up
+            return;
+        } else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
+            SendLinuxMouseWheel(-WHEEL_DELTA * 100);  // Scroll down
+            return;
+        }
+        
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
         cmd.win_vk_code.store(Vk_key, std::memory_order_relaxed);
@@ -488,12 +513,12 @@ static void HoldKeyBinded(WORD Vk_key) {
         if (Vk_key == VK_MOUSE_WHEEL_UP) {
             input.type = INPUT_MOUSE;
             input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = WHEEL_DELTA; // Positive for wheel up
+            input.mi.mouseData = WHEEL_DELTA * 100; // Positive for wheel up
         }
         else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
             input.type = INPUT_MOUSE;
             input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = -WHEEL_DELTA; // Negative for wheel down
+            input.mi.mouseData = -WHEEL_DELTA * 100; // Negative for wheel down
         }
         // Existing mouse button handling
         else if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
@@ -559,22 +584,23 @@ static void MoveMouse(int dx, int dy)
 	}
 }
 
+
 // Special Action script to send a command to linux to freeze a PID
 static bool Linux_ExecuteSpecialAction(SpecialAction& action_data, int timeout_ms = 1000) {
     if (!g_isLinuxWine || !g_sharedData) return false;
-
+    
     // Wait for the mailbox to be free
     auto start_wait = std::chrono::steady_clock::now();
     while (g_sharedData->special_action.request_ready.load() || g_sharedData->special_action.response_ready.load()) {
         if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_wait).count() > timeout_ms) return false;
         Sleep(1);
     }
-
+    
     // Place the command in the mailbox
     strcpy_s(g_sharedData->special_action.process_name, sizeof(g_sharedData->special_action.process_name), action_data.process_name);
     g_sharedData->special_action.command.store(action_data.command.load(), std::memory_order_relaxed);
     g_sharedData->special_action.request_ready.store(true, std::memory_order_release);
-
+    
     // Wait for the response
     auto start_response = std::chrono::steady_clock::now();
     while (!g_sharedData->special_action.response_ready.load(std::memory_order_acquire)) {
@@ -600,6 +626,18 @@ static bool Linux_ExecuteSpecialAction(SpecialAction& action_data, int timeout_m
     return success;
 }
 
+static void SetBhopDelay(int delay_ms) {
+    SpecialAction action = {};
+    action.command.store(SA_SET_BHOP_DELAY);
+    action.response_success.store(false);
+    action.response_pid_count.store(0);
+    strcpy_s(action.process_name, sizeof(action.process_name), ""); // No process name needed
+
+    snprintf(action.process_name, sizeof(action.process_name), "%d", delay_ms);
+
+    Linux_ExecuteSpecialAction(action);
+}
+
 static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
     if (g_isLinuxWine) {
         // On Linux, we ignore the (empty) handles vector and use the PIDs.
@@ -613,7 +651,7 @@ static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, cons
     else {
         // On Windows, we ignore the PIDs and use the pre-opened handles for max performance.
         if (handles.empty()) return;
-
+        
         if (suspend) {
             if (!pfnSuspend) return;
             for (HANDLE hProcess : handles) {

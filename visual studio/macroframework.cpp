@@ -40,7 +40,6 @@
 #include <synchapi.h>
 #include <dwmapi.h>
 #include <variant>
-#include <algorithm>
 #include <shellscalingapi.h>
 
 // Generic libraries for I forgot
@@ -273,12 +272,8 @@ bool chatoverride = true;
 bool toggle_jump = true;
 bool toggle_flick = true;
 bool fasthhj = false;
-bool hhjzoomin = false;
-bool hhjzoominreverse = false;
-bool laughzoomin = false;
-bool laughzoominreverse = false;
-bool lhjzoomin = false;
-bool lhjzoominreverse = false;
+bool globalzoomin = false;
+bool globalzoominreverse = false;
 bool wallesslhjswitch = false;
 bool autotoggle = false;
 bool isspeedswitch = false;
@@ -394,6 +389,10 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         }
     }
     return CallNextHookEx(g_keyboardHook, nCode, wParam, lParam);
+}
+
+static void setBunnyHopState(bool state) {
+	g_isVk_BunnyhopHeldDown.store(state, std::memory_order_relaxed); // For linux compatibility
 }
 
 static void KeyboardHookThread() 
@@ -633,15 +632,24 @@ static void WallWalkLoop()
 
 static void BhopLoop()
 {
-    while (true) {
-        while (!isbhoploop.load(std::memory_order_acquire)) {
+	if (!g_isLinuxWine) {
+		while (true) {
+			while (!isbhoploop.load(std::memory_order_acquire)) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			HoldKeyBinded(vk_bunnyhopkey);
+			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+			ReleaseKeyBinded(vk_bunnyhopkey);
+			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+		}
+	} else {
+		while (true)
+		{
+			SetLinuxBhopState(isbhoploop.load(std::memory_order_acquire));
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-        HoldKeyBinded(vk_bunnyhopkey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-        ReleaseKeyBinded(vk_bunnyhopkey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-    }
+		}
+		
+	}
 }
 
 static void WallhopThread() {
@@ -1015,12 +1023,8 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"wallwalktoggleside", &wallwalktoggleside},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
-	{"hhjzoomin", &hhjzoomin},
-	{"hhjzoominreverse", &hhjzoominreverse},
-	{"laughzoomin", &laughzoomin},
-	{"laughzoominreverse", &laughzoominreverse},
-	{"lhjzoomin", &lhjzoomin},
-	{"lhjzoominreverse", &lhjzoominreverse},
+	{"globalzoomin", &globalzoomin},
+	{"globalzoominreverse", &globalzoominreverse},
 	{"wallesslhjswitch", &wallesslhjswitch},
 	{"chatoverride", &chatoverride},
 	{"bounceautohold", &bounceautohold},
@@ -2013,7 +2017,7 @@ static std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
     {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
     {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
-	{g_isLinuxWine ? "Smart Bunnyhop (BROKEN ON LINUX)" : "Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
+	{"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
 }};
 
 static void InitializeSections()
@@ -2520,11 +2524,11 @@ static void RunGUI()
 
 			ImGui::PopStyleColor();
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextWrapped("Roblox Executable Name:");
+			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name/PIDs (Space Separated)" : "Roblox Executable Name");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
-			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
+			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), g_isLinuxWine ? 0 : ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
 
 			ImGui::SameLine();
 
@@ -2538,7 +2542,7 @@ static void RunGUI()
 
 			if (!processFound) {
 				ImGui::SameLine();
-				ImGui::TextWrapped("Roblox Not Found");
+				if (!g_isLinuxWine){ImGui::TextWrapped("Roblox Not Found");}
 			}
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
@@ -2829,6 +2833,12 @@ static void RunGUI()
 
 					ImGui::Separator();
 
+					ImGui::Checkbox("Replace shiftlock with zooming in", &globalzoomin);
+					ImGui::SameLine();
+					ImGui::Checkbox("Reverse Direction?", &globalzoominreverse);
+
+					ImGui::Separator();
+
 					ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
 
 					ImGui::Separator();
@@ -3093,10 +3103,6 @@ static void RunGUI()
 					ImGui::Checkbox("Automatically time inputs", &autotoggle);
 					ImGui::SameLine();
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
-					ImGui::Checkbox("Reduce Time Spent Frozen (For speedrunning only)", &fasthhj);
-					ImGui::Checkbox("Replace Shiftlock with Zooming In", &hhjzoomin);
-					ImGui::SameLine();
-					ImGui::Checkbox("Reverse Direction?", &hhjzoominreverse);
 					ImGui::TextWrapped("Length of HHJ flicks (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(52);
@@ -3501,10 +3507,6 @@ static void RunGUI()
 
 				if (selected_section == 9) { // Laugh Clip
 					ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
-					ImGui::Checkbox("Replace Shiftlock with Zooming In", &laughzoomin);
-					ImGui::SameLine();
-					ImGui::Checkbox("Reverse Direction?", &laughzoominreverse);
-					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6!");
@@ -3640,6 +3642,10 @@ static void RunGUI()
 					if (ImGui::InputText("##BunnyhopDelay", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
 							BunnyHopDelay = atof(BunnyHopDelayChar);
+							if (g_isLinuxWine) {
+								SetBhopDelay(BunnyHopDelay);
+							}
+
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -4008,19 +4014,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-				if (!lhjzoomin) {
+				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = lhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 				std::this_thread::sleep_for(std::chrono::milliseconds(50));
-				if (!lhjzoomin) {
+				if (!globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 
@@ -4135,20 +4136,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay1));
-				if (!hhjzoomin) {
+				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = hhjzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
 				isHHJ.store(true, std::memory_order_relaxed);
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
-				if (!hhjzoomin) {
+				if (!globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
@@ -4198,15 +4194,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(248));
 
 				HoldKey(0x39); // Jump
-				if (!laughzoomin) {
+				if (!globalzoomin) {
 					HoldKeyBinded(vk_shiftkey);
 				} else {
-					INPUT mousezoominput = {0};
-					mousezoominput.type = INPUT_MOUSE;
-					mousezoominput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-					mousezoominput.mi.mouseData = laughzoominreverse ? WHEEL_DELTA * -100 : WHEEL_DELTA * 100;
-
-					SendInput(1, &mousezoominput, sizeof(INPUT));
+					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 
 				if (!laughmoveswitch) {
@@ -4216,7 +4207,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 				std::this_thread::sleep_for(std::chrono::milliseconds(25));
 				ReleaseKey(0x39);
 
-				if (!laughzoomin) {
+				if (!globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
 				ReleaseKey(0x1C);
@@ -4318,20 +4309,19 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
-		bool can_process_bhop = IsKeyPressed(vk_bunnyhopkey) && tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
-
+		bool can_process_bhop = tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
 		if (IsKeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
-
+		
 		if (bhoplocked) {
 			if (IsKeyPressed(VK_RETURN) || IsKeyPressed(VK_LBUTTON)) {
 				bhoplocked = false;
 			}
 		}
-
+		
 		if (can_process_bhop) {
-			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed);
+			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsKeyPressed(vk_bunnyhopkey);
 
 			if (bunnyhopsmart) {
 				if (!bhoplocked && is_bunnyhop_key_considered_held) {
