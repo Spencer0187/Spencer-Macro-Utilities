@@ -3643,7 +3643,7 @@ static void RunGUI()
 						try {
 							BunnyHopDelay = atof(BunnyHopDelayChar);
 							if (g_isLinuxWine) {
-								Linux_ExecuteSpecialAction(SA_SET_BHOP_DELAY, static_cast<int>(BunnyHopDelay));
+								SetBhopDelay(BunnyHopDelay)
 							}
 
 						} catch (const std::invalid_argument &e) {

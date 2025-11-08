@@ -584,6 +584,18 @@ static void MoveMouse(int dx, int dy)
 	}
 }
 
+static void SetBhopDelay(int delay_ms) {
+    SpecialAction action = {};
+    action.command.store(SA_SET_BHOP_DELAY);
+    action.response_success.store(false);
+    action.response_pid_count.store(0);
+    strcpy_s(action.process_name, sizeof(action.process_name), ""); // No process name needed
+
+    snprintf(action.process_name, sizeof(action.process_name), "%d", delay_ms);
+
+    Linux_ExecuteSpecialAction(action);
+}
+
 // Special Action script to send a command to linux to freeze a PID
 static bool Linux_ExecuteSpecialAction(SpecialAction& action_data, int timeout_ms = 1000) {
     if (!g_isLinuxWine || !g_sharedData) return false;
