@@ -494,21 +494,8 @@ static void ItemDesyncLoop()
 			}
 		}
 	} else {
-		while (true) {
-			while (!isdesyncloop) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}
-			if (macrotoggled && notbinding && section_toggles[1]) {
-				emit_uinput(EV_KEY, desync_slot + 1, 1);
-				emit_uinput(EV_SYN, SYN_REPORT, 0);
-				emit_uinput(EV_KEY, desync_slot + 1, 0);
-				emit_uinput(EV_SYN, SYN_REPORT, 0);
-				emit_uinput(EV_KEY, desync_slot + 1, 1);
-				emit_uinput(EV_SYN, SYN_REPORT, 0);
-				emit_uinput(EV_KEY, desync_slot + 1, 0);
-				emit_uinput(EV_SYN, SYN_REPORT, 0);
-			}
-		}
+		SetLinuxDesyncState(isdesync);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
 static void Speedglitchloop()
@@ -3989,7 +3976,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			isdesyncloop.store(false, std::memory_order_relaxed);
 		}
 		if (g_isLinuxWine) {
-			SetItemDesyncState(isdesync);
+			SetLinuxDesyncState(isdesync);
 		}
 
 		// PressKey
