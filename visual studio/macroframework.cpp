@@ -480,20 +480,37 @@ bool IsWheelDown() { return g_mouseWheel.IsWheelDown(); }
 
 static void ItemDesyncLoop()
 {
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-	while (true) { // Efficient variable checking method
-		while (!isdesyncloop) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	if (!g_isLinuxWine) {
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+		while (true) { // Efficient variable checking method
+			while (!isdesyncloop) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			if (macrotoggled && notbinding && section_toggles[1]) {
+				HoldKey(desync_slot + 1);
+				ReleaseKey(desync_slot + 1);
+				HoldKey(desync_slot + 1);
+				ReleaseKey(desync_slot + 1);
+			}
 		}
-		if (macrotoggled && notbinding && section_toggles[1]) {
-			HoldKey(desync_slot + 1);
-			ReleaseKey(desync_slot + 1);
-			HoldKey(desync_slot + 1);
-			ReleaseKey(desync_slot + 1);
+	} else {
+		while (true) {
+			while (!isdesyncloop) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			if (macrotoggled && notbinding && section_toggles[1]) {
+				emit_uinput(EV_KEY, desync_slot + 1, 1);
+				emit_uinput(EV_SYN, SYN_REPORT, 0);
+				emit_uinput(EV_KEY, desync_slot + 1, 0);
+				emit_uinput(EV_SYN, SYN_REPORT, 0);
+				emit_uinput(EV_KEY, desync_slot + 1, 1);
+				emit_uinput(EV_SYN, SYN_REPORT, 0);
+				emit_uinput(EV_KEY, desync_slot + 1, 0);
+				emit_uinput(EV_SYN, SYN_REPORT, 0);
+			}
 		}
 	}
 }
-
 static void Speedglitchloop()
 {
     int sleep1 = 16, sleep2 = 16;
@@ -3970,6 +3987,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		} else {
 			isdesync = false;
 			isdesyncloop.store(false, std::memory_order_relaxed);
+		}
+		if (g_isLinuxWine) {
+			SetItemDesyncState(isdesync);
 		}
 
 		// PressKey
