@@ -498,6 +498,14 @@ static void SetLinuxDesyncState(bool enable) {
     }
     EnqueueCommand(cmd);
 }
+
+static void SetLinuxDesyncItem(int item_slot) {
+    Command cmd = {};
+    cmd.type.store(SA_SET_DESYNC_ITEM, std::memory_order_relaxed);
+    cmd.value.store(item_slot, std::memory_order_relaxed);
+    EnqueueCommand(cmd);
+}
+
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         // Scroll wheel handling
