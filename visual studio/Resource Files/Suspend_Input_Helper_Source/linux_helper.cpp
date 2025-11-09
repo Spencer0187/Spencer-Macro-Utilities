@@ -382,6 +382,13 @@ void special_action_thread() {
                     success = true;
                     printf("[Helper] Bhop delay set to %d ms\n", bhop_delay);
                 }
+            } else if (cmd == SA_SET_DESYNC_ITEM) {
+                int32_t itemslot = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
+                if (itemslot >= 1 && itemslot <= 9) {
+                    desync_itemslot = itemslot;
+                    success = true;
+                    printf("[Helper] Desync item slot set to %d\n", desync_itemslot);
+                }
             }
             
             shared_data->special_action.response_pid_count.store(pid_count, std::memory_order_relaxed);
