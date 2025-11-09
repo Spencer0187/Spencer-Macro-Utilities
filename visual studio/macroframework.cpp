@@ -494,6 +494,9 @@ static void ItemDesyncLoop()
 			}
 		}
 	} else {
+		while (!isdesyncloop) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
 		SetLinuxDesyncState(isdesync);
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
@@ -3084,6 +3087,7 @@ static void RunGUI()
 					ImGui::InputText("##ItemDesync", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						desync_slot = std::stoi(ItemDesyncSlot);
+						SetLinuxDesyncItem(desync_slot);
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
@@ -3974,9 +3978,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		} else {
 			isdesync = false;
 			isdesyncloop.store(false, std::memory_order_relaxed);
-		}
-		if (g_isLinuxWine) {
-			SetLinuxDesyncState(isdesync);
 		}
 
 		// PressKey
