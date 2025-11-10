@@ -489,7 +489,7 @@ static void SetLinuxBhopState(bool enable) {
     }
     EnqueueCommand(cmd);
 }
-static void SetLinuxDesyncState(bool enable) {
+static void SetDesyncState(bool enable) {
     Command cmd = {};
     if (enable) {
         cmd.type.store(CMD_DESYNC_ENABLE, std::memory_order_relaxed);

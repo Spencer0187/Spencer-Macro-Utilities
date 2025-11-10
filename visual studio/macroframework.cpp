@@ -3087,7 +3087,7 @@ static void RunGUI()
 					ImGui::InputText("##ItemDesync", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						desync_slot = std::stoi(ItemDesyncSlot);
-						SetLinuxDesyncItem(desync_slot);
+						SetDesyncItem(desync_slot);
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
