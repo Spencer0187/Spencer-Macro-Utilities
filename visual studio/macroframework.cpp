@@ -497,7 +497,7 @@ static void ItemDesyncLoop()
 		while (!isdesyncloop) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
-		SetLinuxDesyncState(isdesyncloop);
+		SetDesyncState(isdesyncloop);
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }

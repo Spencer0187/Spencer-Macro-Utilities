@@ -499,17 +499,6 @@ static void SetLinuxDesyncState(bool enable) {
     EnqueueCommand(cmd);
 }
 
-static void SetLinuxDesyncItem(int item_slot) {
-    SpecialAction action = {};
-    action.command.store(SA_SET_DESYNC_ITEM, std::memory_order_relaxed);
-    action.response_success.store(false, std::memory_order_relaxed);
-    action.response_pid_count.store(0, std::memory_order_relaxed);
-    
-    snprintf(action.process_name, sizeof(action.process_name), "%d", item_slot);
-    
-    Linux_ExecuteSpecialAction(action);
-}
-
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
         // Scroll wheel handling
@@ -669,6 +658,7 @@ static void SetDesyncItem(int itemSlot) {
 
     Linux_ExecuteSpecialAction(action);
 }
+
 
 static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
     if (g_isLinuxWine) {
