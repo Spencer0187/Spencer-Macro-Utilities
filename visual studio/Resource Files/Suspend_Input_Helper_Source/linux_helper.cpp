@@ -36,8 +36,10 @@ SharedMemory* shared_data = nullptr;
 int uinput_fd = -1;
 const char* MM_FILE_PATH = "/tmp/cross_input_shm_file";
 bool isbhop = false;
-int bhop_delay = 10;
+bool isdesync = false;
 
+int bhop_delay = 10;
+int desync_itemslot = 5;
 // --- Function Prototypes ---
 void cleanup(int);
 bool interactive_device_detection(std::string& out_keyboard_path, std::string& out_mouse_path);
@@ -46,7 +48,7 @@ void emit_uinput(int type, int code, int val);
 void evdev_reader_thread(const std::string& device_path);
 void command_processor_thread();
 void special_action_thread();
-void bhop_thread();
+void fastkey_thread();
 
 pid_t find_main_process_by_name(const std::string& name);
 std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& name);
@@ -232,13 +234,13 @@ int main(int argc, char* argv[]) {
     std::thread mouse_reader(evdev_reader_thread, mouse_path);
     std::thread processor(command_processor_thread);
     std::thread special_actions(special_action_thread);
-    std::thread bhop(bhop_thread);
+    std::thread fastkey(fastkey_thread);
 
     keyboard_reader.join();
     mouse_reader.join();
     processor.join();
     special_actions.join();
-    bhop.join();
+    fastkey.join();
     
     cleanup(0);
     return 0;
@@ -258,20 +260,28 @@ void cleanup(int signum) {
 }
 
 
-void bhop_thread() {
+void fastkey_thread() {
     while (isbhop) {
         bool space_pressed = shared_data->key_states[0x20].load(std::memory_order_acquire);
-        if (isbhop && space_pressed) {
+        if (space_pressed) {
             std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
-            // Simulate releasing the space key
+
             emit_uinput(EV_KEY, KEY_SPACE, 0);
             emit_uinput(EV_SYN, SYN_REPORT, 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
-            // Simulate pressing the space key again
+
             emit_uinput(EV_KEY, KEY_SPACE, 1);
             emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    while (isdesync) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+        emit_uinput(EV_KEY, desync_itemslot - 1, 1);
+        emit_uinput(EV_SYN, SYN_REPORT, 0);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+        emit_uinput(EV_KEY, desync_itemslot - 1, 0);
+        emit_uinput(EV_SYN, SYN_REPORT, 0);
     }
 }
 
@@ -322,6 +332,14 @@ void command_processor_thread() {
                 printf("[Helper] Received CMD_BHOP_DISABLE\n");
                 isbhop = false;
             }
+            else if (type == CMD_DESYNC_ENABLE) {
+                printf("[Helper] Received CMD_DESYNC_ENABLE\n");
+                isdesync = true;
+                
+            } else if (type == CMD_DESYNC_DISABLE) {
+                printf("[Helper] Received CMD_DESYNC_DISABLE\n");
+                isdesync = false;
+            }
 
             shared_data->read_index.store((read_idx + 1) & (COMMAND_BUFFER_SIZE - 1), std::memory_order_release);
         } else {
@@ -363,6 +381,13 @@ void special_action_thread() {
                     bhop_delay = delay;
                     success = true;
                     printf("[Helper] Bhop delay set to %d ms\n", bhop_delay);
+                }
+            } else if (cmd == SA_SET_DESYNC_ITEM) {
+                int32_t itemslot = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
+                if (itemslot >= 1 && itemslot <= 9) {
+                    desync_itemslot = itemslot;
+                    success = true;
+                    printf("[Helper] Desync item slot set to %d\n", desync_itemslot);
                 }
             }
             

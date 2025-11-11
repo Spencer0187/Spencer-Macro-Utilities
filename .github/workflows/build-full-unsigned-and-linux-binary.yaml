@@ -17,8 +17,8 @@ jobs:
       - name: Check for changes
         id: check_diff
         run: |
-          # check if there are any changes in that folder since the last commit
-          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/"; then
+          # check if there are any changes in the helper since the last commit
+          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/linux_helper.cpp"; then
             echo "no_change=true" >> "$GITHUB_OUTPUT"
           else
             echo "no_change=false" >> "$GITHUB_OUTPUT"

@@ -489,6 +489,15 @@ static void SetLinuxBhopState(bool enable) {
     }
     EnqueueCommand(cmd);
 }
+static void SetDesyncState(bool enable) {
+    Command cmd = {};
+    if (enable) {
+        cmd.type.store(CMD_DESYNC_ENABLE, std::memory_order_relaxed);
+    } else {
+        cmd.type.store(CMD_DESYNC_DISABLE, std::memory_order_relaxed);
+    }
+    EnqueueCommand(cmd);
+}
 
 static void HoldKeyBinded(WORD Vk_key) {
     if (g_isLinuxWine) {
@@ -637,6 +646,19 @@ static void SetBhopDelay(int delay_ms) {
 
     Linux_ExecuteSpecialAction(action);
 }
+
+static void SetDesyncItem(int itemSlot) {
+    SpecialAction action = {};
+    action.command.store(SA_SET_DESYNC_ITEM);
+    action.response_success.store(false);
+    action.response_pid_count.store(0);
+    strcpy_s(action.process_name, sizeof(action.process_name), ""); // No process name needed
+
+    snprintf(action.process_name, sizeof(action.process_name), "%d", itemSlot);
+
+    Linux_ExecuteSpecialAction(action);
+}
+
 
 static void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
     if (g_isLinuxWine) {

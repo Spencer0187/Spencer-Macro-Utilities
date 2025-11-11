@@ -15,7 +15,9 @@ enum CommandType {
 	CMD_SUSPEND_PROCESS,
 	CMD_RESUME_PROCESS,
 	CMD_BHOP_ENABLE,
-	CMD_BHOP_DISABLE
+	CMD_BHOP_DISABLE,
+	CMD_DESYNC_ENABLE,
+	CMD_DESYNC_DISABLE
 };
 const uint32_t COMMAND_BUFFER_SIZE = 256;
 struct Command {
@@ -32,7 +34,9 @@ enum SpecialActionCommand {
 	SA_NONE = 0,
 	SA_FIND_NEWEST_PROCESS,
 	SA_FIND_ALL_PROCESSES, // For the "takeallprocessids" feature
-	SA_SET_BHOP_DELAY
+	SA_SET_BHOP_DELAY,
+	SA_SET_DESYNC_DELAY,
+	SA_SET_DESYNC_ITEM
 };
 
 struct SpecialAction {

@@ -480,20 +480,27 @@ bool IsWheelDown() { return g_mouseWheel.IsWheelDown(); }
 
 static void ItemDesyncLoop()
 {
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-	while (true) { // Efficient variable checking method
+	if (!g_isLinuxWine) {
+		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+		while (true) { // Efficient variable checking method
+			while (!isdesyncloop) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			if (macrotoggled && notbinding && section_toggles[1]) {
+				HoldKey(desync_slot + 1);
+				ReleaseKey(desync_slot + 1);
+				HoldKey(desync_slot + 1);
+				ReleaseKey(desync_slot + 1);
+			}
+		}
+	} else {
 		while (!isdesyncloop) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
-		if (macrotoggled && notbinding && section_toggles[1]) {
-			HoldKey(desync_slot + 1);
-			ReleaseKey(desync_slot + 1);
-			HoldKey(desync_slot + 1);
-			ReleaseKey(desync_slot + 1);
-		}
+		SetDesyncState(isdesyncloop);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 }
-
 static void Speedglitchloop()
 {
     int sleep1 = 16, sleep2 = 16;
@@ -3080,6 +3087,7 @@ static void RunGUI()
 					ImGui::InputText("##ItemDesync", ItemDesyncSlot, sizeof(ItemDesyncSlot), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 					try {
 						desync_slot = std::stoi(ItemDesyncSlot);
+						SetDesyncItem(desync_slot);
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
