@@ -2571,7 +2571,7 @@ static void RunGUI()
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-			ImGui::Text("VERSION 3.1.0");
+			ImGui::Text("VERSION 3.1.1");
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -3829,7 +3829,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.1.0";
+        std::string localVersion = "3.1.1";
 
         if (remoteVersion != localVersion) 
         {
@@ -4547,4 +4547,5 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	exit(0);
 
 	return 0;
+
 }
