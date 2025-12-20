@@ -3416,10 +3416,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	running = false;
 	g_windivert_running = false;
 
-	if (IsRunAsAdmin()) {
-	    system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
-    }
-
 	StopKeyboardThread();
 
 	actionThread.join();
@@ -3449,6 +3445,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 	
 	if (WinDivertThread.joinable()) WinDivertThread.join();
+
+	if (IsRunAsAdmin()) {
+		system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+		system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+	}
 
 	KeyboardThread.join();
 
