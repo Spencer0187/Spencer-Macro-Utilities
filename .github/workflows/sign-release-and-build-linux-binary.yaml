@@ -69,7 +69,15 @@ jobs:
         uses: microsoft/setup-msbuild@v1.1
 
       - name: Build project
-        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 /p:ClCompileOptimization=MaxSpeed
+        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 `
+          /p:WholeProgramOptimization=false `
+          /p:Optimization=FullOptimization `
+          /p:IntrinsicFunctions=true `
+          /p:FramePointerOmission=true `
+          /p:FiberSafeOptimizations=true `
+          /p:RuntimeLibrary=MultiThreaded `
+          /p:OptimizeReferences=true `
+          /p:EnableCOMDATFolding=true
 
       - name: Upload unsigned ZIP for signing
         id: upload-artifact-step
