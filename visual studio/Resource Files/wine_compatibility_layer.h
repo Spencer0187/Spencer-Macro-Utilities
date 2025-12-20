@@ -10,18 +10,12 @@ struct KeyAction {
     bool needs_shift;
 };
 
-// Special reserved values for wheel usage
+// Special reserved values for wheel usagem
 #define VK_MOUSE_WHEEL_UP 256
 #define VK_MOUSE_WHEEL_DOWN 257
 
 // --- Global state declarations (extern means "defined elsewhere") ---
 extern std::string g_linuxHelperPath_Windows;
-
-// Function Pointers
-typedef LONG(WINAPI *PntSuspendProcess)(HANDLE);
-typedef LONG(WINAPI *PntResumeProcess)(HANDLE);
-extern PntSuspendProcess pfnSuspend;
-extern PntResumeProcess pfnResume;
 
 // --- Public API Functions ---
 void InitLinuxCompatLayer();

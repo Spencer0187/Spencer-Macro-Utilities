@@ -148,6 +148,7 @@ bool TryLoadWinDivert() {
     // Optional functions (not fatal, but still report if missing)
     if (!pWinDivertHelperParsePacket) {
         wcscat_s(missingFuncs, L"WinDivertHelperParsePacket (optional)\n");
+	    allLoaded = false;
     }
     if (!pWinDivertHelperCalcChecksums) {
         wcscat_s(missingFuncs, L"WinDivertHelperCalcChecksums (optional)\n");

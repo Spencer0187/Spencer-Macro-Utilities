@@ -12,8 +12,13 @@ using namespace Globals;
 
 // --- Definitions (The actual memory storage) ---
 std::string g_linuxHelperPath_Windows;
-PntSuspendProcess pfnSuspend = nullptr;
-PntResumeProcess pfnResume = nullptr;
+
+// Function Pointers
+const HMODULE hNtdll = GetModuleHandleA("ntdll");
+auto pfnSuspend = (LONG (*)(HANDLE))GetProcAddress(hNtdll, "NtSuspendProcess");
+auto pfnResume = (LONG (*)(HANDLE))GetProcAddress(hNtdll, "NtResumeProcess");
+typedef LONG(WINAPI *PntSuspendProcess)(HANDLE);
+typedef LONG(WINAPI *PntResumeProcess)(HANDLE);
 
 static SharedMemory *g_sharedData = nullptr;
 static HANDLE g_hMapFile = NULL;
@@ -771,31 +776,6 @@ std::vector<DWORD> FindProcessIdsByName_Compat(const std::string& targetName, bo
         CloseHandle(hSnapshot);
     }
     return pids;
-}
-
-void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, std::vector<HANDLE>& handles, bool suspend) {
-    if (g_isLinuxWine) {
-        // just fire off the commands with the PIDs.
-        for (DWORD pid : pids) {
-            Command cmd = {};
-            cmd.type.store(suspend ? CMD_SUSPEND_PROCESS : CMD_RESUME_PROCESS);
-            cmd.target_pid.store(pid);
-            EnqueueCommand(cmd);
-        }
-    } 
-    else {
-        if (suspend) {
-            if (!pfnSuspend) return;
-            for (HANDLE hProcess : handles) {
-                pfnSuspend(hProcess);
-            }
-        } else {
-            if (!pfnResume) return;
-            for (HANDLE hProcess : handles) {
-                pfnResume(hProcess);
-            }
-        }
-    }
 }
 
 // This translates a single character into the key actions needed to type it on a standard US keyboard.
