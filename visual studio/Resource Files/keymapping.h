@@ -32,7 +32,7 @@ const uint16_t EVDEV_UNASSIGNED = 0x00; // Using 0x00 as a generic unassigned fo
  * @param evdev_key_code The Linux Evdev key code.
  * @return The corresponding Windows virtual key code, or VK_UNASSIGNED.
  */
-uint8_t evdev_to_win_vkey(uint16_t evdev_key_code) {
+inline uint8_t evdev_to_win_vkey(uint16_t evdev_key_code) {
     switch (evdev_key_code) {
         // Mouse Buttons
         case 0x110: return 0x01; // BTN_LEFT -> VK_LBUTTON
@@ -173,7 +173,7 @@ uint8_t evdev_to_win_vkey(uint16_t evdev_key_code) {
  * @param macos_key_code The macOS Quartz key code.
  * @return The corresponding Windows virtual key code, or VK_UNASSIGNED.
  */
-uint8_t macos_to_win_vkey(uint16_t macos_key_code) {
+inline uint8_t macos_to_win_vkey(uint16_t macos_key_code) {
     switch (macos_key_code) {
         case 0x00: return 0x41; // kVK_ANSI_A -> 'A'
         case 0x01: return 0x53; // kVK_ANSI_S -> 'S'
@@ -293,7 +293,7 @@ uint8_t macos_to_win_vkey(uint16_t macos_key_code) {
  * @param win_vkey_code The Windows virtual key code.
  * @return The corresponding macOS Quartz key code, or VK_UNASSIGNED.
  */
-uint16_t win_vkey_to_macos_key(uint8_t win_vkey_code) {
+inline uint16_t win_vkey_to_macos_key(uint8_t win_vkey_code) {
     switch (win_vkey_code) {
         // Mouse Buttons (using custom dummy macOS key codes)
         case 0x01: return MACOS_MOUSE_LEFT;   // VK_LBUTTON
@@ -423,7 +423,7 @@ uint16_t win_vkey_to_macos_key(uint8_t win_vkey_code) {
  * @param win_vkey_code The Windows virtual key code.
  * @return The corresponding Linux Evdev key code, or EVDEV_UNASSIGNED.
  */
-uint16_t win_vkey_to_evdev_key(uint8_t win_vkey_code) {
+inline uint16_t win_vkey_to_evdev_key(uint8_t win_vkey_code) {
     switch (win_vkey_code) {
         // Mouse Buttons
         case 0x01: return 0x110; // VK_LBUTTON -> BTN_LEFT

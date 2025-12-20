@@ -192,7 +192,12 @@
     <ClCompile Include="macroframework.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\Sviat\Downloads\ClipboardXX-0.5\ClipboardXX-0.5\include</AdditionalIncludeDirectories>
     </ClCompile>
+    <ClCompile Include="macros.cpp" />
+    <ClCompile Include="network_manager.cpp" />
+    <ClCompile Include="overlay.cpp" />
+    <ClCompile Include="profile_manager.cpp" />
     <ClCompile Include="Resource Files\miniz.c" />
+    <ClCompile Include="wine_compatibility_layer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui-files\imconfig.h" />
@@ -206,8 +211,13 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="imgui-files\json.hpp" />
+    <ClInclude Include="Resource Files\globals.h" />
     <ClInclude Include="Resource Files\keymapping.h" />
+    <ClInclude Include="Resource Files\macros.h" />
     <ClInclude Include="Resource Files\miniz.h" />
+    <ClInclude Include="Resource Files\network_manager.h" />
+    <ClInclude Include="Resource Files\overlay.h" />
+    <ClInclude Include="Resource Files\profile_manager.h" />
     <ClInclude Include="Resource Files\save_system.h" />
     <ClInclude Include="Resource Files\wine_compatibility_layer.h" />
     <ClInclude Include="resource.h">
