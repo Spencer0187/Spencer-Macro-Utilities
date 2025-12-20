@@ -152,7 +152,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <BufferSecurityCheck>false</BufferSecurityCheck>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <WholeProgramOptimization>false</WholeProgramOptimization>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
       <AdditionalIncludeDirectories>imgui-files;imgui</AdditionalIncludeDirectories>
@@ -162,18 +162,18 @@
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <OmitFramePointers>true</OmitFramePointers>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
       <NoEntryPoint />
       <SetChecksum>Yes</SetChecksum>
       <AdditionalLibraryDirectories>
       </AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);d3d11.lib;winmm.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);winmm.lib</AdditionalDependencies>
     </Link>
     <ResourceCompile>
       <AdditionalIncludeDirectories>
@@ -185,6 +185,7 @@
     <ClCompile Include="imgui-files\imgui_demo.cpp" />
     <ClCompile Include="imgui-files\imgui_draw.cpp" />
     <ClCompile Include="imgui-files\imgui_impl_dx11.cpp" />
+    <ClCompile Include="imgui-files\imgui_impl_opengl3.cpp" />
     <ClCompile Include="imgui-files\imgui_impl_win32.cpp" />
     <ClCompile Include="imgui-files\imgui_tables.cpp" />
     <ClCompile Include="imgui-files\imgui_widgets.cpp" />
@@ -197,6 +198,8 @@
     <ClInclude Include="imgui-files\imconfig.h" />
     <ClInclude Include="imgui-files\imgui.h" />
     <ClInclude Include="imgui-files\imgui_impl_dx11.h" />
+    <ClInclude Include="imgui-files\imgui_impl_opengl3.h" />
+    <ClInclude Include="imgui-files\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="imgui-files\imgui_impl_win32.h" />
     <ClInclude Include="imgui-files\imgui_internal.h" />
     <ClInclude Include="imgui-files\imstb_rectpack.h" />
@@ -211,6 +214,7 @@
       <DeploymentContent>false</DeploymentContent>
     </ClInclude>
     <ClInclude Include="shared_mem.h" />
+    <ClInclude Include="windivert-files\windivert.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">
@@ -225,7 +229,10 @@
     <Font Include="Resource Files\LSANS.TTF" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="resource files\smc_wind.bin" />
     <None Include="Resource Files\Suspend_Input_Helper_Linux_Binary" />
+    <None Include="windivert-files\SMCWinDivert.dll" />
+    <None Include="windivert-files\SMCWinDivert64.sys" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

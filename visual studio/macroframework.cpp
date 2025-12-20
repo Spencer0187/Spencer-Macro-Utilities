@@ -12,12 +12,15 @@
 #include <atomic>
 #include <algorithm>  
 #include <tlhelp32.h>
-#include <d3d11.h>
+#include <GL/gl.h>
 #include <shlwapi.h>
 #include <random>
+#include <set>
+#include <shared_mutex>
+#include <regex>
 
 #include "imgui-files/imgui.h"
-#include "imgui-files/imgui_impl_dx11.h"
+#include "imgui-files/imgui_impl_opengl3.h"
 #include "imgui-files/imgui_impl_win32.h"
 #include "imgui-files/json.hpp"
 
@@ -42,8 +45,12 @@
 #include <variant>
 #include <shellscalingapi.h>
 
+// Include windivert
+#include "windivert-files/windivert.h"
+
 // Generic libraries for I forgot
 
+#pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "oleaut32.lib")
 #pragma comment(lib, "shlwapi.lib")
@@ -51,21 +58,14 @@
 #pragma comment(lib, "shell32.lib")
 #pragma comment(lib, "Shcore.lib")
 
+// OpenGL Data
+static HGLRC g_hRC;
+HDC g_hDC;
+
 using json = nlohmann::json;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// DirectX11 Variables
-ID3D11Device *g_pd3dDevice = NULL;
-ID3D11DeviceContext *g_pd3dDeviceContext = NULL;
-IDXGISwapChain *g_pSwapChain = NULL;
-ID3D11RenderTargetView *g_mainRenderTargetView = NULL;
-
-// Forward Declarations
-bool CreateDeviceD3D(HWND hWnd);
-void CleanupDeviceD3D();
-void CreateRenderTarget();
-void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 // TO PUT IN A KEYBOARD KEY, GO TO https://www.millisecond.com/support/docs/current/html/language/scancodes.htm
@@ -86,13 +86,20 @@ std::atomic<bool> isbhoploop(false);
 std::atomic<bool> isafk(false);
 std::atomic<bool> iswallhopthread(false);
 std::atomic<bool> ispresskeythread(false);
+std::atomic<bool> isfloorbouncethread(false);
+
+std::atomic<DWORD> keyboardThreadId = 0;
+
+std::atomic<bool> running = true;
+
+std::vector<DWORD> targetPIDs;
+std::vector<HANDLE> hProcess;
 
 std::atomic<unsigned int> RobloxFPS(120);
 
 std::mutex renderMutex;
 std::condition_variable renderCondVar;
 bool renderFlag = false;
-bool running = true;
 HWND hwnd;
 
 std::atomic<bool> g_isVk_BunnyhopHeldDown(false);
@@ -105,6 +112,51 @@ INPUT inputkey = {};
 INPUT inputhold = {};
 INPUT inputrelease = {};
 
+// LOG SCANNER GLOBALS
+std::set<std::string> g_roblox_dynamic_ips;
+std::shared_mutex g_ip_mutex;
+std::atomic<bool> g_ip_list_updated(false);
+std::atomic<bool> g_log_thread_running(false);
+const std::string ROBLOX_RANGE_FILTER = "((ip.SrcAddr >= 128.116.0.0 and ip.SrcAddr <= 128.116.255.255) or (ip.DstAddr >= 128.116.0.0 and ip.DstAddr <= 128.116.255.255))";;
+
+// WinDivert Initialization
+std::atomic<bool> g_windivert_running(false);
+std::atomic<bool> g_windivert_blocking(false);
+std::atomic<bool> is_lagswitch_toggled(false);
+std::string g_current_windivert_filter = "true";
+bool bWinDivertEnabled = false;
+bool bShowAdminPopup = false;
+bool bDependenciesLoaded = false;
+HANDLE hWindivert = INVALID_HANDLE_VALUE;
+
+std::map<std::string, int> debug_header_counts;
+auto debug_last_print = std::chrono::steady_clock::now();
+
+const std::string DLL_NAME = "SMCWinDivert.dll";
+const std::string SYS_NAME = "WinDivert64.sys";
+
+typedef HANDLE (*tWinDivertOpen)(const char* filter, WINDIVERT_LAYER layer, INT16 priority, UINT64 flags);
+typedef BOOL   (*tWinDivertRecv)(HANDLE handle, PVOID pPacket, UINT packetLen, UINT* pRecvLen, WINDIVERT_ADDRESS* pAddr);
+typedef BOOL   (*tWinDivertSend)(HANDLE handle, const PVOID pPacket, UINT packetLen, UINT* pSendLen, const WINDIVERT_ADDRESS* pAddr);
+typedef BOOL   (*tWinDivertClose)(HANDLE handle);
+typedef BOOL   (*tWinDivertHelperParsePacket)(const void* pPacket, UINT packetLen, 
+    PWINDIVERT_IPHDR* ppIpHdr, PWINDIVERT_IPV6HDR* ppIpv6Hdr, UINT8* pProtocol, 
+    PWINDIVERT_ICMPHDR* ppIcmpHdr, PWINDIVERT_ICMPV6HDR* ppIcmpv6Hdr, 
+    PWINDIVERT_TCPHDR* ppTcpHdr, PWINDIVERT_UDPHDR* ppUdpHdr, 
+    PVOID* ppData, UINT* pDataLen, PVOID* ppNext, UINT* pNextLen);
+
+typedef UINT64 (*tWinDivertHelperCalcChecksums)(void* pPacket, UINT packetLen, 
+    WINDIVERT_ADDRESS* pAddr, UINT64 flags);
+
+tWinDivertOpen pWinDivertOpen = nullptr;
+tWinDivertRecv pWinDivertRecv = nullptr;
+tWinDivertSend pWinDivertSend = nullptr;
+tWinDivertClose pWinDivertClose = nullptr;
+tWinDivertHelperParsePacket pWinDivertHelperParsePacket = nullptr;
+tWinDivertHelperCalcChecksums pWinDivertHelperCalcChecksums = nullptr;
+
+std::thread WinDivertThread;
+
 // Translate all VK's into variables so it's less annoying to debug it
 unsigned int vk_f5 = VK_F5;
 unsigned int vk_f6 = VK_F6;
@@ -116,6 +168,9 @@ unsigned int vk_spamkey = VK_LBUTTON;
 unsigned int vk_clipkey = VK_F3;
 unsigned int vk_wallkey = VK_F1;
 unsigned int vk_laughkey = VK_F7;
+unsigned int vk_shiftkey = VK_SHIFT;
+unsigned int vk_enterkey = VK_RETURN;
+unsigned int vk_floorbouncekey = VK_F4;
 // Use this for alphabet keys so it works across layouts
 unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
@@ -124,17 +179,16 @@ unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
 unsigned int vk_bunnyhopkey = MapVirtualKey(0x39, MAPVK_VSC_TO_VK);
-unsigned int vk_shiftkey = VK_SHIFT;
-unsigned int vk_enterkey = VK_RETURN;
 unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
 unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
+unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
 
 // ADD KEYBIND VARIABLES FOR EACH SECTION
 static const std::unordered_map<int, unsigned int *> section_to_key = {
 	{0, &vk_mbutton},    {1, &vk_f5},           {2, &vk_xbutton1}, {3, &vk_xkey},
 	{4, &vk_f8},         {5, &vk_zkey},         {6, &vk_xbutton2}, {7, &vk_f6},
 	{8, &vk_clipkey},    {9, &vk_laughkey},     {10, &vk_wallkey}, {11, &vk_leftbracket},
-	{12, &vk_bouncekey}, {13, &vk_bunnyhopkey}};
+	{12, &vk_bouncekey}, {13, &vk_bunnyhopkey}, {14, &vk_floorbouncekey}, {15, &vk_lagswitchkey}};
 
 
 const std::string G_SETTINGS_FILEPATH = "RMCSettings.json";
@@ -258,19 +312,24 @@ char HHJFreezeDelayOverrideChar[16] = "0";
 char HHJDelay1Char[16] = "9";
 char HHJDelay2Char[16] = "17";
 char HHJDelay3Char[16] = "16";
-
+char FloorBounceDelay1Char[16] = "5";
+char FloorBounceDelay2Char[16] = "8";
+char FloorBounceDelay3Char[16] = "100";
 
 // Toggles and switches
 bool macrotoggled = true;
 bool shiftswitch = false;
 bool unequiptoggle = false;
 bool camfixtoggle = false;
+
 bool wallhopswitch = false;
 bool wallwalktoggleside = false;
 bool wallhopcamfix = false;
+
 bool chatoverride = true;
 bool toggle_jump = true;
 bool toggle_flick = true;
+
 bool fasthhj = false;
 bool globalzoomin = false;
 bool globalzoominreverse = false;
@@ -289,18 +348,51 @@ bool bounceautohold = true;
 bool laughmoveswitch = false;
 bool takeallprocessids = false;
 bool ontoptoggle = false;
+
 bool bunnyhoptoggled = false;
 bool bunnyhopsmart = true;
+
 bool presskeyinroblox = false;
 bool unequipinroblox = false;
 bool shortdescriptions = false;
 bool useoldpaste = true;
 bool doublepressafkkey = true;
 
+bool floorbouncehhj = false;
+bool showadvancedhhjbounce = false;
+
+// Mutex for handle safety
+std::mutex g_windivert_handle_mutex;
+
+// Lagswitch Overlay Settings
+bool show_lag_overlay = false;
+bool overlay_hide_inactive = false;
+bool overlay_use_bg = false;
+int overlay_x = -1; // -1 indicates unitialized, will set in RunGUI
+int overlay_y = 50;
+int overlay_size = 20;
+float overlay_bg_r = 60.0f;
+float overlay_bg_g = 120.0f;
+float overlay_bg_b = 160.0f;
+HWND overlayHwnd = NULL;
+HANDLE g_overlayFontHandle = NULL;
+
+// Lagswitch settings
+bool DontShowAdminWarning = false;
+bool islagswitchswitch = true; // False = Hold, True = Toggle
+bool lagswitchoutbound = true;
+bool lagswitchinbound = true;
+bool lagswitchtargetroblox = true;
+bool prevent_disconnect = true;
+bool lagswitch_autounblock = false;
+float lagswitch_max_duration = 9.00f;
+int lagswitch_unblock_ms = 50;
+auto lagswitch_start_time = std::chrono::steady_clock::now();
+
 // Section toggles and order
-constexpr int section_amounts = 14;
-bool section_toggles[14] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false};
-int section_order[14] = {0, 1, 2, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12};
+constexpr int section_amounts = 16;
+bool section_toggles[16] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false, false, false};
+int section_order[16] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
 
 // Numeric settings
 int wallhop_dx = 300;
@@ -337,6 +429,9 @@ int HHJFreezeDelayOverride = 0;
 int HHJDelay1 = 9;
 int HHJDelay2 = 17;
 int HHJDelay3 = 16;
+int FloorBounceDelay1 = 5;
+int FloorBounceDelay2 = 8;
+int FloorBounceDelay3 = 100;
 
 // Dropdown options
 const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
@@ -395,18 +490,24 @@ static void setBunnyHopState(bool state) {
 	g_isVk_BunnyhopHeldDown.store(state, std::memory_order_relaxed); // For linux compatibility
 }
 
-static void KeyboardHookThread() 
+void StopKeyboardThread() {
+    PostThreadMessage(keyboardThreadId, WM_QUIT, 0, 0);
+}
+
+static void KeyboardHookThread()
 {
-	HINSTANCE hMod = GetModuleHandle(NULL);
-	g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hMod, 0);
-	// Message handler for this thread for the keyboard hook only
-	MSG msg;
-	while (GetMessage(&msg, NULL, 0, 0) > 0) {
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
-	}
-	
-	UnhookWindowsHookEx(g_keyboardHook);
+    keyboardThreadId = GetCurrentThreadId();
+
+    HINSTANCE hMod = GetModuleHandle(NULL);
+    g_keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, hMod, 0);
+
+    MSG msg;
+    while (running && GetMessage(&msg, NULL, 0, 0) > 0) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    UnhookWindowsHookEx(g_keyboardHook);
 }
 
 // Special class to allow mouse scroll events to be found and used
@@ -474,66 +575,67 @@ public:
 
 MouseWheelHandler g_mouseWheel;
 
-// Tell the other file containg IsKeyPressed that these functionse exist 
+// Tell the other file containg IsKeyPressed that these functions exist 
 bool IsWheelUp() { return g_mouseWheel.IsWheelUp(); }
 bool IsWheelDown() { return g_mouseWheel.IsWheelDown(); }
 
 static void ItemDesyncLoop()
 {
-	if (!g_isLinuxWine) {
-		SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
-		while (true) { // Efficient variable checking method
-			while (!isdesyncloop) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}
-			if (macrotoggled && notbinding && section_toggles[1]) {
-				HoldKey(desync_slot + 1);
-				ReleaseKey(desync_slot + 1);
-				HoldKey(desync_slot + 1);
-				ReleaseKey(desync_slot + 1);
-			}
-		}
-	} else {
-		while (!isdesyncloop) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
-		SetDesyncState(isdesyncloop);
-		std::this_thread::sleep_for(std::chrono::milliseconds(1));
-	}
+    if (!g_isLinuxWine)
+    {
+        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+
+        while (running)
+        {
+            while (running && !isdesyncloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (!running) break;
+
+            if (macrotoggled && notbinding && section_toggles[1])
+            {
+                HoldKey(desync_slot + 1);
+                ReleaseKey(desync_slot + 1);
+                HoldKey(desync_slot + 1);
+                ReleaseKey(desync_slot + 1);
+            }
+        }
+    }
+    else
+    {
+        while (running && !isdesyncloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) return;
+
+        SetDesyncState(isdesyncloop);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
+
 static void Speedglitchloop()
 {
     int sleep1 = 16, sleep2 = 16;
     int last_fps = 0;
-    const float EPSILON = 0.008f; // Small value to account for floating-point imprecision
-    
-    while (true) {
-        if (last_fps != RobloxFPS.load(std::memory_order_relaxed)) {
+    const float EPSILON = 0.008f;
+
+    while (running)
+    {
+        if (last_fps != RobloxFPS.load(std::memory_order_relaxed))
+        {
             float delay_float = 1000.0f / RobloxFPS.load(std::memory_order_relaxed);
             int delay_floor = static_cast<int>(delay_float);
             int delay_ceil = delay_floor + 1;
             float fractional = delay_float - delay_floor;
 
-            // More robust floating-point comparisons
-            if (fractional < 0.33f - EPSILON) {
-                sleep1 = sleep2 = delay_floor;
-            }
-            else if (fractional > 0.66f + EPSILON) {
-                sleep1 = sleep2 = delay_ceil;
-            }
-            else {
-                sleep1 = delay_floor;
-                sleep2 = delay_ceil;
-            }
+            if (fractional < 0.33f - EPSILON) sleep1 = sleep2 = delay_floor;
+            else if (fractional > 0.66f + EPSILON) sleep1 = sleep2 = delay_ceil;
+            else { sleep1 = delay_floor; sleep2 = delay_ceil; }
 
             last_fps = RobloxFPS.load(std::memory_order_relaxed);
         }
-        
-        while (!isspeed.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-        
-        if (macrotoggled && notbinding && section_toggles[3]) {
+
+        while (running && !isspeed.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        if (macrotoggled && notbinding && section_toggles[3])
+        {
             MoveMouse(speed_strengthx, 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep1));
             MoveMouse(speed_strengthy, 0);
@@ -548,33 +650,28 @@ static void SpeedglitchloopHHJ()
     int sleep1 = 16, sleep2 = 16;
     int last_fps = 0;
     const float EPSILON = 0.008f;
-    
-    while (true) {
-        if (last_fps != RobloxFPS.load(std::memory_order_relaxed)) {
+
+    while (running)
+    {
+        if (last_fps != RobloxFPS.load(std::memory_order_relaxed))
+        {
             float delay_float = 1000.0f / RobloxFPS.load(std::memory_order_relaxed);
             int delay_floor = static_cast<int>(delay_float);
             int delay_ceil = delay_floor + 1;
             float fractional = delay_float - delay_floor;
 
-            if (fractional < 0.33f - EPSILON) {
-                sleep1 = sleep2 = delay_floor;
-            }
-            else if (fractional > 0.66f + EPSILON) {
-                sleep1 = sleep2 = delay_ceil;
-            }
-            else {
-                sleep1 = delay_floor;
-                sleep2 = delay_ceil;
-            }
+            if (fractional < 0.33f - EPSILON) sleep1 = sleep2 = delay_floor;
+            else if (fractional > 0.66f + EPSILON) sleep1 = sleep2 = delay_ceil;
+            else { sleep1 = delay_floor; sleep2 = delay_ceil; }
 
             last_fps = RobloxFPS.load(std::memory_order_relaxed);
         }
-        
-        while (!isHHJ.load(std::memory_order_relaxed)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-        
-        if (macrotoggled && notbinding && section_toggles[2]) {
+
+        while (running && !isHHJ.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        if (macrotoggled && notbinding && section_toggles[2])
+        {
             MoveMouse(speed_strengthx, 0);
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep1));
             MoveMouse(speed_strengthy, 0);
@@ -585,151 +682,712 @@ static void SpeedglitchloopHHJ()
 
 static void SpamKeyLoop()
 {
-	while (true) {
-		while (!isspamloop) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
-		if (macrotoggled && notbinding && section_toggles[11]) {
-			HoldKeyBinded(vk_spamkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
-			ReleaseKeyBinded(vk_spamkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
-		}
-	}
+    while (running)
+    {
+        while (running && !isspamloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        if (macrotoggled && notbinding && section_toggles[11])
+        {
+            HoldKeyBinded(vk_spamkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
+            ReleaseKeyBinded(vk_spamkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
+        }
+    }
 }
 
 static void ItemClipLoop()
 {
-	while (true) {
-		while (!isitemloop) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
-		if (macrotoggled && notbinding && section_toggles[8]) {
-			HoldKey(clip_slot + 1);
-			std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
-			ReleaseKey(clip_slot + 1);
-			std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
-		}
-	}
+    while (running)
+    {
+        while (running && !isitemloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        if (macrotoggled && notbinding && section_toggles[8])
+        {
+            HoldKey(clip_slot + 1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
+            ReleaseKey(clip_slot + 1);
+            std::this_thread::sleep_for(std::chrono::milliseconds(clip_delay / 2));
+        }
+    }
 }
 
 static void WallWalkLoop()
 {
-	int delay = 16;
-	while (true) {
-		while (!iswallwalkloop) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			delay = static_cast<unsigned int>(((1000.0f / RobloxFPS.load(std::memory_order_relaxed)) + .5) * 1.1);
-		}
-		if (macrotoggled && notbinding && section_toggles[10]) {
-			if (wallwalktoggleside) {
-				MoveMouse(-wallwalk_strengthx, 0);
-				std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-				MoveMouse(-wallwalk_strengthy, 0);
-				std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
-			} else {
-				MoveMouse(wallwalk_strengthx, 0);
-				std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-				MoveMouse(wallwalk_strengthy, 0);
-				std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
-			}
-		}
-	}
+    int delay = 16;
+    while (running)
+    {
+        while (running && !iswallwalkloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        delay = static_cast<unsigned int>(((1000.0f / RobloxFPS.load(std::memory_order_relaxed)) + .5) * 1.1);
+
+        if (macrotoggled && notbinding && section_toggles[10])
+        {
+            if (wallwalktoggleside)
+            {
+                MoveMouse(-wallwalk_strengthx, 0);
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                MoveMouse(-wallwalk_strengthy, 0);
+                std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
+            }
+            else
+            {
+                MoveMouse(wallwalk_strengthx, 0);
+                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                MoveMouse(wallwalk_strengthy, 0);
+                std::this_thread::sleep_for(std::chrono::microseconds(RobloxWallWalkValueDelay));
+            }
+        }
+    }
 }
 
 static void BhopLoop()
 {
-	if (!g_isLinuxWine) {
-		while (true) {
-			while (!isbhoploop.load(std::memory_order_acquire)) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-			}
-			HoldKeyBinded(vk_bunnyhopkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-			ReleaseKeyBinded(vk_bunnyhopkey);
-			std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
-		}
-	} else {
-		while (true)
-		{
-			SetLinuxBhopState(isbhoploop.load(std::memory_order_acquire));
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
-		
-	}
+    if (!g_isLinuxWine)
+    {
+        while (running)
+        {
+            while (running && !isbhoploop.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (!running) break;
+
+            HoldKeyBinded(vk_bunnyhopkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+            ReleaseKeyBinded(vk_bunnyhopkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(BunnyHopDelay / 2));
+        }
+    }
+    else
+    {
+        while (running)
+        {
+            SetLinuxBhopState(isbhoploop.load(std::memory_order_acquire));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
 }
 
-static void WallhopThread() {
-    while (true) {
-		while (!iswallhopthread.load(std::memory_order_acquire)) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(1));
-		}
 
-		if (wallhopswitch) {
-			MoveMouse(-wallhop_dx, 0);
-		} else {
-			MoveMouse(wallhop_dx, 0);
-		}
+static void WallhopThread()
+{
+    while (running)
+    {
+        while (running && !iswallhopthread.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
 
-		if (toggle_flick) {
-			if (WallhopBonusDelay > 0 && WallhopBonusDelay < WallhopDelay) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopBonusDelay));
+        if (wallhopswitch) MoveMouse(-wallhop_dx, 0);
+        else MoveMouse(wallhop_dx, 0);
 
-				if (toggle_jump) {
-					HoldKey(0x39);
-				}
-
-				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay - WallhopBonusDelay));
-			} else {
-				if (toggle_jump) {
-					HoldKey(0x39);
-				}
-				std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay));
-			}
-
-			if (wallhopswitch) {
-				MoveMouse(-wallhop_dy, 0);
-			} else {
-				MoveMouse(wallhop_dy, 0);
-			}
-		} else {
-			if (toggle_jump) {
-				HoldKey(0x39);
-			}
-		}
-
-		if (toggle_jump) {
-            if (100 - WallhopDelay > 0) {
-			    std::this_thread::sleep_for(std::chrono::milliseconds(100 - WallhopDelay));
+        if (toggle_flick)
+        {
+            if (WallhopBonusDelay > 0 && WallhopBonusDelay < WallhopDelay)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(WallhopBonusDelay));
+                if (toggle_jump) HoldKey(0x39);
+                std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay - WallhopBonusDelay));
             }
-			ReleaseKey(0x39);
-		}
+            else { if (toggle_jump) HoldKey(0x39); std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay)); }
 
-		iswallhopthread = false;
-	}
-}
+            if (wallhopswitch) MoveMouse(-wallhop_dy, 0);
+            else MoveMouse(wallhop_dy, 0);
+        }
+        else { if (toggle_jump) HoldKey(0x39); }
 
-static void PressKeyThread() {
-    while (true) {
-		while (!ispresskeythread.load(std::memory_order_relaxed)) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (toggle_jump)
+        {
+            if (100 - WallhopDelay > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100 - WallhopDelay));
+            ReleaseKey(0x39);
         }
 
-		if (vk_zkey == vk_dkey) {
-			ReleaseKeyBinded(vk_zkey);
-		}
-
-		// Sleep for the bonus delay if applicable
-		if (PressKeyBonusDelay != 0) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyBonusDelay));
-		}
-
-		HoldKeyBinded(vk_dkey);
-		std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyDelay));
-		ReleaseKeyBinded(vk_dkey);
-
-		ispresskeythread = false;
+        iswallhopthread = false;
     }
+}
+
+static void PressKeyThread()
+{
+    while (running)
+    {
+        while (running && !ispresskeythread.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+        if (vk_zkey == vk_dkey) ReleaseKeyBinded(vk_zkey);
+
+        if (PressKeyBonusDelay != 0) std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyBonusDelay));
+
+        HoldKeyBinded(vk_dkey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyDelay));
+        ReleaseKeyBinded(vk_dkey);
+
+        ispresskeythread = false;
+    }
+}
+
+static void FloorBounceThread()
+{
+    while (running)
+    {
+        while (running && !isfloorbouncethread.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running) break;
+
+		std::vector<DWORD> targetPIDsBounce = targetPIDs;
+		std::vector<HANDLE> hProcessBounce = hProcess;
+
+		HoldKey(0x39); // Hold Space
+		std::this_thread::sleep_for(std::chrono::milliseconds(521));			  // Fall timing
+		SuspendOrResumeProcesses_Compat(targetPIDsBounce, hProcessBounce, true);  // Freeze to clip through floor
+		std::this_thread::sleep_for(std::chrono::milliseconds(72));				  // Stay clipped
+		SuspendOrResumeProcesses_Compat(targetPIDsBounce, hProcessBounce, false); // Register underground position
+		std::this_thread::sleep_for(std::chrono::milliseconds(72));				  // Let correction force build
+		SuspendOrResumeProcesses_Compat(targetPIDsBounce, hProcessBounce, true);  // Freeze the ejection force
+		std::this_thread::sleep_for(std::chrono::milliseconds(72));				  // Hold the power
+		SuspendOrResumeProcesses_Compat(targetPIDsBounce, hProcessBounce, false); // LAUNCH
+		ReleaseKey(0x39);														  // Release Space
+
+		if (floorbouncehhj) {
+			// Completely guessed values
+			std::this_thread::sleep_for(std::chrono::milliseconds(FloorBounceDelay1)); // Delay after unfreezing and before shiftlocking
+			HoldKeyBinded(vk_shiftkey);
+			std::this_thread::sleep_for(std::chrono::milliseconds(FloorBounceDelay2)); // Delay before enabling helicoptering
+			isHHJ.store(true, std::memory_order_relaxed);
+			std::this_thread::sleep_for(std::chrono::milliseconds(FloorBounceDelay3)); // Time spent helicoptering
+			isHHJ.store(false, std::memory_order_relaxed);
+			ReleaseKeyBinded(vk_shiftkey);
+		}
+
+        isfloorbouncethread = false;
+    }
+}
+
+bool IsRunAsAdmin() {
+    BOOL fIsRunAsAdmin = FALSE;
+    PSID pAdminSID = NULL;
+    
+    // 1. Define the Authority as a variable so we can take its address
+    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+
+    // 2. Use SECURITY_NT_AUTHORITY with DOMAIN_ALIAS_RID_ADMINS
+    if (AllocateAndInitializeSid(
+        &NtAuthority, 
+        2, 
+        SECURITY_BUILTIN_DOMAIN_RID, 
+        DOMAIN_ALIAS_RID_ADMINS,
+        0, 0, 0, 0, 0, 0, 
+        &pAdminSID)) 
+    {
+        // 3. Check if the token is present
+        if (!CheckTokenMembership(NULL, pAdminSID, &fIsRunAsAdmin)) {
+            fIsRunAsAdmin = FALSE;
+        }
+        FreeSid(pAdminSID);
+    }
+    return fIsRunAsAdmin;
+}
+
+// Restart the current executable with "runas" (Admin) verb
+static void RestartAsAdmin() {
+    char szPath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, szPath, ARRAYSIZE(szPath))) {
+        SHELLEXECUTEINFOA sei = { sizeof(sei) };
+        sei.lpVerb = "runas"; // Requests Admin
+        sei.lpFile = szPath;
+        sei.hwnd = NULL;
+        sei.nShow = SW_NORMAL;
+        
+        if (!ShellExecuteExA(&sei)) {
+            // User likely clicked "No" on the UAC prompt
+            std::cout << "User refused UAC." << std::endl;
+        } else {
+            // Success, close the current instance
+			done = true;
+			running = false;
+        }
+    }
+}
+
+static void SafeCloseWinDivert() {
+    std::lock_guard<std::mutex> lock(g_windivert_handle_mutex);
+    if (hWindivert != INVALID_HANDLE_VALUE && pWinDivertClose) {
+        pWinDivertClose(hWindivert);
+        hWindivert = INVALID_HANDLE_VALUE;
+    }
+}
+
+static bool RunSCCommand(const std::wstring& args)
+{
+    std::wstring command = L"sc " + args;
+    HANDLE hRead, hWrite;
+    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+
+    CreatePipe(&hRead, &hWrite, &sa, 0);
+    SetHandleInformation(hRead, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOW si = { sizeof(STARTUPINFOW) };
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = hWrite;
+    si.hStdError  = hWrite;
+
+    PROCESS_INFORMATION pi;
+
+    BOOL success = CreateProcessW(nullptr, command.data(), nullptr, nullptr, TRUE,
+                                  CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+
+    CloseHandle(hWrite);
+
+    std::string output;
+    char buffer[128];
+    DWORD bytesRead;
+    while (ReadFile(hRead, buffer, sizeof(buffer)-1, &bytesRead, nullptr) && bytesRead) {
+        buffer[bytesRead] = '\0';
+        output += buffer;
+    }
+
+    CloseHandle(hRead);
+    if (success) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+
+    if (!output.empty() && output.find("SUCCESS") == std::string::npos) {
+        std::cerr << "sc " << std::string(args.begin(), args.end()) << " failed:\n" << output;
+        return false;
+    }
+    return true;
+}
+
+static void RobloxLogScannerThread() {
+    namespace fs = std::filesystem;
+    char localAppData[MAX_PATH];
+    
+    // Regex to find IPs
+    std::regex ip_regex(R"(\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)");
+
+    while (running)
+    {
+        while (running && !g_log_thread_running.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if (!running) break;
+
+		if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData) == S_OK) {
+			fs::path logDir = fs::path(localAppData) / "Roblox" / "logs";
+
+			if (fs::exists(logDir)) {
+				fs::path newestFile;
+				fs::file_time_type newestTime;
+				bool found = false;
+
+				// 1. Find Newest Log File
+				try {
+					for (const auto& entry : fs::directory_iterator(logDir)) {
+						if (entry.is_regular_file()) {
+							if (!found || entry.last_write_time() > newestTime) {
+								newestTime = entry.last_write_time();
+								newestFile = entry.path();
+								found = true;
+							}
+						}
+					}
+				} catch (...) {}
+
+				// 2. Scan File
+				if (found) {
+					std::ifstream file(newestFile, std::ios::in | std::ios::binary);
+					if (file.is_open()) {
+                        
+						// Optimization: Only read the last 5000KB. 
+						// Connection IPs are usually at the end (new connections) or beginning.
+						// Reading from the end catches server hops.
+						file.seekg(0, std::ios::end);
+						size_t size = file.tellg();
+                        
+						if (size > 5000000) file.seekg(size - 5000000);
+						else file.seekg(0);
+
+						std::string buffer(5000000, '\0');
+						file.read(&buffer[0], 5000000); 
+                        
+						auto words_begin = std::sregex_iterator(buffer.begin(), buffer.end(), ip_regex);
+						auto words_end = std::sregex_iterator();
+
+						bool new_ip_found = false;
+
+						for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
+							std::smatch match = *i;
+							std::string ip_str = match.str();
+
+							// --- FILTER OUT JUNK IPs ---
+							// 127.x.x.x (Localhost)
+							if (ip_str.rfind("127.", 0) == 0) continue;
+							// 10.x.x.x (Private Class A)
+							if (ip_str.rfind("10.", 0) == 0) continue;
+							// 192.168.x.x (Private Class C)
+							if (ip_str.rfind("192.168.", 0) == 0) continue;
+							// 172.16.x.x - 172.31.x.x (Private Class B - simplified check)
+							if (ip_str.rfind("172.", 0) == 0) continue;
+							// 0.0.0.0
+							if (ip_str == "0.0.0.0") continue;
+
+							// Thread-Safe Insert
+							{
+								std::unique_lock lock(g_ip_mutex);
+								if (g_roblox_dynamic_ips.find(ip_str) == g_roblox_dynamic_ips.end()) {
+									g_roblox_dynamic_ips.insert(ip_str);
+									new_ip_found = true;
+                                    
+									std::cout << "Found Roblox Server: " << ip_str << std::endl;
+								}
+							}
+						}
+
+						if (new_ip_found && bWinDivertEnabled) {
+							SafeCloseWinDivert();
+						}
+					}
+				}
+			}
+		}
+        
+		std::this_thread::sleep_for(std::chrono::seconds(2));
+	}
+}
+
+static void WindivertWorkerThread() {
+    WINDIVERT_ADDRESS addr;
+    std::unique_ptr<char[]> packet = std::make_unique<char[]>(WINDIVERT_MTU_MAX);
+    UINT packetLen;
+
+    // Helper structures for parsing
+    PWINDIVERT_IPHDR ip_header;
+    PWINDIVERT_IPV6HDR ipv6_header;
+    PWINDIVERT_ICMPHDR icmp_header;
+    PWINDIVERT_ICMPV6HDR icmpv6_header;
+    PWINDIVERT_TCPHDR tcp_header;
+    PWINDIVERT_UDPHDR udp_header;
+    PVOID payload = nullptr;
+    UINT payload_len = 0;
+    
+    UINT8 protocol;
+    PVOID next;
+    UINT next_len;
+
+    // Safety Timer State
+    auto last_safety_pulse_time = std::chrono::steady_clock::now();
+    bool safety_pulse_active = false;
+
+    // Ensure all functions are loaded
+    if (!pWinDivertOpen || !pWinDivertRecv || !pWinDivertSend || !pWinDivertClose || 
+        !pWinDivertHelperParsePacket || !pWinDivertHelperCalcChecksums) {
+        std::cout << "WinDivert functions not loaded!" << std::endl;
+        return;
+    }
+
+    while (g_windivert_running) {
+        
+        // 1. Construct Filter String
+        std::string direction_filter = "";
+        if (lagswitchinbound && lagswitchoutbound) direction_filter = "(inbound or outbound)";
+        else if (lagswitchinbound) direction_filter = "inbound";
+        else if (lagswitchoutbound) direction_filter = "outbound";
+        else direction_filter = "false";
+
+        std::string final_filter = "";
+        
+        if (lagswitchtargetroblox) {
+            std::string combined_ip_filter = ROBLOX_RANGE_FILTER;
+            {
+                std::shared_lock lock(g_ip_mutex);
+                for (const auto& ip : g_roblox_dynamic_ips) {
+                    combined_ip_filter += " or (ip.SrcAddr == " + ip + " or ip.DstAddr == " + ip + ")";
+                }
+            }
+            final_filter = direction_filter + " and (" + combined_ip_filter + ")";
+        } else {
+            final_filter = direction_filter;
+        }
+
+		if (prevent_disconnect) {
+			final_filter = final_filter + " and udp";
+		}
+
+        g_current_windivert_filter = final_filter; 
+
+        // Open WinDivert
+        {
+            std::lock_guard<std::mutex> lock(g_windivert_handle_mutex);
+            hWindivert = pWinDivertOpen(final_filter.c_str(), WINDIVERT_LAYER_NETWORK, 0, 0);
+        }
+
+        if (hWindivert == INVALID_HANDLE_VALUE) {
+            if (GetLastError() == ERROR_INVALID_PARAMETER && !g_roblox_dynamic_ips.empty()) {
+                 std::unique_lock lock(g_ip_mutex);
+                 g_roblox_dynamic_ips.clear();
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            continue; 
+        }
+
+        // Reset timer on open
+        last_safety_pulse_time = std::chrono::steady_clock::now();
+
+        // --- INNER LOOP ---
+        while (g_windivert_running) {
+            if (!pWinDivertRecv(hWindivert, packet.get(), WINDIVERT_MTU_MAX, &packetLen, &addr)) {
+                break;
+            }
+
+            if (g_windivert_blocking) {
+                if (prevent_disconnect) {
+                    
+                    // ----------------------------------------------------
+                    // DYNAMIC SAFETY PULSE LOGIC
+                    // ----------------------------------------------------
+                    long long interval_ms = 0;
+
+                    if (lagswitchinbound && lagswitchoutbound) {
+                        // BOTH: Unlag every 20 seconds
+                        interval_ms = 24000; 
+                    } else if (lagswitchoutbound) {
+                        // OUTBOUND ONLY: Unlag every 4m 50s (290s)
+                        interval_ms = 290000;
+                    } else {
+                        // INBOUND ONLY: Infinite (0)
+                        interval_ms = 0;
+                    }
+
+                    if (interval_ms > 0) {
+                        auto now = std::chrono::steady_clock::now();
+                        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_safety_pulse_time).count();
+
+                        // Check if time to pulse
+                        if (elapsed_ms >= interval_ms) {
+                            safety_pulse_active = true;
+                        }
+
+                        // If pulse is active, allow traffic for 50ms
+                        if (safety_pulse_active) {
+                            if (elapsed_ms >= (interval_ms + 50)) {
+                                // Pulse Finished -> Reset Timer
+                                last_safety_pulse_time = std::chrono::steady_clock::now();
+                                safety_pulse_active = false;
+                            } else {
+                                // Pulse Active -> Force Send Packet
+								pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr);
+                                continue;
+                            }
+                        }
+                    }
+                    // ----------------------------------------------------
+
+                    bool drop_packet = false; // Default: Send (Safe fallback)
+
+                    if (pWinDivertHelperParsePacket(packet.get(), packetLen, 
+                        &ip_header, &ipv6_header, &protocol, 
+                        &icmp_header, &icmpv6_header, &tcp_header, &udp_header, 
+                        &payload, &payload_len, &next, &next_len) && payload != nullptr) 
+                    {
+                        // Check Header: 01 00 00 [17/1F] 01 11
+                        if (payload_len >= 90) {
+                            unsigned char* p = (unsigned char*)payload;
+                            
+                            // 1. Check common bytes
+                            if (p[0] == 0x01 && p[1] == 0x00 && p[2] == 0x00 && 
+                                p[4] == 0x01 && p[5] == 0x11) 
+                            {
+                                // 2. Check The Differentiator Byte (Index 3)
+                                if (!addr.Outbound) {
+                                    // INBOUND: Expect 0x17
+                                    if (p[3] == 0x17) drop_packet = true;
+                                } 
+                                else {
+                                    // OUTBOUND: Expect 0x1F
+                                    if (p[3] == 0x1F) drop_packet = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (drop_packet) continue; // Drop Physics
+                    else {
+                        pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr); // Send Heartbeat/Other
+                        continue;
+                    }
+                }
+                
+                // If Prevent Disconnect is OFF -> Drop Everything
+                continue; 
+            }
+
+            // Not Blocking (Lag Switch OFF) -> Keep timer fresh & send packets
+            last_safety_pulse_time = std::chrono::steady_clock::now();
+            pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr);
+        }
+
+        SafeCloseWinDivert();
+    }
+}
+
+// ExtractResource function required for dynamic WinDivert Usage
+static bool ExtractResource(int resourceId, const char* resourceType, const std::string& outputFilename) {
+    // Check if file already exists
+    DWORD attrib = GetFileAttributesA(outputFilename.c_str());
+    if (attrib != INVALID_FILE_ATTRIBUTES && !(attrib & FILE_ATTRIBUTE_DIRECTORY)) {
+        return true; // File exists, no need to extract
+    }
+
+    std::cout << "Extracting " << outputFilename << "..." << std::endl;
+
+    HMODULE hModule = GetModuleHandle(NULL);
+    HRSRC hRes = FindResourceA(hModule, MAKEINTRESOURCEA(resourceId), resourceType);
+    if (!hRes) {
+        std::cerr << "Failed to find resource ID: " << resourceId << " Type: " << resourceType << std::endl;
+        return false;
+    }
+
+    HGLOBAL hMem = LoadResource(hModule, hRes);
+    if (!hMem) return false;
+
+    DWORD size = SizeofResource(hModule, hRes);
+    void* data = LockResource(hMem);
+
+    if (!data || size == 0) return false;
+
+    std::ofstream file(outputFilename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Failed to write file: " << outputFilename << std::endl;
+        return false;
+    }
+
+    file.write(static_cast<const char*>(data), size);
+    file.close();
+
+    return true;
+}
+
+static const wchar_t* GetWinDivertErrorDescription(DWORD errorCode) {
+    switch (errorCode) {
+        case ERROR_FILE_NOT_FOUND:          // 2
+            return L"The WinDivert driver (SMCWinDivert.sys or WinDivert64.sys) could not be found.\n"
+                   L"Ensure the .sys file is in the same directory as the DLL/exe.";
+        case ERROR_ACCESS_DENIED:           // 5
+            return L"Access denied. The program must be run as Administrator.\n"
+                   L"Additionally, the driver may be blocked by signature enforcement or antivirus.";
+        case ERROR_INVALID_PARAMETER:       // 87
+            return L"Invalid parameter passed to WinDivertOpen (e.g., bad filter string, invalid layer, priority, or flags).";
+        case ERROR_INVALID_IMAGE_HASH:      // 577 (common on newer Windows)
+            return L"Driver signature verification failed.\n"
+                   L"The WinDivert driver is not signed or signature enforcement is enabled.\n"
+                   L"Try disabling Secure Boot, Driver Signature Enforcement, or use a signed version.";
+        case ERROR_SERVICE_DOES_NOT_EXIST:  // 1060 (driver service issue)
+            return L"The WinDivert service does not exist or failed to start properly.";
+        case ERROR_IO_DEVICE:               // 1117 (generic driver load failure)
+            return L"I/O device error - the driver failed to load or initialize.";
+        case ERROR_NO_DATA:                 // 232 (e.g., after shutdown recv)
+            return L"No more data available (queue empty after shutdown).";
+        case ERROR_HOST_UNREACHABLE:        // Often used for certain injection failures
+            return L"Host unreachable - common during certain packet reinjection scenarios.";
+        case ERROR_INVALID_HANDLE:          // 6 (bad handle)
+            return L"Invalid handle passed to a WinDivert function.";
+        default:
+            return L"Unknown or generic Windows error.\nMostly likely because the WinDivert Service hasn't started yet.\nRestart the program.";
+    }
+}
+
+static bool TryLoadWinDivert() {
+	if (g_isLinuxWine) {
+		return false;
+	}
+
+	wchar_t buffer[256] = {0};
+	// Check if file exists before attempting extraction or loading
+	if (bDependenciesLoaded) return true; 
+
+    // 1. Extract SYS (Resource ID from previous code)
+    if (!ExtractResource(IDR_SMC_WINDIVERT_SYS1, "SMC_WINDIVERT_SYS", "WinDivert64.sys")) MessageBoxW(NULL, buffer, L"WinDivert SYS Placement Error", MB_ICONERROR | MB_OK);
+    
+    // 2. Extract DLL
+    if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", "SMCWinDivert.dll")) MessageBoxW(NULL, buffer, L"SMCWinDivert DLL Placement Error", MB_ICONERROR | MB_OK);
+
+    // 3. Load Library
+    HMODULE hWinDivertDll = LoadLibraryA("SMCWinDivert.dll");
+    if (!hWinDivertDll) {
+        DWORD err = GetLastError();
+        wchar_t msg[1024];
+        const wchar_t* desc = GetWinDivertErrorDescription(err);  // Reuse for common cases
+        wsprintfW(msg, L"Failed to load SMCWinDivert.dll\n\n"
+                       L"LoadLibrary error code: %lu\n\nDescription:\n%s", err, desc);
+        MessageBoxW(NULL, msg, L"WinDivert Load Error", MB_ICONERROR | MB_OK);
+        return false;
+    }
+
+    // 4. Map Functions
+    pWinDivertOpen = (tWinDivertOpen)GetProcAddress(hWinDivertDll, "WinDivertOpen");
+    pWinDivertRecv = (tWinDivertRecv)GetProcAddress(hWinDivertDll, "WinDivertRecv");
+    pWinDivertSend = (tWinDivertSend)GetProcAddress(hWinDivertDll, "WinDivertSend");
+    pWinDivertClose = (tWinDivertClose)GetProcAddress(hWinDivertDll, "WinDivertClose");
+
+	pWinDivertHelperParsePacket = (tWinDivertHelperParsePacket)GetProcAddress(hWinDivertDll, "WinDivertHelperParsePacket");
+    pWinDivertHelperCalcChecksums = (tWinDivertHelperCalcChecksums)GetProcAddress(hWinDivertDll, "WinDivertHelperCalcChecksums");
+
+	// Check missing symbols (same collection as before)
+    bool allLoaded = true;
+    wchar_t missingFuncs[512] = L"";
+
+	if (!pWinDivertOpen) {
+        wcscat_s(missingFuncs, L"WinDivertOpen\n");
+        allLoaded = false;
+    }
+    if (!pWinDivertRecv) {
+        wcscat_s(missingFuncs, L"WinDivertRecv\n");
+        allLoaded = false;
+    }
+    if (!pWinDivertSend) {
+        wcscat_s(missingFuncs, L"WinDivertSend\n");
+        allLoaded = false;
+    }
+    if (!pWinDivertClose) {
+        wcscat_s(missingFuncs, L"WinDivertClose\n");
+        allLoaded = false;
+    }
+    // Optional functions (not fatal, but still report if missing)
+    if (!pWinDivertHelperParsePacket) {
+        wcscat_s(missingFuncs, L"WinDivertHelperParsePacket (optional)\n");
+    }
+    if (!pWinDivertHelperCalcChecksums) {
+        wcscat_s(missingFuncs, L"WinDivertHelperCalcChecksums (optional)\n");
+    }
+
+    if (!allLoaded) {
+        wsprintfW(buffer, L"Failed to resolve required WinDivert function(s):\n\n%s", missingFuncs);
+        MessageBoxW(NULL, buffer, L"WinDivert Symbol Resolution Error", MB_ICONERROR | MB_OK);
+        FreeLibrary(hWinDivertDll);
+        return false;
+    }
+
+	HANDLE testHandle = pWinDivertOpen("false", WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF);
+    if (testHandle == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        const wchar_t* desc = GetWinDivertErrorDescription(err);
+
+        wchar_t msg[1024];
+        wsprintfW(msg, L"WinDivert DLL loaded successfully, but driver failed to open.\n\n"
+                       L"WinDivertOpen error code: %lu\n\n"
+                       L"Description:\n%s", err, desc);
+
+        MessageBoxW(NULL, msg, L"WinDivert Driver Error", MB_ICONERROR | MB_OK);
+
+        FreeLibrary(hWinDivertDll);
+        return false;
+    }
+
+    // Success, close the test handle
+    SafeCloseWinDivert();
+
+    if (pWinDivertOpen && pWinDivertRecv && pWinDivertSend && pWinDivertClose) {
+        bDependenciesLoaded = true;
+        return true;
+    }
+    return false;
 }
 
 static bool IsMainWindow(HWND hwnd)
@@ -890,16 +1548,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_SIZE: {
 	    // Get window size
 	    GetWindowRect(hWnd, &screen_rect);
-
 	    screen_width = screen_rect.right - screen_rect.left;
 	    screen_height = screen_rect.bottom - screen_rect.top;
 
-	    if (g_pd3dDevice != NULL && wParam != SIZE_MINIMIZED) {
-		    CleanupRenderTarget();
-		    g_pSwapChain->ResizeBuffers(0, (UINT)LOWORD(lParam), (UINT)HIWORD(lParam),
-						DXGI_FORMAT_UNKNOWN, 0);
-		    CreateRenderTarget();
-	    }
 	    // Update raw screen rects
 	    RECT raw_screen_rect;
 	    GetWindowRect(hwnd, &raw_screen_rect);
@@ -920,85 +1571,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			return 0;
 		break;
     case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
+	    return 0;
     case WM_CLOSE:
-		done = true;
-		PostQuitMessage(0);
+	    done = true;
+	    running = false;
 		return 0;
     }
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
-bool CreateDeviceD3D(HWND hWnd)
+bool CreateDeviceWGL(HWND hWnd)
 {
-    RECT rect;
-    GetClientRect(hWnd, &rect);
-    int window_width = rect.right - rect.left;
-    int window_height = rect.bottom - rect.top;
-    DXGI_SWAP_CHAIN_DESC sd;
-    ZeroMemory(&sd, sizeof(sd));
-    sd.BufferCount = 2; // Use double buffering
-    sd.BufferDesc.Width = window_width;
-    sd.BufferDesc.Height = window_height;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 100;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = hWnd;
-    sd.SampleDesc.Count = 1;
-    sd.SampleDesc.Quality = 0;
-    sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    sd.Flags = 0;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = hWnd;
-    sd.SampleDesc.Count = 1;
-    sd.SampleDesc.Quality = 0;
-    sd.Windowed = TRUE;
-    sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	HDC hDc = GetDC(hWnd);
+	PIXELFORMATDESCRIPTOR pfd = {0};
+	pfd.nSize = sizeof(pfd);
+	pfd.nVersion = 1;
+	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+	pfd.iPixelType = PFD_TYPE_RGBA;
+	pfd.cColorBits = 32;
 
-    HRESULT res = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, NULL, &g_pd3dDeviceContext);
-
-    if (FAILED(res))
+	int pf = ChoosePixelFormat(hDc, &pfd);
+	if (pf == 0) {
+		ReleaseDC(hWnd, hDc);
 		return false;
+	}
+	if (SetPixelFormat(hDc, pf, &pfd) == FALSE) {
+		ReleaseDC(hWnd, hDc);
+		return false;
+	}
 
-    CreateRenderTarget();
-    return true;
+	g_hRC = wglCreateContext(hDc);
+	
+	g_hDC = hDc;
+	
+	return true;
 }
 
-void CleanupDeviceD3D()
+void CleanupDeviceWGL(HWND hWnd)
 {
-    CleanupRenderTarget();
-    if (g_pSwapChain) {
-		g_pSwapChain->Release();
-		g_pSwapChain = NULL;
-    }
-    if (g_pd3dDeviceContext) {
-		g_pd3dDeviceContext->Release();
-		g_pd3dDeviceContext = NULL;
-    }
-    if (g_pd3dDevice) {
-		g_pd3dDevice->Release();
-		g_pd3dDevice = NULL;
-    }
-}
-
-void CreateRenderTarget()
-{
-    ID3D11Texture2D *pBackBuffer;
-    g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
-    g_pd3dDevice->CreateRenderTargetView(pBackBuffer, NULL, &g_mainRenderTargetView);
-    pBackBuffer->Release();
-}
-
-void CleanupRenderTarget()
-{
-    if (g_mainRenderTargetView) {
-		g_mainRenderTargetView->Release();
-		g_mainRenderTargetView = NULL;
-    }
+	wglMakeCurrent(NULL, NULL);
+	if (g_hRC) {
+		wglDeleteContext(g_hRC);
+		g_hRC = NULL;
+	}
+	
+	if (g_hDC) {  // Use the stored HDC
+		ReleaseDC(hWnd, g_hDC);
+		g_hDC = NULL;
+	}
 }
 
 static std::string TrimNullChars(const char *buffer, size_t size)
@@ -1046,6 +1667,16 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"unequipinroblox", &unequipinroblox},
 	{"doublepressafkkey", &doublepressafkkey},
 	{"useoldpaste", &useoldpaste},
+	{"floorbouncehhj", &floorbouncehhj},
+	{"islagswitchswitch", &islagswitchswitch},
+    {"prevent_disconnect", &prevent_disconnect},
+	{"lagswitchoutbound", &lagswitchoutbound},
+	{"lagswitchinbound", &lagswitchinbound},
+	{"lagswitchtargetroblox", &lagswitchtargetroblox},
+	{"lagswitch_autounblock", &lagswitch_autounblock},
+	{"show_lag_overlay", &show_lag_overlay},
+	{"overlay_hide_inactive", &overlay_hide_inactive},
+	{"overlay_use_bg", &overlay_use_bg},
 };
 
 // Numeric variables to save
@@ -1069,6 +1700,8 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_enterkey", &vk_enterkey},
 	{"vk_chatkey", &vk_chatkey},
 	{"vk_afkkey", &vk_afkkey},
+	{"vk_floorbouncekey", &vk_floorbouncekey},
+	{"vk_lagswitchkey", &vk_lagswitchkey},
 	{"selected_dropdown", &selected_dropdown},
 	{"vk_wallkey", &vk_wallkey},
 	{"PreviousWallWalkSide", &PreviousWallWalkSide},
@@ -1095,6 +1728,14 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"display_scale", &display_scale},
 	{"WindowPosX", &WindowPosX},
 	{"WindowPosY", &WindowPosY},
+	{"lagswitch_max_duration", &lagswitch_max_duration},
+	{"lagswitch_unblock_ms", &lagswitch_unblock_ms},
+	{"overlay_x", &overlay_x},
+	{"overlay_y", &overlay_y},
+	{"overlay_size", &overlay_size},
+	{"overlay_bg_r", &overlay_bg_r},
+	{"overlay_bg_g", &overlay_bg_g},
+	{"overlay_bg_b", &overlay_bg_b},
 };
 
 // Char variables to save
@@ -1124,6 +1765,9 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"HHJDelay1Char", {HHJDelay1Char, sizeof(HHJDelay1Char)}},
 	{"HHJDelay2Char", {HHJDelay2Char, sizeof(HHJDelay2Char)}},
 	{"HHJDelay3Char", {HHJDelay3Char, sizeof(HHJDelay3Char)}},
+	{"FloorBounceDelay1Char", {FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char)}},
+	{"FloorBounceDelay2Char", {FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char)}},
+	{"FloorBounceDelay3Char", {FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char)}},
 };
 
 void SaveSettings(const std::string& filepath, const std::string& profile_name) {
@@ -1232,6 +1876,7 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
 	if (profile_name != "SAVE_DEFAULT_90493") {
 		// Global variables that don't change across profiles go here saved when not saving as (default)
 		root_json_output[METADATA_KEY]["shortdescriptions"] = shortdescriptions;
+		root_json_output[METADATA_KEY]["DontShowAdminWarning"] = DontShowAdminWarning;
 	}
 
     // Write the root JSON (which now contains all profiles) to file
@@ -1369,29 +2014,55 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
             }
         }
 
-        // Load special cases
-        if (section_amounts > 0) {
-            if (settings_to_load.contains("section_toggles") && settings_to_load["section_toggles"].is_array()) {
-                auto toggles = settings_to_load["section_toggles"].get<std::vector<bool>>();
-                size_t count = std::min(toggles.size(), static_cast<size_t>(section_amounts));
-                std::copy(toggles.begin(), toggles.begin() + count, section_toggles);
+		if (settings_to_load.contains("section_toggles") && settings_to_load["section_toggles"].is_array()) {
+            auto toggles = settings_to_load["section_toggles"].get<std::vector<bool>>();
+            size_t count = std::min(toggles.size(), static_cast<size_t>(section_amounts));
+            // Copy loaded values. Any new sections (indices >= count) keep their default values set at the top of the file.
+            std::copy(toggles.begin(), toggles.begin() + count, section_toggles);
+        }
+
+		if (settings_to_load.contains("section_order_vector") && settings_to_load["section_order_vector"].is_array()) {
+            auto order = settings_to_load["section_order_vector"].get<std::vector<int>>();
+                
+            // 1. HACKY SOLUTION: Add in Bunnyhop Location to older save files
+            // We apply this to 'order' BEFORE processing it further
+            if (std::find(order.begin(), order.end(), 13) == order.end() && order.size() >= 6) {
+                    if (order.size() >= 7) {
+                        order.insert(order.begin() + 7, 13); // Insert at index 6 (7th element)
+                    }
+            }
+			// Add in Lagswitch location to older save files
+			if (std::find(order.begin(), order.end(), 15) == order.end() && order.size() >= 4) {
+				if (order.size() >= 5) {
+					order.insert(order.begin() + 4, 15); // Insert at index 4 (5th element)
+				}
+			}
+        
+            // Filter duplicates and fill missing IDs
+            std::vector<int> final_order;
+            std::vector<bool> id_exists(section_amounts, false);
+
+            // Add loaded items ONLY if they are valid and NOT duplicates
+            for (int id : order) {
+                if (id >= 0 && id < section_amounts) {
+                    if (!id_exists[id]) {
+                        final_order.push_back(id);
+                        id_exists[id] = true;
+                    }
+                }
             }
 
-            if (settings_to_load.contains("section_order_vector") && settings_to_load["section_order_vector"].is_array()) {
-                auto order = settings_to_load["section_order_vector"].get<std::vector<int>>();
-                
-                // HACKY SOLUTION TO ADD IN FUNCTIONS IN CUSTOM POSITONS BY DEFAULT!
-				// Add in Bunnyhop Location to older save files
-                if (std::find(order.begin(), order.end(), 13) == order.end() && order.size() >= 6) {
-                     if (order.size() >= 7) {
-                         order.insert(order.begin() + 7, 13); // Insert at index 6 (7th element)
-                     }
-				}
-        
-                size_t count = std::min(order.size(), static_cast<size_t>(section_amounts));
-                for (size_t i = 0; i < count; ++i) {
-                    section_order[i] = order[i];
+            // Find any new IDs (like 15) that weren't in the file and append them
+            for (int i = 0; i < section_amounts; ++i) {
+                if (!id_exists[i]) {
+                    final_order.push_back(i);
                 }
+            }
+
+            // Update the global array correctly
+            size_t count = std::min(final_order.size(), static_cast<size_t>(section_amounts));
+            for (size_t i = 0; i < count; ++i) {
+                section_order[i] = final_order[i];
             }
         }
 
@@ -1415,6 +2086,10 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
 
 			if (metadata.contains("shortdescriptions") && metadata["shortdescriptions"].is_boolean()) {
 				shortdescriptions = metadata["shortdescriptions"].get<bool>();
+			}
+
+			if (metadata.contains("DontShowAdminWarning") && metadata["DontShowAdminWarning"].is_boolean()) {
+				DontShowAdminWarning = metadata["DontShowAdminWarning"].get<bool>();
 			}
 		}
 
@@ -2024,7 +2699,9 @@ static std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
     {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
     {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
-	{"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"}
+	{"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"},
+	{"Floor Bounce", "Jump much higher from flat ground"},
+	{"Lag Switch", "Modify or disable your internet connection temporarily"}
 }};
 
 static void InitializeSections()
@@ -2054,7 +2731,7 @@ struct BindingState {
     bool notBinding = true;
     std::chrono::steady_clock::time_point rebindTime;
     char keyBuffer[32] = "0x00";
-    char keyBufferHuman[32] = "None";  // Make sure this exists!
+    char keyBufferHuman[32] = "None";
     std::string buttonText = "Click to Bind Key";
     bool keyWasPressed[258] = {false};
     bool firstRun = true;
@@ -2229,18 +2906,154 @@ void CheckDisplayScale(HWND hwnd, int display_scale) {
 
 static void SetWorkingDirectoryToExecutablePath() // Allows non-standard execution for save files
 {
-    char exePath[MAX_PATH];
-    if (GetModuleFileNameA(nullptr, exePath, MAX_PATH)) {
-	// Remove the executable name to get the directory
-	char *lastSlash = strrchr(exePath, '\\');
-	if (lastSlash) {
-	    *lastSlash = '\0'; // Terminate the string at the last backslash
-	    SetCurrentDirectoryA(exePath);
-		}
+    wchar_t exePathW[MAX_PATH];
+    if (GetModuleFileNameW(nullptr, exePathW, MAX_PATH)) {
+        
+        // Remove the executable name to get the directory
+        wchar_t* lastSlash = wcsrchr(exePathW, L'\\');
+        if (lastSlash) {
+            *lastSlash = L'\0'; // Terminate the string at the last backslash
+            SetCurrentDirectoryW(exePathW);
+        }
+
+        // --- Check if running from a temporary directory ---
+        wchar_t fullExePathW[MAX_PATH];
+        GetModuleFileNameW(nullptr, fullExePathW, MAX_PATH);
+
+        // 1. Get the system's temporary directory
+        wchar_t tempDirW[MAX_PATH];
+        DWORD tempDirLen = GetTempPathW(MAX_PATH, tempDirW);
+        if (tempDirLen > 0 && tempDirLen < MAX_PATH) {
+            // Ensure it ends with a backslash for a proper prefix check
+            if (tempDirW[tempDirLen - 1] != L'\\') {
+                wcscat_s(tempDirW, L"\\");
+            }
+
+            // 2. Compare: Is the executable's path inside the temp directory?
+            if (_wcsnicmp(fullExePathW, tempDirW, tempDirLen) == 0) {
+                // We are running from a temp directory. This is a strong indicator of execution from a ZIP.
+                int result = MessageBoxW(
+                    nullptr,
+                    L"It looks like you're running this program from inside a compressed (ZIP/RAR) file.\n\n"
+                    L"This will prevent the program from saving your progress and break multiple features!\n\n"
+                    L"Please extract ALL files from the archive first, then run the program from the extracted folder.\n\n"
+                    L"Right-click the compressed file → 'Extract All...' or use software like 7-Zip/WinRAR.",
+                    L"Warning: Running from Compressed Archive",
+                    MB_ICONWARNING | MB_OK | MB_TOPMOST
+                );
+            }
+        }
     }
 }
 
-// START OF PROGRAM
+LRESULT CALLBACK OverlayWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    return DefWindowProc(hWnd, msg, wParam, lParam);
+}
+
+void UpdateLagswitchOverlay() {
+    bool shouldExist = show_lag_overlay && bWinDivertEnabled;
+    if (overlay_hide_inactive && !g_windivert_blocking) shouldExist = false;
+
+    if (!shouldExist) {
+        if (overlayHwnd) { DestroyWindow(overlayHwnd); overlayHwnd = NULL; }
+        return;
+    }
+
+    if (overlayHwnd == NULL) {
+        HINSTANCE hInstance = GetModuleHandle(NULL);
+        WNDCLASSEXW owc = { sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, OverlayWndProc, 0, 0, hInstance, NULL, NULL, NULL, NULL, L"LS_Overlay", NULL };
+        RegisterClassExW(&owc);
+
+        if (overlay_x == -1) overlay_x = (int)(GetSystemMetrics(SM_CXSCREEN) * 0.8f);
+
+        // Standard flags: Click-through, No Taskbar, No Alt-Tab
+        overlayHwnd = CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            L"LS_Overlay", L"", WS_POPUP,
+            overlay_x, overlay_y, 1, 1, NULL, NULL, hInstance, NULL);
+
+        ShowWindow(overlayHwnd, SW_SHOWNOACTIVATE);
+
+        if (!g_overlayFontHandle) {
+            HRSRC hRes = FindResource(NULL, TEXT("LSANS_TTF"), RT_RCDATA);
+            HGLOBAL hMem = LoadResource(NULL, hRes);
+            void* pData = LockResource(hMem);
+            DWORD len = SizeofResource(NULL, hRes);
+            DWORD nFonts = 0;
+            g_overlayFontHandle = AddFontMemResourceEx(pData, len, NULL, &nFonts);
+        }
+    }
+
+    HDC hdc = GetDC(overlayHwnd);
+    HDC memDC = CreateCompatibleDC(hdc);
+
+    // 1. Set up Font for Measurement
+    HFONT hFont = CreateFontA(overlay_size + 15, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, "Lucida Sans");
+    SelectObject(memDC, hFont);
+
+    // 2. Measure "Lagswitch OFF" to determine anchor size
+    const char* anchorText = "Lagswitch OFF";
+    SIZE anchorSize;
+    GetTextExtentPoint32A(memDC, anchorText, (int)strlen(anchorText), &anchorSize);
+
+    // 3. Calculate Padding (1/25th of the average of width and height)
+    int padding = (int)(((anchorSize.cx + anchorSize.cy) / 2.0f) / 25.0f);
+    if (padding < 2) padding = 2; // Safety minimum
+
+    // 4. Determine Final Box Size
+    int boxW = anchorSize.cx + (padding * 2);
+    int boxH = anchorSize.cy + (padding * 2);
+
+    // 5. Prepare Bitmap
+    HBITMAP hBitmap = CreateCompatibleBitmap(hdc, boxW, boxH);
+    SelectObject(memDC, hBitmap);
+
+    // 6. Draw Background
+    RECT rect = { 0, 0, boxW, boxH };
+    if (overlay_use_bg) {
+        HBRUSH hBrush = CreateSolidBrush(RGB(overlay_bg_r * 255, overlay_bg_g * 255, overlay_bg_b * 255));
+        FillRect(memDC, &rect, hBrush);
+        DeleteObject(hBrush);
+    } else {
+        HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0)); // Black = Transparency Key
+        FillRect(memDC, &rect, hBrush);
+        DeleteObject(hBrush);
+    }
+
+    // 7. Calculate Centering for the CURRENT text
+    const char* currentText = g_windivert_blocking ? "Lagswitch ON" : "Lagswitch OFF";
+    SIZE currentSize;
+    GetTextExtentPoint32A(memDC, currentText, (int)strlen(currentText), &currentSize);
+
+    int textDrawX = (boxW - currentSize.cx) / 2;
+    int textDrawY = (boxH - currentSize.cy) / 2;
+
+    // 8. Render Text
+    SetBkMode(memDC, TRANSPARENT);
+    if (g_windivert_blocking) {
+        SetTextColor(memDC, RGB(0, 255, 0)); // Green
+    } else {
+        SetTextColor(memDC, RGB(255, 255, 255)); // White
+    }
+    TextOutA(memDC, textDrawX, textDrawY, currentText, (int)strlen(currentText));
+
+    // 9. Push to Screen
+    POINT ptSrc = { 0, 0 };
+    POINT ptDst = { overlay_x, overlay_y };
+    SIZE size = { boxW, boxH };
+    BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+    
+    // Set position and size simultaneously
+    UpdateLayeredWindow(overlayHwnd, hdc, &ptDst, &size, memDC, &ptSrc, RGB(0,0,0), &blend, ULW_COLORKEY);
+
+    // 10. Cleanup
+    DeleteObject(hFont);
+    DeleteObject(hBitmap);
+    DeleteDC(memDC);
+    ReleaseDC(overlayHwnd, hdc);
+}
+
+// START OF GUI
 static void RunGUI()
 {
 	// Set working directory to correct path
@@ -2303,11 +3116,13 @@ static void RunGUI()
 	raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
 	raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
 
-    // Initialize Direct3D
-    if (!CreateDeviceD3D(hwnd)) {
-		CleanupDeviceD3D();
+    // Initialize OpenGL
+	if (!CreateDeviceWGL(hwnd)) {
+		CleanupDeviceWGL(hwnd);
 		UnregisterClass(wc.lpszClassName, wc.hInstance);
-    }
+		return;
+	}
+	wglMakeCurrent(g_hDC, g_hRC);
 
 	// Show the window
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
@@ -2337,11 +3152,13 @@ static void RunGUI()
 	LPVOID pData = LockResource(hMem);
     DWORD size = SizeofResource(NULL, hRes);
 
-	ImFont *mainfont = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(pData, size, 20.0f);
+	ImFontConfig cfg;
+	cfg.FontDataOwnedByAtlas = false;
+	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(pData, (int)size, 20.0f, &cfg);
 
     // Initialize ImGui for Win32 and DirectX 11
     ImGui_ImplWin32_Init(hwnd);
-    ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+	ImGui_ImplOpenGL3_Init("#version 130");
 
 	auto lastTime = std::chrono::steady_clock::now();
 	constexpr float targetFrameTime = 1.0f / 90.0f;  // 90 FPS target
@@ -2374,9 +3191,13 @@ static void RunGUI()
 	SAFE_CONVERT_INT(PasteDelay, PasteDelayChar);
 	SAFE_CONVERT_INT(HHJLength, HHJLengthChar);
 	SAFE_CONVERT_INT(HHJFreezeDelayOverride, HHJFreezeDelayOverrideChar);
+	SAFE_CONVERT_INT(HHJFreezeDelayOverride, HHJFreezeDelayOverrideChar);
 	SAFE_CONVERT_INT(HHJDelay1, HHJDelay1Char);
 	SAFE_CONVERT_INT(HHJDelay2, HHJDelay2Char);
 	SAFE_CONVERT_INT(HHJDelay3, HHJDelay3Char);
+	SAFE_CONVERT_INT(FloorBounceDelay1, FloorBounceDelay1Char);
+	SAFE_CONVERT_INT(FloorBounceDelay2, FloorBounceDelay2Char);
+	SAFE_CONVERT_INT(FloorBounceDelay3, FloorBounceDelay3Char);
 
 	SAFE_CONVERT_DOUBLE(BunnyHopDelay, BunnyHopDelayChar);
 
@@ -2431,7 +3252,10 @@ static void RunGUI()
 
 	bool amIFocused = true;
 	bool processFoundOld = false;
-	bool renderfirstframe = true;
+	bool lagswitchOld = false;
+	int renderfirstframe = 1;
+
+	bool currentBlock = false;
 
 	while (running) {
 		// Process all pending messages first
@@ -2451,22 +3275,29 @@ static void RunGUI()
 			amIFocused = (GetForegroundWindow() == hwnd);
 		}
 
-		if (processFoundOld != processFound) {
+		if ((processFoundOld != processFound) || (lagswitchOld != g_windivert_blocking)) {
 			amIFocused = true;
 		}
 
 		processFoundOld = processFound;
 
-		if (renderfirstframe) {
+		lagswitchOld = g_windivert_blocking;
+
+		if (renderfirstframe < 3) {
 			amIFocused = true;
-			renderfirstframe = false;
+		} else {
+			renderfirstframe += 1;
+		}
+
+		// Makes sure the log thread is synced to whether lagswitching should target Roblox
+		if (lagswitchtargetroblox && g_windivert_running) {
+			g_log_thread_running.store(lagswitchtargetroblox);
 		}
 
 		if (!amIFocused && !g_isLinuxWine) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(200));
 			continue; // Skip the rest of this iteration
 		}
-
 
 		// Check if it's time to render
 		auto currentTime = std::chrono::steady_clock::now();
@@ -2477,7 +3308,7 @@ static void RunGUI()
 			nextFrameTime = currentTime + std::chrono::duration<float>(targetFrameTime);
 
 			// Start ImGui frame
-			ImGui_ImplDX11_NewFrame();
+			ImGui_ImplOpenGL3_NewFrame();
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
 
@@ -2490,6 +3321,45 @@ static void RunGUI()
 
             // Create the main window with the specified flags
             ImGui::Begin("Main SMU Window", nullptr, window_flags); // Main ImGui window
+
+			// Admin Warning Popup
+			if (bShowAdminPopup) {
+				ImGui::OpenPopup("Administrator Required");
+			}
+
+			// Center the popup
+			ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+			ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+			if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+				ImGui::Text("WinDivert features require Administrator privileges.");
+				ImGui::Text("This process involves:");
+				ImGui::BulletText("Extracting SMCWinDivert.dll and WinDivert64.sys to the current folder.");
+				ImGui::BulletText("Restarting this application as Administrator.");
+        
+				ImGui::Separator();
+        
+				// The Persistent Checkbox
+				ImGui::Checkbox("Do not show this again", &DontShowAdminWarning);
+        
+				ImGui::Separator();
+
+				if (ImGui::Button("Restart as Admin", ImVec2(180, 0))) {
+					ImGui::CloseCurrentPopup();
+					bShowAdminPopup = false;
+					RestartAsAdmin(); // Triggers UAC and closes app
+				}
+        
+				ImGui::SetItemDefaultFocus();
+				ImGui::SameLine();
+        
+				if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+					ImGui::CloseCurrentPopup();
+					bShowAdminPopup = false;
+				}
+        
+				ImGui::EndPopup();
+			}
 
 			// Enable ImGUI Debug Mode
 			// ImGui::ShowMetricsWindow();
@@ -2571,7 +3441,7 @@ static void RunGUI()
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-			ImGui::Text("VERSION 3.1.1");
+			ImGui::Text("VERSION 3.2.0");
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -3047,7 +3917,7 @@ static void RunGUI()
 				ImGui::TextWrapped("(Human-Readable)");
 
 				if (selected_section == 0) { // Freeze Macro
-					ImGui::TextWrapped("Automatically Unfreeze for default 50ms after this amount of seconds (Anti-Internet-Kick)");
+					ImGui::TextWrapped("Automatically Unfreeze after this amount of seconds (Anti-Internet-Kick)");
 					ImGui::SetNextItemWidth(60.0f);
 					ImGui::InputFloat("##FreezeFloat", &maxfreezetime, 0.0f, 0.0f, "%.2f");
 					ImGui::SameLine();
@@ -3675,6 +4545,224 @@ static void RunGUI()
 					ImGui::TextWrapped("This will not be active unless you are currently inside of the target program.");
 				}
 
+				if (selected_section == 14) { // Floor Bounce
+					ImGui::Checkbox("Attempt to HHJ for potentially slightly more height (EXPERIMENTAL, NOT RECOMMENDED)", &floorbouncehhj);
+					if (ImGui::CollapsingHeader("Advanced Floor Bounce HHJ Options", showadvancedhhjbounce ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+					{
+						showadvancedhhjbounce = true;
+
+						// Add some vertical spacing for better visual separation
+						ImGui::Spacing();
+    
+						// First checkbox with indentation
+						ImGui::Indent();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("Delay (Milliseconds) after unfreezing and before shiftlocking", FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try {
+								FloorBounceDelay1 = std::stoi(FloorBounceDelay1Char);
+							} catch (const std::invalid_argument &e) {
+							} catch (const std::out_of_range &e) {
+							}
+						}
+						ImGui::Unindent();
+    
+						// Second checkbox
+						ImGui::Indent();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("Delay (Milliseconds) before enabling helicoptering", FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try {
+								FloorBounceDelay2 = std::stoi(FloorBounceDelay2Char);
+							} catch (const std::invalid_argument &e) {
+							} catch (const std::out_of_range &e) {
+							}
+						}
+						ImGui::Unindent();
+    
+						// Third checkbox
+						ImGui::Indent();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("Time (Milliseconds) spent helicoptering", FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try {
+								FloorBounceDelay3 = std::stoi(FloorBounceDelay3Char);
+							} catch (const std::invalid_argument &e) {
+							} catch (const std::out_of_range &e) {
+							}
+						}
+						ImGui::Unindent();
+    
+						// Optional: Add some spacing at the bottom
+						ImGui::Spacing();
+					}
+
+					ImGui::TextWrapped("IMPORTANT:");
+					ImGui::TextWrapped("This module only works at default Roblox gravity. If you can find an equation to allow conversion to different gravities, be my guest.");
+					ImGui::TextWrapped("Only works in R6 for now.");
+					ImGui::TextWrapped("FPS must be set to 160 or more to function properly. Higher is better.");
+					ImGui::Separator();
+					ImGui::TextWrapped("Explanation:");
+					ImGui::NewLine();
+					ImGui::TextWrapped(
+									"This Macro will automate an extremely precise glitch involving basically doing a lag high jump off the floor. "
+									"It will jump up, lag into the floor, and then perform a lag high jump off of the floor. "
+									"This will boost you up significantly into the air.");
+				}
+
+				if (selected_section == 15) { // Lag Switch
+
+                    ImGui::Checkbox("Switch from Hold Key to Toggle Key", &islagswitchswitch);
+
+					ImGui::Separator();
+
+					ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
+
+					ImGui::Checkbox("Prevent Roblox Disconnection (", &prevent_disconnect);
+
+					ImGui::SameLine(0, 0);
+					ImGui::TextColored(ImColor(50, 102, 205, 255), "?"); ImGui::SameLine(0, 0);
+					ImGui::Text(")");
+					ImGui::SetCursorScreenPos(tooltipcursorpos);
+					ImVec2 TextSizeCalc = ImGui::CalcTextSize("Prevent Roblox Disconnection (?)      ");
+					ImGui::InvisibleButton("##tooltip", TextSizeCalc);
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+						ImGui::SetTooltip("Uses packet-length filtering to allow Roblox heartbeats through while blocking game data.\nPrevents Timeout past the usual 10s threshold.\n"
+											"Experimental, may break or kick. This is actively being worked on.\n"
+											"This version will leak some of your movements to the server (you will appear to be extremely laggy/teleporting)\n");
+
+					ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x, tooltipcursorpos.y + 6));
+					ImGui::NewLine();
+					
+                    bool filter_changed = false;
+
+                    if (ImGui::Checkbox("Only Lag Switch Roblox", &lagswitchtargetroblox)) {
+						filter_changed = true;
+					}
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("Filters only Roblox traffic. Uncheck this to block EVERYTHING.");
+
+					ImGui::Separator();
+
+                    ImGui::Checkbox("Auto-Unlag (Anti-Kick)", &lagswitch_autounblock);
+                    
+                    // Disable inputs if toggle is off
+                    if (!lagswitch_autounblock) ImGui::BeginDisabled();
+
+                    ImGui::TextWrapped("Automatically stops lagging after this amount of seconds");
+                    
+                    ImGui::SetNextItemWidth(60.0f);
+                    ImGui::InputFloat("##LagFloat", &lagswitch_max_duration, 0.0f, 0.0f, "%.2f");
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(300.0f);
+                    ImGui::SliderFloat("##LagSlider", &lagswitch_max_duration, 0.0f, 15.0f, "%.2f Seconds");
+
+                    char lagUnblockBuffer[16];
+                    std::snprintf(lagUnblockBuffer, sizeof(lagUnblockBuffer), "%d", lagswitch_unblock_ms);
+
+                    ImGui::SetNextItemWidth(50.0f);
+                    if (ImGui::InputText("Modify 50ms Default Unlag Time (MS)", lagUnblockBuffer, sizeof(lagUnblockBuffer), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+                        lagswitch_unblock_ms = std::atoi(lagUnblockBuffer);
+                    }
+
+                    if (!lagswitch_autounblock) ImGui::EndDisabled();
+
+					ImGui::Separator();
+					if (ImGui::Checkbox("Block Outbound (Upload/Send) (Players won't be able to see you move)", &lagswitchoutbound)) filter_changed = true;
+					if (ImGui::Checkbox("Block Inbound (Download/Recv) (You won't be able to see other players move)", &lagswitchinbound)) filter_changed = true;
+					ImGui::Separator();
+
+                    // If filters changed and driver is active, force restart
+                    if (filter_changed && bWinDivertEnabled) {
+						SafeCloseWinDivert();
+                    }
+
+                    // Warning if both disabled
+                    if (!lagswitchoutbound && !lagswitchinbound) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+                        ImGui::TextWrapped("WARNING: Both Inbound and Outbound are unchecked.\nThe Lag Switch will do nothing.");
+                        ImGui::PopStyleColor();
+                    }
+
+					ImGui::Checkbox("Show Lagswitch Status Overlay", &show_lag_overlay);
+
+					if (!show_lag_overlay) ImGui::BeginDisabled();
+					ImGui::Indent();
+    
+					ImGui::Checkbox("Hide When Not Actively Lagswitching", &overlay_hide_inactive);
+    
+					// Get Screen resolution for sliders
+					int screenW = GetSystemMetrics(SM_CXSCREEN);
+					int screenH = GetSystemMetrics(SM_CYSCREEN);
+
+					// Initialize position to top-right 20% if first time
+					if (overlay_x == -1) { overlay_x = (int)(screenW * 0.8f); }
+
+					ImGui::PushItemWidth(500);
+
+					ImGui::SliderInt("Overlay X", &overlay_x, 0, screenW);
+					ImGui::SliderInt("Overlay Y", &overlay_y, 0, screenH);
+					ImGui::SliderInt("Text Size", &overlay_size, 10, 100);
+    
+					ImGui::Checkbox("Add Background", &overlay_use_bg);
+					if (!overlay_use_bg) ImGui::BeginDisabled();
+					float colors[3] = { overlay_bg_r, overlay_bg_g, overlay_bg_b };
+					if (ImGui::ColorEdit3("Background Color", colors)) {
+						overlay_bg_r = colors[0];
+						overlay_bg_g = colors[1];
+						overlay_bg_b = colors[2];
+					}
+					ImGui::PopItemWidth();
+
+					if (!overlay_use_bg) ImGui::EndDisabled();
+
+					ImGui::Unindent();
+					if (!show_lag_overlay) ImGui::EndDisabled();
+
+					ImGui::Separator();
+					ImGui::NewLine();
+					ImGui::Separator();
+
+                    // The Admin/Load Button Logic
+                    if (ImGui::Button(bWinDivertEnabled ? "Disable WinDivert" : "Enable WinDivert")) {
+                        if (!bWinDivertEnabled) {
+                            if (IsRunAsAdmin()) {
+                                if (TryLoadWinDivert()) {
+                                    bWinDivertEnabled = true;
+                                    g_windivert_running = true;
+                                    WinDivertThread = std::thread(WindivertWorkerThread);
+                                } else {
+                                    std::cerr << "Failed to load WinDivert files." << std::endl;
+                                }
+                            } else {
+                                if (DontShowAdminWarning) {
+                                    RestartAsAdmin();
+                                } else {
+                                    bShowAdminPopup = true;
+                                }
+                            }
+                        } else {
+                            bWinDivertEnabled = false;
+                            g_windivert_running = false;
+                            g_windivert_blocking = false; // Reset blocking state
+                            SafeCloseWinDivert(); // Kill the thread loop
+                            if (WinDivertThread.joinable()) WinDivertThread.join();
+                        }
+                    }
+
+                    ImGui::SameLine();
+                    ImGui::TextColored(bWinDivertEnabled ? ImVec4(0,1,0,1) : ImVec4(1,0,0,1), 
+                                       bWinDivertEnabled ? "Driver Running" : "Driver Not Running");
+                    
+                    if (bWinDivertEnabled) {
+                        ImGui::SameLine();
+                        ImGui::Text(" |  Status: ");
+                        ImGui::SameLine();
+                        ImGui::TextColored(g_windivert_blocking ? ImVec4(1, 0, 0, 1) : ImVec4(0, 1, 0, 1), 
+                            g_windivert_blocking ? "LAGGING" : "Clear");
+                        
+                        // Debug: Show filter string
+                        // ImGui::TextDisabled("Filter: %s", g_current_windivert_filter.c_str());
+                    }
+				}
+
             } else {
                 ImGui::TextWrapped("Select a section to see its settings.");
             }
@@ -3698,7 +4786,7 @@ static void RunGUI()
 
 			// Add in an extra line to the bottom left to fill missing pixels
 			draw_list->AddLine(
-				ImVec2(childpos.x, childpos.y + childsize.y - 1),
+				ImVec2(childpos.x, childpos.y + childsize.y - 2),
 				ImVec2(childpos.x, childpos.y + childsize.y + 29),
 				lineColor,
 				1.0f
@@ -3706,7 +4794,7 @@ static void RunGUI()
 
 			// Add in an extra line to the bottom right to fill missing pixels
 			draw_list->AddLine(
-				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y - 1),
+				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y - 2),
 				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y + 29),
 				lineColor,
 				1.0f
@@ -3759,12 +4847,15 @@ static void RunGUI()
 
             // Render
             ImGui::Render();
-            const float clear_color[] = { 0.45f, 0.55f, 0.60f, 1.00f };
-            g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, NULL);
-            g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color);
-            ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-            g_pSwapChain->Present(1, 0);  // Vsync present for smooth rendering
+            
+            glViewport(0, 0, screen_width, screen_height);
+            glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
+            glClear(GL_COLOR_BUFFER_BIT);
+            
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            
+            SwapBuffers(g_hDC);
+			UpdateLagswitchOverlay();
 			// Wait until next frame
 			std::this_thread::sleep_until(nextFrameTime);
 
@@ -3773,6 +4864,11 @@ static void RunGUI()
         // No rendering needed
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+	ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+    CleanupDeviceWGL(hwnd);
 
     UnregisterClass(wc.lpszClassName, wc.hInstance);
     AttachThreadInput(mainThreadId, guiThreadId, FALSE);
@@ -3814,7 +4910,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (GetEnvironmentVariableA("DEBUG", debugbuffer, sizeof(debugbuffer)) && std::string(debugbuffer) == "1") {
         CreateDebugConsole();
     } else {
-		// CreateDebugConsole();
+		// Comment this back in to see the console on regular builds
+		CreateDebugConsole();
 	}
 
 	// Run timers with max precision
@@ -3875,17 +4972,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread7(BhopLoop);
 	std::thread actionThread8(WallhopThread);
 	std::thread actionThread9(PressKeyThread);
+	std::thread actionThread10(FloorBounceThread);
+	std::thread logScannerThread(RobloxLogScannerThread);
 	
 	std::thread guiThread(RunGUI);
 
 	std::thread KeyboardThread;
+
 	if (!g_isLinuxWine) {
 		KeyboardThread = std::thread(KeyboardHookThread);
 	}
 
 	MSG msg;
 
-	std::vector<DWORD> targetPIDs = FindProcessIdsByName_Compat(settingsBuffer, takeallprocessids);
+	targetPIDs = FindProcessIdsByName_Compat(settingsBuffer, takeallprocessids);
 
     if (targetPIDs.empty()) {
         processFound = false;
@@ -3893,7 +4993,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		processFound = true;
 	}
 
-	std::vector<HANDLE> hProcess = GetProcessHandles_Compat(targetPIDs, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
+	hProcess = GetProcessHandles_Compat(targetPIDs, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
 	std::vector<HWND> rbxhwnd = FindWindowByProcessHandle(hProcess); // SET ROBLOX WINDOW HWND RAHHHHH
 
 	// These variables are used for "one-click" functionalies for macros, so you can press a key and it runs every time that key is pressed (without overlapping itself)
@@ -3912,6 +5012,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	bool isbounce = false;
 	bool isbhop = false;
 	bool bhoplocked = false;
+	bool isfloorbounce = false;
 	static const float targetFrameTime = 1.0f / 90.0f; // Targeting 90 FPS
 	auto lastPressTime = std::chrono::steady_clock::now();
 	auto lastProcessCheck = std::chrono::steady_clock::now();
@@ -4115,7 +5216,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		// Helicopter High jump
 		if (IsKeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
 			if (!HHJ) {
-
 				if (autotoggle) { // Auto-Key-Timer
 					HoldKey(0x39);
 					std::this_thread::sleep_for(std::chrono::milliseconds(550));
@@ -4358,6 +5458,107 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
 		}
 
+		// Floor Bounce
+		if (IsKeyPressed(vk_floorbouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[14]) {
+			if (!isfloorbounce) {
+				isfloorbouncethread = true;
+				isfloorbounce = true;
+			}
+		} else {
+			if (isfloorbounce) {
+				isfloorbounce = false;
+			}
+		}
+
+		if (macrotoggled && notbinding && section_toggles[15]) {
+			if (bWinDivertEnabled) {
+				static bool wasLagSwitchPressed = false;
+                static bool prev_blocking_state = false;
+				bool isPressed = IsKeyPressed(vk_lagswitchkey);
+                
+                // Determine the "Logical" state (Does the user want it on?)
+                bool logical_on_state = false;
+
+				if (islagswitchswitch) {
+					// TOGGLE MODE
+					if (isPressed && !wasLagSwitchPressed) {
+						g_windivert_blocking = !g_windivert_blocking; // Flip state
+					}
+                    logical_on_state = g_windivert_blocking;
+					wasLagSwitchPressed = isPressed;
+				} else {
+					// HOLD MODE
+					g_windivert_blocking = isPressed;
+                    logical_on_state = isPressed;
+				}
+
+                // Detect when Lag Switch was JUST turned on to reset the timer
+                if (logical_on_state && !prev_blocking_state) {
+                    lagswitch_start_time = std::chrono::steady_clock::now();
+                }
+                prev_blocking_state = logical_on_state;
+
+                // Auto-Unlag Logic
+                if (logical_on_state && lagswitch_autounblock) {
+                    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - lagswitch_start_time).count();
+                    
+                    if (elapsed >= (lagswitch_max_duration * 1000)) {
+                        // 1. Unblock momentarily (Let traffic pass)
+                        g_windivert_blocking = false;
+                        
+                        // 2. Wait
+                        std::this_thread::sleep_for(std::chrono::milliseconds(lagswitch_unblock_ms));
+                        
+                        // 3. Determine if we should Re-Lag
+                        bool should_resume = false;
+
+                        if (islagswitchswitch) {
+                            // In Toggle Mode, if we were logically on, we STAY on.
+                            should_resume = true;
+                        } else {
+                            // In Hold Mode, we only resume if the key is STILL being held down.
+                            if (IsKeyPressed(vk_lagswitchkey)) {
+                                should_resume = true;
+                            }
+                        }
+
+                        if (should_resume) {
+                            g_windivert_blocking = true;
+                        }
+                        
+                        // 4. Reset timer
+                        lagswitch_start_time = std::chrono::steady_clock::now();
+                    }
+                }
+
+			} else {
+                // If user presses key but driver isn't loaded, prompt for admin
+				if (IsKeyPressed(vk_lagswitchkey)) {
+					if (IsRunAsAdmin()) {
+						if (TryLoadWinDivert()) {
+							bWinDivertEnabled = true;
+							g_windivert_running = true;
+							WinDivertThread = std::thread(WindivertWorkerThread);
+							// Allow 200ms for the driver to load before toggling on
+							std::this_thread::sleep_for(std::chrono::milliseconds(200));
+							g_windivert_blocking = true;
+						} else {
+							std::cerr << "Failed to load WinDivert files." << std::endl;
+						}
+					} else if (DontShowAdminWarning) {
+						RestartAsAdmin();
+					} else {
+						bShowAdminPopup = true;
+					}
+				}
+			}
+        } else {
+            // Safety: If module is disabled or tabbed out, ensure we aren't blocking internet
+            if (!section_toggles[15]) {
+                g_windivert_blocking = false;
+            }
+        }
+
 		// Every second, check if roblox continues to exist.
 		if (++counter % 100 == 0) {  // Check time every 100th iteration
 			now = std::chrono::steady_clock::now();
@@ -4533,16 +5734,51 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		g_keyboardHook = NULL;
 	}
 
+	if (overlayHwnd) {
+		DestroyWindow(overlayHwnd);
+	}
+
+	running = false;
+	g_windivert_running = false;
+
+	if (IsRunAsAdmin()) {
+	    system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+    }
+
+	StopKeyboardThread();
+
+	actionThread.join();
+	actionThread2.join();
+	actionThread3.join();
+	actionThread4.join();
+	actionThread5.join();
+	actionThread6.join();
+	actionThread7.join();
+	actionThread8.join();
+	actionThread9.join();
+	actionThread10.join();
+
+	SafeCloseWinDivert();
+
+	g_log_thread_running = false;
+	logScannerThread.join();
 
 	guiThread.join();
 
+	if (g_overlayFontHandle) {
+		RemoveFontMemResourceEx(g_overlayFontHandle);
+	}
+
+	if (IsWindow(hwnd)) {
+		DestroyWindow(hwnd);
+	}
+	
+	if (WinDivertThread.joinable()) WinDivertThread.join();
+
+	KeyboardThread.join();
+
 	ShutdownLinuxCompatLayer();
 
-	ImGui_ImplDX11_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-	CleanupDeviceD3D();
-	DestroyWindow(hwnd);
 	timeEndPeriod(1);
 	exit(0);
 

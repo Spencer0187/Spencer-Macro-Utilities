@@ -19,6 +19,9 @@
     <Filter Include="Header Files\imgui">
       <UniqueIdentifier>{4b67df62-bd96-4011-944c-1ccaa254f9cd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\windivert-files">
+      <UniqueIdentifier>{a5f6fe53-7a45-484b-82d8-aceaad83912a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="macroframework.cpp">
@@ -47,6 +50,9 @@
     </ClCompile>
     <ClCompile Include="Resource Files\miniz.c">
       <Filter>Resource Files</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui-files\imgui_impl_opengl3.cpp">
+      <Filter>Header Files\imgui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -95,6 +101,15 @@
     <ClInclude Include="Resource Files\save_system.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
+    <ClInclude Include="imgui-files\imgui_impl_opengl3.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui-files\imgui_impl_opengl3_loader.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="windivert-files\windivert.h">
+      <Filter>Header Files\windivert-files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">
@@ -117,6 +132,15 @@
   <ItemGroup>
     <None Include="Resource Files\Suspend_Input_Helper_Linux_Binary">
       <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resource files\smc_wind.bin">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="windivert-files\SMCWinDivert.dll">
+      <Filter>Header Files\windivert-files</Filter>
+    </None>
+    <None Include="windivert-files\SMCWinDivert64.sys">
+      <Filter>Header Files\windivert-files</Filter>
     </None>
   </ItemGroup>
 </Project>

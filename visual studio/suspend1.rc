@@ -1,4 +1,4 @@
-    // Microsoft Visual C++ generated resource script.
+// Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
 
@@ -106,10 +106,26 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Binary
+// BINARY
 //
 
-IDR_BINARY1             Binary                  "Resource Files\\Suspend_Input_Helper_Linux_Binary"
+IDR_BINARY1             BINARY                  "Resource Files\\Suspend_Input_Helper_Linux_Binary"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// SMC_WINDIVERT_DLL
+//
+
+IDR_SMC_WINDIVERT_DLL1  SMC_WINDIVERT_DLL       "windivert-files\\SMCWinDivert.dll"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// SMC_WINDIVERT_SYS
+//
+
+IDR_SMC_WINDIVERT_SYS1  SMC_WINDIVERT_SYS       "windivert-files\\SMCWinDivert64.sys"
 
 #endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
