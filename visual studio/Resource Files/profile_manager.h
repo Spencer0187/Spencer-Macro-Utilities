@@ -5,8 +5,8 @@
 
 // --- Core Settings Logic ---
 void SaveSettings(const std::string& filepath, const std::string& profile_name);
-void LoadSettings(const std::string& filepath, const std::string& profile_name);
-bool TryLoadLastActiveProfile(const std::string& filepath);
+void LoadSettings(std::string filepath, std::string profile_name);
+bool TryLoadLastActiveProfile(std::string filepath);
 
 // --- Profile Manipulation ---
 std::vector<std::string> GetProfileNames(const std::string& filepath);
