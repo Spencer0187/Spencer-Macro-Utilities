@@ -730,36 +730,23 @@ static void SetWorkingDirectoryToExecutablePath() // Allows non-standard executi
     }
 }
 
-static std::string getSettingsFileName() {
-    // Check for SMCSettings.json first
-    if (std::filesystem::exists("SMCSettings.json")) {
-        return "SMCSettings.json";
-    }
-
-    // If not found, check for RMCSettings.json
-    if (std::filesystem::exists("RMCSettings.json")) {
-        return "RMCSettings.json";
-    }
-
-    // Return empty string if neither exists
-    return "";
-}
-
 static bool renameRMCToSMC() {
     namespace fs = std::filesystem;
     const fs::path source = "RMCSettings.json";
     const fs::path target = "SMCSettings.json";
 
     // Check if the source exists
-    if (fs::exists(source)) {
-        try {
-            // Rename the file
-            fs::rename(source, target);
-            return true; 
-        } catch (const fs::filesystem_error& e) {
-            std::cerr << "Error renaming file: " << e.what() << std::endl;
-            return false;
-        }
+    if (!fs::exists(target)) {
+	    if (fs::exists(source)) {
+		    try {
+			    // Rename the file
+			    fs::rename(source, target);
+			    return true;
+		    } catch (const fs::filesystem_error &e) {
+			    std::cerr << "Error renaming file: " << e.what() << std::endl;
+			    return false;
+		    }
+	    }
     }
     
     // Source didn't exist, so no action needed.
@@ -772,7 +759,7 @@ static void RunGUI() {
     SetWorkingDirectoryToExecutablePath();
 
 	renameRMCToSMC();
-    getSettingsFileName();
+    G_SETTINGS_FILEPATH = getSettingsFileName();
 
 	// Setup Linux Compatibility Layer if Needed
 	InitLinuxCompatLayer();
@@ -787,8 +774,14 @@ static void RunGUI() {
 	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 	wc.hIconSm = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 
+	// Check and load if settings currently exist
+	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+
 	// Override old default profile to new one
 	SaveSettings(G_SETTINGS_FILEPATH, "SAVE_DEFAULT_90493");
+
+	renameRMCToSMC();
+    G_SETTINGS_FILEPATH = getSettingsFileName();
 	
 	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
 
@@ -2684,7 +2677,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         CreateDebugConsole();
     } else {
 		// Comment this back in to see the console on regular builds
-		// CreateDebugConsole();
+		CreateDebugConsole();
 	}
 
 	// Run timers with max precision

@@ -210,6 +210,21 @@ namespace Globals {
     inline const std::string METADATA_KEY = "_metadata";
     inline const std::string LAST_ACTIVE_PROFILE_KEY = "last_active_profile";
 
+    inline std::string getSettingsFileName() {
+        // Check for SMCSettings.json first
+        if (std::filesystem::exists("SMCSettings.json")) {
+            return "SMCSettings.json";
+        }
+
+        // If not found, check for RMCSettings.json
+        if (std::filesystem::exists("RMCSettings.json")) {
+            return "RMCSettings.json";
+        }
+
+        // Return empty string if neither exists
+        return "RMCSettings.json";
+    }
+
     // --- Lookup Tables ---
     inline const std::unordered_map<int, std::string> vkToString = {
         {VK_LBUTTON, "VK_LBUTTON"}, {VK_RBUTTON, "VK_RBUTTON"}, {VK_CANCEL, "VK_CANCEL"},

@@ -318,7 +318,7 @@ std::string GenerateNewDefaultProfileName(const std::vector<std::string>& existi
     }
 }
 
-bool TryLoadLastActiveProfile(const std::string& filepath) {
+bool TryLoadLastActiveProfile(std::string filepath) {
 
     std::ifstream file;
 	bool fileFound = false;
@@ -338,14 +338,18 @@ bool TryLoadLastActiveProfile(const std::string& filepath) {
 			file.open(real_filepath);
 			if (file.is_open()) {
 				fileFound = true;
-				LoadSettings(real_filepath.string(), "(default)");
-				std::this_thread::sleep_for(std::chrono::milliseconds(200));
-				G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-				SaveSettings(filepath, "Profile 1");
-
 				std::cerr << "Found Parent Save File!" << std::endl;
-				return true;
-			}
+				std::filesystem::copy_file(real_filepath, std::filesystem::current_path() / filepath);
+			} else {
+				real_filepath = current_path.parent_path() / "SMCSettings.json"; // Yes I know this should be a variable
+				file.open(real_filepath);
+				if (file.is_open()) {
+                    fileFound = true;
+					filepath = "SMCSettings.json";
+				    std::cerr << "Found Parent Save File!" << std::endl;
+                    std::filesystem::copy_file(real_filepath, std::filesystem::current_path() / filepath);
+				}
+            }
 		}
 	}
 
@@ -379,7 +383,7 @@ bool TryLoadLastActiveProfile(const std::string& filepath) {
                 std::cerr << "TryLoadLastActiveProfile: Last active profile '" << last_active_name << "' not found or invalid in settings file." << std::endl;
             }
         } else {
-            // std::cout << "TryLoadLastActiveProfile: No 'last_active_profile' key found in metadata." << std::endl;
+            std::cout << "TryLoadLastActiveProfile: No 'last_active_profile' key found in metadata." << std::endl;
         }
     } else {
 		// Import old settings in
@@ -854,7 +858,7 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
     }
 }
 
-void LoadSettings(const std::string& filepath, const std::string& profile_name) {
+void LoadSettings(std::string filepath, std::string profile_name) {
 
 	if (profile_name == "") {
 		return;
@@ -878,7 +882,14 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
 			file.open(real_filepath);
 			if (file.is_open()) {
 				fileFound = true;
-			}
+			} else {
+				real_filepath = current_path.parent_path() / "SMCSettings.json"; // Yes I know this should be a variable
+				file.open(real_filepath);
+				if (file.is_open()) {
+				    fileFound = true;
+					filepath = "SMCSettings.json";
+				}
+            }
 		}
 	}
 
@@ -911,9 +922,19 @@ void LoadSettings(const std::string& filepath, const std::string& profile_name) 
         if (root_file_json.at(profile_name).is_object()) {
             settings_to_load = root_file_json.at(profile_name);
             profile_data_extracted = true;
-        } else {
-            std::cerr << "Warning: Profile '" << profile_name << "' in '" << filepath << "' is not a valid settings object." << std::endl;
         }
+    } else if (root_file_json.is_object() && root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
+        const auto& metadata = root_file_json[METADATA_KEY];
+        if (metadata.contains(LAST_ACTIVE_PROFILE_KEY) && metadata[LAST_ACTIVE_PROFILE_KEY].is_string()) {
+            std::string last_active_name = metadata[LAST_ACTIVE_PROFILE_KEY].get<std::string>(); 
+            if (root_file_json.at(last_active_name).is_object()) {
+                settings_to_load = root_file_json.at(last_active_name);
+                profile_name = last_active_name;
+                profile_data_extracted = true;
+            }
+        }
+    } else {
+        std::cerr << "Warning: Profile '" << profile_name << "' in '" << filepath << "' is not a valid settings object." << std::endl;
     }
 
     // Backwards Compatibility: If profile wasn't found AND we are trying to load the designated "legacy" profile name
