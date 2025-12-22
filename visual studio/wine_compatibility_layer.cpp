@@ -10,7 +10,6 @@
 #include "Resource Files/globals.h"
 using namespace Globals;
 
-// --- Definitions (The actual memory storage) ---
 std::string g_linuxHelperPath_Windows;
 
 // Function Pointers
@@ -44,8 +43,7 @@ std::string GetWineHostOS()
 	if (!hNtdll)
 		return "unknown";
 	typedef const char *(*wine_get_host_version_t)(const char **sysname, const char **release);
-	auto wine_get_host_version =
-		(wine_get_host_version_t)GetProcAddress(hNtdll, "wine_get_host_version");
+	auto wine_get_host_version = (wine_get_host_version_t)GetProcAddress(hNtdll, "wine_get_host_version");
 	if (wine_get_host_version) {
 		const char *sysname_ptr;
 		wine_get_host_version(&sysname_ptr, nullptr);

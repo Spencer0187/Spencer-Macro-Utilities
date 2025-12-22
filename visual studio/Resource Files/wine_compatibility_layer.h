@@ -39,7 +39,7 @@ std::vector<HANDLE> GetProcessHandles_Compat(const std::vector<DWORD> &pids, DWO
 void SuspendOrResumeProcesses_Compat(const std::vector<DWORD> &pids,
 				     const std::vector<HANDLE> &handles, bool suspend);
 
-// Pointers to the wheel functions in your main file
+// Pointers to the wheel functions in the file
 bool IsWheelUp();
 bool IsWheelDown();
 
