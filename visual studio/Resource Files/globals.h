@@ -8,6 +8,7 @@
 #include <shared_mutex>
 #include <mutex>
 #include <set>
+#include <filesystem>
 
 #include "windivert-files/windivert.h"
 
@@ -204,7 +205,7 @@ namespace Globals {
     inline int selected_dropdown = 0;
 
     // --- Profile Management Constants ---
-    inline const std::string G_SETTINGS_FILEPATH = "RMCSettings.json";
+    inline std::string G_SETTINGS_FILEPATH = "SMCSettings.json";
     inline std::string G_CURRENTLY_LOADED_PROFILE_NAME = "";
     inline const std::string METADATA_KEY = "_metadata";
     inline const std::string LAST_ACTIVE_PROFILE_KEY = "last_active_profile";
@@ -246,10 +247,15 @@ namespace Globals {
     inline bool lagswitchoutbound = true;
     inline bool lagswitchinbound = true;
     inline bool lagswitchtargetroblox = true;
+    inline bool lagswitchlaginbound = true;
+    inline bool lagswitchlagoutbound = true;
+    inline bool lagswitchlag = false;
+    inline bool lagswitchusetcp = false;
     inline bool prevent_disconnect = true;
     inline bool bShowAdminPopup = false;
     inline bool lagswitch_autounblock = false;
     inline float lagswitch_max_duration = 9.00f;
+    inline int lagswitchlagdelay = 0;
     inline int lagswitch_unblock_ms = 50;
     inline bool bWinDivertEnabled = false;
     inline bool bDependenciesLoaded = false;

@@ -2,7 +2,7 @@
 #include "Resource Files/globals.h"
 #include "Resource Files/profile_manager.h"
 #include "imgui-files/imgui.h"
-#include "imgui-files/json.hpp"
+#include "Resource Files/json.hpp"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -65,6 +65,10 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"lagswitchoutbound", &lagswitchoutbound},
 	{"lagswitchinbound", &lagswitchinbound},
 	{"lagswitchtargetroblox", &lagswitchtargetroblox},
+	{"lagswitchlaginbound", &lagswitchlaginbound},
+	{"lagswitchlagoutbound", &lagswitchlagoutbound},
+	{"lagswitchlag", &lagswitchlag},
+	{"lagswitchusetcp", &lagswitchusetcp},
 	{"lagswitch_autounblock", &lagswitch_autounblock},
 	{"show_lag_overlay", &show_lag_overlay},
 	{"overlay_hide_inactive", &overlay_hide_inactive},
@@ -121,6 +125,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"WindowPosY", &WindowPosY},
 	{"lagswitch_max_duration", &lagswitch_max_duration},
 	{"lagswitch_unblock_ms", &lagswitch_unblock_ms},
+	{"lagswitchlagdelay", &lagswitchlagdelay},
 	{"overlay_x", &overlay_x},
 	{"overlay_y", &overlay_y},
 	{"overlay_size", &overlay_size},

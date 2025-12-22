@@ -1,4 +1,6 @@
-﻿#include "Resource Files/network_manager.h"
+﻿/* --- START OF FILE network_manager.cpp --- */
+
+#include "Resource Files/network_manager.h"
 #include "resource.h"
 #include <mutex>
 #include <iostream>
@@ -7,12 +9,37 @@
 #include <string> 
 #include <regex>
 #include <shlobj.h>
+#include <atomic>
+
+// NEW INCLUDES FOR LAG QUEUE
+#include <queue>
+#include <vector>
+#include <condition_variable>
+#include <chrono>
 
 // Include windivert
 #include "windivert-files/windivert.h"
 
 #include "Resource Files/globals.h"
 using namespace Globals;
+
+// Tracks if the current connection is RCC (RakNet) or UDMUX
+std::atomic<bool> g_is_using_rcc = false;
+
+// DELAY / LAG SYSTEM DEFINITIONS
+
+struct DelayedPacket {
+    std::vector<char> data;
+    UINT len;
+    WINDIVERT_ADDRESS addr;
+    std::chrono::steady_clock::time_point send_time;
+};
+
+// Queue to hold packets waiting to be sent
+std::deque<DelayedPacket> g_delayed_packet_queue;
+std::mutex g_delay_queue_mutex;
+std::condition_variable g_delay_cv;
+std::atomic<bool> g_delay_thread_running = false;
 
 void SafeCloseWinDivert()
 {
@@ -85,7 +112,7 @@ static const wchar_t* GetWinDivertErrorDescription(DWORD errorCode) {
         case ERROR_INVALID_HANDLE:          // 6 (bad handle)
             return L"Invalid handle passed to a WinDivert function.";
         default:
-            return L"Unknown or generic Windows error.\nMostly likely because the WinDivert Service hasn't started yet.\nRestart the program.";
+            return L"Unknown or generic Windows error.\nMost likely because the WinDivert Service hasn't started yet.\nRestart the program.";
     }
 }
 
@@ -103,6 +130,9 @@ bool TryLoadWinDivert() {
     
     // 2. Extract DLL
     if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", "SMCWinDivert.dll")) MessageBoxW(NULL, buffer, L"SMCWinDivert DLL Placement Error", MB_ICONERROR | MB_OK);
+
+    // For some godforsaken reason, running sc QUERY on WinDivert updates its status from "Stopped" to "Non Existent", which fixes all of our problems.
+    system("sc query WinDivert >nul 2>&1");
 
     // 3. Load Library
     HMODULE hWinDivertDll = LoadLibraryA("SMCWinDivert.dll");
@@ -187,99 +217,125 @@ bool TryLoadWinDivert() {
     return false;
 }
 
+bool IsValidRobloxIP(const std::string& ip_str) {
+    if (ip_str.empty()) return false;
+    // 127.x.x.x (Localhost)
+    if (ip_str.rfind("127.", 0) == 0) return false;
+    // 10.x.x.x (Private Class A)
+    if (ip_str.rfind("10.", 0) == 0) return false;
+    // 192.168.x.x (Private Class C)
+    if (ip_str.rfind("192.168.", 0) == 0) return false;
+    // 172.16.x.x - 172.31.x.x (Private Class B)
+    if (ip_str.rfind("172.", 0) == 0) return false;
+    // 0.0.0.0
+    if (ip_str == "0.0.0.0") return false;
+    return true;
+}
+
+void DelaySenderWorker() {
+    while (g_delay_thread_running) {
+        std::unique_lock<std::mutex> lock(g_delay_queue_mutex);
+        
+        // Wait until queue is not empty or thread stops
+        if (g_delayed_packet_queue.empty()) {
+            g_delay_cv.wait(lock, [] { return !g_delayed_packet_queue.empty() || !g_delay_thread_running; });
+        }
+
+        if (!g_delay_thread_running) break;
+
+        // Check the packet at the front
+        auto now = std::chrono::steady_clock::now();
+        DelayedPacket& front_packet = g_delayed_packet_queue.front();
+
+        if (now >= front_packet.send_time) {
+            // It is time to send
+            {
+                // Lock the handle to prevent conflict with the main thread or closing
+                std::lock_guard<std::mutex> handleLock(g_windivert_handle_mutex);
+                if (hWindivert != INVALID_HANDLE_VALUE && pWinDivertSend) {
+                    pWinDivertSend(hWindivert, front_packet.data.data(), front_packet.len, NULL, &front_packet.addr);
+                }
+            }
+            g_delayed_packet_queue.pop_front();
+        } else {
+            // Not time yet, sleep until the timestamp of the first packet
+            // We use wait_until to sleep efficiently but wake up if a new packet (with potentially earlier time?) comes in
+            // though usually packets come in order.
+            g_delay_cv.wait_until(lock, front_packet.send_time);
+        }
+    }
+
+    // Cleanup queue on exit
+    std::unique_lock<std::mutex> lock(g_delay_queue_mutex);
+    g_delayed_packet_queue.clear();
+}
+
 void RobloxLogScannerThread() {
     namespace fs = std::filesystem;
     char localAppData[MAX_PATH];
     
-    // Regex to find IPs
-    std::regex ip_regex(R"(\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)");
+    // 1. Configure logzz paths
+    if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData) == S_OK) {
+        std::string base = std::string(localAppData) + "\\Roblox";
+        logzz::logs_folder_path = base + "\\logs";
+        logzz::local_storage_folder_path = base + "\\LocalStorage";
+        
+        // Optional: Load user info if available/needed
+        logzz::load_user_info();
+    } else {
+        std::cerr << "Could not find LocalAppData for Logzz configuration." << std::endl;
+        return;
+    }
 
     while (running)
     {
-        while (running && !g_log_thread_running.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        while (running && !g_log_thread_running.load(std::memory_order_relaxed)) 
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        
         if (!running) break;
 
-		if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData) == S_OK) {
-			fs::path logDir = fs::path(localAppData) / "Roblox" / "logs";
+        // 2. Call Library Handle
+        state s = logzz::loop_handle();
 
-			if (fs::exists(logDir)) {
-				fs::path newestFile;
-				fs::file_time_type newestTime;
-				bool found = false;
+        if (s == IN_GAME) {
+            bool new_ip_found = false;
 
-				// 1. Find Newest Log File
-				try {
-					for (const auto& entry : fs::directory_iterator(logDir)) {
-						if (entry.is_regular_file()) {
-							if (!found || entry.last_write_time() > newestTime) {
-								newestTime = entry.last_write_time();
-								newestFile = entry.path();
-								found = true;
-							}
-						}
-					}
-				} catch (...) {}
+            // Update Connection Type State
+            if (logzz::server_uses_udmux) {
+                g_is_using_rcc = false;
+            } else {
+                std::cout << "RCC Server Found, Switching logic to ten-second pulse logic";
+                g_is_using_rcc = true;
+            }
 
-				// 2. Scan File
-				if (found) {
-					std::ifstream file(newestFile, std::ios::in | std::ios::binary);
-					if (file.is_open()) {
-                        
-						// Optimization: Only read the last 5000KB. 
-						// Connection IPs are usually at the end (new connections) or beginning.
-						// Reading from the end catches server hops.
-						file.seekg(0, std::ios::end);
-						size_t size = file.tellg();
-                        
-						if (size > 5000000) file.seekg(size - 5000000);
-						else file.seekg(0);
+            // Helper lambda to process IPs with specific labels
+            auto process_ip = [&](const std::string& ip, const std::string& label) {
+                if (!IsValidRobloxIP(ip)) return;
 
-						std::string buffer(5000000, '\0');
-						file.read(&buffer[0], 5000000); 
-                        
-						auto words_begin = std::sregex_iterator(buffer.begin(), buffer.end(), ip_regex);
-						auto words_end = std::sregex_iterator();
+                std::unique_lock lock(g_ip_mutex);
+                if (g_roblox_dynamic_ips.find(ip) == g_roblox_dynamic_ips.end()) {
+                    g_roblox_dynamic_ips.insert(ip);
+                    new_ip_found = true;
+                    std::cout << "Found Roblox Server (" << label << "): " << ip << std::endl;
+                }
+            };
 
-						bool new_ip_found = false;
+            // Process UDMUX
+            if (logzz::server_uses_udmux) {
+                process_ip(logzz::server_udmux_address, "UDMUX");
+            }
 
-						for (std::sregex_iterator i = words_begin; i != words_end; ++i) {
-							std::smatch match = *i;
-							std::string ip_str = match.str();
+            // Process RCC (RakNet)
+            process_ip(logzz::server_rcc_address, "RCC");
 
-							// --- FILTER OUT JUNK IPs ---
-							// 127.x.x.x (Localhost)
-							if (ip_str.rfind("127.", 0) == 0) continue;
-							// 10.x.x.x (Private Class A)
-							if (ip_str.rfind("10.", 0) == 0) continue;
-							// 192.168.x.x (Private Class C)
-							if (ip_str.rfind("192.168.", 0) == 0) continue;
-							// 172.16.x.x - 172.31.x.x (Private Class B - simplified check)
-							if (ip_str.rfind("172.", 0) == 0) continue;
-							// 0.0.0.0
-							if (ip_str == "0.0.0.0") continue;
-
-							// Thread-Safe Insert
-							{
-								std::unique_lock lock(g_ip_mutex);
-								if (g_roblox_dynamic_ips.find(ip_str) == g_roblox_dynamic_ips.end()) {
-									g_roblox_dynamic_ips.insert(ip_str);
-									new_ip_found = true;
-                                    
-									std::cout << "Found Roblox Server: " << ip_str << std::endl;
-								}
-							}
-						}
-
-						if (new_ip_found && bWinDivertEnabled) {
-							SafeCloseWinDivert();
-						}
-					}
-				}
-			}
-		}
+            if (new_ip_found && bWinDivertEnabled) {
+                SafeCloseWinDivert();
+            }
+        }
         
-		std::this_thread::sleep_for(std::chrono::seconds(2));
-	}
+        // Poll every 1 second
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 }
 
 void WindivertWorkerThread() {
@@ -301,24 +357,29 @@ void WindivertWorkerThread() {
     PVOID next;
     UINT next_len;
 
-    // Safety Timer State
     auto last_safety_pulse_time = std::chrono::steady_clock::now();
     bool safety_pulse_active = false;
 
-    // Ensure all functions are loaded
-    if (!pWinDivertOpen || !pWinDivertRecv || !pWinDivertSend || !pWinDivertClose || 
-        !pWinDivertHelperParsePacket || !pWinDivertHelperCalcChecksums) {
-        std::cout << "WinDivert functions not loaded!" << std::endl;
-        return;
-    }
+    if (!pWinDivertOpen) return;
+
+    // Start the delay sender thread
+    g_delay_thread_running = true;
+    std::thread senderThread(DelaySenderWorker);
 
     while (g_windivert_running) {
         
-        // 1. Construct Filter String
+        // Construct Filter
         std::string direction_filter = "";
-        if (lagswitchinbound && lagswitchoutbound) direction_filter = "(inbound or outbound)";
-        else if (lagswitchinbound) direction_filter = "inbound";
-        else if (lagswitchoutbound) direction_filter = "outbound";
+        
+        // We capture packets if EITHER Hard Blocking OR Fake Lag is enabled for a direction
+        // This ensures we have the packet in hand to decide what to do with it later
+        bool capture_inbound = lagswitchinbound || lagswitchlaginbound;
+        bool capture_outbound = lagswitchoutbound || lagswitchlagoutbound;
+
+        // If nothing is selected, we still capture "false" to keep the thread alive but idle
+        if (capture_inbound && capture_outbound) direction_filter = "(inbound or outbound)";
+        else if (capture_inbound) direction_filter = "inbound";
+        else if (capture_outbound) direction_filter = "outbound";
         else direction_filter = "false";
 
         std::string final_filter = "";
@@ -336,19 +397,18 @@ void WindivertWorkerThread() {
             final_filter = direction_filter;
         }
 
-		if (prevent_disconnect) {
-			final_filter = final_filter + " and udp";
-		}
+		if (lagswitchusetcp) final_filter = final_filter + " and (udp or tcp)";
+		else final_filter = final_filter + " and udp";
 
         g_current_windivert_filter = final_filter; 
 
-        // Open WinDivert
         {
             std::lock_guard<std::mutex> lock(g_windivert_handle_mutex);
             hWindivert = pWinDivertOpen(final_filter.c_str(), WINDIVERT_LAYER_NETWORK, 0, 0);
         }
 
         if (hWindivert == INVALID_HANDLE_VALUE) {
+            // Handle error / reset IPs if parameter invalid
             if (GetLastError() == ERROR_INVALID_PARAMETER && !g_roblox_dynamic_ips.empty()) {
                  std::unique_lock lock(g_ip_mutex);
                  g_roblox_dynamic_ips.clear();
@@ -357,7 +417,6 @@ void WindivertWorkerThread() {
             continue; 
         }
 
-        // Reset timer on open
         last_safety_pulse_time = std::chrono::steady_clock::now();
 
         // --- INNER LOOP ---
@@ -365,94 +424,115 @@ void WindivertWorkerThread() {
             if (!pWinDivertRecv(hWindivert, packet.get(), WINDIVERT_MTU_MAX, &packetLen, &addr)) {
                 break;
             }
-
+            // We only manipulate packets if the Lagswitch is currently ACTIVE (Toggle On / Key Held)
             if (g_windivert_blocking) {
-                if (prevent_disconnect) {
-                    
-                    // ----------------------------------------------------
-                    // DYNAMIC SAFETY PULSE LOGIC
-                    // ----------------------------------------------------
-                    long long interval_ms = 0;
 
-                    if (lagswitchinbound && lagswitchoutbound) {
-                        // BOTH: Unlag every 20 seconds
-                        interval_ms = 24000; 
-                    } else if (lagswitchoutbound) {
-                        // OUTBOUND ONLY: Unlag every 4m 50s (290s)
-                        interval_ms = 290000;
-                    } else {
-                        // INBOUND ONLY: Infinite (0)
-                        interval_ms = 0;
-                    }
+                // 1. HARD BLOCKING CHECK
+                bool should_hard_block = false;
+                if (addr.Outbound && lagswitchoutbound) should_hard_block = true;
+                if (!addr.Outbound && lagswitchinbound) should_hard_block = true;
 
-                    if (interval_ms > 0) {
-                        auto now = std::chrono::steady_clock::now();
-                        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_safety_pulse_time).count();
+                if (should_hard_block) {
+                    if (prevent_disconnect) {
+                        // [Keep Pulse Logic - Code folded for brevity, same as previous]
+                        long long interval_ms = 0;
+                        bool is_rcc = g_is_using_rcc.load();
 
-                        // Check if time to pulse
-                        if (elapsed_ms >= interval_ms) {
-                            safety_pulse_active = true;
+                        if (is_rcc) interval_ms = 9500;
+                        else {
+                            if (lagswitchinbound && lagswitchoutbound) interval_ms = 20000; 
+                            else if (lagswitchoutbound) interval_ms = 290000;
+                            else interval_ms = 0;
                         }
 
-                        // If pulse is active, allow traffic for 50ms
-                        if (safety_pulse_active) {
-                            if (elapsed_ms >= (interval_ms + 50)) {
-                                // Pulse Finished -> Reset Timer
-                                last_safety_pulse_time = std::chrono::steady_clock::now();
-                                safety_pulse_active = false;
-                            } else {
-                                // Pulse Active -> Force Send Packet
-								pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr);
-                                continue;
-                            }
-                        }
-                    }
-                    // ----------------------------------------------------
+                        if (interval_ms > 0) {
+                            auto now = std::chrono::steady_clock::now();
+                            auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_safety_pulse_time).count();
 
-                    bool drop_packet = false; // Default: Send (Safe fallback)
+                            if (elapsed_ms >= interval_ms) safety_pulse_active = true;
 
-                    if (pWinDivertHelperParsePacket(packet.get(), packetLen, 
-                        &ip_header, &ipv6_header, &protocol, 
-                        &icmp_header, &icmpv6_header, &tcp_header, &udp_header, 
-                        &payload, &payload_len, &next, &next_len) && payload != nullptr) 
-                    {
-                        // Check Header: 01 00 00 [17/1F] 01 11
-                        if (payload_len >= 90) {
-                            unsigned char* p = (unsigned char*)payload;
-                            
-                            // 1. Check common bytes
-                            if (p[0] == 0x01 && p[1] == 0x00 && p[2] == 0x00 && 
-                                p[4] == 0x01 && p[5] == 0x11) 
-                            {
-                                // 2. Check The Differentiator Byte (Index 3)
-                                if (!addr.Outbound) {
-                                    // INBOUND: Expect 0x17
-                                    if (p[3] == 0x17) drop_packet = true;
-                                } 
-                                else {
-                                    // OUTBOUND: Expect 0x1F
-                                    if (p[3] == 0x1F) drop_packet = true;
+                            if (safety_pulse_active) {
+                                if (elapsed_ms >= (interval_ms + 100)) {
+                                    last_safety_pulse_time = std::chrono::steady_clock::now();
+                                    safety_pulse_active = false;
+                                } else {
+                                    // Send safety packet
+                                    if (pWinDivertHelperParsePacket(packet.get(), packetLen, 
+                                        &ip_header, &ipv6_header, &protocol, 
+                                        &icmp_header, &icmpv6_header, &tcp_header, &udp_header, 
+                                        &payload, &payload_len, &next, &next_len) && payload != nullptr) 
+                                    {
+                                        pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr);
+                                        continue; 
+									}
                                 }
                             }
                         }
-                    }
+                        if (is_rcc) continue; // Drop if not pulsing
 
-                    if (drop_packet) continue; // Drop Physics
-                    else {
-                        pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr); // Send Heartbeat/Other
-                        continue;
+                        // Smart Drop Logic
+                        bool drop_smart = false; 
+                        if (pWinDivertHelperParsePacket(packet.get(), packetLen, 
+                            &ip_header, &ipv6_header, &protocol, 
+                            &icmp_header, &icmpv6_header, &tcp_header, &udp_header, 
+                            &payload, &payload_len, &next, &next_len) && payload != nullptr) 
+                        {
+                            if (payload_len >= 90) {
+                                unsigned char* p = (unsigned char*)payload;
+                                if (p[0] == 0x01 && p[1] == 0x00 && p[2] == 0x00 && p[4] == 0x01 && p[5] == 0x11) {
+                                    if (!addr.Outbound && p[3] == 0x17) drop_smart = true;
+                                    else if (addr.Outbound && p[3] == 0x1F) drop_smart = true;
+                                }
+                            }
+                        }
+
+                        if (drop_smart) continue; // Drop
+                        else {
+                            pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr); // Send Heartbeat
+                            continue;
+                        }
+                    }
+                    
+                    // If prevent_disconnect is off -> Pure Drop
+                    continue; 
+                }
+
+                // 2. FAKE LAG (LATENCY) CHECK
+                if (lagswitchlag) {
+                    bool should_delay = false;
+                    if (addr.Outbound && lagswitchlagoutbound) should_delay = true;
+                    if (!addr.Outbound && lagswitchlaginbound) should_delay = true;
+
+                    if (should_delay && lagswitchlagdelay > 0) {
+                        DelayedPacket p;
+                        p.data.assign(packet.get(), packet.get() + packetLen);
+                        p.len = packetLen;
+                        p.addr = addr;
+                        p.send_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(lagswitchlagdelay);
+
+                        {
+                            std::lock_guard<std::mutex> qLock(g_delay_queue_mutex);
+                            g_delayed_packet_queue.push_back(std::move(p));
+                        }
+                        g_delay_cv.notify_one();
+                        
+                        // Consumed by queue, do not send immediately
+                        continue; 
                     }
                 }
-                
-                // If Prevent Disconnect is OFF -> Drop Everything
-                continue; 
             }
 
-            // Not Blocking (Lag Switch OFF) -> Keep timer fresh & send packets
+            // 3. PASSTHROUGH
             last_safety_pulse_time = std::chrono::steady_clock::now();
             pWinDivertSend(hWindivert, packet.get(), packetLen, NULL, &addr);
         }
 
         SafeCloseWinDivert();
+    }
+
+    g_delay_thread_running = false;
+    g_delay_cv.notify_all();
+    if (senderThread.joinable()) {
+        senderThread.join();
     }
 }

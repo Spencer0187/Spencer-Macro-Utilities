@@ -19,13 +19,13 @@
 #include "imgui-files/imgui.h"
 #include "imgui-files/imgui_impl_opengl3.h"
 #include "imgui-files/imgui_impl_win32.h"
-#include "imgui-files/json.hpp"
 
+#include "Resource Files/json.hpp"
 #include "Resource Files/globals.h"
 #include "Resource Files/miniz.h"
 #include "Resource Files/keymapping.h"
 #include "Resource Files/wine_compatibility_layer.h"
-#include "Resource Files/save_system.h"
+#include "Resource Files/updater_system.h"
 #include "Resource Files/overlay.h"
 #include "Resource Files/network_manager.h"
 #include "Resource Files/macros.h"
@@ -730,11 +730,49 @@ static void SetWorkingDirectoryToExecutablePath() // Allows non-standard executi
     }
 }
 
+static std::string getSettingsFileName() {
+    // Check for SMCSettings.json first
+    if (std::filesystem::exists("SMCSettings.json")) {
+        return "SMCSettings.json";
+    }
+
+    // If not found, check for RMCSettings.json
+    if (std::filesystem::exists("RMCSettings.json")) {
+        return "RMCSettings.json";
+    }
+
+    // Return empty string if neither exists
+    return "";
+}
+
+static bool renameRMCToSMC() {
+    namespace fs = std::filesystem;
+    const fs::path source = "RMCSettings.json";
+    const fs::path target = "SMCSettings.json";
+
+    // Check if the source exists
+    if (fs::exists(source)) {
+        try {
+            // Rename the file
+            fs::rename(source, target);
+            return true; 
+        } catch (const fs::filesystem_error& e) {
+            std::cerr << "Error renaming file: " << e.what() << std::endl;
+            return false;
+        }
+    }
+    
+    // Source didn't exist, so no action needed.
+    return true;
+}
+
 // START OF GUI
-static void RunGUI()
-{
+static void RunGUI() {
 	// Set working directory to correct path
     SetWorkingDirectoryToExecutablePath();
+
+	renameRMCToSMC();
+    getSettingsFileName();
 
 	// Setup Linux Compatibility Layer if Needed
 	InitLinuxCompatLayer();
@@ -1438,15 +1476,33 @@ static void RunGUI()
 
 				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;
 
-				// Set up button colors based on toggle state
+				// Determine base colors based on toggle state, then intensify if selected
 				if (section_toggles[i]) {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.29f, 0.45f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.06f, 0.53f, 0.98f, 1.0f));
+					// Blue theme (toggled on)
+					if (selected_section == i) {
+						// Lighter/brighter blue when selected
+						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.70f, 1.0f));  // Lighter base
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.40f, 0.70f, 1.00f, 1.0f));  // Bright hover
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.30f, 0.65f, 1.00f, 1.0f));  // Very bright active
+					} else {
+						// Normal blue when toggled on but not selected
+						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.29f, 0.45f, 1.0f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.0f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.06f, 0.53f, 0.98f, 1.0f));
+					}
 				} else {
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.45f, 0.29f, 0.15f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.98f, 0.59f, 0.26f, 1.0f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.98f, 0.53f, 0.06f, 1.0f));
+					// Orange theme (toggled off)
+					if (selected_section == i) {
+						// Lighter/brighter orange when selected
+						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.70f, 0.45f, 0.25f, 1.0f));  // Lighter base
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.00f, 0.70f, 0.40f, 1.0f));  // Bright hover
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(1.00f, 0.65f, 0.30f, 1.0f));  // Very bright active
+					} else {
+						// Normal orange when toggled off but not selected
+						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.45f, 0.29f, 0.15f, 1.0f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.98f, 0.59f, 0.26f, 1.0f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.98f, 0.53f, 0.06f, 1.0f));
+					}
 				}
 
 				// Calculate button height based on text
@@ -2301,9 +2357,9 @@ static void RunGUI()
 					ImVec2 TextSizeCalc = ImGui::CalcTextSize("Prevent Roblox Disconnection (?)      ");
 					ImGui::InvisibleButton("##tooltip", TextSizeCalc);
 					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-						ImGui::SetTooltip("Uses packet-length filtering to allow Roblox heartbeats through while blocking game data.\nPrevents Timeout past the usual 10s threshold.\n"
+						ImGui::SetTooltip("Prevents Timeout past the usual 10s threshold.\n"
 											"Experimental, may break or kick. This is actively being worked on.\n"
-											"This version will leak some of your movements to the server (you will appear to be extremely laggy/teleporting)\n");
+											"This version has a chance to leak some of your movements to the server (you will appear to be extremely laggy/teleporting)\n");
 
 					ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x, tooltipcursorpos.y + 6));
 					ImGui::NewLine();
@@ -2313,12 +2369,18 @@ static void RunGUI()
                     if (ImGui::Checkbox("Only Lag Switch Roblox", &lagswitchtargetroblox)) {
 						filter_changed = true;
 					}
-                    if (ImGui::IsItemHovered())
-                        ImGui::SetTooltip("Filters only Roblox traffic. Uncheck this to block EVERYTHING.");
+
+                    if (ImGui::IsItemHovered()) {
+                        ImGui::SetTooltip("Filters only Roblox traffic. Uncheck this AND Only Lag Switch Roblox to block EVERYTHING.");
+					}
+
+					if (ImGui::Checkbox("Also Block TCP (Websites)", &lagswitchusetcp)) {
+						filter_changed = true;
+					}
 
 					ImGui::Separator();
 
-                    ImGui::Checkbox("Auto-Unlag (Anti-Kick)", &lagswitch_autounblock);
+                    ImGui::Checkbox("Auto-Unlag (Anti-Kick) (NOT RECOMMENDED)", &lagswitch_autounblock);
                     
                     // Disable inputs if toggle is off
                     if (!lagswitch_autounblock) ImGui::BeginDisabled();
@@ -2344,18 +2406,52 @@ static void RunGUI()
 					ImGui::Separator();
 					if (ImGui::Checkbox("Block Outbound (Upload/Send) (Players won't be able to see you move)", &lagswitchoutbound)) filter_changed = true;
 					if (ImGui::Checkbox("Block Inbound (Download/Recv) (You won't be able to see other players move)", &lagswitchinbound)) filter_changed = true;
+					
+                    // Warning if both disabled
+                    if (!lagswitchoutbound && !lagswitchinbound) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+                        ImGui::TextWrapped("WARNING: Both Inbound and Outbound are unchecked.\nThe Lag Switch will not block any packets.");
+                        ImGui::PopStyleColor();
+                    }
+
+					// Fake Lag Section
+                    ImGui::Separator();
+
+                    if (ImGui::Checkbox("Fake Lag (Simulate High Ping)", &lagswitchlag)) {
+                        // Toggling this might require a filter update if the sub-options (Inbound/Outbound) are set
+                        filter_changed = true;
+                    }
+
+                    if (!lagswitchlag) ImGui::BeginDisabled();
+                    
+                    ImGui::Indent();
+                    
+                    ImGui::Text("Delay Amount (Milliseconds):");
+                    ImGui::SameLine();
+                    ImGui::SetNextItemWidth(150.0f);
+                    // Step of 10ms, Fast Step of 100ms
+                    ImGui::InputInt("##LagDelayInput", &lagswitchlagdelay, 10, 100);
+
+                    // Direction Toggles for Fake Lag
+                    if (ImGui::Checkbox("Lag Inbound (Recv)##FakeLag", &lagswitchlaginbound)) filter_changed = true;
+                    ImGui::SameLine();
+                    if (ImGui::Checkbox("Lag Outbound (Send)##FakeLag", &lagswitchlagoutbound)) filter_changed = true;
+
+                    // Warning if enabled but no directions selected
+                    if (lagswitchlag && !lagswitchlaginbound && !lagswitchlagoutbound) {
+                         ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Select at least one direction to lag!");
+                    }
+
+                    ImGui::Unindent();
+
+                    if (!lagswitchlag) ImGui::EndDisabled();
+                    // ---------------------------------------------------------
+
 					ImGui::Separator();
 
                     // If filters changed and driver is active, force restart
                     if (filter_changed && bWinDivertEnabled) {
 						SafeCloseWinDivert();
-                    }
-
-                    // Warning if both disabled
-                    if (!lagswitchoutbound && !lagswitchinbound) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
-                        ImGui::TextWrapped("WARNING: Both Inbound and Outbound are unchecked.\nThe Lag Switch will do nothing.");
-                        ImGui::PopStyleColor();
                     }
 
 					ImGui::Checkbox("Show Lagswitch Status Overlay", &show_lag_overlay);
@@ -2588,7 +2684,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         CreateDebugConsole();
     } else {
 		// Comment this back in to see the console on regular builds
-		CreateDebugConsole();
+		// CreateDebugConsole();
 	}
 
 	// Run timers with max precision
@@ -2603,7 +2699,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.1.1";
+        std::string localVersion = "3.2.0";
 
         if (remoteVersion != localVersion) 
         {
@@ -3447,8 +3543,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (WinDivertThread.joinable()) WinDivertThread.join();
 
 	if (IsRunAsAdmin()) {
-		system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
 		system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+		system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
 	}
 
 	KeyboardThread.join();

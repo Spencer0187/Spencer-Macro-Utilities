@@ -98,9 +98,6 @@
     <ClInclude Include="imgui-files\imgui_impl_win32.h">
       <Filter>Header Files\imgui</Filter>
     </ClInclude>
-    <ClInclude Include="imgui-files\json.hpp">
-      <Filter>Header Files\imgui</Filter>
-    </ClInclude>
     <ClInclude Include="shared_mem.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
@@ -113,7 +110,7 @@
     <ClInclude Include="Resource Files\keymapping.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
-    <ClInclude Include="Resource Files\save_system.h">
+    <ClInclude Include="Resource Files\updater_system.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="imgui-files\imgui_impl_opengl3.h">
@@ -138,6 +135,12 @@
       <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="Resource Files\globals.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\json.hpp">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\logzz.hpp">
       <Filter>Resource Files</Filter>
     </ClInclude>
   </ItemGroup>
