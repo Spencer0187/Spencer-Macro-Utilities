@@ -126,13 +126,13 @@ bool TryLoadWinDivert() {
 	if (bDependenciesLoaded) return true; 
 
     // 1. Extract SYS (Resource ID from previous code)
-    if (!ExtractResource(IDR_SMC_WINDIVERT_SYS1, "SMC_WINDIVERT_SYS", "WinDivert64.sys")) MessageBoxW(NULL, buffer, L"WinDivert SYS Placement Error", MB_ICONERROR | MB_OK);
+    if (!ExtractResource(IDR_SMC_WINDIVERT_SYS1, "SMC_WINDIVERT_SYS", SYS_NAME)) MessageBoxW(NULL, buffer, L"WinDivert SYS Placement Error", MB_ICONERROR | MB_OK);
     
     // 2. Extract DLL
-    if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", "SMCWinDivert.dll")) MessageBoxW(NULL, buffer, L"SMCWinDivert DLL Placement Error", MB_ICONERROR | MB_OK);
+    if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", DLL_NAME)) MessageBoxW(NULL, buffer, L"SMCWinDivert DLL Placement Error", MB_ICONERROR | MB_OK);
 
     // For some godforsaken reason, running sc QUERY on WinDivert updates its status from "Stopped" to "Non Existent", which fixes all of our problems.
-    system("sc query WinDivert >nul 2>&1");
+    quiet_system("sc query WinDivert >nul 2>&1");
 
     // 3. Load Library
     HMODULE hWinDivertDll = LoadLibraryA("SMCWinDivert.dll");
@@ -434,13 +434,13 @@ void WindivertWorkerThread() {
 
                 if (should_hard_block) {
                     if (prevent_disconnect) {
-                        // [Keep Pulse Logic - Code folded for brevity, same as previous]
+                        // Pulse Logic
                         long long interval_ms = 0;
                         bool is_rcc = g_is_using_rcc.load();
 
                         if (is_rcc) interval_ms = 9500;
                         else {
-                            if (lagswitchinbound && lagswitchoutbound) interval_ms = 20000; 
+                            if (lagswitchinbound && lagswitchoutbound) interval_ms = 19900; 
                             else if (lagswitchoutbound) interval_ms = 290000;
                             else interval_ms = 0;
                         }
@@ -452,7 +452,7 @@ void WindivertWorkerThread() {
                             if (elapsed_ms >= interval_ms) safety_pulse_active = true;
 
                             if (safety_pulse_active) {
-                                if (elapsed_ms >= (interval_ms + 100)) {
+                                if (elapsed_ms >= (interval_ms + 250)) {
                                     last_safety_pulse_time = std::chrono::steady_clock::now();
                                     safety_pulse_active = false;
                                 } else {

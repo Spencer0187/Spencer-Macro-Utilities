@@ -77,6 +77,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 
 // Numeric variables to save
 const std::unordered_map<std::string, NumericVar> numeric_vars = {
+	{"selected_section", &selected_section},
 	{"vk_f5", &vk_f5},
 	{"vk_f6", &vk_f6},
 	{"vk_f8", &vk_f8},
@@ -374,25 +375,96 @@ bool TryLoadLastActiveProfile(std::string filepath) {
             std::string last_active_name = metadata[LAST_ACTIVE_PROFILE_KEY].get<std::string>();
 
             // Check if this profile actually exists in the file
-            if (!last_active_name.empty() && root_json.contains(last_active_name) && root_json[last_active_name].is_object()) {
+            if (!last_active_name.empty() && root_json.contains(last_active_name) && root_json[last_active_name].is_object() ) {
                 LoadSettings(filepath, last_active_name); 
                 G_CURRENTLY_LOADED_PROFILE_NAME = last_active_name;
                 std::cout << "Successfully loaded last active profile: " << last_active_name << std::endl;
                 return true;
             } else {
-                std::cerr << "TryLoadLastActiveProfile: Last active profile '" << last_active_name << "' not found or invalid in settings file." << std::endl;
+                std::cerr << "TryLoadLastActiveProfile: Last active profile '" << last_active_name << "' not found or invalid in settings file. Trying to find last available profile..." << std::endl;
+            
+                // Try to find and load the last available profile
+                std::string last_profile_name;
+                for (const auto& [key, value] : root_json.items()) {
+                    // Skip metadata key
+                    if (key == METADATA_KEY) {
+                        continue;
+                    }
+                
+                    // Only consider valid profile objects
+                    if (value.is_object()) {
+                        last_profile_name = key; // Keep updating, will end with last one
+                    }
+                }
+            
+                if (!last_profile_name.empty()) {
+                    LoadSettings(filepath, last_profile_name);
+                    G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
+                    std::cout << "Loaded last available profile instead: " << last_profile_name << std::endl;
+                    return true;
+                } else {
+                    std::cerr << "TryLoadLastActiveProfile: No valid profiles found in the file." << std::endl;
+                }
             }
         } else {
             std::cout << "TryLoadLastActiveProfile: No 'last_active_profile' key found in metadata." << std::endl;
+        
+            // Try to find and load the last available profile
+            std::string last_profile_name;
+            for (const auto& [key, value] : root_json.items()) {
+                if (key == METADATA_KEY) {
+                    continue;
+                }
+            
+                if (value.is_object()) {
+                    last_profile_name = key;
+                }
+            }
+        
+            if (!last_profile_name.empty() && last_profile_name != "(default)") {
+                LoadSettings(filepath, last_profile_name);
+                G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
+                std::cout << "Loaded last available profile: " << last_profile_name << std::endl;
+                return true;
+            }
+            else {
+                LoadSettings(filepath, "Profile 1");
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                SaveSettings(filepath, "Profile 1");
+                G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+                std::cout << "Created and loaded default profile: Profile 1" << std::endl;
+                return true;
+            }
         }
     } else {
-		// Import old settings in
-		if (root_json.is_object()) {
-			LoadSettings(filepath, "Profile 1");
-			std::this_thread::sleep_for(std::chrono::milliseconds(200));
-			SaveSettings(filepath, "Profile 1");
-			G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-		}
+        // Import old settings format
+        if (root_json.is_object()) {
+            // Check if there are any profiles in the old format
+            std::string last_profile_name;
+            for (const auto& [key, value] : root_json.items()) {
+                if (value.is_object()) {
+                    last_profile_name = key;
+                }
+            }
+        
+            if (!last_profile_name.empty() && last_profile_name != "(default)") {
+                // Found at least one profile in old format
+                LoadSettings(filepath, last_profile_name);
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                SaveSettings(filepath, last_profile_name);
+                G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
+                std::cout << "Imported and loaded old format profile: " << last_profile_name << std::endl;
+                return true;
+            } else {
+                // No profiles found at all, create a default one
+                LoadSettings(filepath, "Profile 1");
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                SaveSettings(filepath, "Profile 1");
+                G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+                std::cout << "Created and loaded default profile: Profile 1" << std::endl;
+                return true;
+            }
+        }
     }
     return false;
 }
@@ -793,7 +865,6 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
             if (existing_file_data.is_object() && !existing_file_data.empty()) {
                 bool is_already_profile_format = false;
                 // Check if any top-level key looks like a profile name (e.g., starts with "Profile ")
-                // This is a heuristic; adjust if your profile names have a different pattern.
                 for (const auto& item : existing_file_data.items()) {
                     if (item.key().rfind("(default)", 0) == 0 && item.value().is_object()) {
                         is_already_profile_format = true;
@@ -835,18 +906,78 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
     // Add/update the current profile's settings into the root JSON
     root_json_output[profile_name_modified] = current_profile_data;
 
+    // Ensure metadata object exists
+    if (!root_json_output.contains(METADATA_KEY) || !root_json_output[METADATA_KEY].is_object()) {
+        root_json_output[METADATA_KEY] = json::object();
+    }
+
+    // Save Last Active Profile
     if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
-        if (!root_json_output.contains(METADATA_KEY) || !root_json_output[METADATA_KEY].is_object()) {
-            root_json_output[METADATA_KEY] = json::object(); // Create metadata object
-        }
         root_json_output[METADATA_KEY][LAST_ACTIVE_PROFILE_KEY] = G_CURRENTLY_LOADED_PROFILE_NAME;
     }
 
-	if (profile_name != "SAVE_DEFAULT_90493") {
-		// Global variables that don't change across profiles go here saved when not saving as (default)
-		root_json_output[METADATA_KEY]["shortdescriptions"] = shortdescriptions;
-		root_json_output[METADATA_KEY]["DontShowAdminWarning"] = DontShowAdminWarning;
-	}
+    // Save Global Variables
+    root_json_output[METADATA_KEY]["shortdescriptions"] = shortdescriptions;
+    root_json_output[METADATA_KEY]["DontShowAdminWarning"] = DontShowAdminWarning;
+
+    // --- SAVE THEME DATA TO METADATA ---
+    
+    // Helper: Round to 3 decimal places
+    auto rnd = [](float val) -> double { return std::floor(val * 1000.0f + 0.5f) / 1000.0; };
+
+    auto color_to_json = [&](const ImVec4 &col) -> json {
+	    return {rnd(col.x), rnd(col.y), rnd(col.z), rnd(col.w)};
+    };
+
+
+    // 1. Save state
+    root_json_output[METADATA_KEY]["current_theme_index"] = Globals::current_theme_index;
+    root_json_output[METADATA_KEY]["show_theme_menu"] = Globals::show_theme_menu;
+
+    // 2. Save Custom Theme
+    json custom_theme_json;
+    custom_theme_json["name"] = Globals::custom_theme.name;
+    custom_theme_json["bg_dark"] = color_to_json(Globals::custom_theme.bg_dark);
+    custom_theme_json["bg_medium"] = color_to_json(Globals::custom_theme.bg_medium);
+    custom_theme_json["bg_light"] = color_to_json(Globals::custom_theme.bg_light);
+    custom_theme_json["accent_primary"] = color_to_json(Globals::custom_theme.accent_primary);
+    custom_theme_json["accent_secondary"] = color_to_json(Globals::custom_theme.accent_secondary);
+    custom_theme_json["text_primary"] = color_to_json(Globals::custom_theme.text_primary);
+    custom_theme_json["text_secondary"] = color_to_json(Globals::custom_theme.text_secondary);
+    custom_theme_json["success_color"] = color_to_json(Globals::custom_theme.success_color);
+    custom_theme_json["warning_color"] = color_to_json(Globals::custom_theme.warning_color);
+    custom_theme_json["error_color"] = color_to_json(Globals::custom_theme.error_color);
+    custom_theme_json["border_color"] = color_to_json(Globals::custom_theme.border_color);
+    custom_theme_json["disabled_color"] = color_to_json(Globals::custom_theme.disabled_color);
+    custom_theme_json["window_rounding"] = rnd(Globals::custom_theme.window_rounding);
+    custom_theme_json["frame_rounding"] = rnd(Globals::custom_theme.frame_rounding);
+    custom_theme_json["button_rounding"] = rnd(Globals::custom_theme.button_rounding);
+    
+    root_json_output[METADATA_KEY]["custom_theme"] = custom_theme_json;
+
+    // 3. Save All Themes
+    root_json_output[METADATA_KEY]["themes"] = json::object();
+    for (const auto& theme : Globals::themes) {
+        json t_json;
+        t_json["name"] = theme.name;
+        t_json["bg_dark"] = color_to_json(theme.bg_dark);
+        t_json["bg_medium"] = color_to_json(theme.bg_medium);
+        t_json["bg_light"] = color_to_json(theme.bg_light);
+        t_json["accent_primary"] = color_to_json(theme.accent_primary);
+        t_json["accent_secondary"] = color_to_json(theme.accent_secondary);
+        t_json["text_primary"] = color_to_json(theme.text_primary);
+        t_json["text_secondary"] = color_to_json(theme.text_secondary);
+        t_json["success_color"] = color_to_json(theme.success_color);
+        t_json["warning_color"] = color_to_json(theme.warning_color);
+        t_json["error_color"] = color_to_json(theme.error_color);
+        t_json["border_color"] = color_to_json(theme.border_color);
+        t_json["disabled_color"] = color_to_json(theme.disabled_color);
+        t_json["window_rounding"] = rnd(theme.window_rounding);
+        t_json["frame_rounding"] = rnd(theme.frame_rounding);
+        t_json["button_rounding"] = rnd(theme.button_rounding);
+
+        root_json_output[METADATA_KEY]["themes"][theme.name] = t_json;
+    }
 
     // Write the root JSON (which now contains all profiles) to file
     std::ofstream outfile(filepath);
@@ -914,6 +1045,91 @@ void LoadSettings(std::string filepath, std::string profile_name) {
         SaveSettings(filepath, "SAVE_DEFAULT_90493");
     }
 
+    // LOAD GLOBAL METADATA (Themes, etc.)
+    // We do this immediately so themes are applied even if profile loading fails or we switch profiles
+    if (root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
+        const auto& metadata = root_file_json[METADATA_KEY];
+
+        if (metadata.contains("shortdescriptions") && metadata["shortdescriptions"].is_boolean()) {
+            shortdescriptions = metadata["shortdescriptions"].get<bool>();
+        }
+
+        if (metadata.contains("DontShowAdminWarning") && metadata["DontShowAdminWarning"].is_boolean()) {
+            DontShowAdminWarning = metadata["DontShowAdminWarning"].get<bool>();
+        }
+        
+        // Load Theme State
+        Globals::current_theme_index = metadata.value("current_theme_index", 0);
+
+        auto load_color = [](const json& j, const std::string& key) -> ImVec4 {
+            if (j.contains(key) && j[key].is_array() && j[key].size() == 4) {
+                return ImVec4(j[key][0], j[key][1], j[key][2], j[key][3]);
+            }
+            return ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+        };
+
+        // Load Custom Theme
+        if (metadata.contains("custom_theme")) {
+            json c_theme_json = metadata["custom_theme"];
+            Globals::custom_theme.name = c_theme_json.value("name", "Custom Theme");
+            Globals::custom_theme.bg_dark = load_color(c_theme_json, "bg_dark");
+            Globals::custom_theme.bg_medium = load_color(c_theme_json, "bg_medium");
+            Globals::custom_theme.bg_light = load_color(c_theme_json, "bg_light");
+            Globals::custom_theme.accent_primary = load_color(c_theme_json, "accent_primary");
+            Globals::custom_theme.accent_secondary = load_color(c_theme_json, "accent_secondary");
+            Globals::custom_theme.text_primary = load_color(c_theme_json, "text_primary");
+            Globals::custom_theme.text_secondary = load_color(c_theme_json, "text_secondary");
+            Globals::custom_theme.success_color = load_color(c_theme_json, "success_color");
+            Globals::custom_theme.warning_color = load_color(c_theme_json, "warning_color");
+            Globals::custom_theme.error_color = load_color(c_theme_json, "error_color");
+            Globals::custom_theme.border_color = load_color(c_theme_json, "border_color");
+	        Globals::custom_theme.disabled_color = load_color(c_theme_json, "disabled_color");
+            Globals::custom_theme.window_rounding = c_theme_json.value("window_rounding", 0.0f);
+            Globals::custom_theme.frame_rounding = c_theme_json.value("frame_rounding", 0.0f);
+            Globals::custom_theme.button_rounding = c_theme_json.value("button_rounding", 0.0f);
+        }
+
+        // Load All Themes
+        if (metadata.contains("themes") && metadata["themes"].is_object()) {
+            for (const auto& [key, theme_json] : metadata["themes"].items()) {
+                std::string name = theme_json.value("name", key);
+
+                Theme loaded_theme = {
+                    name,
+                    load_color(theme_json, "bg_dark"),
+                    load_color(theme_json, "bg_medium"),
+                    load_color(theme_json, "bg_light"),
+                    load_color(theme_json, "accent_primary"),
+                    load_color(theme_json, "accent_secondary"),
+                    load_color(theme_json, "text_primary"),
+                    load_color(theme_json, "text_secondary"),
+                    load_color(theme_json, "success_color"),
+                    load_color(theme_json, "warning_color"),
+                    load_color(theme_json, "error_color"),
+                    load_color(theme_json, "border_color"),
+				    load_color(theme_json, "disabled_color"),
+                    theme_json.value("window_rounding", 0.0f),
+                    theme_json.value("frame_rounding", 0.0f),
+                    theme_json.value("button_rounding", 0.0f)
+                };
+
+                // Check if we already have a theme with this name
+                bool found = false;
+                for (auto& existing_theme : Globals::themes) {
+                    if (existing_theme.name == name) {
+                        existing_theme = loaded_theme; // Overwrite/Update existing
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    Globals::themes.push_back(loaded_theme); // Add new theme
+                }
+            }
+        }
+    }
+
     json settings_to_load; // This will hold the JSON data for the specific profile
     bool profile_data_extracted = false;
 
@@ -925,16 +1141,47 @@ void LoadSettings(std::string filepath, std::string profile_name) {
         }
     } else if (root_file_json.is_object() && root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
         const auto& metadata = root_file_json[METADATA_KEY];
+    
+        // Try to load last active profile
         if (metadata.contains(LAST_ACTIVE_PROFILE_KEY) && metadata[LAST_ACTIVE_PROFILE_KEY].is_string()) {
             std::string last_active_name = metadata[LAST_ACTIVE_PROFILE_KEY].get<std::string>(); 
-            if (root_file_json.at(last_active_name).is_object()) {
+        
+            // Check if the last active profile exists
+            if (root_file_json.contains(last_active_name) && root_file_json[last_active_name].is_object()) {
                 settings_to_load = root_file_json.at(last_active_name);
                 profile_name = last_active_name;
                 profile_data_extracted = true;
             }
         }
-    } else {
-        std::cerr << "Warning: Profile '" << profile_name << "' in '" << filepath << "' is not a valid settings object." << std::endl;
+    }
+
+    // If we still haven't found a profile, try to pick the last profile in the JSON
+    if (!profile_data_extracted && root_file_json.is_object()) {
+        std::string last_profile_name;
+    
+        // Iterate through all items to find the last valid profile
+        for (const auto& [key, value] : root_file_json.items()) {
+            // Skip the metadata key (if it exists)
+            if (key == METADATA_KEY) {
+                continue;
+            }
+        
+            // Only consider objects that are profiles
+            if (value.is_object()) {
+                last_profile_name = key;  // This will keep overwriting, ending with the last one
+            }
+        }
+    
+        if (!last_profile_name.empty()) {
+            settings_to_load = root_file_json.at(last_profile_name);
+            profile_name = last_profile_name;
+            profile_data_extracted = true;
+        }
+    }
+
+    // Final fallback: if nothing worked
+    if (!profile_data_extracted) {
+        std::cerr << "Warning: Could not find any valid profile in '" << filepath << "'." << std::endl;
     }
 
     // Backwards Compatibility: If profile wasn't found AND we are trying to load the designated "legacy" profile name
@@ -1065,19 +1312,6 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 		if (settings_to_load.contains("RobloxFPSChar") && settings_to_load["RobloxFPSChar"].is_string()) {
             RobloxFPS = std::stoi(RobloxFPSChar);
         }
-
-		// Load global variables in metadata (applies across all profiles)
-		if (root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
-			const auto& metadata = root_file_json[METADATA_KEY];
-
-			if (metadata.contains("shortdescriptions") && metadata["shortdescriptions"].is_boolean()) {
-				shortdescriptions = metadata["shortdescriptions"].get<bool>();
-			}
-
-			if (metadata.contains("DontShowAdminWarning") && metadata["DontShowAdminWarning"].is_boolean()) {
-				DontShowAdminWarning = metadata["DontShowAdminWarning"].get<bool>();
-			}
-		}
 
     } catch (const json::exception& e) {
         std::cerr << "Load error processing profile '" << profile_name << "': " << e.what() << '\n';

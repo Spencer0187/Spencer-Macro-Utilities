@@ -30,6 +30,7 @@
 #include "Resource Files/network_manager.h"
 #include "Resource Files/macros.h"
 #include "Resource Files/profile_manager.h"
+#include "Resource Files/theme_manager.h"
 
 #include <comdef.h>
 #include <shlobj.h>
@@ -92,10 +93,6 @@ const DWORD RELEASE_FLAGS = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
 INPUT inputkey = {};
 INPUT inputhold = {};
 INPUT inputrelease = {};
-
-// WinDivert DLL and SYS name declarations
-const std::string DLL_NAME = "SMCWinDivert.dll";
-const std::string SYS_NAME = "WinDivert64.sys";
 
 std::thread WinDivertThread;
 
@@ -767,8 +764,11 @@ static void RunGUI() {
 	// Gui Thread has lower priority
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
 
+	// Load Default Themes into memory to be overwritten
+	ThemeManager::Initialize();
+
 	// Initialize a basic Win32 window
-	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Roblox Macro Client"), NULL };
+	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Spencer Macro Client"), NULL };
 
 	// Load icons
 	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
@@ -783,10 +783,8 @@ static void RunGUI() {
 	renameRMCToSMC();
     G_SETTINGS_FILEPATH = getSettingsFileName();
 	
+	// Reload Save file again since we updated our defaults
 	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
-
-	// Load Settings
-	LoadSettings(G_SETTINGS_FILEPATH, "SAVE_DEFAULT_90493"); // Only check for existence of default
 
 	RegisterClassEx(&wc);
 	HWND hwnd = CreateWindow(wc.lpszClassName, _T("Spencer Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
@@ -1019,6 +1017,8 @@ static void RunGUI() {
 			ImGui_ImplOpenGL3_NewFrame();
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
+			// Apply the current theme styles every frame
+			ThemeManager::ApplyTheme();
 
             // ImGui window dimensions
             ImVec2 display_size = ImGui::GetIO().DisplaySize;
@@ -1081,7 +1081,7 @@ static void RunGUI() {
             ImGui::TextWrapped("Global Settings");
 			if (UserOutdated) {
 				ImGui::SameLine(135);
-				ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 0, 0, 255));
+				ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
 				ImGui::TextWrapped("(OUTDATED VERSION)");
 				ImGui::PopStyleColor();
 			}
@@ -1090,14 +1090,14 @@ static void RunGUI() {
 			ImGui::TextWrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 
 			// Macro Toggle Checkbox
-			ImGui::PushStyleColor(ImGuiCol_Text, macrotoggled ? ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+			ImGui::PushStyleColor(ImGuiCol_Text, macrotoggled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
 			ImGui::AlignTextToFramePadding();
             ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled); // Checkbox for toggling
 			ImGui::PopStyleColor();
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 790);
 			ImGui::TextWrapped("The ONLY official source for this is");
-			ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(50, 102, 205, 255)); // Blue
+			ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_secondary);
 			ImGui::SameLine(ImGui::GetWindowWidth() - 499);
 			ImGui::TextWrapped("https://github.com/Spencer0187/Spencer-Macro-Utilities");
 			if (ImGui::IsItemHovered()) {
@@ -1109,24 +1109,35 @@ static void RunGUI() {
 
 			ImGui::PopStyleColor();
 			ImGui::AlignTextToFramePadding();
-			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name/PIDs (Space Separated)" : "Roblox Executable Name");
+			ImGui::TextWrapped(g_isLinuxWine ? "Roblox Executable Name/PIDs (Space Separated):" : "Roblox Executable Name:");
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
-			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), g_isLinuxWine ? 0 : ImGuiInputTextFlags_CharsNoBlank); // Textbox for input, remove blank characters
+			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), g_isLinuxWine ? 0 : ImGuiInputTextFlags_CharsNoBlank);
+
+			// Button to reset Roblox EXE name
+			ImGui::SameLine();
+			if (ImGui::Button("R", ImVec2(25, 0))) {
+				if (!g_isLinuxWine) {
+					std::snprintf(settingsBuffer, sizeof(settingsBuffer), "RobloxPlayerBeta.exe");
+				} else {
+					std::snprintf(settingsBuffer, sizeof(settingsBuffer), "sober");
+				}
+			}
 
 			ImGui::SameLine();
 
 			ImDrawList* drawList = ImGui::GetWindowDrawList();
 			ImVec2 pos = ImGui::GetCursorScreenPos();
 			pos.y += ImGui::GetTextLineHeight() / 2 - 3;
-			ImU32 color = processFound ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
+			ImU32 color = processFound ? ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().success_color) : ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().error_color);
 
-			drawList->AddCircleFilled(ImVec2(pos.x + 5, pos.y + 5), 5, color);
+			drawList->AddCircleFilled(ImVec2(pos.x + 5, pos.y + 6), 5, color);
 			ImGui::Dummy(ImVec2(5 * 2, 5 * 2));
 
 			if (!processFound) {
 				ImGui::SameLine();
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 1);
 				if (!g_isLinuxWine){ImGui::TextWrapped("Roblox Not Found");}
 			}
 
@@ -1148,8 +1159,8 @@ static void RunGUI() {
 			ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
 			ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 150);
-			ImGui::Text("VERSION 3.2.0");
+			ImGui::SameLine(ImGui::GetWindowWidth() - 130);
+			ImGui::Text(("VERSION " + localVersion).c_str());
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextWrapped("Roblox Sensitivity (0-4):");
@@ -1240,8 +1251,8 @@ static void RunGUI() {
 
 			static bool show_settings_menu = false;
 
-			ImGui::SameLine(ImGui::GetWindowWidth() - 100);
-			if (show_settings_menu ? ImGui::Button("Settings <") : ImGui::Button("Settings >")) {
+			ImGui::SameLine(ImGui::GetWindowWidth() - 107);
+			if (show_settings_menu ? ImGui::Button("Settings <-") : ImGui::Button("Settings ->")) {
 				show_settings_menu = !show_settings_menu;
 			}
 
@@ -1263,6 +1274,8 @@ static void RunGUI() {
 
 				// Begin the child window (non-draggable)
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+
+				ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
 
 				if (ImGui::Begin("Settings Menu", &show_settings_menu, window_flags)) {
 					// Begin a scrollable child region for the settings list
@@ -1436,7 +1449,7 @@ static void RunGUI() {
 
 					ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeight() * 0.5f));
 
-					ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(50, 102, 205, 255)); // Blue
+					ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
 					ImGui::Text("%s", "Want to Donate directly to my Github?");
 					if (ImGui::IsItemHovered()) {
 						ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
@@ -1451,8 +1464,17 @@ static void RunGUI() {
 					// End the scrollable child region
 					ImGui::EndChild();
 				}
+
 				ImGui::End();
+				ImGui::PopStyleVar();
 			}
+
+			ImGui::SameLine(ImGui::GetWindowWidth() - 257);
+			if (show_theme_menu ? ImGui::Button("Theme Editor <-") : ImGui::Button("Theme Editor ->")) {
+				show_theme_menu = !show_theme_menu;
+			}
+
+			ThemeManager::RenderThemeMenu(&show_theme_menu);
 
             ImGui::EndChild(); // End Global Settings child window
 
@@ -1469,32 +1491,42 @@ static void RunGUI() {
 
 				float buttonWidth = left_panel_width - ImGui::GetStyle().FramePadding.x * 2;
 
-				// Determine base colors based on toggle state, then intensify if selected
+				// CUSTOM THEME BEHAVIOR (Programmatic Intensity)
+				Globals::Theme& theme = Globals::GetCurrentTheme();
+					
+				// Helper lambda to brighten a color
+				auto Brighten = [](ImVec4 col, float factor) -> ImVec4 {
+					return ImVec4(std::min(col.x * factor, 1.0f), 
+									std::min(col.y * factor, 1.0f), 
+									std::min(col.z * factor, 1.0f), 
+									col.w);
+				};
+
 				if (section_toggles[i]) {
-					// Blue theme (toggled on)
+					// ACTIVE (Toggled On) - Use Accent Primary
 					if (selected_section == i) {
-						// Lighter/brighter blue when selected
-						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.25f, 0.45f, 0.70f, 1.0f));  // Lighter base
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.40f, 0.70f, 1.00f, 1.0f));  // Bright hover
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.30f, 0.65f, 1.00f, 1.0f));  // Very bright active
+						// Selected: Make it significantly brighter
+						ImGui::PushStyleColor(ImGuiCol_Button,        Brighten(theme.accent_primary, 1.4f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.accent_primary, 1.6f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.accent_primary, 1.7f));
 					} else {
-						// Normal blue when toggled on but not selected
-						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.29f, 0.45f, 1.0f));
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.0f));
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.06f, 0.53f, 0.98f, 1.0f));
+						// Not Selected: Use base accent
+						ImGui::PushStyleColor(ImGuiCol_Button,        theme.accent_primary);
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.accent_primary, 1.3f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.accent_primary, 0.8f));
 					}
 				} else {
-					// Orange theme (toggled off)
+					// INACTIVE (Toggled Off)
 					if (selected_section == i) {
-						// Lighter/brighter orange when selected
-						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.70f, 0.45f, 0.25f, 1.0f));  // Lighter base
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.00f, 0.70f, 0.40f, 1.0f));  // Bright hover
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(1.00f, 0.65f, 0.30f, 1.0f));  // Very bright active
+						// Selected: Make it brighter
+						ImGui::PushStyleColor(ImGuiCol_Button,        Brighten(theme.disabled_color, 1.6f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.disabled_color, 1.9f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.disabled_color, 2.1f));
 					} else {
-						// Normal orange when toggled off but not selected
-						ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.45f, 0.29f, 0.15f, 1.0f));
-						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.98f, 0.59f, 0.26f, 1.0f));
-						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.98f, 0.53f, 0.06f, 1.0f));
+						// Not Selected: Use base BG Light
+						ImGui::PushStyleColor(ImGuiCol_Button,        theme.disabled_color);
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.disabled_color, 1.3f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.disabled_color, 1.1f));
 					}
 				}
 
@@ -1535,7 +1567,7 @@ static void RunGUI() {
 				ImVec2 buttonPos = ImGui::GetItemRectMin();
 				ImVec2 textPos = ImVec2(buttonPos.x + ImGui::GetStyle().FramePadding.x, buttonPos.y + ImGui::GetStyle().FramePadding.y);
 				ImDrawList* drawList = ImGui::GetWindowDrawList();
-				drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), sections[i].title.c_str());
+				drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), sections[i].title.c_str());
 
 				// Wrap and draw description
 				std::stringstream ss(sections[i].description);
@@ -1545,29 +1577,29 @@ static void RunGUI() {
 					std::string potentialLine = currentLine + (currentLine.empty() ? "" : " ") + word;
 					ImVec2 potentialLineSize = ImGui::CalcTextSize(potentialLine.c_str());
 
-				if (ImGui::GetScrollMaxY() == 0) { // No scrollbar
-					if (potentialLineSize.x > buttonWidth - 7) {
-						// Draw the current line and move to the next
-						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
-						textPos.y += potentialLineSize.y;
-						currentLine = word;
+					if (ImGui::GetScrollMaxY() == 0) { // No scrollbar
+						if (potentialLineSize.x > buttonWidth - 7) {
+							// Draw the current line and move to the next
+							drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), currentLine.c_str());
+							textPos.y += potentialLineSize.y;
+							currentLine = word;
+						} else {
+							currentLine = potentialLine;
+						}
 					} else {
-						currentLine = potentialLine;
+						if (potentialLineSize.x > buttonWidth - 18) { // Scrollbar
+							// Draw the current line and move to the next
+							drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), currentLine.c_str());
+							textPos.y += potentialLineSize.y;
+							currentLine = word;
+						} else {
+							currentLine = potentialLine;
+						}
 					}
-				} else {
-					if (potentialLineSize.x > buttonWidth - 18) { // Scrollbar
-						// Draw the current line and move to the next
-						drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
-						textPos.y += potentialLineSize.y;
-						currentLine = word;
-					} else {
-						currentLine = potentialLine;
-					}
-				}
 				}
 
 				if (!currentLine.empty()) {
-					drawList->AddText(textPos, IM_COL32(255, 255, 255, 255), currentLine.c_str());
+					drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), currentLine.c_str());
 				}
 
 				ImGui::PopStyleColor(3);
@@ -1630,8 +1662,7 @@ static void RunGUI() {
 
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding (Hexadecimal)");
-				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? 
-										ImVec4(0.0f, 1.0f, 0.0f, 1.0f) : ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
 				ImGui::TextWrapped("Enable This Macro:");
 				ImGui::PopStyleColor();
 				ImGui::SameLine();
@@ -2373,7 +2404,7 @@ static void RunGUI() {
 
 					ImGui::Separator();
 
-                    ImGui::Checkbox("Auto-Unlag (Anti-Kick) (NOT RECOMMENDED)", &lagswitch_autounblock);
+                    ImGui::Checkbox("Auto-Unlag (Anti-Kick) (Non-Roblox Games Only)", &lagswitch_autounblock);
                     
                     // Disable inputs if toggle is off
                     if (!lagswitch_autounblock) ImGui::BeginDisabled();
@@ -2402,7 +2433,7 @@ static void RunGUI() {
 					
                     // Warning if both disabled
                     if (!lagswitchoutbound && !lagswitchinbound) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.0f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().warning_color);
                         ImGui::TextWrapped("WARNING: Both Inbound and Outbound are unchecked.\nThe Lag Switch will not block any packets.");
                         ImGui::PopStyleColor();
                     }
@@ -2432,13 +2463,18 @@ static void RunGUI() {
 
                     // Warning if enabled but no directions selected
                     if (lagswitchlag && !lagswitchlaginbound && !lagswitchlagoutbound) {
-                         ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Select at least one direction to lag!");
+                         ImGui::TextColored(GetCurrentTheme().warning_color, "Select at least one direction to lag!");
+                    }
+
+					if (lagswitchlag && ((lagswitchoutbound && lagswitchlagoutbound) || (lagswitchinbound && lagswitchlaginbound))) {
+                        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().warning_color);
+                        ImGui::TextWrapped("WARNING: Both Blocking and Lagging are enabled for Inbound/Outbound packets.\nBlocking takes priority over lagging.");
+                        ImGui::PopStyleColor();
                     }
 
                     ImGui::Unindent();
 
                     if (!lagswitchlag) ImGui::EndDisabled();
-                    // ---------------------------------------------------------
 
 					ImGui::Separator();
 
@@ -2514,14 +2550,14 @@ static void RunGUI() {
                     }
 
                     ImGui::SameLine();
-                    ImGui::TextColored(bWinDivertEnabled ? ImVec4(0,1,0,1) : ImVec4(1,0,0,1), 
+                    ImGui::TextColored(bWinDivertEnabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color, 
                                        bWinDivertEnabled ? "Driver Running" : "Driver Not Running");
                     
                     if (bWinDivertEnabled) {
                         ImGui::SameLine();
                         ImGui::Text(" |  Status: ");
                         ImGui::SameLine();
-                        ImGui::TextColored(g_windivert_blocking ? ImVec4(1, 0, 0, 1) : ImVec4(0, 1, 0, 1), 
+                        ImGui::TextColored(g_windivert_blocking ? GetCurrentTheme().error_color : GetCurrentTheme().success_color, 
                             g_windivert_blocking ? "LAGGING" : "Clear");
                         
                         // Debug: Show filter string
@@ -2533,80 +2569,116 @@ static void RunGUI() {
                 ImGui::TextWrapped("Select a section to see its settings.");
             }
 
-			ImVec2 childpos = ImGui::GetWindowPos();
-			ImVec2 childsize = ImGui::GetWindowSize();
-			ImU32 lineColor = ImGui::GetColorU32(ImGuiCol_Border);
-
-
             ImGui::EndChild(); // End right section
+            
+
+            // BOTTOM CONTROLS SETUP
+
+			ImVec2 childPos = ImGui::GetItemRectMin();
+			ImVec2 childSize = ImGui::GetItemRectSize();
 
 			ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
-			// Draw a line at the bottom to remove the border, color it the same as the background
-			ImGui::GetWindowDrawList()->AddLine(
-				ImVec2(childpos.x, childpos.y + childsize.y - 1), 
-				ImVec2(childpos.x + childsize.x, childpos.y + childsize.y - 1), 
-				IM_COL32(21, 22, 23, 255),
-				1.0f
-			);
+			ImU32 bg_color = ImGui::GetColorU32(ImGuiCol_ChildBg);
+			ImU32 border_color = ImGui::GetColorU32(ImGuiCol_Border);
+			float rounding = ImGui::GetStyle().ChildRounding;
 
-			// Add in an extra line to the bottom left to fill missing pixels
-			draw_list->AddLine(
-				ImVec2(childpos.x, childpos.y + childsize.y - 2),
-				ImVec2(childpos.x, childpos.y + childsize.y + 29),
-				lineColor,
-				1.0f
-			);
+            // Draw bottom controls
+            ImVec2 windowSize = ImGui::GetWindowSize();
+            // Align BottomControls exactly below RightSection
+            ImGui::SetCursorPosY(windowSize.y - 30 - ImGui::GetStyle().WindowPadding.y);
+            ImGui::SetCursorPosX(childPos.x);
 
-			// Add in an extra line to the bottom right to fill missing pixels
-			draw_list->AddLine(
-				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y - 2),
-				ImVec2(childpos.x + childsize.x - 1, childpos.y + childsize.y + 29),
-				lineColor,
-				1.0f
-			);
+            // Force Square Corners for BottomControls
+            ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f); 
+            
+            if (ImGui::BeginChild("BottomControls", ImVec2(childSize.x - 1, 30), false, // 'false' here removes the border from BottomControls
+                ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+            {
+				ImGui::SameLine(childSize.x - 616);
+                ImGui::AlignTextToFramePadding();
+				// Adjust text starting point by 2 pixels downwards
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+                ImGui::Text("Always On-Top");
+                ImGui::SameLine();
+        
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+                if (ImGui::Checkbox("##OnTopToggle", &ontoptoggle))
+                {
+                    SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+                }
 
-			// Draw in a fake line to add in a new border
-			ImGui::GetWindowDrawList()->AddLine(
-				ImVec2(childpos.x, childpos.y + childsize.y + 29), 
-				ImVec2(childpos.x + childsize.x, childpos.y + childsize.y + 29), 
-				lineColor,
-				1.0f
-			);
+                ImGui::SameLine();
+				// Adjust text starting point by 2 pixels downwards
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+                ImGui::Text("Opacity");
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(100.0f);
+				// Adjust text starting point by 2 pixels downwards
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+                if (ImGui::SliderFloat("##OpacitySlider", &windowOpacityPercent, 20.0f, 100.0f, "%.0f%%"))
+                {
+                    BYTE alpha = static_cast<BYTE>((windowOpacityPercent / 100.0f) * 255);
+                    SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+                }
 
+				// Patch the Background (Fill the empty rounded gaps with background color)
+				// Bottom Left Corner Patch
+				draw_list->AddRectFilled(
+					ImVec2(childPos.x, childPos.y + childSize.y - rounding), 
+					ImVec2(childPos.x + rounding, childPos.y + childSize.y), 
+					bg_color
+				);
 
-			// Draw bottom controls
-			ImVec2 windowSize = ImGui::GetWindowSize();
-			ImGui::SetCursorPosY(windowSize.y - 27 - ImGui::GetStyle().WindowPadding.y);
-			ImGui::SetCursorPosX(windowSize.x - 624);
+				// Bottom Right Corner Patch
+				draw_list->AddRectFilled(
+					ImVec2(childPos.x + childSize.x - rounding, childPos.y + childSize.y - rounding), 
+					ImVec2(childPos.x + childSize.x, childPos.y + childSize.y), 
+					bg_color
+				);
 
-			if (ImGui::BeginChild("BottomControls", ImVec2(0, 36), false,
-				ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
-			{
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("Always On-Top");
+				// Re-draw the Borders (Square them off)
+				// Draw a vertical line segment on the left to cover the curve
+				draw_list->AddLine(
+					ImVec2(childPos.x, childPos.y + childSize.y - rounding - 1),
+					ImVec2(childPos.x, childPos.y + childSize.y + 29),
+					border_color
+				);
+
+				// Draw a vertical line segment on the right to cover the curve
+				draw_list->AddLine(
+					ImVec2(childPos.x + childSize.x - 1, childPos.y + childSize.y - rounding - 1),
+					ImVec2(childPos.x + childSize.x - 1, childPos.y + childSize.y + 29),
+					border_color
+				);
+
+				// Draw the Separator Line
+				// This is the line that sits between RightSection and BottomControls.
+				// We draw it over the bottom border of RightSection to make it look like a seamless divider.
+				draw_list->AddLine(
+					ImVec2(childPos.x + 1, childPos.y + childSize.y - 1), 
+					ImVec2(childPos.x + childSize.x - 1, childPos.y + childSize.y - 1), 
+					bg_color, // Use BG color to "erase" the existing border
+					1.0f
+				);
+
+				// Draw the Bottom Border
+				draw_list->AddLine(
+					ImVec2(childPos.x, childPos.y + childSize.y + 29), 
+					ImVec2(childPos.x + childSize.x, childPos.y + childSize.y + 29), 
+					border_color,
+					1.0f
+				);
+
 				ImGui::SameLine();
-		
-				if (ImGui::Checkbox("##OnTopToggle", &ontoptoggle))
-				{
-					SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-				}
 
-				ImGui::SameLine();
-				ImGui::Text("Opacity");
-				ImGui::SameLine();
-				ImGui::SetNextItemWidth(100.0f);
+				// Adjust text starting point by 2 pixels downwards
+				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+                ProfileUI::DrawProfileManagerUI();
+            }
 
-				if (ImGui::SliderFloat("##OpacitySlider", &windowOpacityPercent, 20.0f, 100.0f, "%.0f%%"))
-				{
-					BYTE alpha = static_cast<BYTE>((windowOpacityPercent / 100.0f) * 255);
-					SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
-				}
-				ImGui::SameLine();
-
-				ProfileUI::DrawProfileManagerUI();
-			}
-			ImGui::EndChild();
+            ImGui::EndChild();
+            ImGui::PopStyleVar();
 
             // Finish the main window
             ImGui::End(); // End main ImGui window
@@ -2646,7 +2718,7 @@ void DbgPrintf(const char* format, ...) {
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args); // Use vsnprintf for safety
     va_end(args);
-    OutputDebugStringA(buffer); // Send to debug output
+    OutputDebugStringA(buffer); // Send to output
 }
 
 void CreateDebugConsole() {
@@ -2658,41 +2730,19 @@ void CreateDebugConsole() {
         FILE* pCin;
         freopen_s(&pCin, "CONIN$", "r", stdin);   // Redirect stdin
 
-        // Optional: Set console title
-        SetConsoleTitle(L"Debug Console");
+        SetConsoleTitle(L"SMC Debug Console");
 
         std::cout.sync_with_stdio(true);
     }
 }
 
-// START OF CODE THREAD
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
-    DisablePowerThrottling();
-
-	// Create Debug Console, use DbgPrintf, printf, or cout to use
-    char debugbuffer[16];
-    if (GetEnvironmentVariableA("DEBUG", debugbuffer, sizeof(debugbuffer)) && std::string(debugbuffer) == "1") {
-        CreateDebugConsole();
-    } else {
-		// Comment this back in to see the console on regular builds
-		CreateDebugConsole();
-	}
-
-	// Run timers with max precision
-    timeBeginPeriod(1);
-
-	// I LOVE THREAD PRIORITY!!!!!!!!!!!!!!!
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-
+static void UpdateSMCThread() {
 	// Check for any updates
     std::string remoteVersion = GetRemoteVersion();
 
     if (!remoteVersion.empty()) 
     {
         remoteVersion = Trim(remoteVersion);
-        std::string localVersion = "3.2.0";
 
         if (remoteVersion != localVersion) 
         {
@@ -2726,6 +2776,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			}
         }
     }
+}
+
+// START OF CODE THREAD
+
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+{
+    DisablePowerThrottling();
+
+	// Create Debug Console, use DbgPrintf, printf, or cout to use
+    char debugbuffer[16];
+    if (GetEnvironmentVariableA("DEBUG", debugbuffer, sizeof(debugbuffer)) && std::string(debugbuffer) == "1") {
+        CreateDebugConsole();
+    } else {
+		// Comment this back in to see the console on regular builds
+		// CreateDebugConsole();
+	}
+
+	// Run timers with max precision
+    timeBeginPeriod(1);
+
+	// I LOVE THREAD PRIORITY!!!!!!!!!!!!!!!
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 
 	// Setup suspension
 
@@ -2740,6 +2812,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	std::thread actionThread9(PressKeyThread);
 	std::thread actionThread10(FloorBounceThread);
 	std::thread logScannerThread(RobloxLogScannerThread);
+
+	std::thread updaterThread(UpdateSMCThread);
 	
 	std::thread guiThread(RunGUI);
 
@@ -3536,8 +3610,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	if (WinDivertThread.joinable()) WinDivertThread.join();
 
 	if (IsRunAsAdmin()) {
-		system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
-		system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+		quiet_system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+		quiet_system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
+		quiet_system("sc query WinDivert >nul 2>&1"); // Query WinDivert to update windows about its status
 	}
 
 	KeyboardThread.join();
