@@ -11,8 +11,12 @@
 #include <filesystem>
 
 #include "windivert-files/windivert.h"
+#include "imgui-files/imgui.h"
 
 namespace Globals {
+    // CURRENT VERSION NUMBER OF PROGRAM
+    inline std::string localVersion = "3.2.0";
+
     // --- Application & Window State ---
     inline HWND hwnd = NULL;
     inline std::atomic<bool> running = true;
@@ -115,6 +119,7 @@ namespace Globals {
     inline bool show_lag_overlay = false;
     inline bool overlay_hide_inactive = false;
     inline bool overlay_use_bg = false;
+    inline bool show_theme_menu = false;
 
     // --- Numeric Settings ---
     inline int wallhop_dx = 300;
@@ -160,9 +165,9 @@ namespace Globals {
     inline int overlay_x = -1;
     inline int overlay_y = 50;
     inline int overlay_size = 20;
-    inline float overlay_bg_r = 0.0f;
-    inline float overlay_bg_g = 0.0f;
-    inline float overlay_bg_b = 0.0f;
+    inline float overlay_bg_r = 60.0f/255;
+    inline float overlay_bg_g = 90.0f/255;
+    inline float overlay_bg_b = 160.0f/255;
 
     // --- Buffers & Strings ---
     inline char settingsBuffer[256] = "RobloxPlayerBeta.exe";
@@ -210,6 +215,10 @@ namespace Globals {
     inline const std::string METADATA_KEY = "_metadata";
     inline const std::string LAST_ACTIVE_PROFILE_KEY = "last_active_profile";
 
+    // WinDivert DLL and SYS name declarations
+    inline const std::string DLL_NAME = "SMCWinDivert.dll";
+    inline const std::string SYS_NAME = "WinDivert64.sys";
+
     inline std::string getSettingsFileName() {
         // Check for SMCSettings.json first
         if (std::filesystem::exists("SMCSettings.json")) {
@@ -223,6 +232,53 @@ namespace Globals {
 
         // Return empty string if neither exists
         return "RMCSettings.json";
+    }
+
+    // Run admin system command without flashing CMD Window, Required for WinDivert
+    inline int quiet_system(const std::string& cmd) {
+        // Convert command to wide string (for CreateProcessW)
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, cmd.c_str(), -1, nullptr, 0);
+        std::wstring wcmd(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, cmd.c_str(), -1, &wcmd[0], size_needed);
+
+        // Build full command line: cmd.exe /C command
+        std::wstring full_cmd = L"cmd.exe /C " + wcmd;
+
+        STARTUPINFOW si = { sizeof(si) };
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        PROCESS_INFORMATION pi = { 0 };
+
+        BOOL success = CreateProcessW(
+            nullptr,                  // No module name (use command line)
+            &full_cmd[0],             // Command line (modifiable)
+            nullptr,                  // Process handle not inheritable
+            nullptr,                  // Thread handle not inheritable
+            FALSE,                    // No handle inheritance
+            CREATE_NO_WINDOW,         // Creation flags (key: no console window)
+            nullptr,                  // Use parent's environment
+            nullptr,                  // Use parent's starting directory
+            &si,                      // Pointer to STARTUPINFO
+            &pi                       // Pointer to PROCESS_INFORMATION
+        );
+
+        if (!success) {
+            throw std::runtime_error("CreateProcess failed");
+        }
+
+        // Wait for the command to complete
+        WaitForSingleObject(pi.hProcess, INFINITE);
+
+        // Get exit code
+        DWORD exit_code;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+
+        // Clean up handles
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+
+        return static_cast<int>(exit_code);
     }
 
     // --- Lookup Tables ---
@@ -257,7 +313,44 @@ namespace Globals {
         {12, &vk_bouncekey}, {13, &vk_bunnyhopkey}, {14, &vk_floorbouncekey}, {15, &vk_lagswitchkey}
     };
 
-    // Definitions (the actual storage)
+    // Theme manager variables
+
+    struct Theme {
+        std::string name;
+        ImVec4 bg_dark;
+        ImVec4 bg_medium;
+        ImVec4 bg_light;
+        ImVec4 accent_primary;
+        ImVec4 accent_secondary;
+        ImVec4 text_primary;
+        ImVec4 text_secondary;
+        ImVec4 success_color;
+        ImVec4 warning_color;
+        ImVec4 error_color;
+        ImVec4 border_color;
+        ImVec4 disabled_color;
+        float window_rounding;
+        float frame_rounding;
+        float button_rounding;
+    };
+
+    // --- Theme State ---
+    inline int current_theme_index = 0;
+    inline bool theme_modified = false;
+    
+    // We define these empty here, they are populated in theme_manager.cpp
+    inline std::vector<Theme> themes; 
+    inline Theme custom_theme;
+    
+    // Helper to get the active theme easily in the main loop
+    inline Theme& GetCurrentTheme() {
+        if (current_theme_index < 0 || current_theme_index >= themes.size()) {
+            return custom_theme;
+        }
+        return themes[current_theme_index];
+    }
+
+    // Windivert variable storage
     inline bool islagswitchswitch = true;
     inline bool lagswitchoutbound = true;
     inline bool lagswitchinbound = true;

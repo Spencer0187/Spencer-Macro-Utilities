@@ -197,6 +197,7 @@
     <ClCompile Include="overlay.cpp" />
     <ClCompile Include="profile_manager.cpp" />
     <ClCompile Include="Resource Files\miniz.c" />
+    <ClCompile Include="theme_manager.cpp" />
     <ClCompile Include="wine_compatibility_layer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -219,6 +220,7 @@
     <ClInclude Include="Resource Files\network_manager.h" />
     <ClInclude Include="Resource Files\overlay.h" />
     <ClInclude Include="Resource Files\profile_manager.h" />
+    <ClInclude Include="Resource Files\theme_manager.h" />
     <ClInclude Include="Resource Files\updater_system.h" />
     <ClInclude Include="Resource Files\wine_compatibility_layer.h" />
     <ClInclude Include="resource.h">
