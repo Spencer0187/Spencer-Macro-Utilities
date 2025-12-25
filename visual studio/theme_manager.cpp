@@ -38,7 +38,7 @@ static std::vector<Theme> defaultthemes = {
      ImVec4(0.00f, 0.44f, 0.60f, 1.0f), ImVec4(0.90f, 0.90f, 1.0f, 1.0f),
      ImVec4(0.60f, 0.60f, 0.80f, 1.0f), ImVec4(0.00f, 1.0f, 0.50f, 1.0f),
      ImVec4(1.0f, 0.50f, 0.00f, 1.0f), ImVec4(1.0f, 0.20f, 0.40f, 1.0f),
-	 ImVec4(0.00f, 0.40f, 0.60f, 1.0f), ImVec4(0.50f, 0.0f, 0.52f, 1.00f), 6.0f, 3.0f, 3.0f},
+	 ImVec4(0.00f, 0.40f, 0.60f, 1.0f), ImVec4(0.41f, 0.02f, 0.79f, 1.0f), 6.0f, 3.0f, 3.0f},
     {"Forest Green", ImVec4(0.05f, 0.12f, 0.08f, 1.0f), ImVec4(0.08f, 0.16f, 0.12f, 1.0f),
 	 ImVec4(0.12f, 0.20f, 0.16f, 1.0f), ImVec4(0.11f, 0.55f, 0.26f, 1.0f),
 	 ImVec4(0.11f, 0.43f, 0.21f, 1.0f), ImVec4(0.90f, 0.95f, 0.90f, 1.0f),
