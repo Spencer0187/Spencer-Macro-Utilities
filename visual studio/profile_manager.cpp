@@ -555,6 +555,7 @@ namespace ProfileUI {
             ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
+	        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
             ImGui::Begin("##ProfilesDropUpMenu", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
 
             float actionButtonWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
@@ -797,6 +798,7 @@ namespace ProfileUI {
 					}
                 }
             }
+	        ImGui::PopStyleVar();
             ImGui::EndChild(); // ##ProfilesOptionsList
 
             if (!s_rename_error_msg.empty()) {

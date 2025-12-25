@@ -1039,6 +1039,8 @@ static void RunGUI() {
 			ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 			ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
+
 			if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
 				ImGui::Text("WinDivert features require Administrator privileges.");
 				ImGui::Text("This process involves:");
@@ -1068,6 +1070,8 @@ static void RunGUI() {
         
 				ImGui::EndPopup();
 			}
+
+			ImGui::PopStyleVar();
 
 			// Enable ImGUI Debug Mode
 			// ImGui::ShowMetricsWindow();
