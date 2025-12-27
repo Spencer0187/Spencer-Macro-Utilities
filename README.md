@@ -8,15 +8,9 @@ To compile the linux helper binary, there is a separate source code folder insid
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 ### Known Issues
-- If you get "0x0" or any other key immediately when binding, restart your PC.
-
-- If you get DLL errors when launching, install [The Visual Studio 2022 x64 C++ Redist](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist).
-
 - If it doesn't launch at all in Windows, go into properties and select "Unblock" on the file.
 
-- If you have another issue where keybinds don't work, restart your computer, and it seems to fix it permanently.
-
-- In certain scenarios, when downgrading from a version with more features to a version with fewer features causes the program to crash on launch, either delete your RMCsettings.json file, or remove section_order_vector from the .json.
+- Downgrading from a version with more features to a version with fewer features can cause the program to crash on launch. It is not recommended to downgrade. If required, delete your RMCsettings.json file.
 
 ![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
 
