@@ -322,8 +322,8 @@ const KnownIssuesSection = styled(Section)`
 
 // ===== Updated Main Component =====
 const App = () => {
-  const screenshotUrl1 = 'https://github.com/user-attachments/assets/0bf81cba-2444-4454-952b-17ea7a1db4a5';
-  const screenshotUrl2 = 'https://github.com/user-attachments/assets/80d843de-4141-4cc4-8cc0-42676c0a2662';
+  const screenshotUrl1 = 'https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08';
+  const screenshotUrl2 = 'https://github.com/user-attachments/assets/67332f63-2bb2-4b99-88ad-9169b5148adf';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg';
   const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Spencer-Macro-Utilities';
 
@@ -493,20 +493,12 @@ const App = () => {
           <h2>Known Issues</h2>
           <ul>
             <li>
-              <h3>Keybind Issues (0x0 or immediate keys)</h3>
-              <p>If you encounter "0x0" or other keys registering immediately when binding keybinds, a system restart is required.</p>
-            </li>
-            <li>
-              <h3>DLL Errors on Launch</h3>
-              <p>If you receive DLL errors upon launching, install the Visual Studio 2022 x64 C++ Redistributable. It can be downloaded from <a href="https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist">Microsoft's website</a>.</p>
-            </li>
-            <li>
               <h3>Application Fails to Launch</h3>
               <p>If the application does not launch, navigate to the file properties and select "Unblock" at the bottom.</p>
             </li>
             <li>
               <h3>Keybinds Not Working</h3>
-              <p>If keybinds are not functioning, restart your computer. Make sure you are using the latest version since updates often contain fixes. Join the discord for more active notifications of current issues.</p>
+              <p>If keybinds are not functioning, restart your computer. Ensure you are using the latest version, as updates often contain important fixes. Join the discord for more active notifications of current issues.</p>
             </li>
           </ul>
         </KnownIssuesSection>
@@ -586,7 +578,8 @@ const App = () => {
           <p>Implementation Details:</p>
           <ul>
             <li><a href="https://github.com/ocornut/imgui">ImGui</a> interface framework</li>
-            <li><a href="https://github.com/craftwar/suspend">suspend</a> process handling</li>
+            <li><a href="https://github.com/craftwar/suspend">Suspend</a> process handling</li>
+            <li><a href="https://github.com/basil00/WinDivert">Lagswitch</a> network manipulation</li>
           </ul>
         </Credits>
       </Container>
