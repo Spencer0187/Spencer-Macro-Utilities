@@ -320,7 +320,7 @@ const KnownIssuesSection = styled(Section)`
   }
 `;
 
-// ===== Updated Main Component =====
+// ===== Main Component =====
 const App = () => {
   const screenshotUrl1 = 'https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08';
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/67332f63-2bb2-4b99-88ad-9169b5148adf';
@@ -403,11 +403,14 @@ const App = () => {
       <Container>
         <Header>
           <h1>Spencer Macro Utilities</h1>
-          <p>Windows + Linux automation tool that works alongside Roblox - no memory access, just input automation</p>
+          <p>
+            Windows + Linux automation tool designed for Roblox. <br />
+            No memory access, just singular .exe automation.
+          </p>
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (970KB EXE)
+              Download (Singular EXE)
             </Button>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities" className="secondary">
               See Github/Source Code
@@ -429,13 +432,13 @@ const App = () => {
 
         <FeatureShowcase>
           <div>
-            <h2>Customizable Interface</h2>
-            <p>Control how you interact with the tools:</p>
+            <h2>Theme Editor & Interface</h2>
+            <p>Control exactly how the tool looks and feels:</p>
             <ul>
+              <li><strong>Fully Fledged Theme Editor:</strong> Customize every color and style</li>
               <li>Drag buttons to any position</li>
               <li>Resize window to your preference</li>
-              <li>All macro settings save automatically</li>
-              <li>Layout saves automatically</li>
+              <li>Layout and settings save automatically</li>
             </ul>
           </div>
           <Screenshot onClick={() => openLightbox(screenshotUrl1)}>
@@ -450,38 +453,37 @@ const App = () => {
             <div>
               <h3>Essential Features</h3>
               <ul>
+                <li>Singular .exe file (no extra files)</li>
+                <li><strong>Update Prompt:</strong> Optional notification to update on launch</li>
                 <li>Persistent anti-AFK</li>
-                <li>Single executable (no install)</li>
-                <li>Update notifications</li>
                 <li>Low resource usage</li>
               </ul>
             </div>
             <div>
               <h3>Movement Macros</h3>
               <ul>
+                <li><strong>New:</strong> Floor Bounce (Itemless/Wall-less High Jump)</li>
                 <li>Helicopter High Jump (+Automatic Mode)</li>
                 <li>Speedglitch toggle</li>
                 <li>Automatic Ledge Bouncing</li>
                 <li>Wallhop/Wall-Walk</li>
-                <li>14-Stud Lag High Jump</li>
               </ul>
             </div>
             <div>
               <h3>Advanced Functions</h3>
               <ul>
+                <li><strong>WinDivert Lagswitch:</strong> Optimized for Roblox</li>
+                <li><strong>Status Overlay:</strong> See lag state while playing</li>
                 <li>Item Desync Hitboxes</li>
                 <li>Microsecond input timing</li>
-                <li>Key Spam repeater</li>
-                <li>Intelligent Bhop / Bunnyhop</li>
                 <li>Suspend Processes / Freeze Roblox</li>
-                <li>Laugh Clipping</li>
               </ul>
             </div>
             <div>
               <h3>Technical Details</h3>
               <ul>
                 <li>External input simulation</li>
-                <li>Portable exe file</li>
+                <li>No installation required</li>
                 <li>Open source C++</li>
                 <li>Active maintenance</li>
               </ul>
@@ -498,20 +500,20 @@ const App = () => {
             </li>
             <li>
               <h3>Keybinds Not Working</h3>
-              <p>If keybinds are not functioning, restart your computer. Ensure you are using the latest version, as updates often contain important fixes. Join the discord for more active notifications of current issues.</p>
+              <p>If keybinds are not functioning, restart your computer. Ensure you are using the latest version, as updates often contain important fixes.</p>
             </li>
           </ul>
         </KnownIssuesSection>
 
         <FeatureShowcase>
           <div>
-            <h2>Precise Control</h2>
-            <p>Detailed configuration options:</p>
+            <h2>Advanced Lagswitch</h2>
+            <p>Powerful network manipulation designed specifically for Roblox:</p>
             <ul>
-              <li>Toggle macro keybinds</li>
-              <li>Microsecond timing accuracy</li>
-              <li>Safety against unintentional activations</li>
-              <li>Custom Keybind Mapping</li>
+              <li>Full WinDivert integration</li>
+              <li><strong>In-Game Overlay:</strong> Enable an overlay to see the lagswitch status while playing</li>
+              <li>Customizable duration and settings</li>
+              <li>Safety controls to prevent accidental disconnects</li>
             </ul>
           </div>
           <Screenshot onClick={() => openLightbox(screenshotUrl2)}>
@@ -540,11 +542,11 @@ const App = () => {
           </div>
           <div>
             <h3>Windows Defender flags it as a virus!</h3>
-            <p>This is a known false positive. Some PC's flag it, but most don't. I'm consistently trying to fix false positives. If you still don't trust it, you can download Visual Studio 2022 with the "Desktop C++" workload, open the .sln project file from the GitHub source code, and compile it yourself.</p>
+            <p>This is a known false positive due to the nature of macro input and WinDivert drivers. If you don't trust the pre-compiled .exe, you can download Visual Studio 2022 with the "Desktop C++" workload and compile the source code yourself from GitHub.</p>
           </div>
           <div>
-            <h3>I bound a macro to left-click by mistake!</h3>
-            <p>To fix this, press down the "Toggle Macro" button in the app. Then, drag your mouse cursor back over the UI's Toggle button and release your mouse. This will toggle off the macro.</p>
+            <h3>How do I update?</h3>
+            <p>The program now includes an optional update notification on launch. Simply click "Yes" when prompted, or download the latest .exe from GitHub.</p>
           </div>
         </FAQSection>
 
@@ -552,7 +554,7 @@ const App = () => {
           <h2>Get Started</h2>
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (970KB)
+              Download (Singular EXE)
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
               Join Community
@@ -567,7 +569,7 @@ const App = () => {
             </DownloadCount>
           </div>
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
-            Windows 10/11 / All Linux Distros · Portable EXE · No dependencies
+            Windows 10/11 / Linux · Portable EXE · No dependencies
           </p>
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
             Discord server features update pings and glitch discussion
@@ -578,8 +580,8 @@ const App = () => {
           <p>Implementation Details:</p>
           <ul>
             <li><a href="https://github.com/ocornut/imgui">ImGui</a> interface framework</li>
+            <li><a href="https://github.com/basil00/WinDivert">WinDivert</a> network manipulation</li>
             <li><a href="https://github.com/craftwar/suspend">Suspend</a> process handling</li>
-            <li><a href="https://github.com/basil00/WinDivert">Lagswitch</a> network manipulation</li>
           </ul>
         </Credits>
       </Container>
