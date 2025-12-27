@@ -475,7 +475,7 @@ const App = () => {
                 <li><strong>Windows WinDivert Lagswitch:</strong> Optimized for Roblox</li>
                 <li><strong>Status Overlay:</strong> See lag state while playing</li>
                 <li>Item Desync Hitboxes</li>
-                <li>Microsecond input timing</li>
+                <li>Millisecond input timing</li>
                 <li>Suspend Processes / Freeze Roblox</li>
               </ul>
             </div>
