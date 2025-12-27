@@ -322,8 +322,8 @@ const KnownIssuesSection = styled(Section)`
 
 // ===== Main Component =====
 const App = () => {
-  const screenshotUrl1 = 'https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08';
-  const screenshotUrl2 = 'https://github.com/user-attachments/assets/67332f63-2bb2-4b99-88ad-9169b5148adf';
+  const screenshotUrl1 = 'https://github.com/user-attachments/assets/67332f63-2bb2-4b99-88ad-9169b5148adf';
+  const screenshotUrl2 = 'https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg';
   const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Spencer-Macro-Utilities';
 
