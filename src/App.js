@@ -22,6 +22,7 @@ const GlobalStyle = createGlobalStyle`
     --accent: #2b7a78;
     --hover: #3daaaa;
     --lightbox-bg: rgba(0, 0, 0, 0.8);
+    --success: #2b7a4b;
   }
 
   html {
@@ -138,6 +139,59 @@ const Button = styled.a`
       border-color: var(--hover);
       color: var(--hover);
     }
+  }
+`;
+
+const TrustBanner = styled.div`
+  background: rgba(43, 122, 120, 0.15);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin: 2rem auto;
+  max-width: 700px;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: left;
+  animation: ${popIn} 0.8s ease;
+  
+  img {
+    width: 45px;
+    height: 45px;
+    border-radius: 6px;
+  }
+
+  h4 {
+    color: var(--text);
+    margin-bottom: 0.2rem;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  span.verified {
+    font-size: 0.75rem;
+    background: var(--accent);
+    color: white;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+  }
+
+  p {
+    font-size: 0.9rem;
+    margin: 0;
+    opacity: 0.9;
+    line-height: 1.4;
+  }
+
+  @media (max-width: 600px) {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
   }
 `;
 
@@ -326,6 +380,7 @@ const App = () => {
   const screenshotUrl2 = 'https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08';
   const downloadBadgeUrl = 'https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg';
   const versionBadgeUrl = 'https://img.shields.io/github/v/release/Spencer0187/Spencer-Macro-Utilities';
+  const signPathLogo = 'https://avatars.githubusercontent.com/u/34448643?s=50&v=4';
 
   const [lightboxImage, setLightboxImage] = useState(null);
   const [downloadCount, setDownloadCount] = useState(null);
@@ -430,6 +485,19 @@ const App = () => {
           </div>
         </Header>
 
+        <TrustBanner>
+          <a href="https://signpath.org/projects/spencermacro/" target="_blank" rel="noopener noreferrer">
+            <img src={signPathLogo} alt="SignPath Foundation Logo" />
+          </a>
+          <div>
+            <h4>Trusted & Secure <span className="verified">Verified</span></h4>
+            <p>
+              Free code signing provided by <a href="https://about.signpath.io/" target="_blank" rel="noopener noreferrer">SignPath.io</a>.
+              This program is digitally signed with certificates issued by <a href="https://signpath.org/" target="_blank" rel="noopener noreferrer">SignPath Foundation</a>.
+            </p>
+          </div>
+        </TrustBanner>
+
         <FeatureShowcase>
           <div>
             <h2>Theme Editor & Interface</h2>
@@ -496,7 +564,7 @@ const App = () => {
           <ul>
             <li>
               <h3>Application Fails to Launch</h3>
-              <p>If the application does not launch, navigate to the file properties and select "Unblock" at the bottom.</p>
+              <p>If the application does not launch, navigate to the file properties and select "Unblock" at the bottom. This is standard for downloaded executables.</p>
             </li>
             <li>
               <h3>Keybinds Not Working</h3>
@@ -541,8 +609,12 @@ const App = () => {
             <p>No, this is a macro utility. It simulates user input and does not interact with Roblox's memory or game processes in any way that would be considered cheating. It automates in-game actions through external input.</p>
           </div>
           <div>
+            <h3>Is it safe?</h3>
+            <p>Yes. The application is now <strong>digitally signed by SignPath Foundation</strong>. This guarantees that the code you download has not been tampered with and comes from a verified open-source build process.</p>
+          </div>
+          <div>
             <h3>Windows Defender flags it as a virus!</h3>
-            <p>This is a known false positive due to the nature of macro input and WinDivert drivers. If you don't trust the pre-compiled .exe, you can download Visual Studio 2022 with the "Desktop C++" workload and compile the source code yourself from GitHub.</p>
+            <p>While false positives can still happen due to the nature of macro behavior and WinDivert drivers, the digital signature significantly reduces this likelihood. If you still encounter issues or don't trust the pre-compiled .exe, you can download Visual Studio 2022 with the "Desktop C++" workload and compile the source code yourself from GitHub.</p>
           </div>
           <div>
             <h3>How do I update?</h3>
@@ -581,7 +653,7 @@ const App = () => {
           <ul>
             <li><a href="https://github.com/ocornut/imgui">ImGui</a> interface framework</li>
             <li><a href="https://github.com/basil00/WinDivert">WinDivert</a> network manipulation</li>
-            <li><a href="https://github.com/craftwar/suspend">Suspend</a> process handling</li>
+            <li><a href="https://about.signpath.io/">SignPath.io</a> code signing services</li>
           </ul>
         </Credits>
       </Container>
