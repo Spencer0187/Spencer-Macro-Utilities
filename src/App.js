@@ -404,13 +404,13 @@ const App = () => {
         <Header>
           <h1>Spencer Macro Utilities</h1>
           <p>
-            Windows + Linux automation tool designed for Roblox. <br />
-            No memory access, just singular .exe automation.
+            Windows + Linux (Via Wine) automation tool designed for Roblox. <br />
+            No memory access, just input automation.
           </p>
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (Singular EXE)
+              Download (1.8MB EXE)
             </Button>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities" className="secondary">
               See Github/Source Code
@@ -472,7 +472,7 @@ const App = () => {
             <div>
               <h3>Advanced Functions</h3>
               <ul>
-                <li><strong>WinDivert Lagswitch:</strong> Optimized for Roblox</li>
+                <li><strong>Windows WinDivert Lagswitch:</strong> Optimized for Roblox</li>
                 <li><strong>Status Overlay:</strong> See lag state while playing</li>
                 <li>Item Desync Hitboxes</li>
                 <li>Microsecond input timing</li>
@@ -569,7 +569,7 @@ const App = () => {
             </DownloadCount>
           </div>
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
-            Windows 10/11 / Linux · Portable EXE · No dependencies
+            Windows 10/11 / Linux (Via Wine) · Portable EXE · No dependencies
           </p>
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
             Discord server features update pings and glitch discussion
