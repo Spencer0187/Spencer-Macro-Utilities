@@ -81,4 +81,5 @@ This application makes client-side HTTP requests solely for version checking and
 ## Credits
 
 - Freezing code framework based on [craftwar/suspend](https://github.com/craftwar/suspend)
-- ImGui GUI library used, obviously... [ocornut/imgui](https://github.com/ocornut/imgui)
+- ImGui GUI library [ocornut/imgui](https://github.com/ocornut/imgui)
+- WinDivert used for Lagswitching Capabilities [basil00/WinDivert](https://github.com/basil00/WinDivert)
