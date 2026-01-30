@@ -26,11 +26,11 @@
 #include "Resource Files/keymapping.h"
 #include "Resource Files/wine_compatibility_layer.h"
 #include "Resource Files/updater_system.h"
-#include "Resource Files/overlay.h"
 #include "Resource Files/network_manager.h"
 #include "Resource Files/macros.h"
 #include "Resource Files/profile_manager.h"
 #include "Resource Files/theme_manager.h"
+#include "Resource Files/overlay.h"
 
 #include <comdef.h>
 #include <shlobj.h>
@@ -47,6 +47,10 @@
 #include <dwmapi.h>
 #include <variant>
 #include <shellscalingapi.h>
+
+// #define SDL_MAIN_HANDLED 
+// #include <SDL3/SDL.h>
+// This will be added eventually for native linux/mac parity
 
 // Include windivert
 #include "windivert-files/windivert.h"
@@ -522,119 +526,215 @@ struct BindingState {
 // Global map to store binding states for each key variable
 static std::unordered_map<unsigned int *, BindingState> g_bindingStates;
 
+static bool IsHotkeyPressed(unsigned int combinedKey) {
+    // Extract the Virtual Key
+    unsigned int vk = combinedKey & HOTKEY_KEY_MASK;
+    if (vk == 0) return false;
+
+    // Check if the primary key is pressed
+    if (!IsKeyPressed(vk)) return false;
+
+    // Check Modifiers
+    // We only fail if a REQUIRED modifier is NOT present.
+    
+    // Win Key Check (Checks either Left or Right Win key)
+    if ((combinedKey & HOTKEY_MASK_WIN) && !(IsKeyPressed(VK_LWIN) || IsKeyPressed(VK_RWIN))) return false;
+    
+    if ((combinedKey & HOTKEY_MASK_CTRL) && !IsKeyPressed(VK_CONTROL)) return false;
+    if ((combinedKey & HOTKEY_MASK_ALT) && !IsKeyPressed(VK_MENU)) return false;
+    if ((combinedKey & HOTKEY_MASK_SHIFT) && !IsKeyPressed(VK_SHIFT)) return false;
+
+    return true;
+}
+
+static void FormatHexKeyString(unsigned int combinedCode, char* buffer, size_t size) {
+    unsigned int vk = combinedCode & HOTKEY_KEY_MASK;
+    std::string hexStr = "";
+
+    // Append Generic Modifier Hex Codes in Order: Win -> Ctrl -> Alt -> Shift
+    // 0x5B = VK_LWIN, 0x11 = VK_CONTROL, 0x12 = VK_MENU, 0x10 = VK_SHIFT
+    if (combinedCode & HOTKEY_MASK_WIN)   hexStr += "0x5B + ";
+    if (combinedCode & HOTKEY_MASK_CTRL)  hexStr += "0x11 + ";
+    if (combinedCode & HOTKEY_MASK_ALT)   hexStr += "0x12 + ";
+    if (combinedCode & HOTKEY_MASK_SHIFT) hexStr += "0x10 + ";
+    
+    char vkHex[16];
+    std::snprintf(vkHex, sizeof(vkHex), "0x%X", vk);
+    hexStr += vkHex;
+    
+    // Copy to buffer
+    strncpy(buffer, hexStr.c_str(), size - 1);
+    buffer[size - 1] = '\0';
+}
+
+static void GetKeyNameFromHex(unsigned int combinedKeyCode, char* buffer, size_t bufferSize)
+{
+    // 1. Check if THIS specific key is currently being bound
+    for (auto &[keyPtr, state] : g_bindingStates) {
+        if (state.bindingMode && *keyPtr == combinedKeyCode) {
+            return; 
+        }
+    }
+
+    // Clear the buffer
+    memset(buffer, 0, bufferSize);
+
+    unsigned int vk = combinedKeyCode & HOTKEY_KEY_MASK;
+
+    // Build Prefix String in Order: Win -> Ctrl -> Alt -> Shift
+    std::string prefix = "";
+    if (combinedKeyCode & HOTKEY_MASK_WIN)   prefix += "Win + ";
+    if (combinedKeyCode & HOTKEY_MASK_CTRL)  prefix += "Ctrl + ";
+    if (combinedKeyCode & HOTKEY_MASK_ALT)   prefix += "Alt + ";
+    if (combinedKeyCode & HOTKEY_MASK_SHIFT) prefix += "Shift + ";
+
+    char keyNameBuffer[64] = {0};
+    UINT scanCode = MapVirtualKey(vk, MAPVK_VK_TO_VSC);
+
+    // Attempt to get the readable key name
+    if (GetKeyNameTextA(scanCode << 16, keyNameBuffer, sizeof(keyNameBuffer)) > 0) {
+        // Success
+    } else {
+        // Fallback
+        auto it = vkToString.find(vk);
+        if (it != vkToString.end()) {
+            strncpy(keyNameBuffer, it->second.c_str(), sizeof(keyNameBuffer) - 1);
+        } else {
+            snprintf(keyNameBuffer, sizeof(keyNameBuffer) - 1, "0x%X", vk);
+        }
+    }
+
+    // Combine Prefix + KeyName
+    std::string finalName = prefix + keyNameBuffer;
+    strncpy(buffer, finalName.c_str(), bufferSize - 1);
+    buffer[bufferSize - 1] = '\0';
+}
+
 static unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int selected_section)
 {
-    // Get or create the state for this specific key variable
     BindingState& state = g_bindingStates[keyVar];
+    
     if (state.bindingMode) {
-	    notbinding = false;
+        notbinding = false;
         state.rebindTime = std::chrono::steady_clock::now();
-        // Initialize key states on first run in binding mode
+        
         if (state.firstRun) {
             for (int key = 1; key < 258; key++) {
                 state.keyWasPressed[key] = IsKeyPressed(key);
             }
             state.firstRun = false;
         }
-		// Check side-specific shifts first to avoid ambiguity
-		static const int priorityKeys[] = {0xA1, 0xA0, 0x10}; // VK_RSHIFT, VK_LSHIFT, VK_SHIFT
-		for (int priorityKey : priorityKeys) {
-			bool currentlyPressed = IsKeyPressed(priorityKey);
-			if (currentlyPressed && !state.keyWasPressed[priorityKey]) {
-				state.bindingMode = false;
-				state.firstRun = true;
-				state.keyWasPressed[priorityKey] = true;
-				std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", priorityKey);
-				return priorityKey;
-			}
-			state.keyWasPressed[priorityKey] = currentlyPressed;
-		}
 
-		// Check all other keys
-		for (int key = 1; key < 258; key++) {
-			// Skip the priority keys we already checked
-			if (key == 0xA1 || key == 0xA0 || key == 0x10) continue;
-    
-			bool currentlyPressed = IsKeyPressed(key);
-			// Key was previously pressed and is now released - reset it
-			if (state.keyWasPressed[key] && !currentlyPressed) {
-				state.keyWasPressed[key] = false;
-			}
-			// Key is pressed now AND it wasn't pressed before (fresh press)
-			if (currentlyPressed && !state.keyWasPressed[key]) {
-				state.bindingMode = false;
-				state.firstRun = true;
-				state.keyWasPressed[key] = true;
+        // 1. Detect currently held modifiers
+        unsigned int currentModifiers = 0;
+        // Check both Left and Right Win keys
+        if (IsKeyPressed(VK_LWIN) || IsKeyPressed(VK_RWIN)) currentModifiers |= HOTKEY_MASK_WIN;
+        if (IsKeyPressed(VK_CONTROL)) currentModifiers |= HOTKEY_MASK_CTRL;
+        if (IsKeyPressed(VK_MENU))    currentModifiers |= HOTKEY_MASK_ALT;
+        if (IsKeyPressed(VK_SHIFT))   currentModifiers |= HOTKEY_MASK_SHIFT;
+
+        // 2. Generate Live Preview Strings (Win -> Ctrl -> Alt -> Shift)
+        state.buttonText = "Press a Key...";
+
+        std::string previewHuman = "";
+        if (currentModifiers & HOTKEY_MASK_WIN)   previewHuman += "Win + ";
+        if (currentModifiers & HOTKEY_MASK_CTRL)  previewHuman += "Ctrl + ";
+        if (currentModifiers & HOTKEY_MASK_ALT)   previewHuman += "Alt + ";
+        if (currentModifiers & HOTKEY_MASK_SHIFT) previewHuman += "Shift + ";
         
-				std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", key);
-				return key;
-			}
-			// Update the previous state
-			state.keyWasPressed[key] = currentlyPressed;
-		}
-    } else {
-        // Reset firstRun when not in binding mode
-        state.firstRun = true;
-        // Check if the selected_section has changed
-        if (selected_section != state.lastSelectedSection) {
-            std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", currentkey);
-            state.lastSelectedSection = selected_section;
+        char previewHex[64] = {0};
+        FormatHexKeyString(currentModifiers | 0, previewHex, sizeof(previewHex));
+        
+        std::string hexStr(previewHex);
+        if (currentModifiers != 0 && hexStr.find(" + 0x0") != std::string::npos) {
+            hexStr = hexStr.substr(0, hexStr.find(" + 0x0")) + " + ...";
+            previewHuman += "...";
+        } else if (currentModifiers == 0) {
+            hexStr = "Waiting...";
+            previewHuman = "Waiting...";
         }
-		// Fix for settings menu being broken if no other menu is open
-		if (selected_section == -1) {
-			std::snprintf(state.keyBuffer, sizeof(state.keyBuffer), "0x%02x", currentkey);
-		}
+
+        // 3. Update buffers
+        strncpy(state.keyBufferHuman, previewHuman.c_str(), sizeof(state.keyBufferHuman) - 1);
+        strncpy(state.keyBuffer, hexStr.c_str(), sizeof(state.keyBuffer) - 1);
+
+        // 4. Check for Primary Key Press
+        for (int key = 1; key < 258; key++) {
+            // Skip Modifier Keys (Including Win keys)
+            if (key == VK_CONTROL || key == VK_LCONTROL || key == VK_RCONTROL ||
+                key == VK_SHIFT   || key == VK_LSHIFT   || key == VK_RSHIFT   ||
+                key == VK_MENU    || key == VK_LMENU    || key == VK_RMENU    ||
+                key == VK_LWIN    || key == VK_RWIN) {
+                continue;
+            }
+
+            bool currentlyPressed = IsKeyPressed(key);
+            if (state.keyWasPressed[key] && !currentlyPressed) {
+                state.keyWasPressed[key] = false;
+            }
+            
+            if (currentlyPressed && !state.keyWasPressed[key]) {
+                state.bindingMode = false;
+                state.firstRun = true;
+                state.keyWasPressed[key] = true;
+
+                unsigned int finalCombo = key | currentModifiers;
+
+                GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
+                FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
+                state.buttonText = "Click to Bind Key"; 
+                return finalCombo;
+            }
+            state.keyWasPressed[key] = currentlyPressed;
+        }
+
+        // 5. Handle Binding Just a Modifier (on Release)
+        // Added LWIN/RWIN to this list
+        static const int modifierKeys[] = { 
+            VK_LWIN, VK_RWIN, 
+            VK_LCONTROL, VK_RCONTROL, 
+            VK_LMENU, VK_RMENU, 
+            VK_LSHIFT, VK_RSHIFT 
+        };
+
+        for (int mod : modifierKeys) {
+            bool pressed = IsKeyPressed(mod);
+            if (!pressed && state.keyWasPressed[mod]) {
+                state.bindingMode = false;
+                state.firstRun = true;
+                state.keyWasPressed[mod] = false;
+                
+                unsigned int finalCombo = mod | currentModifiers;
+                
+                GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
+                FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
+                state.buttonText = "Click to Bind Key";
+                return finalCombo;
+            }
+            state.keyWasPressed[mod] = pressed;
+        }
+
+    } else {
+        // Not binding state handling
+        state.firstRun = true;
+        if (selected_section != state.lastSelectedSection || selected_section == -1) {
+            FormatHexKeyString(currentkey, state.keyBuffer, sizeof(state.keyBuffer));
+            if (selected_section != -1) {
+                state.lastSelectedSection = selected_section;
+            }
+        }
+        
         state.buttonText = "Click to Bind Key";
         auto currentTime = std::chrono::steady_clock::now();
         std::chrono::duration<double> elapsedtime = currentTime - state.rebindTime;
 
-		// Wait .3 seconds after binding before allowing macro to trigger
         if (elapsedtime.count() >= 0.3) {
-            state.notBinding = true; // I honestly forgot the point of this line
-			notbinding = true;
+            state.notBinding = true;
+            notbinding = true;
         }
     }
     
     return currentkey;
-}
-
-static void GetKeyNameFromHex(unsigned int hexKeyCode, char* buffer, size_t bufferSize)
-{
-    // Clear the buffer
-    memset(buffer, 0, bufferSize);
-
-    // Map the virtual key code to a scan code
-    UINT scanCode = MapVirtualKey(hexKeyCode, MAPVK_VK_TO_VSC);
-
-    // Check if THIS specific key is currently being bound
-    bool thisKeyIsBinding = false;
-    for (auto &[keyPtr, state] : g_bindingStates) {
-	    if (state.bindingMode && *keyPtr == hexKeyCode) {
-		    thisKeyIsBinding = true;
-		    break;
-	    }
-    }
-
-    if (thisKeyIsBinding) { // Only disable for the key being bound
-	    return;
-    }
-
-    // Attempt to get the readable key name
-    if (GetKeyNameTextA(scanCode << 16, buffer, bufferSize) > 0) {
-        // Successfully retrieved the key name
-        return;
-    } else {
-        // If GetKeyNameText fails, try to find the VK_ name
-        auto it = vkToString.find(hexKeyCode);
-        if (it != vkToString.end()) {
-            strncpy(buffer, it->second.c_str(), bufferSize - 1);
-            buffer[bufferSize - 1] = '\0'; // Ensure null termination
-        } else {
-            // If not found, return a default hex representation
-            snprintf(buffer, bufferSize - 1, "0x%X", hexKeyCode);
-            buffer[bufferSize - 1] = '\0';
-        }
-    }
 }
 
 // Make the Title Bar Black
@@ -828,6 +928,7 @@ static void RunGUI() {
 		UnregisterClass(wc.lpszClassName, wc.hInstance);
 		return;
 	}
+
 	wglMakeCurrent(g_hDC, g_hRC);
 
 	// Show the window
@@ -989,9 +1090,8 @@ static void RunGUI() {
 
 		lagswitchOld = g_windivert_blocking;
 
-		if (renderfirstframe < 3) {
+		if (renderfirstframe < 8) {
 			amIFocused = true;
-		} else {
 			renderfirstframe += 1;
 		}
 
@@ -1014,6 +1114,7 @@ static void RunGUI() {
 			nextFrameTime = currentTime + std::chrono::duration<float>(targetFrameTime);
 
 			// Start ImGui frame
+
 			ImGui_ImplOpenGL3_NewFrame();
 			ImGui_ImplWin32_NewFrame();
 			ImGui::NewFrame();
@@ -1028,7 +1129,11 @@ static void RunGUI() {
             ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
 
             // Create the main window with the specified flags
+
+			// Remove rounding on main window
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
             ImGui::Begin("Main SMU Window", nullptr, window_flags); // Main ImGui window
+			ImGui::PopStyleVar();
 
 			// Admin Warning Popup
 			if (bShowAdminPopup) {
@@ -1038,8 +1143,6 @@ static void RunGUI() {
 			// Center the popup
 			ImVec2 center = ImGui::GetMainViewport()->GetCenter();
 			ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-			ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
 
 			if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
 				ImGui::Text("WinDivert features require Administrator privileges.");
@@ -1070,8 +1173,6 @@ static void RunGUI() {
         
 				ImGui::EndPopup();
 			}
-
-			ImGui::PopStyleVar();
 
 			// Enable ImGUI Debug Mode
 			// ImGui::ShowMetricsWindow();
@@ -1148,7 +1249,10 @@ static void RunGUI() {
 			ImGui::SameLine(ImGui::GetWindowWidth() - 360);
 			ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
 			ImGui::Text("Toggle Anti-AFK ("); ImGui::SameLine(0, 0);
-			ImGui::TextColored(ImColor(50, 102, 205, 255), "?"); ImGui::SameLine(0, 0);
+			ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
+			ImGui::Text("?"); 
+			ImGui::PopStyleColor();
+			ImGui::SameLine(0, 0);
 			ImGui::Text("):");
 			ImGui::SetCursorScreenPos(tooltipcursorpos);
 			ImVec2 TextSizeCalc = ImGui::CalcTextSize("Toggle Anti-AFK (?)");
@@ -1278,8 +1382,6 @@ static void RunGUI() {
 
 				// Begin the child window (non-draggable)
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
-
-				ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
 
 				if (ImGui::Begin("Settings Menu", &show_settings_menu, window_flags)) {
 					// Begin a scrollable child region for the settings list
@@ -1470,7 +1572,6 @@ static void RunGUI() {
 				}
 
 				ImGui::End();
-				ImGui::PopStyleVar();
 			}
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 257);
@@ -1650,7 +1751,7 @@ static void RunGUI() {
 				// Handle key bindings for all sections
 				if (section_to_key.count(selected_section)) {
 					*currentKey = BindKeyMode(currentKey, *currentKey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
+					ImGui::SetNextItemWidth(170.0f);
         
 					GetKeyNameFromHex(*currentKey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
 				}
@@ -1660,12 +1761,12 @@ static void RunGUI() {
 				ImGui::SameLine();
 				ImGui::TextWrapped("Key Binding");
 				ImGui::SameLine();
-				ImGui::SetNextItemWidth(50.0f);
+				ImGui::SetNextItemWidth(130.0f);
 
 				ImGui::InputText("##KeyBuffer", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
 
 				ImGui::SameLine();
-				ImGui::TextWrapped("Key Binding (Hexadecimal)");
+				ImGui::TextWrapped("(Hexadecimal)");
 				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
 				ImGui::TextWrapped("Enable This Macro:");
 				ImGui::PopStyleColor();
@@ -1674,8 +1775,6 @@ static void RunGUI() {
 					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), 
 									&section_toggles[selected_section]);
 				}
-				ImGui::SameLine(243);
-				ImGui::TextWrapped("(Human-Readable)");
 
 				if (selected_section == 0) { // Freeze Macro
 					ImGui::TextWrapped("Automatically Unfreeze after this amount of seconds (Anti-Internet-Kick)");
@@ -1798,9 +1897,17 @@ static void RunGUI() {
 					}
 
 					ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
-					ImGui::TextColored(ImColor(50, 102, 205, 255), "What is this ("); ImGui::SameLine(0, 0);
+					ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
+					ImGui::Text("What is this ("); 
+					ImGui::PopStyleColor();
+					ImGui::SameLine(0, 0);
+
 					ImGui::Text("?"); ImGui::SameLine(0, 0);
-					ImGui::TextColored(ImColor(50, 102, 205, 255), ")");
+
+					ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
+					ImGui::Text(")");
+					ImGui::PopStyleColor();
+
 					ImGui::SetCursorScreenPos(tooltipcursorpos);
 					ImGui::InvisibleButton("##tooltip", ImGui::CalcTextSize("What is this (?)"));
 					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -1978,21 +2085,15 @@ static void RunGUI() {
     
 					ImGui::SameLine();
 					vk_dkey = BindKeyMode(&vk_dkey, vk_dkey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
+					ImGui::SetNextItemWidth(170.0f);
 					GetKeyNameFromHex(vk_dkey, dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman));
 					ImGui::InputText("Key to Press", dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
-					ImGui::SetNextItemWidth(50.0f);
+					ImGui::SetNextItemWidth(130.0f);
 					ImGui::PushID("Press2");
 					// Use the state's keyBuffer for hex display
-					ImGui::InputText("Key to Press", dkeyState.keyBuffer, sizeof(dkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+					ImGui::InputText("(Hexadecimal)", dkeyState.keyBuffer, sizeof(dkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
-					ImGui::NewLine();
-					ImGui::SameLine(276);
-					ImGui::Text("(Human-Readable)");
-					ImGui::SameLine(510);
-					ImGui::Text("(Hexadecimal)");
-
 					ImGui::Text("Length of Second Button Press (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(80);
@@ -2223,19 +2324,14 @@ static void RunGUI() {
 					}
 					ImGui::SameLine();
 					vk_spamkey = BindKeyMode(&vk_spamkey, vk_spamkey, selected_section);
-					ImGui::SetNextItemWidth(150.0f);
+					ImGui::SetNextItemWidth(170.0f);
 					GetKeyNameFromHex(vk_spamkey, spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman));
 					ImGui::InputText("Key to Press", spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
-					ImGui::SetNextItemWidth(50.0f);
+					ImGui::SetNextItemWidth(130.0f);
 					ImGui::PushID("Press2");
-					ImGui::InputText("Key to Press", spamState.keyBuffer, sizeof(spamState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
+					ImGui::InputText("(Hexadecimal)", spamState.keyBuffer, sizeof(spamState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
-					ImGui::NewLine();
-					ImGui::SameLine(276);
-					ImGui::Text("(Human-Readable)");
-					ImGui::SameLine(510);
-					ImGui::Text("(Hexadecimal)");
 					ImGui::TextWrapped("Spam Delay (Milliseconds):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
@@ -2379,7 +2475,13 @@ static void RunGUI() {
 					ImGui::Checkbox("Prevent Roblox Disconnection (", &prevent_disconnect);
 
 					ImGui::SameLine(0, 0);
-					ImGui::TextColored(ImColor(50, 102, 205, 255), "?"); ImGui::SameLine(0, 0);
+
+					ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
+					ImGui::Text("?");
+					ImGui::PopStyleColor();
+
+					ImGui::SameLine(0, 0);
+
 					ImGui::Text(")");
 					ImGui::SetCursorScreenPos(tooltipcursorpos);
 					ImVec2 TextSizeCalc = ImGui::CalcTextSize("Prevent Roblox Disconnection (?)      ");
@@ -2681,8 +2783,9 @@ static void RunGUI() {
                 ProfileUI::DrawProfileManagerUI();
             }
 
+			ImGui::PopStyleVar();
+
             ImGui::EndChild();
-            ImGui::PopStyleVar();
 
             // Finish the main window
             ImGui::End(); // End main ImGui window
@@ -2871,7 +2974,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		tabbedintoroblox = IsForegroundWindowProcess(hProcess);
 		// Freeze
 		if ((macrotoggled && notbinding && section_toggles[0])) {
-			bool isMButtonPressed = IsKeyPressed(vk_mbutton);
+			bool isMButtonPressed = IsHotkeyPressed(vk_mbutton);
 
 			if (isfreezeswitch) {  // Toggle mode
 				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {  // Detect button press edge
@@ -2915,7 +3018,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Item Desync Macro with anti-idiot design
-		if (IsKeyPressed(vk_f5) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
+		if (IsHotkeyPressed(vk_f5) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
 			if (!isdesync) {
 				isdesyncloop.store(true, std::memory_order_relaxed);
 				isdesync = true;
@@ -2926,7 +3029,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// PressKey
-		if (IsKeyPressed(vk_zkey) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_zkey) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
 			if (!ispresskey) {
 				ispresskeythread.store(true, std::memory_order_relaxed);
 				ispresskey = true;
@@ -2937,7 +3040,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Wallhop (Ran in separate thread)
-		if (IsKeyPressed(vk_xbutton2) && macrotoggled && notbinding && section_toggles[6]) {
+		if (IsHotkeyPressed(vk_xbutton2) && macrotoggled && notbinding && section_toggles[6]) {
 			if (!iswallhop) {
 				iswallhopthread.store(true, std::memory_order_relaxed);
 				iswallhop = true;
@@ -2948,7 +3051,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
-		if (IsKeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7]) {
+		if (IsHotkeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7]) {
 			if (!islhj) {
 				if (wallesslhjswitch) {
 					HoldKey(0x1E);
@@ -2986,7 +3089,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Speedglitch
-		if (IsKeyPressed(vk_xkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
+		if (IsHotkeyPressed(vk_xkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -2999,7 +3102,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Gear Unequip COM Offset
-		if (IsKeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3058,7 +3161,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Helicopter High jump
-		if (IsKeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
+		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
 			if (!HHJ) {
 				if (autotoggle) { // Auto-Key-Timer
 					HoldKey(0x39);
@@ -3108,7 +3211,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Spamkey
-		if (IsKeyPressed(vk_leftbracket) && macrotoggled && notbinding && section_toggles[11]) {
+		if (IsHotkeyPressed(vk_leftbracket) && macrotoggled && notbinding && section_toggles[11]) {
 			if (!isspam) {
 				isspamloop = !isspamloop;
 				isspam = true;
@@ -3121,7 +3224,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Laughkey
-		if (IsKeyPressed(vk_laughkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
+		if (IsHotkeyPressed(vk_laughkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3177,7 +3280,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Ledge Bounce
-		if (IsKeyPressed(vk_bouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
+		if (IsHotkeyPressed(vk_bouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
 				int turn90 = (camfixtoggle ? 250 : 180) / atof(RobloxSensValue);
 				int skey = 0x1F; // S key
@@ -3235,7 +3338,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Item Clip
-		if (IsKeyPressed(vk_clipkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
+		if (IsHotkeyPressed(vk_clipkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -3249,7 +3352,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// WallWalk
-		if (IsKeyPressed(vk_wallkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
+		if (IsHotkeyPressed(vk_wallkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -3262,7 +3365,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		bool can_process_bhop = tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
-		if (IsKeyPressed(vk_chatkey)) {
+		if (IsHotkeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
 		
@@ -3273,7 +3376,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 		
 		if (can_process_bhop) {
-			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsKeyPressed(vk_bunnyhopkey);
+			bool is_bunnyhop_key_considered_held = g_isVk_BunnyhopHeldDown.load(std::memory_order_relaxed) || IsHotkeyPressed(vk_bunnyhopkey);
 
 			if (bunnyhopsmart) {
 				if (!bhoplocked && is_bunnyhop_key_considered_held) {
@@ -3303,7 +3406,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Floor Bounce
-		if (IsKeyPressed(vk_floorbouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[14]) {
+		if (IsHotkeyPressed(vk_floorbouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[14]) {
 			if (!isfloorbounce) {
 				isfloorbouncethread = true;
 				isfloorbounce = true;
@@ -3318,7 +3421,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			if (bWinDivertEnabled) {
 				static bool wasLagSwitchPressed = false;
                 static bool prev_blocking_state = false;
-				bool isPressed = IsKeyPressed(vk_lagswitchkey);
+				bool isPressed = IsHotkeyPressed(vk_lagswitchkey);
                 
                 // Determine the "Logical" state (Does the user want it on?)
                 bool logical_on_state = false;
@@ -3361,7 +3464,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                             should_resume = true;
                         } else {
                             // In Hold Mode, we only resume if the key is STILL being held down.
-                            if (IsKeyPressed(vk_lagswitchkey)) {
+                            if (IsHotkeyPressed(vk_lagswitchkey)) {
                                 should_resume = true;
                             }
                         }
@@ -3377,7 +3480,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 			} else {
                 // If user presses key but driver isn't loaded, prompt for admin
-				if (IsKeyPressed(vk_lagswitchkey)) {
+				if (IsHotkeyPressed(vk_lagswitchkey)) {
 					if (IsRunAsAdmin()) {
 						if (TryLoadWinDivert()) {
 							bWinDivertEnabled = true;
@@ -3578,7 +3681,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		g_keyboardHook = NULL;
 	}
 
-	CleanupOverlay();
+	CleanupOverlay(); // Destroys the window context
 
 	running = false;
 	g_windivert_running = false;
@@ -3602,7 +3705,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	logScannerThread.join();
 
 	guiThread.join();
-
+	
 	if (g_overlayFontHandle) {
 		RemoveFontMemResourceEx(g_overlayFontHandle);
 	}

@@ -82,6 +82,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_f6", &vk_f6},
 	{"vk_f8", &vk_f8},
 	{"vk_mbutton", &vk_mbutton},
+	{"vk_xbutton1", &vk_xbutton1},
 	{"vk_xbutton2", &vk_xbutton2},
 	{"vk_leftbracket", &vk_leftbracket},
 	{"vk_spamkey", &vk_spamkey},
@@ -526,7 +527,7 @@ namespace ProfileUI {
 		ImVec4 current_button_bg_color = ImGui::GetStyle().Colors[ImGuiCol_Button];
 		ImVec4 current_button_text_color = ImGui::GetStyle().Colors[ImGuiCol_Text];
 
-        if (ImGui::Button(s_expanded ? "Profiles <" : "Profiles >", ImVec2(270, 0))) {
+        if (ImGui::Button(s_expanded ? "Profiles <-" : "Profiles ->", ImVec2(270, 0))) {
             s_expanded = !s_expanded;
             if (s_expanded) {
                 RefreshProfileListAndSelection(); // Refresh list when opening
@@ -555,7 +556,6 @@ namespace ProfileUI {
             ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
-	        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
             ImGui::Begin("##ProfilesDropUpMenu", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
 
             float actionButtonWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
@@ -798,7 +798,6 @@ namespace ProfileUI {
 					}
                 }
             }
-	        ImGui::PopStyleVar();
             ImGui::EndChild(); // ##ProfilesOptionsList
 
             if (!s_rename_error_msg.empty()) {

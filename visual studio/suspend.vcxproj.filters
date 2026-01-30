@@ -22,15 +22,24 @@
     <Filter Include="Header Files\windivert-files">
       <UniqueIdentifier>{a5f6fe53-7a45-484b-82d8-aceaad83912a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\SDL3">
+      <UniqueIdentifier>{2581b588-2f19-40b6-85bc-1016dc213aca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\SDL3\lib">
+      <UniqueIdentifier>{c2a388af-21e7-48df-aea1-2b88e131eff4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\SDL3\include">
+      <UniqueIdentifier>{07cca009-1aa1-4b5a-9eac-74254f68b584}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\SDL3\include\SDL3">
+      <UniqueIdentifier>{6e4cfeeb-be22-4ab5-ad9d-2aff0e193fb2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="macroframework.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="imgui-files\imgui_draw.cpp">
-      <Filter>Source Files\imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="imgui-files\imgui_impl_dx11.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
     <ClCompile Include="imgui-files\imgui_tables.cpp">
@@ -72,13 +81,13 @@
     <ClCompile Include="theme_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="imgui-files\imgui_impl_sdl3.cpp">
+      <Filter>Header Files\imgui</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="imgui-files\imgui_impl_dx11.h">
-      <Filter>Header Files\imgui</Filter>
     </ClInclude>
     <ClInclude Include="imgui-files\imgui_internal.h">
       <Filter>Header Files\imgui</Filter>
@@ -149,6 +158,267 @@
     <ClInclude Include="Resource Files\theme_manager.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
+    <ClInclude Include="imgui-files\imgui_impl_sdl3.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_assert.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_asyncio.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_atomic.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_audio.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_begin_code.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_bits.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_blendmode.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_camera.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_clipboard.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_close_code.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_copying.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_cpuinfo.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_dialog.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_dlopennote.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_egl.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_endian.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_error.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_events.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_filesystem.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_gamepad.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_gpu.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_guid.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_haptic.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_hidapi.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_hints.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_init.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_intrin.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_iostream.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_joystick.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_keyboard.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_keycode.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_loadso.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_locale.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_log.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_main.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_main_impl.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_messagebox.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_metal.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_misc.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_mouse.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_mutex.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_oldnames.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengl.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengl_glext.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles2.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles2_gl2.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles2_gl2ext.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles2_gl2platform.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_opengles2_khrplatform.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_pen.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_pixels.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_platform.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_platform_defines.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_power.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_process.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_properties.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_rect.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_render.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_revision.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_scancode.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_sensor.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_stdinc.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_storage.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_surface.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_system.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_assert.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_common.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_compare.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_crc32.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_font.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_fuzzer.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_harness.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_log.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_md5.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_test_memory.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_thread.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_time.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_timer.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_touch.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_tray.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_version.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_video.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_vulkan.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">
@@ -181,5 +451,13 @@
     <None Include="windivert-files\SMCWinDivert64.sys">
       <Filter>Header Files\windivert-files</Filter>
     </None>
+    <None Include="Resource Files\SDL3\lib\SDL3.pdb">
+      <Filter>Resource Files\SDL3\lib</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="Resource Files\SDL3\lib\SDL3-static.lib">
+      <Filter>Resource Files\SDL3\lib</Filter>
+    </Library>
   </ItemGroup>
 </Project>

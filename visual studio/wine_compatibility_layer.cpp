@@ -491,76 +491,123 @@ void SetDesyncState(bool enable) {
     EnqueueCommand(cmd);
 }
 
-void HoldKeyBinded(WORD Vk_key) {
+void HoldKeyBinded(unsigned int combinedKey) {
+    // 1. Extract Flags and Key
+    WORD vk = combinedKey & 0xFFFF; 
+    bool useWin   = (combinedKey & 0x80000) != 0; // HOTKEY_MASK_WIN
+    bool useCtrl  = (combinedKey & 0x20000) != 0; 
+    bool useAlt   = (combinedKey & 0x40000) != 0; 
+    bool useShift = (combinedKey & 0x10000) != 0; 
+
     if (g_isLinuxWine) {
-        // Scroll wheel handling
-        if (Vk_key == VK_MOUSE_WHEEL_UP) {
-            SendLinuxMouseWheel(WHEEL_DELTA * 100);  // Scroll up
+        if (vk == VK_MOUSE_WHEEL_UP) {
+            SendLinuxMouseWheel(WHEEL_DELTA * 100);
             return;
-        } else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
-            SendLinuxMouseWheel(-WHEEL_DELTA * 100);  // Scroll down
+        } else if (vk == VK_MOUSE_WHEEL_DOWN) {
+            SendLinuxMouseWheel(-WHEEL_DELTA * 100);
             return;
         }
         
+        // Press Modifiers (Win -> Ctrl -> Alt -> Shift)
+        if (useWin)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_LWIN);    c.value.store(1); EnqueueCommand(c); }
+        if (useCtrl)  { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_CONTROL); c.value.store(1); EnqueueCommand(c); }
+        if (useAlt)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_MENU);    c.value.store(1); EnqueueCommand(c); }
+        if (useShift) { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_SHIFT);   c.value.store(1); EnqueueCommand(c); }
+
+        // Press Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(Vk_key, std::memory_order_relaxed);
+        cmd.win_vk_code.store(vk, std::memory_order_relaxed);
         cmd.value.store(1, std::memory_order_relaxed);
         EnqueueCommand(cmd);
+
     } else {
-        INPUT input = {};
+        std::vector<INPUT> inputs;
         
-        // Handle mouse wheel inputs
-        if (Vk_key == VK_MOUSE_WHEEL_UP) {
-            input.type = INPUT_MOUSE;
-            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = WHEEL_DELTA * 100; // Positive for wheel up
+        // 1. Modifiers Down
+        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    inputs.push_back(i); }
+        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; inputs.push_back(i); }
+        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    inputs.push_back(i); }
+        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   inputs.push_back(i); }
+
+        // 2. Main Key/Mouse Down
+        INPUT mainInput = {};
+        
+        if (vk == VK_MOUSE_WHEEL_UP) {
+            mainInput.type = INPUT_MOUSE;
+            mainInput.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            mainInput.mi.mouseData = WHEEL_DELTA * 100;
         }
-        else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
-            input.type = INPUT_MOUSE;
-            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            input.mi.mouseData = -WHEEL_DELTA * 100; // Negative for wheel down
+        else if (vk == VK_MOUSE_WHEEL_DOWN) {
+            mainInput.type = INPUT_MOUSE;
+            mainInput.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            mainInput.mi.mouseData = -WHEEL_DELTA * 100;
         }
-        // Existing mouse button handling
-        else if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
-            input.type = INPUT_MOUSE;
-            if (Vk_key == VK_LBUTTON) input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-            else if (Vk_key == VK_RBUTTON) input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-            else if (Vk_key == VK_MBUTTON) input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
-            else if (Vk_key == VK_XBUTTON1) { input.mi.dwFlags = MOUSEEVENTF_XDOWN; input.mi.mouseData = XBUTTON1; }
-            else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XDOWN; input.mi.mouseData = XBUTTON2; }
+        else if (vk >= VK_LBUTTON && vk <= VK_XBUTTON2) {
+            mainInput.type = INPUT_MOUSE;
+            if (vk == VK_LBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            else if (vk == VK_RBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+            else if (vk == VK_MBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
+            else if (vk == VK_XBUTTON1) { mainInput.mi.dwFlags = MOUSEEVENTF_XDOWN; mainInput.mi.mouseData = XBUTTON1; }
+            else if (vk == VK_XBUTTON2) { mainInput.mi.dwFlags = MOUSEEVENTF_XDOWN; mainInput.mi.mouseData = XBUTTON2; }
         } else {
-            input.type = INPUT_KEYBOARD;
-            input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
-            input.ki.dwFlags = KEYEVENTF_SCANCODE;
+            mainInput.type = INPUT_KEYBOARD;
+            mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+            mainInput.ki.dwFlags = KEYEVENTF_SCANCODE;
         }
-        SendInput(1, &input, sizeof(INPUT));
+        inputs.push_back(mainInput);
+
+        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
     }
 }
 
-void ReleaseKeyBinded(WORD Vk_key) {
+void ReleaseKeyBinded(unsigned int combinedKey) {
+    WORD vk = combinedKey & 0xFFFF;
+    bool useWin   = (combinedKey & 0x80000) != 0;
+    bool useCtrl  = (combinedKey & 0x20000) != 0;
+    bool useAlt   = (combinedKey & 0x40000) != 0;
+    bool useShift = (combinedKey & 0x10000) != 0;
+
     if (g_isLinuxWine) {
+        // Release Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(Vk_key, std::memory_order_relaxed);
+        cmd.win_vk_code.store(vk, std::memory_order_relaxed);
         cmd.value.store(0, std::memory_order_relaxed);
         EnqueueCommand(cmd);
+
+        // Release Modifiers (Reverse Order: Shift -> Alt -> Ctrl -> Win)
+        if (useShift) { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_SHIFT);   c.value.store(0); EnqueueCommand(c); }
+        if (useAlt)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_MENU);    c.value.store(0); EnqueueCommand(c); }
+        if (useCtrl)  { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_CONTROL); c.value.store(0); EnqueueCommand(c); }
+        if (useWin)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_LWIN);    c.value.store(0); EnqueueCommand(c); }
+
     } else {
-        INPUT input = {};
-        if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
-            input.type = INPUT_MOUSE;
-            if (Vk_key == VK_LBUTTON) input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-            else if (Vk_key == VK_RBUTTON) input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-            else if (Vk_key == VK_MBUTTON) input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
-            else if (Vk_key == VK_XBUTTON1) { input.mi.dwFlags = MOUSEEVENTF_XUP; input.mi.mouseData = XBUTTON1; }
-            else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XUP; input.mi.mouseData = XBUTTON2; }
+        std::vector<INPUT> inputs;
+
+        // 1. Main Key/Mouse Up
+        INPUT mainInput = {};
+        if (vk >= VK_LBUTTON && vk <= VK_XBUTTON2) {
+            mainInput.type = INPUT_MOUSE;
+            if (vk == VK_LBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+            else if (vk == VK_RBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+            else if (vk == VK_MBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+            else if (vk == VK_XBUTTON1) { mainInput.mi.dwFlags = MOUSEEVENTF_XUP; mainInput.mi.mouseData = XBUTTON1; }
+            else if (vk == VK_XBUTTON2) { mainInput.mi.dwFlags = MOUSEEVENTF_XUP; mainInput.mi.mouseData = XBUTTON2; }
         } else {
-            input.type = INPUT_KEYBOARD;
-		    // Convert the virtual key to a hardware scan code to prevent anticheats blocking synthetic input
-            input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
-            input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+            mainInput.type = INPUT_KEYBOARD;
+            mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+            mainInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
         }
-        SendInput(1, &input, sizeof(INPUT));
+        inputs.push_back(mainInput);
+
+        // 2. Release Modifiers (Reverse Order)
+        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
+        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
+        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
+        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
+
+        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
     }
 }
 

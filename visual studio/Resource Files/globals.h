@@ -15,7 +15,7 @@
 
 namespace Globals {
     // CURRENT VERSION NUMBER OF PROGRAM
-    inline std::string localVersion = "3.2.0";
+    inline std::string localVersion = "3.2.1";
 
     // --- Application & Window State ---
     inline HWND hwnd = NULL;
@@ -48,6 +48,13 @@ namespace Globals {
     inline std::atomic<bool> ispresskeythread{ false };
     inline std::atomic<bool> isfloorbouncethread{ false };
     inline std::atomic<bool> g_isVk_BunnyhopHeldDown{ false };
+
+    // Bitmasks for key combinations (High bits of 32-bit int)
+    constexpr unsigned int HOTKEY_MASK_SHIFT = 0x10000;
+    constexpr unsigned int HOTKEY_MASK_CTRL = 0x20000;
+    constexpr unsigned int HOTKEY_MASK_ALT = 0x40000;
+    constexpr unsigned int HOTKEY_MASK_WIN = 0x80000;
+    constexpr unsigned int HOTKEY_KEY_MASK = 0xFFFF;
 
     // --- Keybind Variables (Virtual Keys) ---
     inline unsigned int vk_f5 = VK_F5;
