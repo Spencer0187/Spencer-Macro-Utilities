@@ -71,6 +71,7 @@ void ThemeManager::ApplyTheme() {
     ImGuiStyle &style = ImGui::GetStyle();
 
     // 1. Apply Rounding (Themes control this)
+    style.WindowRounding = theme.window_rounding;
     style.ChildRounding = theme.window_rounding * 0.75f;
     style.FrameRounding = theme.frame_rounding;
     style.PopupRounding = theme.window_rounding * 0.75f;
@@ -155,8 +156,6 @@ void ThemeManager::RenderThemeMenu(bool* p_open) {
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, GetCurrentTheme().frame_rounding);
-
     if (ImGui::Begin("Theme Editor", p_open, window_flags)) {
         
         // Theme selector
@@ -226,10 +225,14 @@ void ThemeManager::RenderThemeMenu(bool* p_open) {
                     Globals::themes[Globals::current_theme_index] = defaultthemes[Globals::current_theme_index];
                 else
                     Globals::custom_theme = defaultthemes[0];
+
+                if (Globals::current_theme_index == Globals::themes.size()) {
+                    Globals::custom_theme.name = "Custom Theme";
+		        }
+
                 Globals::theme_modified = true;
             }
         }
     }
     ImGui::End();
-    ImGui::PopStyleVar();
 }
