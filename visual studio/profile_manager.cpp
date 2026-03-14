@@ -1310,10 +1310,6 @@ void LoadSettings(std::string filepath, std::string profile_name) {
             screen_height = settings_to_load.value("screen_height", screen_height);
         }
 
-		if (settings_to_load.contains("RobloxFPSChar") && settings_to_load["RobloxFPSChar"].is_string()) {
-            RobloxFPS = std::stoi(RobloxFPSChar);
-        }
-
     } catch (const json::exception& e) {
         std::cerr << "Load error processing profile '" << profile_name << "': " << e.what() << '\n';
     }

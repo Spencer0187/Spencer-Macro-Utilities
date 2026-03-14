@@ -419,6 +419,12 @@
     <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_vulkan.h">
       <Filter>Resource Files\SDL3\include\SDL3</Filter>
     </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_textengine.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_ttf.h">
+      <Filter>Resource Files\SDL3\include\SDL3</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="suspend1.rc">

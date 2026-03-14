@@ -986,6 +986,7 @@ static void RunGUI() {
 	#define SAFE_CONVERT_DOUBLE(var, src) \
 		try { var = std::stod(src); } catch (...) {}
 
+	SAFE_CONVERT_INT(RobloxFPS, RobloxFPSChar);
 	SAFE_CONVERT_INT(WallhopDelay, WallhopDelayChar);
 	SAFE_CONVERT_INT(WallhopBonusDelay, WallhopBonusDelayChar);
 	SAFE_CONVERT_INT(clip_slot, ItemClipSlot);
@@ -1022,6 +1023,11 @@ static void RunGUI() {
 	// Overwrite default RobloxPlayerBeta to sober if we're on linux
 	if (strcmp(settingsBuffer, "RobloxPlayerBeta.exe") == 0 && g_isLinuxWine) {
 		std::snprintf(settingsBuffer, sizeof(settingsBuffer), "sober");
+	}
+
+	// I have no clue what causes this bug to occur when theres no save file, it saves the default value as this
+	if (strcmp(settingsBuffer, "RobloxPlayerddddddBeta.exe") == 0) {
+		std::snprintf(settingsBuffer, sizeof(settingsBuffer), "RobloxPlayerBeta.exe");
 	}
 
 	// Change pasting delay to be more consistent if we're on linux
@@ -1218,7 +1224,7 @@ static void RunGUI() {
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
-			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer), g_isLinuxWine ? 0 : ImGuiInputTextFlags_CharsNoBlank);
+			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer));
 
 			// Button to reset Roblox EXE name
 			ImGui::SameLine();
@@ -3706,9 +3712,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	guiThread.join();
 	
-	if (g_overlayFontHandle) {
-		RemoveFontMemResourceEx(g_overlayFontHandle);
-	}
 
 	if (IsWindow(hwnd)) {
 		DestroyWindow(hwnd);

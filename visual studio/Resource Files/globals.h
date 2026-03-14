@@ -237,8 +237,8 @@ namespace Globals {
             return "RMCSettings.json";
         }
 
-        // Return empty string if neither exists
-        return "RMCSettings.json";
+        // Return default if neither exists
+        return "SMCSettings.json";
     }
 
     // Run admin system command without flashing CMD Window, Required for WinDivert

@@ -535,6 +535,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ExcludedFromBuild>
     </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_textengine.h" />
     <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_thread.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ExcludedFromBuild>
@@ -555,6 +556,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ExcludedFromBuild>
     </ClInclude>
+    <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_ttf.h" />
     <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL_version.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
       </ExcludedFromBuild>
