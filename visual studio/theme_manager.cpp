@@ -167,7 +167,7 @@ void ThemeManager::RenderThemeMenu(bool* p_open) {
             theme_names.push_back(theme.name.c_str());
         theme_names.push_back(Globals::custom_theme.name.c_str());
         
-        if (ImGui::Combo("Theme", &Globals::current_theme_index, theme_names.data(), theme_names.size())) {
+        if (ImGui::Combo("Theme", &Globals::current_theme_index, theme_names.data(), static_cast<int>(theme_names.size()))) {
             Globals::theme_modified = true;
         }
 
@@ -213,7 +213,7 @@ void ThemeManager::RenderThemeMenu(bool* p_open) {
             if (Globals::current_theme_index == Globals::themes.size()) {
                 ImGui::Text("Custom Theme Name");
                 static char theme_name[256];
-                strncpy(theme_name, editing_theme->name.c_str(), sizeof(theme_name) - 1);
+                strncpy_s(theme_name, sizeof(theme_name), editing_theme->name.c_str(), sizeof(theme_name) - 1);
                 if (ImGui::InputText("##ThemeName", theme_name, sizeof(theme_name)))
                     editing_theme->name = theme_name;
             }

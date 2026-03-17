@@ -1,7 +1,10 @@
 #include <wininet.h>
 #include <fstream>
 #include <codecvt>
+#include <sstream>
 #include <shlwapi.h>
+#define _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable:4996) // Suppress deprecated codecvt warnings
 #include "miniz.h"
 
 // Library for nlohmann json

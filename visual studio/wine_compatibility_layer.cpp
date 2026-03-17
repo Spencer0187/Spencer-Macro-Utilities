@@ -392,7 +392,7 @@ void HoldKey(WORD scanCode)
 
 		Command cmd = {};
 		cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-		cmd.win_vk_code.store(vkCode, std::memory_order_relaxed);
+		cmd.win_vk_code.store(static_cast<uint8_t>(vkCode), std::memory_order_relaxed);
 		cmd.value.store(1, std::memory_order_relaxed); // 1 = press
 		EnqueueCommand(cmd);
 	} else {
@@ -433,7 +433,7 @@ void ReleaseKey(WORD scanCode)
 
 		Command cmd = {};
 		cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-		cmd.win_vk_code.store(vkCode, std::memory_order_relaxed);
+		cmd.win_vk_code.store(static_cast<uint8_t>(vkCode), std::memory_order_relaxed);
 		cmd.value.store(0, std::memory_order_relaxed); // 0 = release
 		EnqueueCommand(cmd);
 	} else {
@@ -517,7 +517,7 @@ void HoldKeyBinded(unsigned int combinedKey) {
         // Press Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(vk, std::memory_order_relaxed);
+        cmd.win_vk_code.store(static_cast<uint8_t>(vk), std::memory_order_relaxed);
         cmd.value.store(1, std::memory_order_relaxed);
         EnqueueCommand(cmd);
 
@@ -572,7 +572,7 @@ void ReleaseKeyBinded(unsigned int combinedKey) {
         // Release Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(vk, std::memory_order_relaxed);
+        cmd.win_vk_code.store(static_cast<uint8_t>(vk), std::memory_order_relaxed);
         cmd.value.store(0, std::memory_order_relaxed);
         EnqueueCommand(cmd);
 

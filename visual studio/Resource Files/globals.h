@@ -9,8 +9,12 @@
 #include <mutex>
 #include <set>
 #include <filesystem>
+#include <cctype>
+#include <cstring>
 
-#include "windivert-files/windivert.h"
+#define _CRT_SECURE_NO_WARNINGS
+
+#include "../windivert-files/windivert.h"
 #include "imgui-files/imgui.h"
 
 namespace Globals {
@@ -24,8 +28,8 @@ namespace Globals {
     inline std::atomic<unsigned int> RobloxFPS = 120;
     inline std::vector<DWORD> targetPIDs;
     inline std::vector<HANDLE> hProcess;
-    inline int screen_width = GetSystemMetrics(SM_CXSCREEN) / 1.5;
-    inline int screen_height = GetSystemMetrics(SM_CYSCREEN) / 1.5 + 10;
+    inline int screen_width = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CXSCREEN)) / 1.5);
+    inline int screen_height = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CYSCREEN)) / 1.5 + 10);
     inline int raw_window_width = 0;
     inline int raw_window_height = 0;
     inline int WindowPosX = 0;
@@ -82,6 +86,8 @@ namespace Globals {
     inline unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_autohhjkey1 = VK_SPACE;  // First auto HHJ key (default: Spacebar)
+    inline unsigned int vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;  // Second auto HHJ key (default: W)
 
     // --- Main Toggles & Switches ---
     inline bool g_isLinuxWine = false;
@@ -122,6 +128,9 @@ namespace Globals {
     inline bool doublepressafkkey = true;
     inline bool floorbouncehhj = false;
     inline bool showadvancedhhjbounce = false;
+    inline bool showadvancedhhj = false;
+    inline bool showautomatichhj = false;
+    inline bool HHJFreezeDelayApply = false;
     inline bool DontShowAdminWarning = false;
     inline bool show_lag_overlay = false;
     inline bool overlay_hide_inactive = false;
@@ -160,10 +169,12 @@ namespace Globals {
     inline int PressKeyBonusDelay = 0;
     inline int PasteDelay = 1;
     inline int HHJLength = 243;
-    inline int HHJFreezeDelayOverride = 0;
+    inline int HHJFreezeDelayOverride = 500;
     inline int HHJDelay1 = 9;
     inline int HHJDelay2 = 17;
     inline int HHJDelay3 = 16;
+    inline int AutoHHJKey1Time = 550;           // First key hold time (ms)
+    inline int AutoHHJKey2Time = 68;            // Second key hold time (ms)
     inline int FloorBounceDelay1 = 5;
     inline int FloorBounceDelay2 = 8;
     inline int FloorBounceDelay3 = 100;
@@ -199,14 +210,35 @@ namespace Globals {
     inline char PressKeyBonusDelayChar[256] = "0";
     inline char PasteDelayChar[256] = "1";
     inline char HHJLengthChar[16] = "243";
-    inline char HHJFreezeDelayOverrideChar[16] = "0";
+    inline char HHJFreezeDelayOverrideChar[16] = "500";
     inline char HHJDelay1Char[16] = "9";
     inline char HHJDelay2Char[16] = "17";
     inline char HHJDelay3Char[16] = "16";
+    inline char AutoHHJKey1TimeChar[16] = "550";
+    inline char AutoHHJKey2TimeChar[16] = "68";
     inline char FloorBounceDelay1Char[16] = "5";
     inline char FloorBounceDelay2Char[16] = "8";
     inline char FloorBounceDelay3Char[16] = "100";
     inline std::string text = "/e dance2";
+
+    // Trim leading and trailing whitespace in-place for C-style strings
+    inline void TrimWhitespace(char* s) {
+        if (!s) return;
+        // Trim leading
+        char* start = s;
+        while (*start && std::isspace(static_cast<unsigned char>(*start))) start++;
+        if (start != s) {
+            std::memmove(s, start, std::strlen(start) + 1);
+        }
+        // Trim trailing
+        size_t len = std::strlen(s);
+        if (len == 0) return;
+        char* end = s + len - 1;
+        while (end >= s && std::isspace(static_cast<unsigned char>(*end))) {
+            *end = '\0';
+            --end;
+        }
+    }
 
     // --- Section Management ---
     inline constexpr int section_amounts = 16;

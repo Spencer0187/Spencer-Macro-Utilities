@@ -1,4 +1,6 @@
-﻿#define NOMINMAX
+﻿#define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
+#pragma warning(disable: 4101) // Suppress unreferenced formal parameter warning
 #include <windows.h>
 #include "resource.h"
 
@@ -39,6 +41,7 @@
 #include <filesystem>
 #include <locale>
 #include <codecvt>
+#include <sstream>
 #include <format>
 #include <unordered_map>
 #include <math.h>
@@ -55,7 +58,7 @@
 // Include windivert
 #include "windivert-files/windivert.h"
 
-// Generic libraries for I forgot
+// Libraries for linking
 
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "ole32.lib")
@@ -473,7 +476,7 @@ std::vector<Section> sections;
 static std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
     {"Freeze", "Automatically Tab Glitch With a Button"},
     {"Item Desync", "Enable Item Collision (Hold Item Before Pressing)"},
-    {"Helicopter High Jump", "Use COM Offset to Catapult Yourself Into The Air by Aligning your Back Angled to the Wall and Jumping and Letting Your Character Turn"},
+    {"Wall Helicopter High Jump", "Use COM Offset to Catapult Yourself Into The Air by Aligning your Back Angled to the Wall and Jumping and Letting Your Character Turn"},
     {"Speedglitch", "Use COM offset to Massively Increase Midair Speed"},
     {"Item Unequip COM Offset", "Automatically Do a /e dance2 Item COM Offset Where You Unequip the Item"},
     {"Press a Button", "Whenever You Press Your Keybind, it Presses the Other Button for One Frame"},
@@ -984,7 +987,7 @@ static void RunGUI() {
 		try { var = std::stof(src); } catch (...) {}
 
 	#define SAFE_CONVERT_DOUBLE(var, src) \
-		try { var = std::stod(src); } catch (...) {}
+		try { var = static_cast<int>(std::stod(src)); } catch (...) {}
 
 	SAFE_CONVERT_INT(RobloxFPS, RobloxFPSChar);
 	SAFE_CONVERT_INT(WallhopDelay, WallhopDelayChar);
@@ -1224,7 +1227,9 @@ static void RunGUI() {
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(250.0f);
 
-			ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer));
+			if (ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer))) {
+				TrimWhitespace(settingsBuffer);
+			}
 
 			// Button to reset Roblox EXE name
 			ImGui::SameLine();
@@ -1283,13 +1288,13 @@ static void RunGUI() {
 			if (ImGui::InputText("##Sens", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 				PreviousSensValue = -1;
 				// Update Wallhop Degrees every change only if sensitivity is not zero/null
-				float sensValue = std::atof(RobloxSensValue);
+				float sensValue = static_cast<float>(std::atof(RobloxSensValue));
 				if (sensValue != 0.0f) {
-					float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * sensValue);
+					float pixels = static_cast<float>(std::atof(WallhopDegrees)) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * sensValue);
 					snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
 					try {
-						wallhop_dx = std::round(std::stoi(WallhopPixels));
-						wallhop_dy = -std::round(std::stoi(WallhopPixels));
+						wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
+						wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
@@ -1322,11 +1327,11 @@ static void RunGUI() {
 					if (wallhopupdate) {
 						float factor = camfixtoggle ? 1.388888889f : 1.0f / 1.388888889f;
 						if (wallhopswitch) {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) * (camfixtoggle ? -factor : factor));
-							wallhop_dy = std::round(std::stoi(WallhopPixels) * (camfixtoggle ? factor : -factor));
+							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels) * (camfixtoggle ? -factor : factor)));
+							wallhop_dy = static_cast<int>(std::round(std::stoi(WallhopPixels) * (camfixtoggle ? factor : -factor)));
 						} else {
-							wallhop_dx = std::round(std::stoi(WallhopPixels) * factor);
-							wallhop_dy = std::round(std::stoi(WallhopPixels) * -factor);
+							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels) * factor));
+							wallhop_dy = static_cast<int>(std::round(std::stoi(WallhopPixels) * -factor));
 							sprintf(WallhopPixels, "%d", wallhop_dx);
 						}
 					}
@@ -1334,7 +1339,7 @@ static void RunGUI() {
 				} catch (const std::out_of_range &) {
 				}
 
-				float CurrentWallWalkValue = atof(RobloxSensValue); // Wallwalk
+				float CurrentWallWalkValue = static_cast<float>(atof(RobloxSensValue)); // Wallwalk
 
 				float baseValue = camfixtoggle ? 500.0f : 360.0f;
 				wallwalk_strengthx = -static_cast<int>(std::round((baseValue / CurrentWallWalkValue) * 0.13f));
@@ -1342,7 +1347,7 @@ static void RunGUI() {
 
 				sprintf(RobloxWallWalkValueChar, "%d", wallwalk_strengthx);
 
-				float CurrentSensValue = atof(RobloxSensValue); // Speedglitch
+				float CurrentSensValue = static_cast<float>(atof(RobloxSensValue)); // Speedglitch
 
 				try {
 					float baseValue = camfixtoggle ? 500.0f : 360.0f;
@@ -1847,6 +1852,13 @@ static void RunGUI() {
 					ImGui::Checkbox("Automatically time inputs", &autotoggle);
 					ImGui::SameLine();
 					ImGui::TextWrapped("(EXTREMELY BUGGY/EXPERIMENTAL, WORKS BEST ON HIGH FPS AND SHALLOW ANGLE TO WALL)");
+					// Speedrunner mode: decrease freeze duration
+					ImGui::Checkbox("Decrease Freeze Duration (Speedrunner Mode)", &fasthhj);
+					if (ImGui::Button("R##HHJLength", ImVec2(25, 0))) {
+						HHJLength = 243;
+						sprintf(HHJLengthChar, "%d", HHJLength);
+					}
+					ImGui::SameLine();
 					ImGui::TextWrapped("Length of HHJ flicks (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(52);
@@ -1858,48 +1870,172 @@ static void RunGUI() {
 						}
 					}
 
-					ImGui::TextWrapped("(ADVANCED) Override current freeze delay (Non Zero) (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJFreezeDelayOverride", HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJFreezeDelayOverride = std::stoi(HHJFreezeDelayOverrideChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
+					if (ImGui::CollapsingHeader("Advanced HHJ Options", showadvancedhhj ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+					{
+						showadvancedhhj = true;
+
+						ImGui::Spacing();
+						ImGui::Indent();
+						if (ImGui::Button("R##HHJFreezeDelayOverride", ImVec2(25, 0))) {
+							HHJFreezeDelayOverride = 500;
+							sprintf(HHJFreezeDelayOverrideChar, "%d", HHJFreezeDelayOverride);
+							HHJFreezeDelayApply = false;
 						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Set freeze delay (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##HHJFreezeDelayOverride", HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { HHJFreezeDelayOverride = std::stoi(HHJFreezeDelayOverrideChar); } catch (...) { }
+						}
+						ImGui::SameLine();
+						ImGui::Checkbox("Apply##HHJFreezeDelayApply", &HHJFreezeDelayApply);
+						ImGui::Unindent();
+
+						ImGui::Indent();
+						if (ImGui::Button("R##HHJDelay1", ImVec2(25, 0))) {
+							HHJDelay1 = 9;
+							sprintf(HHJDelay1Char, "%d", HHJDelay1);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Delay after freezing before shiftlock is held (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##HHJDelay1", HHJDelay1Char, sizeof(HHJDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { HHJDelay1 = std::stoi(HHJDelay1Char); } catch (...) { }
+						}
+						ImGui::Unindent();
+
+						ImGui::Indent();
+						if (ImGui::Button("R##HHJDelay2", ImVec2(25, 0))) {
+							HHJDelay2 = 17;
+							sprintf(HHJDelay2Char, "%d", HHJDelay2);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Time shiftlock is held before spinning (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##HHJDelay2", HHJDelay2Char, sizeof(HHJDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { HHJDelay2 = std::stoi(HHJDelay2Char); } catch (...) { }
+						}
+						ImGui::Unindent();
+
+						ImGui::Indent();
+						if (ImGui::Button("R##HHJDelay3", ImVec2(25, 0))) {
+							HHJDelay3 = 16;
+							sprintf(HHJDelay3Char, "%d", HHJDelay3);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Time shiftlock is held after freezing (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##HHJDelay3", HHJDelay3Char, sizeof(HHJDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { HHJDelay3 = std::stoi(HHJDelay3Char); } catch (...) { }
+						}
+						ImGui::Unindent();
 					}
 
-					ImGui::TextWrapped("(ADVANCED) Delay after freezing before shiftlock is held (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay1", HHJDelay1Char, sizeof(HHJDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay1 = std::stoi(HHJDelay1Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
+					if (ImGui::CollapsingHeader("Customize Automatic HHJ", showautomatichhj ? ImGuiTreeNodeFlags_DefaultOpen : 0))
+					{
+						showautomatichhj = true;
 
-					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held before spinning (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay2", HHJDelay2Char, sizeof(HHJDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay2 = std::stoi(HHJDelay2Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
-					}
+						ImGui::Spacing();
+						ImGui::TextWrapped("First Key Press:");
+						ImGui::Indent();
 
-					ImGui::TextWrapped("(ADVANCED) Time shiftlock is held after freezing (ms): ");
-					ImGui::SameLine();
-					ImGui::SetNextItemWidth(52);
-					if (ImGui::InputText("##HHJDelay3", HHJDelay3Char, sizeof(HHJDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							HHJDelay3 = std::stoi(HHJDelay3Char);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
+						BindingState& autohhjkey1State = g_bindingStates[&vk_autohhjkey1];
+
+						if (ImGui::Button("R##AutoHHJKey1Reset", ImVec2(25, 0))) {
+							vk_autohhjkey1 = VK_SPACE;
+							FormatHexKeyString(vk_autohhjkey1, autohhjkey1State.keyBuffer, sizeof(autohhjkey1State.keyBuffer));
+							GetKeyNameFromHex(vk_autohhjkey1, autohhjkey1State.keyBufferHuman, sizeof(autohhjkey1State.keyBufferHuman));
+							autohhjkey1State.buttonText = "Click to Bind Key";
 						}
+						ImGui::SameLine();
+
+						if (ImGui::Button((autohhjkey1State.buttonText + "##AutoHHJKey1").c_str())) {
+							autohhjkey1State.bindingMode = true;
+							autohhjkey1State.notBinding = false;
+							autohhjkey1State.buttonText = "Press a Key...";
+						}
+						ImGui::SameLine();
+						vk_autohhjkey1 = BindKeyMode(&vk_autohhjkey1, vk_autohhjkey1, selected_section);
+						
+						ImGui::SetNextItemWidth(150.0f);
+						GetKeyNameFromHex(vk_autohhjkey1, autohhjkey1State.keyBufferHuman, sizeof(autohhjkey1State.keyBufferHuman));
+						ImGui::InputText("##AutoHHJKey1Human", autohhjkey1State.keyBufferHuman, sizeof(autohhjkey1State.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+						ImGui::SameLine();
+						ImGui::TextWrapped("Key");
+						
+						ImGui::SetNextItemWidth(50.0f);
+						ImGui::SameLine();
+						ImGui::PushID("AutoHHJKey1Hex");
+						ImGui::InputText("##AutoHHJKey1Hex", autohhjkey1State.keyBuffer, sizeof(autohhjkey1State.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+						ImGui::PopID();
+						ImGui::SameLine();
+						ImGui::TextWrapped("Hex");
+						
+						if (ImGui::Button("R##AutoHHJKey1Time", ImVec2(25, 0))) {
+							AutoHHJKey1Time = 550;
+							sprintf(AutoHHJKey1TimeChar, "%d", AutoHHJKey1Time);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Hold time (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##AutoHHJKey1Time", AutoHHJKey1TimeChar, sizeof(AutoHHJKey1TimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { AutoHHJKey1Time = std::stoi(AutoHHJKey1TimeChar); } catch (...) { }
+						}
+						ImGui::Unindent();
+
+						ImGui::Spacing();
+						ImGui::TextWrapped("Second Key Press:");
+						ImGui::Indent();
+
+						BindingState& autohhjkey2State = g_bindingStates[&vk_autohhjkey2];
+
+						if (ImGui::Button("R##AutoHHJKey2Reset", ImVec2(25, 0))) {
+							vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
+							FormatHexKeyString(vk_autohhjkey2, autohhjkey2State.keyBuffer, sizeof(autohhjkey2State.keyBuffer));
+							GetKeyNameFromHex(vk_autohhjkey2, autohhjkey2State.keyBufferHuman, sizeof(autohhjkey2State.keyBufferHuman));
+							autohhjkey2State.buttonText = "Click to Bind Key";
+						}
+						ImGui::SameLine();
+
+						if (ImGui::Button((autohhjkey2State.buttonText + "##AutoHHJKey2").c_str())) {
+							autohhjkey2State.bindingMode = true;
+							autohhjkey2State.notBinding = false;
+							autohhjkey2State.buttonText = "Press a Key...";
+						}
+						ImGui::SameLine();
+						vk_autohhjkey2 = BindKeyMode(&vk_autohhjkey2, vk_autohhjkey2, selected_section);
+						
+						ImGui::SetNextItemWidth(150.0f);
+						GetKeyNameFromHex(vk_autohhjkey2, autohhjkey2State.keyBufferHuman, sizeof(autohhjkey2State.keyBufferHuman));
+						ImGui::InputText("##AutoHHJKey2Human", autohhjkey2State.keyBufferHuman, sizeof(autohhjkey2State.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+						ImGui::SameLine();
+						ImGui::TextWrapped("Key");
+						
+						ImGui::SetNextItemWidth(50.0f);
+						ImGui::SameLine();
+						ImGui::PushID("AutoHHJKey2Hex");
+						ImGui::InputText("##AutoHHJKey2Hex", autohhjkey2State.keyBuffer, sizeof(autohhjkey2State.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+						ImGui::PopID();
+						ImGui::SameLine();
+						ImGui::TextWrapped("Hex");
+						
+						if (ImGui::Button("R##AutoHHJKey2Time", ImVec2(25, 0))) {
+							AutoHHJKey2Time = 68;
+							sprintf(AutoHHJKey2TimeChar, "%d", AutoHHJKey2Time);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Hold time (ms): ");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(50);
+						if (ImGui::InputText("##AutoHHJKey2Time", AutoHHJKey2TimeChar, sizeof(AutoHHJKey2TimeChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+							try { AutoHHJKey2Time = std::stoi(AutoHHJKey2TimeChar); } catch (...) { }
+						}
+						ImGui::Unindent();
 					}
 
 					ImVec2 tooltipcursorpos = ImGui::GetCursorScreenPos();
@@ -1917,10 +2053,20 @@ static void RunGUI() {
 					ImGui::SetCursorScreenPos(tooltipcursorpos);
 					ImGui::InvisibleButton("##tooltip", ImGui::CalcTextSize("What is this (?)"));
 					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-						ImGui::SetTooltip("These are advanced options configurable for HHJ.\nThey modify the logic of what occurs after the unfreeze.\n"
-										  "If you figure out a combination of these first two values that\nconsistently leads to higher HHJ's, please "
-										  "tell the Roblox Glitching Community Discord.\n\nThe Defaults of each option are 9, 17, and 16 by default for Windows,\nand "
-										  "0, 0, 17 on Linux Respectively.");
+						ImGui::SetTooltip("ADVANCED HHJ OPTIONS\n"
+										  "These are advanced options configurable for the manual HHJ execution.\n"
+										  "They modify the logic of what occurs after the unfreeze.\n\n"
+										  "If you figure out a combination of these values that consistently leads to higher HHJ's, please tell the Roblox Glitching Community Discord.\n\n"
+										  "Set freeze delay: when 'Apply' is unchecked the program uses the dynamic default behavior (non-speedrun = 500 ms total; fast HHJ = 200 ms).\n"
+										  "If 'Apply' is checked the numeric value is used; setting it to 0 or negative disables freezing entirely.\n\n"
+										  "Other timing defaults (Windows): 9, 17, 16. (Linux: 0, 0, 17).\n\n"
+										  "CUSTOMIZE AUTOMATIC HHJ\n"
+										  "These options allow you to customize the key sequence when using 'Automatically time inputs'.\n\n"
+										  "For each key press in the sequence, you can customize:\n"
+										  "- Key: Click 'Press a Key...' to bind any key (including combos)\n"
+										  "- Hold time (ms): How long to hold the key before moving to the next press\n\n"
+										  "Default sequence: Spacebar (550ms) -> W (68ms).\n"
+										  "Adjust these values to optimize timing based on your FPS and game state.\n");
 					ImGui::SetCursorScreenPos(ImVec2(tooltipcursorpos.x + ImGui::CalcTextSize("What is this (?)").x, tooltipcursorpos.y));
 					ImGui::NewLine();
 
@@ -1932,7 +2078,7 @@ static void RunGUI() {
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
-					ImGui::TextWrapped("Assuming unequip com offset set to /e dance2 is used prior to offset com, to perform a Helicopter High Jump, "
+					ImGui::TextWrapped("Assuming unequip com offset (Patched by Roblox) set to /e dance2 is used prior to offset com, to perform a Helicopter High Jump, "
 										"you want to align yourself with your back against the wall, and rotate slightly to the left (around 5-15 degrees). "
 										"Now, turn your camera to face directly towards the wall, turn it towards the left a similar amount (5-15 degrees), "
 										"in such a way that when you hold W, you turn INTO the wall, instead of away from it (the smaller the angle, the more "
@@ -1948,7 +2094,7 @@ static void RunGUI() {
 
 				if (selected_section == 3) { // Speedglitch
 
-					float CurrentSensValue = atof(RobloxSensValue);
+					float CurrentSensValue = static_cast<float>(atof(RobloxSensValue));
 					if (CurrentSensValue != PreviousSensValue) {
 						if (camfixtoggle) {
 							try {
@@ -2059,8 +2205,13 @@ static void RunGUI() {
 					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
 
 					ImGui::Separator();
+					ImGui::TextWrapped("IMPORTANT: This glitch has been patched by Roblox. This is currently deprecated. You may get a COM offset\n"
+							            "manually by equipping an item without doing any animations, but it will be very small.");
+					ImGui::Separator();
+
+					ImGui::Separator();
 					ImGui::TextWrapped("This module allows you to trick Roblox into thinking your centre of mass is elsewhere. This is used in the Helicopter "
-										"High Jump, Speed Glitch and Walless LHJ modules (may change in the future).");
+										"High Jump, Speed Glitch and Walless LHJ modules.");
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT: This ONLY works in R6. Although the glitch is possible in R15, the macro isn't built around that rig type. "
 										"An Item is also required, and must be placed in the corresponding gear slot (3 by default).");
@@ -2136,17 +2287,17 @@ static void RunGUI() {
 					ImGui::TextWrapped("Flick Degrees (Estimated):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					float sensValue = std::atof(RobloxSensValue);
+					float sensValue = static_cast<float>(std::atof(RobloxSensValue));
 					if (sensValue != 0.0f) {
 						snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
 					}
 					
 					if (ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						float pixels = std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue));
+						float pixels = static_cast<float>(std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue)));
 						snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
 						try {
-							wallhop_dx = std::round(std::stoi(WallhopPixels));
-							wallhop_dy = -std::round(std::stoi(WallhopPixels));
+							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
+							wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -2157,8 +2308,8 @@ static void RunGUI() {
 					ImGui::SetNextItemWidth(70.0f);
 					if (ImGui::InputText("##WallhopPixels", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-							wallhop_dx = std::round(std::stoi(WallhopPixels));
-							wallhop_dy = -std::round(std::stoi(WallhopPixels));
+							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
+							wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -2169,7 +2320,7 @@ static void RunGUI() {
 					ImGui::SetNextItemWidth(70.0f);
 					if (ImGui::InputText("##WallhopDelay", WallhopDelayChar, sizeof(WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-							WallhopDelay = std::round(std::stoi(WallhopDelayChar));
+							WallhopDelay = static_cast<int>(std::round(std::stoi(WallhopDelayChar)));
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -2180,7 +2331,7 @@ static void RunGUI() {
 					ImGui::SetNextItemWidth(70.0f);
 					if (ImGui::InputText("##WallhopBonusDelay", WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-							WallhopBonusDelay = std::round(std::stoi(WallhopBonusDelayChar));
+							WallhopBonusDelay = static_cast<int>(std::round(std::stoi(WallhopBonusDelayChar)));
 						} catch (const std::invalid_argument &e) {
 						} catch (const std::out_of_range &e) {
 						}
@@ -2263,7 +2414,7 @@ static void RunGUI() {
 
 				if (selected_section == 10) { // Wall-Walk
 
-					float CurrentWallWalkValue = atof(RobloxSensValue);
+					float CurrentWallWalkValue = static_cast<float>(atof(RobloxSensValue));
 					float CurrentWallwalkSide = camfixtoggle;
 
 
@@ -2291,7 +2442,7 @@ static void RunGUI() {
 					ImGui::InputText("Delay Between Flicks (Don't change from 72720 unless neccessary):", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank);
 
 					try {
-						RobloxWallWalkValueDelay = atof(RobloxWallWalkValueDelayChar);
+						RobloxWallWalkValueDelay = static_cast<int>(atof(RobloxWallWalkValueDelayChar));
 					} catch (const std::invalid_argument &e) {
 					} catch (const std::out_of_range &e) {
 					}
@@ -2310,7 +2461,7 @@ static void RunGUI() {
 					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
 										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
 										"You can also toggle whether it's right facing or left facing (Makes its respective side easier) "
-										"Also, for convenience sake, you cannot activate speedglitch unless you're tabbed into roblox.");
+										"Also, for safety, you cannot activate wallwalk unless you're tabbed into roblox.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -2382,7 +2533,7 @@ static void RunGUI() {
 					ImGui::SetNextItemWidth(120.0f);
 					if (ImGui::InputText("##BunnyhopDelay", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-							BunnyHopDelay = atof(BunnyHopDelayChar);
+							BunnyHopDelay = static_cast<int>(atof(BunnyHopDelayChar));
 							if (g_isLinuxWine) {
 								SetBhopDelay(BunnyHopDelay);
 							}
@@ -2417,10 +2568,17 @@ static void RunGUI() {
 						// Add some vertical spacing for better visual separation
 						ImGui::Spacing();
     
-						// First checkbox with indentation
+						// First option with reset button on the left
 						ImGui::Indent();
+						if (ImGui::Button("R##FloorBounceDelay1", ImVec2(25, 0))) {
+							FloorBounceDelay1 = 5;
+							sprintf(FloorBounceDelay1Char, "%d", FloorBounceDelay1);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Delay (Milliseconds) after unfreezing and before shiftlocking");
+						ImGui::SameLine();
 						ImGui::SetNextItemWidth(50);
-						if (ImGui::InputText("Delay (Milliseconds) after unfreezing and before shiftlocking", FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						if (ImGui::InputText("##FloorBounceDelay1", FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 							try {
 								FloorBounceDelay1 = std::stoi(FloorBounceDelay1Char);
 							} catch (const std::invalid_argument &e) {
@@ -2429,10 +2587,17 @@ static void RunGUI() {
 						}
 						ImGui::Unindent();
     
-						// Second checkbox
+						// Second option with reset button on the left
 						ImGui::Indent();
+						if (ImGui::Button("R##FloorBounceDelay2", ImVec2(25, 0))) {
+							FloorBounceDelay2 = 8;
+							sprintf(FloorBounceDelay2Char, "%d", FloorBounceDelay2);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Delay (Milliseconds) before enabling helicoptering");
+						ImGui::SameLine();
 						ImGui::SetNextItemWidth(50);
-						if (ImGui::InputText("Delay (Milliseconds) before enabling helicoptering", FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						if (ImGui::InputText("##FloorBounceDelay2", FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 							try {
 								FloorBounceDelay2 = std::stoi(FloorBounceDelay2Char);
 							} catch (const std::invalid_argument &e) {
@@ -2441,10 +2606,17 @@ static void RunGUI() {
 						}
 						ImGui::Unindent();
     
-						// Third checkbox
+						// Third option with reset button on the left
 						ImGui::Indent();
+						if (ImGui::Button("R##FloorBounceDelay3", ImVec2(25, 0))) {
+							FloorBounceDelay3 = 100;
+							sprintf(FloorBounceDelay3Char, "%d", FloorBounceDelay3);
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Time (Milliseconds) spent helicoptering");
+						ImGui::SameLine();
 						ImGui::SetNextItemWidth(50);
-						if (ImGui::InputText("Time (Milliseconds) spent helicoptering", FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						if (ImGui::InputText("##FloorBounceDelay3", FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 							try {
 								FloorBounceDelay3 = std::stoi(FloorBounceDelay3Char);
 							} catch (const std::invalid_argument &e) {
@@ -2938,6 +3110,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	MSG msg;
 
+	TrimWhitespace(settingsBuffer);
 	targetPIDs = FindProcessIdsByName_Compat(settingsBuffer, takeallprocessids);
 
     if (targetPIDs.empty()) {
@@ -3170,28 +3343,33 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
 			if (!HHJ) {
 				if (autotoggle) { // Auto-Key-Timer
-					HoldKey(0x39);
-					std::this_thread::sleep_for(std::chrono::milliseconds(550));
-					HoldKey(0x11);
-					std::this_thread::sleep_for(std::chrono::milliseconds(68));
+					HoldKeyBinded(vk_autohhjkey1);
+					std::this_thread::sleep_for(std::chrono::milliseconds(AutoHHJKey1Time));
+					HoldKeyBinded(vk_autohhjkey2);
+					std::this_thread::sleep_for(std::chrono::milliseconds(AutoHHJKey2Time));
 				}
 
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);
 
-				// If the users custom freeze duration is zero or nothing, do regular stuff, else, use their custom duration
-				if (strcmp(HHJFreezeDelayOverrideChar, "0") == 0 || strcmp(HHJFreezeDelayOverrideChar, "") == 0) {
+				// Freeze timing logic: if not applying a manual override, use dynamic defaults.
+				if (!HHJFreezeDelayApply) {
 					// FastHHJ lowers freeze time by 300 ms
 					if (!fasthhj) {
 						std::this_thread::sleep_for(std::chrono::milliseconds(300));
 					}
 					std::this_thread::sleep_for(std::chrono::milliseconds(200));
 				} else {
-					std::this_thread::sleep_for(std::chrono::milliseconds(HHJFreezeDelayOverride));
+					// If user set override <= 0, freezing will not occur.
+					if (HHJFreezeDelayOverride <= 0) {
+						// no freeze
+					} else {
+						std::this_thread::sleep_for(std::chrono::milliseconds(HHJFreezeDelayOverride));
+					}
 				}
 
 				if (autotoggle) { // Auto-Key-Timer
-					ReleaseKey(0x39);
-					ReleaseKey(0x11);
+					ReleaseKeyBinded(vk_autohhjkey1);
+					ReleaseKeyBinded(vk_autohhjkey2);
 				}
 
 				SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, false);
@@ -3203,13 +3381,22 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 					HoldKeyBinded(globalzoominreverse ? VK_MOUSE_WHEEL_DOWN : VK_MOUSE_WHEEL_UP);
 				}
 				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay2));
-				isHHJ.store(true, std::memory_order_relaxed);
-				std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
+				// Only enable the HHJ "flick" movement when a positive length is configured.
+				// If HHJLength <= 0 we skip setting isHHJ to avoid a one-frame flick.
+				if (HHJLength > 0) {
+					isHHJ.store(true, std::memory_order_relaxed);
+					std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
+				} else {
+					// Still honor the delay even when not enabling the flick movement
+					std::this_thread::sleep_for(std::chrono::milliseconds(HHJDelay3));
+				}
 				if (!globalzoomin) {
 					ReleaseKeyBinded(vk_shiftkey);
 				}
-				std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
-				isHHJ.store(false, std::memory_order_relaxed);
+				if (HHJLength > 0) {
+					std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
+					isHHJ.store(false, std::memory_order_relaxed);
+				}
 				HHJ = true;
 			}
 		} else {
@@ -3288,7 +3475,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		// Ledge Bounce
 		if (IsHotkeyPressed(vk_bouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
-				int turn90 = (camfixtoggle ? 250 : 180) / atof(RobloxSensValue);
+				int turn90 = static_cast<int>((camfixtoggle ? 250 : 180) / atof(RobloxSensValue));
 				int skey = 0x1F; // S key
 				int dkey = 0x20; // D key
 				int wkey = 0x11; // W key

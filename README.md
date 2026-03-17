@@ -26,13 +26,13 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 1. Anti-AFK at all times (even if Roblox isn't shown)
 2. Customizable UI buttons (Drag to Swap Locations)
-3. Helicopter High Jump
+3. Wall Helicopter High Jump
 4. Speedglitch
 5. Automatic Ledge Bouncing
 6. Automatic Laugh Clipping
 7. Dropless Item Desync Hitboxes
 8. Freeze Macro
-9. Unequip Speedglitch
+9. Unequip Speedglitch (Deprecated, Roblox patched)
 10. Wallhop Macro
 11. Walless Lag High Jump (14 Studs)
 12. Press a Key for One Frame

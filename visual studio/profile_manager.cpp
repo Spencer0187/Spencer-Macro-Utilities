@@ -14,6 +14,11 @@ using namespace Globals;
 
 using json = nlohmann::json;
 
+// Helper to safely cast distance result to int
+inline int distance_to_int(std::ptrdiff_t dist) {
+    return static_cast<int>(dist);
+}
+
 static std::string TrimNullChars(const char *buffer, size_t size)
 {
     size_t length = std::strlen(buffer);
@@ -60,6 +65,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"doublepressafkkey", &doublepressafkkey},
 	{"useoldpaste", &useoldpaste},
 	{"floorbouncehhj", &floorbouncehhj},
+    {"HHJFreezeDelayApply", &HHJFreezeDelayApply},
 	{"islagswitchswitch", &islagswitchswitch},
     {"prevent_disconnect", &prevent_disconnect},
 	{"lagswitchoutbound", &lagswitchoutbound},
@@ -99,6 +105,8 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_afkkey", &vk_afkkey},
 	{"vk_floorbouncekey", &vk_floorbouncekey},
 	{"vk_lagswitchkey", &vk_lagswitchkey},
+	{"vk_autohhjkey1", &vk_autohhjkey1},
+	{"vk_autohhjkey2", &vk_autohhjkey2},
 	{"selected_dropdown", &selected_dropdown},
 	{"vk_wallkey", &vk_wallkey},
 	{"PreviousWallWalkSide", &PreviousWallWalkSide},
@@ -118,6 +126,8 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"speed_strengthy", &speed_strengthy},
 	{"speedoffsety", &speedoffsety},
 	{"clip_delay", &clip_delay},
+	{"AutoHHJKey1Time", &AutoHHJKey1Time},
+	{"AutoHHJKey2Time", &AutoHHJKey2Time},
 	{"RobloxPixelValue", &RobloxPixelValue},
 	{"PreviousSensValue", &PreviousSensValue},
 	{"windowOpacityPercent", &windowOpacityPercent},
@@ -163,6 +173,8 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"HHJDelay1Char", {HHJDelay1Char, sizeof(HHJDelay1Char)}},
 	{"HHJDelay2Char", {HHJDelay2Char, sizeof(HHJDelay2Char)}},
 	{"HHJDelay3Char", {HHJDelay3Char, sizeof(HHJDelay3Char)}},
+	{"AutoHHJKey1TimeChar", {AutoHHJKey1TimeChar, sizeof(AutoHHJKey1TimeChar)}},
+	{"AutoHHJKey2TimeChar", {AutoHHJKey2TimeChar, sizeof(AutoHHJKey2TimeChar)}},
 	{"FloorBounceDelay1Char", {FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char)}},
 	{"FloorBounceDelay2Char", {FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char)}},
 	{"FloorBounceDelay3Char", {FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char)}},
@@ -502,14 +514,14 @@ namespace ProfileUI {
         if (!previously_selected_name.empty()) {
             auto it = std::find(s_profile_names.begin(), s_profile_names.end(), previously_selected_name);
             if (it != s_profile_names.end()) {
-                s_selected_profile_idx = std::distance(s_profile_names.begin(), it);
+                s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
             }
         }
         // If nothing was selected, or previous selection is gone, try to select G_CURRENTLY_LOADED_PROFILE_NAME
         if (s_selected_profile_idx == -1 && !G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
             auto it = std::find(s_profile_names.begin(), s_profile_names.end(), G_CURRENTLY_LOADED_PROFILE_NAME);
             if (it != s_profile_names.end()) {
-                s_selected_profile_idx = std::distance(s_profile_names.begin(), it);
+                s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
             }
         }
     }
@@ -585,9 +597,9 @@ namespace ProfileUI {
                 RefreshProfileListAndSelection(); // Update list
                 // Ensure the saved profile is selected
                 auto it = std::find(s_profile_names.begin(), s_profile_names.end(), profileToSave);
-                if (it != s_profile_names.end()) s_selected_profile_idx = std::distance(s_profile_names.begin(), it);
-
-                std::cout << "Saved to profile: " << profileToSave << std::endl;
+                if (it != s_profile_names.end()) {
+                    s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+                }
                 s_editing_profile_idx = -1; // Ensure editing stops
             }
 
@@ -699,7 +711,7 @@ namespace ProfileUI {
                         RefreshProfileListAndSelection();
 
                         auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
-                        if (it != s_profile_names.end()) s_selected_profile_idx = std::distance(s_profile_names.begin(), it);
+                        if (it != s_profile_names.end()) s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
 
                     }
                     s_editing_profile_idx = -1;
@@ -758,7 +770,7 @@ namespace ProfileUI {
                                     RefreshProfileListAndSelection();
                                     // Re-find the selected index after sort
                                     auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name_candidate);
-                                    if (it != s_profile_names.end()) s_selected_profile_idx = std::distance(s_profile_names.begin(), it);
+                                    if (it != s_profile_names.end()) s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
                                     
                                     if (G_CURRENTLY_LOADED_PROFILE_NAME == s_profile_names[i] && s_profile_names[i] != new_name_candidate) {
                                         // This case should be handled by RenameProfileInFile updating G_CURRENTLY_LOADED_PROFILE_NAME
@@ -776,14 +788,14 @@ namespace ProfileUI {
                             s_selected_profile_idx = i;
                             if (ImGui::IsMouseDoubleClicked(0)) { // Check for double click on this item
                                 s_editing_profile_idx = i;
-                                strncpy(s_edit_buffer, s_profile_names[i].c_str(), sizeof(s_edit_buffer) -1);
+                                strncpy_s(s_edit_buffer, sizeof(s_edit_buffer), s_profile_names[i].c_str(), sizeof(s_edit_buffer) - 1);
                                 s_edit_buffer[sizeof(s_edit_buffer) - 1] = '\0';
                                 s_last_click_time = -1.0f; // Reset double-click state
                                 s_rename_error_msg = ""; // Clear rename error when starting new edit
                             } else { // Single click
                                 // Handled by s_selected_profile_idx = i;
                                 s_last_clicked_item_idx = i; // For your original double click logic if needed
-                                s_last_click_time = ImGui::GetTime();
+                                s_last_click_time = static_cast<float>(ImGui::GetTime());
                             }
                         }
                          if (is_selected_this_item) ImGui::SetItemDefaultFocus();
@@ -1243,7 +1255,7 @@ void LoadSettings(std::string filepath, std::string profile_name) {
         for (const auto& [key, cfg] : char_arrays) {
             if (cfg.first && settings_to_load.contains(key) && settings_to_load[key].is_string()) {
                 std::string str_val = settings_to_load[key].get<std::string>();
-                strncpy(cfg.first, str_val.c_str(), cfg.second -1); // Leave space for null terminator
+                strncpy_s(cfg.first, cfg.second, str_val.c_str(), cfg.second - 1); // Leave space for null terminator
                 cfg.first[cfg.second - 1] = '\0'; // Ensure null-termination
             }
         }
