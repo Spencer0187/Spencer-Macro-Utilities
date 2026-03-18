@@ -27,10 +27,6 @@
 #include <cerrno>
 #include <cstdlib>
 #include <stdexcept>
-#include <atomic>
-#include <mutex>
-#include <cctype>
-#include <arpa/inet.h>
 
 #include "shared_mem.h"
 #include "keymapping.h"
@@ -39,22 +35,11 @@
 SharedMemory* shared_data = nullptr;
 int uinput_fd = -1;
 const char* MM_FILE_PATH = "/tmp/cross_input_shm_file";
-std::atomic_bool isbhop{false};
-std::atomic_bool isdesync{false};
+bool isbhop = false;
+bool isdesync = false;
 
-std::atomic_int bhop_delay{10};
-std::atomic_int desync_itemslot{5};
-
-// Lagswitch state (shared-memory driven)
-static std::mutex g_lagswitch_mutex;
-static bool g_lagswitch_enabled = false;
-static bool g_lagswitch_inbound = true;
-static bool g_lagswitch_outbound = true;
-static int  g_lagswitch_delay_ms = 0; // used in delay mode
-static int  g_lagswitch_mode = 0;     // 0 = block, 1 = delay
-static std::vector<std::string> g_lagswitch_ips;
-static std::string g_lagswitch_iface;
-
+int bhop_delay = 10;
+int desync_itemslot = 5;
 // --- Function Prototypes ---
 void cleanup(int);
 bool interactive_device_detection(std::string& out_keyboard_path, std::string& out_mouse_path);
@@ -141,183 +126,33 @@ void hybrid_suspend_or_resume(pid_t pid, bool suspend) {
 
 void monitor_parent_process(const std::string& parent_process_name) {
     std::cout << "[Monitor] Parent process monitor thread started for '" << parent_process_name << "'." << std::endl;
-
+    
     while (true) {
-        // Avoid shell invocation; use internal process lookup.
-        if (find_main_process_by_name(parent_process_name) == -1) {
+        // Use pgrep with '-x' for an exact match on the process name.
+        // This is a simple and reliable way to check if the process is running.
+        std::string command = "pgrep -x " + parent_process_name + " > /dev/null 2>&1";
+        
+        int result = system(command.c_str());
+        
+        // system() returns 0 on success (pgrep found the process).
+        // A non-zero value means pgrep returned an error, typically 1 for "not found".
+        if (result != 0) {
             std::cout << "[Monitor] Parent process '" << parent_process_name << "' not found. Initiating self-shutdown." << std::endl;
+            
+            // Send a SIGINT signal to our own process to trigger the cleanup handler.
             raise(SIGINT);
+            
+            // Break the loop and allow the thread to exit.
             break;
         }
+        
+        // Wait for one second before checking again.
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-
+    
     std::cout << "[Monitor] Monitor thread exiting." << std::endl;
 }
 
-// Lagswitch functions
-static bool is_valid_ipv4(const std::string& ip) {
-    struct in_addr addr {};
-    return inet_pton(AF_INET, ip.c_str(), &addr) == 1;
-}
-
-static bool is_safe_iface_name(const std::string& s) {
-    if (s.empty()) return false;
-    for (char c : s) {
-        if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.')) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static std::string detect_default_iface() {
-    FILE* fp = popen("ip -4 route show default 2>/dev/null | awk '{print $5}' | head -n1", "r");
-    if (!fp) return "";
-    char buf[128] = {0};
-    std::string iface;
-    if (fgets(buf, sizeof(buf), fp)) {
-        iface = buf;
-        while (!iface.empty() && (iface.back() == '\n' || iface.back() == '\r' || iface.back() == ' ' || iface.back() == '\t')) {
-            iface.pop_back();
-        }
-    }
-    pclose(fp);
-    return is_safe_iface_name(iface) ? iface : "";
-}
-
-static int run_cmd(const std::string& cmd) {
-    return std::system(cmd.c_str());
-}
-
-static void tc_clear_rules_locked(const std::string& iface) {
-    (void)run_cmd("tc qdisc del dev " + iface + " clsact 2>/dev/null");
-    (void)run_cmd("tc qdisc del dev " + iface + " root 2>/dev/null");
-}
-
-static void apply_lagswitch_tc_locked() {
-    if (g_lagswitch_iface.empty()) {
-        g_lagswitch_iface = detect_default_iface();
-    }
-    if (!is_safe_iface_name(g_lagswitch_iface)) {
-        printf("[Helper] Lagswitch: no valid network interface found.\n");
-        return;
-    }
-
-    const std::string iface = g_lagswitch_iface;
-    tc_clear_rules_locked(iface);
-
-    if (!g_lagswitch_enabled) {
-        printf("[Helper] Lagswitch disabled, ignoring\n");
-        return;
-    }
-
-    const bool apply_to_all = g_lagswitch_ips.empty();
-    if (apply_to_all) {
-        printf("[Helper] No IPs specified, applying to all traffic on %s\n", iface.c_str());
-    }
-
-    int prio = 10;
-
-    if (g_lagswitch_mode == 0) {
-        // BLOCK mode: use clsact + drop filters
-        (void)run_cmd("tc qdisc add dev " + iface + " clsact 2>/dev/null");
-
-        if (apply_to_all) {
-            // Block all traffic on the interface
-            if (g_lagswitch_outbound) {
-                (void)run_cmd(
-                    "tc filter add dev " + iface +
-                    " egress protocol all prio " + std::to_string(prio++) +
-                    " u32 match u32 0 0 action drop 2>/dev/null");
-            }
-            if (g_lagswitch_inbound) {
-                (void)run_cmd(
-                    "tc filter add dev " + iface +
-                    " ingress protocol all prio " + std::to_string(prio++) +
-                    " u32 match u32 0 0 action drop 2>/dev/null");
-            }
-        } else {
-            // Block specific IPs
-            for (const auto& ip : g_lagswitch_ips) {
-                if (g_lagswitch_outbound) {
-                    (void)run_cmd(
-                        "tc filter add dev " + iface +
-                        " egress protocol ip prio " + std::to_string(prio++) +
-                        " u32 match ip dst " + ip + "/32 action drop 2>/dev/null");
-                }
-                if (g_lagswitch_inbound) {
-                    (void)run_cmd(
-                        "tc filter add dev " + iface +
-                        " ingress protocol ip prio " + std::to_string(prio++) +
-                        " u32 match ip src " + ip + "/32 action drop 2>/dev/null");
-                }
-            }
-        }
-
-        printf("[Helper] Lagswitch BLOCK applied on %s for %s.\n", 
-               iface.c_str(), apply_to_all ? "ALL traffic" : (std::to_string(g_lagswitch_ips.size()) + " IP(s)").c_str());
-        return;
-    }
-
-    // DELAY mode (tc netem): egress delay
-    int delay = g_lagswitch_delay_ms;
-    if (delay < 1) delay = 1;
-
-    (void)run_cmd("tc qdisc add dev " + iface + " root handle 1: prio bands 3 2>/dev/null");
-    (void)run_cmd("tc qdisc add dev " + iface + " parent 1:3 handle 30: netem delay " + std::to_string(delay) + "ms 2>/dev/null");
-
-    if (apply_to_all) {
-        // Delay all outbound traffic
-        if (g_lagswitch_outbound) {
-            (void)run_cmd(
-                "tc filter add dev " + iface +
-                " protocol all parent 1: prio " + std::to_string(prio++) +
-                " u32 match u32 0 0 flowid 1:3 2>/dev/null");
-        }
-    } else {
-        // Delay specific IPs
-        for (const auto& ip : g_lagswitch_ips) {
-            if (g_lagswitch_outbound) {
-                (void)run_cmd(
-                    "tc filter add dev " + iface +
-                    " protocol ip parent 1: prio " + std::to_string(prio++) +
-                    " u32 match ip dst " + ip + "/32 flowid 1:3 2>/dev/null");
-            }
-        }
-    }
-
-    // Inbound handling in DELAY mode
-    if (g_lagswitch_inbound) {
-        (void)run_cmd("tc qdisc add dev " + iface + " clsact 2>/dev/null");
-        if (apply_to_all) {
-            (void)run_cmd(
-                "tc filter add dev " + iface +
-                " ingress protocol all prio " + std::to_string(prio++) +
-                " u32 match u32 0 0 action drop 2>/dev/null");
-        } else {
-            for (const auto& ip : g_lagswitch_ips) {
-                (void)run_cmd(
-                    "tc filter add dev " + iface +
-                    " ingress protocol ip prio " + std::to_string(prio++) +
-                    " u32 match ip src " + ip + "/32 action drop 2>/dev/null");
-            }
-        }
-        printf("[Helper] Lagswitch DELAY: inbound requested, using drop fallback for inbound.\n");
-    }
-
-    printf("[Helper] Lagswitch DELAY applied on %s (%dms) for %s.\n", 
-           iface.c_str(), delay, apply_to_all ? "ALL traffic" : (std::to_string(g_lagswitch_ips.size()) + " IP(s)").c_str());
-}
-
-void lagswitch_toggle(bool state, std::string nadapter) {
-    std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-    g_lagswitch_enabled = state;
-    if (!nadapter.empty() && is_safe_iface_name(nadapter)) {
-        g_lagswitch_iface = nadapter;
-    }
-    apply_lagswitch_tc_locked();
-}
 
 // ********************************************************************
 // *                  MAIN APPLICATION LOGIC                          *
@@ -413,16 +248,6 @@ int main(int argc, char* argv[]) {
 
 void cleanup(int signum) {
     std::cout << "\nCleaning up..." << std::endl;
-    
-    // Clean up network traffic control rules
-    {
-        std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-        if (!g_lagswitch_iface.empty() && is_safe_iface_name(g_lagswitch_iface)) {
-            std::cout << "[Helper] Removing network traffic control rules from " << g_lagswitch_iface << std::endl;
-            tc_clear_rules_locked(g_lagswitch_iface);
-        }
-    }
-    
     if (uinput_fd >= 0) {
         ioctl(uinput_fd, UI_DEV_DESTROY);
         close(uinput_fd);
@@ -436,42 +261,27 @@ void cleanup(int signum) {
 
 
 void fastkey_thread() {
-    while (true) {
-        const bool bhop_enabled = isbhop.load(std::memory_order_acquire);
-        const bool desync_enabled = isdesync.load(std::memory_order_acquire);
+    while (isbhop) {
+        bool space_pressed = shared_data->key_states[0x20].load(std::memory_order_acquire);
+        if (space_pressed) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
 
-        if (bhop_enabled) {
-            bool space_pressed = shared_data->key_states[0x20].load(std::memory_order_acquire);
-            if (space_pressed) {
-                int delay = bhop_delay.load(std::memory_order_acquire);
-                if (delay < 1) delay = 1;
+            emit_uinput(EV_KEY, KEY_SPACE, 0);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+            std::this_thread::sleep_for(std::chrono::milliseconds(bhop_delay/2)); // Short delay
 
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay / 2));
-                emit_uinput(EV_KEY, KEY_SPACE, 0);
-                emit_uinput(EV_SYN, SYN_REPORT, 0);
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay / 2));
-                emit_uinput(EV_KEY, KEY_SPACE, 1);
-                emit_uinput(EV_SYN, SYN_REPORT, 0);
-            }
+            emit_uinput(EV_KEY, KEY_SPACE, 1);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
-
-        if (desync_enabled) {
-            const int slot = desync_itemslot.load(std::memory_order_acquire);
-            if (slot >= 1 && slot <= 9) {
-                const int keycode = KEY_1 + (slot - 1);
-                std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-                emit_uinput(EV_KEY, keycode, 1);
-                emit_uinput(EV_SYN, SYN_REPORT, 0);
-                std::this_thread::sleep_for(std::chrono::nanoseconds(100));
-                emit_uinput(EV_KEY, keycode, 0);
-                emit_uinput(EV_SYN, SYN_REPORT, 0);
-            }
-        }
-
-        if (!bhop_enabled && !desync_enabled) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    while (isdesync) {
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+        emit_uinput(EV_KEY, desync_itemslot - 1, 1);
+        emit_uinput(EV_SYN, SYN_REPORT, 0);
+        std::this_thread::sleep_for(std::chrono::nanoseconds(100));
+        emit_uinput(EV_KEY, desync_itemslot - 1, 0);
+        emit_uinput(EV_SYN, SYN_REPORT, 0);
     }
 }
 
@@ -516,45 +326,19 @@ void command_processor_thread() {
                 }
             } else if (type == CMD_BHOP_ENABLE) {
                 printf("[Helper] Received CMD_BHOP_ENABLE\n");
-                isbhop.store(true, std::memory_order_release);
+                isbhop = true;
+                
             } else if (type == CMD_BHOP_DISABLE) {
                 printf("[Helper] Received CMD_BHOP_DISABLE\n");
-                isbhop.store(false, std::memory_order_release);
-            } else if (type == CMD_DESYNC_ENABLE) {
+                isbhop = false;
+            }
+            else if (type == CMD_DESYNC_ENABLE) {
                 printf("[Helper] Received CMD_DESYNC_ENABLE\n");
-                isdesync.store(true, std::memory_order_release);
+                isdesync = true;
+                
             } else if (type == CMD_DESYNC_DISABLE) {
                 printf("[Helper] Received CMD_DESYNC_DISABLE\n");
-                isdesync.store(false, std::memory_order_release);
-            } else if (type == CMD_LAGSWITCH_ENABLE) {
-                printf("[Helper] Received CMD_LAGSWITCH_ENABLE\n");
-                std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                g_lagswitch_enabled = true;
-                apply_lagswitch_tc_locked();
-            } else if (type == CMD_LAGSWITCH_DISABLE) {
-                printf("[Helper] Received CMD_LAGSWITCH_DISABLE\n");
-                std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                g_lagswitch_enabled = false;
-                apply_lagswitch_tc_locked();
-            } else if (type == CMD_LAGSWITCH_SET_DIRECTION) {
-                const int dir = cmd.value.load(std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                g_lagswitch_inbound = (dir & 1) != 0;
-                g_lagswitch_outbound = (dir & 2) != 0;
-                printf("[Helper] Lagswitch direction: inbound=%d outbound=%d\n", g_lagswitch_inbound, g_lagswitch_outbound);
-                apply_lagswitch_tc_locked();
-            } else if (type == CMD_LAGSWITCH_SET_DELAY) {
-                const int delay = cmd.value.load(std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                g_lagswitch_delay_ms = (delay < 0) ? 0 : delay;
-                printf("[Helper] Lagswitch delay: %d ms\n", g_lagswitch_delay_ms);
-                apply_lagswitch_tc_locked();
-            } else if (type == CMD_LAGSWITCH_SET_MODE) {
-                const int mode = cmd.value.load(std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                g_lagswitch_mode = (mode == 1) ? 1 : 0;
-                printf("[Helper] Lagswitch mode: %d\n", g_lagswitch_mode);
-                apply_lagswitch_tc_locked();
+                isdesync = false;
             }
 
             shared_data->read_index.store((read_idx + 1) & (COMMAND_BUFFER_SIZE - 1), std::memory_order_release);
@@ -594,43 +378,17 @@ void special_action_thread() {
             } else if (cmd == SA_SET_BHOP_DELAY) {
                 int32_t delay = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
                 if (delay >= 0) {
-                    bhop_delay.store(delay, std::memory_order_release);
+                    bhop_delay = delay;
                     success = true;
-                    printf("[Helper] Bhop delay set to %d ms\n", bhop_delay.load(std::memory_order_acquire));
+                    printf("[Helper] Bhop delay set to %d ms\n", bhop_delay);
                 }
             } else if (cmd == SA_SET_DESYNC_ITEM) {
                 int32_t itemslot = shared_data->special_action.response_pid_count.load(std::memory_order_relaxed);
                 if (itemslot >= 1 && itemslot <= 9) {
-                    desync_itemslot.store(itemslot, std::memory_order_release);
+                    desync_itemslot = itemslot;
                     success = true;
-                    printf("[Helper] Desync item slot set to %d\n", desync_itemslot.load(std::memory_order_acquire));
+                    printf("[Helper] Desync item slot set to %d\n", desync_itemslot);
                 }
-            } else if (cmd == SA_SET_LAGSWITCH_IPS) {
-                std::vector<std::string> parsed_ips;
-                std::stringstream ss(name);
-                std::string token;
-
-                while (std::getline(ss, token, ',')) {
-                    token.erase(std::remove_if(token.begin(), token.end(),
-                        [](unsigned char c) { return std::isspace(c) != 0; }), token.end());
-                    if (!token.empty() && is_valid_ipv4(token)) {
-                        parsed_ips.push_back(token);
-                    }
-                }
-
-                // de-dup
-                std::sort(parsed_ips.begin(), parsed_ips.end());
-                parsed_ips.erase(std::unique(parsed_ips.begin(), parsed_ips.end()), parsed_ips.end());
-
-                {
-                    std::lock_guard<std::mutex> lock(g_lagswitch_mutex);
-                    g_lagswitch_ips = parsed_ips;
-                    apply_lagswitch_tc_locked();
-                }
-
-                pid_count = static_cast<int>(parsed_ips.size());
-                success = true;
-                printf("[Helper] Lagswitch IP list updated: %d IP(s)\n", pid_count);
             }
             
             shared_data->special_action.response_pid_count.store(pid_count, std::memory_order_relaxed);
@@ -711,40 +469,21 @@ std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) 
         pid_t pid = atoi(entry->d_name);
         if (pid <= 0) continue;
 
-        bool matched = false;
-
-        // First try matching by executable path
         std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
         char link_target[4096] = {0};
         ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
-        if (len != -1) {
-            link_target[len] = '\0';
-            std::string target_path(link_target);
-            for (const auto& exe : exe_names) {
-                if (target_path.size() >= exe.size() &&
-                    target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
-                    matched = true;
-                    pids.push_back(pid);
-                    break;
-                }
-            }
-        }
+        if (len == -1) continue; // cannot read (permission or gone)
+        link_target[len] = '\0';
+        std::string target_path(link_target);
 
-        // If not matched, try cmdline (for Wine processes)
-        if (!matched) {
-            std::string cmdline_path = "/proc/" + std::string(entry->d_name) + "/cmdline";
-            std::ifstream cmdline_file(cmdline_path);
-            if (cmdline_file) {
-                std::string cmdline;
-                std::getline(cmdline_file, cmdline, '\0');
-                for (const auto& exe : exe_names) {
-                    if (cmdline.find(exe) != std::string::npos) {
-                        matched = true;
-                        pids.push_back(pid);
-                        break;
-                    }
-                }
+        bool matched = false;
+        for (const auto& exe : exe_names) {
+            if (target_path.size() >= exe.size() &&
+                target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
+                matched = true;
+                pids.push_back(pid);
             }
+            if (matched) break;
         }
     }
 
@@ -864,25 +603,9 @@ void evdev_reader_thread(const std::string& device_path) {
         return;
     }
 
-    // Drain any pending events before grabbing
+    ioctl(evdev_fd, EVIOCGRAB, 1); // optional: grab device
+
     struct input_event ev;
-    std::cout << "[ReaderThread] Draining pending events from " << device_path << "..." << std::endl;
-    while (true) {
-        ssize_t n = read(evdev_fd, &ev, sizeof(ev));
-        if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                break;
-            }
-            if (errno != EINTR) {
-                perror("[ReaderThread] read() during drain");
-                break;
-            }
-        }
-    }
-    std::cout << "[ReaderThread] Device drained, now grabbing " << device_path << std::endl;
-
-    ioctl(evdev_fd, EVIOCGRAB, 1);
-
     while (true) {
         ssize_t n = read(evdev_fd, &ev, sizeof(ev));
         if (n != sizeof(ev)) {
@@ -895,26 +618,23 @@ void evdev_reader_thread(const std::string& device_path) {
         if (ev.type == EV_KEY) {
             uint8_t vk_code = evdev_to_win_vkey(ev.code);
             if (vk_code != VK_UNASSIGNED) {
-                if (isbhop.load(std::memory_order_acquire) && vk_code == 0x20) {
+                if (isbhop && vk_code == 0x20) {
                     // Ignore space key state updates when bhop is enabled
                 } else {
                     shared_data->key_states[vk_code].store(ev.value != 0, std::memory_order_release);
                 }
             }
             emit_uinput(EV_KEY, ev.code, ev.value);
-        }
-        else if (ev.type == EV_REL) {
-            emit_uinput(EV_REL, ev.code, ev.value);
-        }
-        else if (ev.type == EV_ABS) {
-            emit_uinput(EV_ABS, ev.code, ev.value);
-        }
-        else if (ev.type == EV_SYN) {
-            emit_uinput(EV_SYN, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
         
-        // Always emit SYN_REPORT after processing any event to ensure synchronization
-        if (ev.type != EV_SYN) {
+        else if (ev.type == EV_REL) {
+            emit_uinput(EV_REL, ev.code, ev.value);
+            emit_uinput(EV_SYN, SYN_REPORT, 0);
+        }
+        
+        else if (ev.type == EV_ABS) {
+            emit_uinput(EV_ABS, ev.code, ev.value);
             emit_uinput(EV_SYN, SYN_REPORT, 0);
         }
 
