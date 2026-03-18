@@ -47,3 +47,10 @@ bool IsWheelDown();
 
 KeyAction CharToKeyAction_Compat(char c);
 KeyAction CharToKeyAction_Global(char c);
+
+// Lagswitch functions (works on both Windows and Linux)
+void SetLagswitchEnabled(bool enable);
+void SetLagswitchIPs(const std::vector<std::string>& ips);
+void SetLagswitchDirection(bool inbound, bool outbound);
+void SetLagswitchDelay(int delay_ms);
+void SetLagswitchMode(int mode); // 0 = block, 1 = delay

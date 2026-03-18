@@ -10,6 +10,12 @@
 #include "Resource Files/globals.h"
 using namespace Globals;
 
+#include "Resource Files/network_manager.h"
+#include <chrono>
+#include <mutex>
+#include <shared_mutex>
+#include <atomic>
+
 std::string g_linuxHelperPath_Windows;
 
 // Function Pointers
@@ -21,6 +27,16 @@ typedef LONG(WINAPI *PntResumeProcess)(HANDLE);
 
 static SharedMemory *g_sharedData = nullptr;
 static HANDLE g_hMapFile = NULL;
+
+// --- Lagswitch caching / throttling state to avoid spamming the helper ---
+static std::atomic<int> g_cached_lagswitch_enabled{-1}; // -1 = unset, 0 = off, 1 = on
+static std::atomic<int> g_cached_lagswitch_dir{-1};     // bitmask: 1=inbound,2=outbound
+static std::atomic<int> g_cached_lagswitch_delay{-1};
+static std::atomic<int> g_cached_lagswitch_mode{-1};
+static std::string       g_cached_lagswitch_ips;
+static std::mutex        g_cached_ips_mutex;
+static std::chrono::steady_clock::time_point g_last_lagswitch_command = std::chrono::steady_clock::now() - std::chrono::seconds(10);
+static constexpr std::chrono::milliseconds LAG_CMD_MIN_INTERVAL_MS(50);
 
 const char *LINUX_HELPER_BINARY_NAME = "Suspend_Input_Helper_Linux_Binary";
 const char *LINUX_SHARED_MEM_FILE_WINE_PATH = "Z:\\tmp\\cross_input_shm_file";
@@ -491,123 +507,76 @@ void SetDesyncState(bool enable) {
     EnqueueCommand(cmd);
 }
 
-void HoldKeyBinded(unsigned int combinedKey) {
-    // 1. Extract Flags and Key
-    WORD vk = combinedKey & 0xFFFF; 
-    bool useWin   = (combinedKey & 0x80000) != 0; // HOTKEY_MASK_WIN
-    bool useCtrl  = (combinedKey & 0x20000) != 0; 
-    bool useAlt   = (combinedKey & 0x40000) != 0; 
-    bool useShift = (combinedKey & 0x10000) != 0; 
-
+void HoldKeyBinded(unsigned int Vk_key) {
     if (g_isLinuxWine) {
-        if (vk == VK_MOUSE_WHEEL_UP) {
-            SendLinuxMouseWheel(WHEEL_DELTA * 100);
+        // Scroll wheel handling
+        if (Vk_key == VK_MOUSE_WHEEL_UP) {
+            SendLinuxMouseWheel(WHEEL_DELTA * 100);  // Scroll up
             return;
-        } else if (vk == VK_MOUSE_WHEEL_DOWN) {
-            SendLinuxMouseWheel(-WHEEL_DELTA * 100);
+        } else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
+            SendLinuxMouseWheel(-WHEEL_DELTA * 100);  // Scroll down
             return;
         }
         
-        // Press Modifiers (Win -> Ctrl -> Alt -> Shift)
-        if (useWin)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_LWIN);    c.value.store(1); EnqueueCommand(c); }
-        if (useCtrl)  { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_CONTROL); c.value.store(1); EnqueueCommand(c); }
-        if (useAlt)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_MENU);    c.value.store(1); EnqueueCommand(c); }
-        if (useShift) { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_SHIFT);   c.value.store(1); EnqueueCommand(c); }
-
-        // Press Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(static_cast<uint8_t>(vk), std::memory_order_relaxed);
+        cmd.win_vk_code.store(Vk_key, std::memory_order_relaxed);
         cmd.value.store(1, std::memory_order_relaxed);
         EnqueueCommand(cmd);
-
     } else {
-        std::vector<INPUT> inputs;
+        INPUT input = {};
         
-        // 1. Modifiers Down
-        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    inputs.push_back(i); }
-        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; inputs.push_back(i); }
-        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    inputs.push_back(i); }
-        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   inputs.push_back(i); }
-
-        // 2. Main Key/Mouse Down
-        INPUT mainInput = {};
-        
-        if (vk == VK_MOUSE_WHEEL_UP) {
-            mainInput.type = INPUT_MOUSE;
-            mainInput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            mainInput.mi.mouseData = WHEEL_DELTA * 100;
+        // Handle mouse wheel inputs
+        if (Vk_key == VK_MOUSE_WHEEL_UP) {
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            input.mi.mouseData = WHEEL_DELTA * 100; // Positive for wheel up
         }
-        else if (vk == VK_MOUSE_WHEEL_DOWN) {
-            mainInput.type = INPUT_MOUSE;
-            mainInput.mi.dwFlags = MOUSEEVENTF_WHEEL;
-            mainInput.mi.mouseData = -WHEEL_DELTA * 100;
+        else if (Vk_key == VK_MOUSE_WHEEL_DOWN) {
+            input.type = INPUT_MOUSE;
+            input.mi.dwFlags = MOUSEEVENTF_WHEEL;
+            input.mi.mouseData = -WHEEL_DELTA * 100; // Negative for wheel down
         }
-        else if (vk >= VK_LBUTTON && vk <= VK_XBUTTON2) {
-            mainInput.type = INPUT_MOUSE;
-            if (vk == VK_LBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-            else if (vk == VK_RBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-            else if (vk == VK_MBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
-            else if (vk == VK_XBUTTON1) { mainInput.mi.dwFlags = MOUSEEVENTF_XDOWN; mainInput.mi.mouseData = XBUTTON1; }
-            else if (vk == VK_XBUTTON2) { mainInput.mi.dwFlags = MOUSEEVENTF_XDOWN; mainInput.mi.mouseData = XBUTTON2; }
+        // Existing mouse button handling
+        else if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
+            input.type = INPUT_MOUSE;
+            if (Vk_key == VK_LBUTTON) input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            else if (Vk_key == VK_RBUTTON) input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+            else if (Vk_key == VK_MBUTTON) input.mi.dwFlags = MOUSEEVENTF_MIDDLEDOWN;
+            else if (Vk_key == VK_XBUTTON1) { input.mi.dwFlags = MOUSEEVENTF_XDOWN; input.mi.mouseData = XBUTTON1; }
+            else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XDOWN; input.mi.mouseData = XBUTTON2; }
         } else {
-            mainInput.type = INPUT_KEYBOARD;
-            mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
-            mainInput.ki.dwFlags = KEYEVENTF_SCANCODE;
+            input.type = INPUT_KEYBOARD;
+            input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
+            input.ki.dwFlags = KEYEVENTF_SCANCODE;
         }
-        inputs.push_back(mainInput);
-
-        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+        SendInput(1, &input, sizeof(INPUT));
     }
 }
 
-void ReleaseKeyBinded(unsigned int combinedKey) {
-    WORD vk = combinedKey & 0xFFFF;
-    bool useWin   = (combinedKey & 0x80000) != 0;
-    bool useCtrl  = (combinedKey & 0x20000) != 0;
-    bool useAlt   = (combinedKey & 0x40000) != 0;
-    bool useShift = (combinedKey & 0x10000) != 0;
-
+void ReleaseKeyBinded(unsigned int Vk_key) {
     if (g_isLinuxWine) {
-        // Release Main Key
         Command cmd = {};
         cmd.type.store(CMD_KEY_ACTION, std::memory_order_relaxed);
-        cmd.win_vk_code.store(static_cast<uint8_t>(vk), std::memory_order_relaxed);
+        cmd.win_vk_code.store(Vk_key, std::memory_order_relaxed);
         cmd.value.store(0, std::memory_order_relaxed);
         EnqueueCommand(cmd);
-
-        // Release Modifiers (Reverse Order: Shift -> Alt -> Ctrl -> Win)
-        if (useShift) { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_SHIFT);   c.value.store(0); EnqueueCommand(c); }
-        if (useAlt)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_MENU);    c.value.store(0); EnqueueCommand(c); }
-        if (useCtrl)  { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_CONTROL); c.value.store(0); EnqueueCommand(c); }
-        if (useWin)   { Command c={}; c.type.store(CMD_KEY_ACTION); c.win_vk_code.store(VK_LWIN);    c.value.store(0); EnqueueCommand(c); }
-
     } else {
-        std::vector<INPUT> inputs;
-
-        // 1. Main Key/Mouse Up
-        INPUT mainInput = {};
-        if (vk >= VK_LBUTTON && vk <= VK_XBUTTON2) {
-            mainInput.type = INPUT_MOUSE;
-            if (vk == VK_LBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-            else if (vk == VK_RBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-            else if (vk == VK_MBUTTON) mainInput.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
-            else if (vk == VK_XBUTTON1) { mainInput.mi.dwFlags = MOUSEEVENTF_XUP; mainInput.mi.mouseData = XBUTTON1; }
-            else if (vk == VK_XBUTTON2) { mainInput.mi.dwFlags = MOUSEEVENTF_XUP; mainInput.mi.mouseData = XBUTTON2; }
+        INPUT input = {};
+        if (Vk_key >= VK_LBUTTON && Vk_key <= VK_XBUTTON2) {
+            input.type = INPUT_MOUSE;
+            if (Vk_key == VK_LBUTTON) input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+            else if (Vk_key == VK_RBUTTON) input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+            else if (Vk_key == VK_MBUTTON) input.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+            else if (Vk_key == VK_XBUTTON1) { input.mi.dwFlags = MOUSEEVENTF_XUP; input.mi.mouseData = XBUTTON1; }
+            else if (Vk_key == VK_XBUTTON2) { input.mi.dwFlags = MOUSEEVENTF_XUP; input.mi.mouseData = XBUTTON2; }
         } else {
-            mainInput.type = INPUT_KEYBOARD;
-            mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
-            mainInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+            input.type = INPUT_KEYBOARD;
+		    // Convert the virtual key to a hardware scan code to prevent anticheats blocking synthetic input
+            input.ki.wScan = MapVirtualKeyA(Vk_key, MAPVK_VK_TO_VSC);
+            input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
         }
-        inputs.push_back(mainInput);
-
-        // 2. Release Modifiers (Reverse Order)
-        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-
-        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+        SendInput(1, &input, sizeof(INPUT));
     }
 }
 
@@ -696,6 +665,129 @@ void SetDesyncItem(int itemSlot) {
     snprintf(action.process_name, sizeof(action.process_name), "%d", itemSlot);
 
     Linux_ExecuteSpecialAction(action);
+}
+
+// --- Lagswitch compatibility API ---
+void SetLagswitchEnabled(bool enable) {
+    int newval = enable ? 1 : 0;
+    int prev = g_cached_lagswitch_enabled.load(std::memory_order_acquire);
+    if (prev == newval) {
+        // No change — avoid spamming
+        g_windivert_blocking.store(enable);
+        return;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (now - g_last_lagswitch_command < LAG_CMD_MIN_INTERVAL_MS) {
+        // Coalesce rapid changes: remember new requested state but don't flood the helper
+        g_cached_lagswitch_enabled.store(newval, std::memory_order_release);
+        g_windivert_blocking.store(enable);
+        return;
+    }
+
+    g_last_lagswitch_command = now;
+    g_cached_lagswitch_enabled.store(newval, std::memory_order_release);
+
+    if (g_isLinuxWine) {
+        Command cmd = {};
+        cmd.type.store(enable ? CMD_LAGSWITCH_ENABLE : CMD_LAGSWITCH_DISABLE, std::memory_order_relaxed);
+        EnqueueCommand(cmd);
+        g_windivert_blocking.store(enable);
+    } else {
+        bool prevBlocking = g_windivert_blocking.load(std::memory_order_acquire);
+        g_windivert_blocking.store(enable);
+        if (prevBlocking != enable && g_windivert_running.load(std::memory_order_acquire)) {
+            SafeCloseWinDivert();
+        }
+    }
+}
+
+void SetLagswitchDirection(bool inbound, bool outbound) {
+    int dir = (inbound ? 1 : 0) | (outbound ? 2 : 0);
+    int prev = g_cached_lagswitch_dir.load(std::memory_order_acquire);
+    if (prev == dir) {
+        lagswitchinbound = inbound;
+        lagswitchoutbound = outbound;
+        return;
+    }
+
+    g_cached_lagswitch_dir.store(dir, std::memory_order_release);
+
+    if (g_isLinuxWine) {
+        Command cmd = {};
+        cmd.type.store(CMD_LAGSWITCH_SET_DIRECTION, std::memory_order_relaxed);
+        cmd.value.store(dir, std::memory_order_relaxed);
+        EnqueueCommand(cmd);
+        lagswitchinbound = inbound;
+        lagswitchoutbound = outbound;
+    } else {
+        lagswitchinbound = inbound;
+        lagswitchoutbound = outbound;
+        if (g_windivert_running.load(std::memory_order_acquire)) SafeCloseWinDivert();
+    }
+}
+
+void SetLagswitchDelay(int delay_ms) {
+    int prev = g_cached_lagswitch_delay.load(std::memory_order_acquire);
+    if (prev == delay_ms) return;
+
+    g_cached_lagswitch_delay.store(delay_ms, std::memory_order_release);
+
+    if (g_isLinuxWine) {
+        Command cmd = {};
+        cmd.type.store(CMD_LAGSWITCH_SET_DELAY, std::memory_order_relaxed);
+        cmd.value.store(delay_ms, std::memory_order_relaxed);
+        EnqueueCommand(cmd);
+        lagswitchlagdelay = delay_ms;
+    } else {
+        lagswitchlagdelay = delay_ms;
+        if (g_windivert_running.load(std::memory_order_acquire)) SafeCloseWinDivert();
+    }
+}
+
+void SetLagswitchMode(int mode) {
+    int prev = g_cached_lagswitch_mode.load(std::memory_order_acquire);
+    if (prev == mode) return;
+    g_cached_lagswitch_mode.store(mode, std::memory_order_release);
+
+    if (g_isLinuxWine) {
+        Command cmd = {};
+        cmd.type.store(CMD_LAGSWITCH_SET_MODE, std::memory_order_relaxed);
+        cmd.value.store(mode, std::memory_order_relaxed);
+        EnqueueCommand(cmd);
+    } else {
+        if (g_windivert_running.load(std::memory_order_acquire)) SafeCloseWinDivert();
+    }
+}
+
+void SetLagswitchIPs(const std::vector<std::string>& ips) {
+    std::string combined;
+    combined.reserve(ips.size() * 16);
+    for (size_t i = 0; i < ips.size(); ++i) {
+        if (i) combined.push_back(',');
+        combined += ips[i];
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_cached_ips_mutex);
+        if (combined == g_cached_lagswitch_ips) return; // no change
+        g_cached_lagswitch_ips = combined;
+    }
+
+    if (g_isLinuxWine) {
+        SpecialAction action = {};
+        action.command.store(SA_SET_LAGSWITCH_IPS);
+        action.response_success.store(false);
+        action.response_pid_count.store(0);
+        strncpy_s(action.process_name, sizeof(action.process_name), combined.c_str(), sizeof(action.process_name)-1);
+        Linux_ExecuteSpecialAction(action);
+    } else {
+        std::unique_lock<std::shared_mutex> lock(g_ip_mutex);
+        g_roblox_dynamic_ips.clear();
+        for (const auto &ip : ips) g_roblox_dynamic_ips.insert(ip);
+        g_ip_list_updated.store(true);
+        if (g_windivert_running.load(std::memory_order_acquire)) SafeCloseWinDivert();
+    }
 }
 
 
