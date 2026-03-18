@@ -43,9 +43,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
-          git add "visual studio/Resource Files/Suspend_Input_Helper_Linux_Binary"
-          git commit -m "Update linux binary"
-          git push
+          git add "visual studio/Resource Files/Suspend_Input_Helper_Linux_Binary" || true
+          # only commit & push if there are staged changes
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Update linux binary"
+            git push
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
