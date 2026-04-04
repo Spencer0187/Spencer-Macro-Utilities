@@ -258,20 +258,7 @@ namespace Globals {
     inline const std::string DLL_NAME = "SMCWinDivert.dll";
     inline const std::string SYS_NAME = "WinDivert64.sys";
 
-    inline std::string getSettingsFileName() {
-        // Check for SMCSettings.json first
-        if (std::filesystem::exists("SMCSettings.json")) {
-            return "SMCSettings.json";
-        }
-
-        // If not found, check for RMCSettings.json
-        if (std::filesystem::exists("RMCSettings.json")) {
-            return "RMCSettings.json";
-        }
-
-        // Return default if neither exists
-        return "SMCSettings.json";
-    }
+    // getSettingsFileName() removed — replaced by ResolveSettingsFilePath() in profile_manager.cpp
 
     // Run admin system command without flashing CMD Window, Required for WinDivert
     inline int quiet_system(const std::string& cmd) {

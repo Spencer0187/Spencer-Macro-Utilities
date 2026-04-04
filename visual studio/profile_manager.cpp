@@ -11,25 +11,29 @@
 #include <shlobj.h>
 
 using namespace Globals;
-
+namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-// Helper to safely cast distance result to int
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
 inline int distance_to_int(std::ptrdiff_t dist) {
     return static_cast<int>(dist);
 }
 
-static std::string TrimNullChars(const char *buffer, size_t size)
-{
+static std::string TrimNullChars(const char *buffer, size_t size) {
     size_t length = std::strlen(buffer);
-    if (length > size)
-		length = size;
+    if (length > size) length = size;
     return std::string(buffer, length);
 }
 
 using NumericVar = std::variant<int*, float*, unsigned int*>;
 
-// Boolean variables to save
+// ============================================================================
+//  VARIABLE MAPS — Data-driven save/load tables
+// ============================================================================
+
 const std::unordered_map<std::string, bool *> bool_vars = {
 	{"macrotoggled", &macrotoggled},
 	{"shiftswitch", &shiftswitch},
@@ -65,9 +69,9 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"doublepressafkkey", &doublepressafkkey},
 	{"useoldpaste", &useoldpaste},
 	{"floorbouncehhj", &floorbouncehhj},
-    {"HHJFreezeDelayApply", &HHJFreezeDelayApply},
+	{"HHJFreezeDelayApply", &HHJFreezeDelayApply},
 	{"islagswitchswitch", &islagswitchswitch},
-    {"prevent_disconnect", &prevent_disconnect},
+	{"prevent_disconnect", &prevent_disconnect},
 	{"lagswitchoutbound", &lagswitchoutbound},
 	{"lagswitchinbound", &lagswitchinbound},
 	{"lagswitchtargetroblox", &lagswitchtargetroblox},
@@ -81,7 +85,6 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"overlay_use_bg", &overlay_use_bg},
 };
 
-// Numeric variables to save
 const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"selected_section", &selected_section},
 	{"vk_f5", &vk_f5},
@@ -146,21 +149,20 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"overlay_bg_b", &overlay_bg_b},
 };
 
-// Char variables to save
 const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays = {
-    {"settingsBuffer", {settingsBuffer, sizeof(settingsBuffer)}},
-    {"ItemDesyncSlot", {ItemDesyncSlot, sizeof(ItemDesyncSlot)}},
-    {"ItemSpeedSlot", {ItemSpeedSlot, sizeof(ItemSpeedSlot)}},
-    {"ItemClipSlot", {ItemClipSlot, sizeof(ItemClipSlot)}},
-    {"ItemClipDelay", {ItemClipDelay, sizeof(ItemClipDelay)}},
+	{"settingsBuffer", {settingsBuffer, sizeof(settingsBuffer)}},
+	{"ItemDesyncSlot", {ItemDesyncSlot, sizeof(ItemDesyncSlot)}},
+	{"ItemSpeedSlot", {ItemSpeedSlot, sizeof(ItemSpeedSlot)}},
+	{"ItemClipSlot", {ItemClipSlot, sizeof(ItemClipSlot)}},
+	{"ItemClipDelay", {ItemClipDelay, sizeof(ItemClipDelay)}},
 	{"BunnyHopDelayChar", {BunnyHopDelayChar, sizeof(BunnyHopDelayChar)}},
-    {"RobloxSensValue", {RobloxSensValue, sizeof(RobloxSensValue)}},
-    {"RobloxWallWalkValueChar", {RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar)}},
-    {"RobloxWallWalkValueDelayChar", {RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar)}},
-    {"WallhopPixels", {WallhopPixels, sizeof(WallhopPixels)}},
-    {"SpamDelay", {SpamDelay, sizeof(SpamDelay)}},
-    {"RobloxPixelValueChar", {RobloxPixelValueChar, sizeof(RobloxPixelValueChar)}},
-    {"CustomTextChar", {CustomTextChar, sizeof(CustomTextChar)}},
+	{"RobloxSensValue", {RobloxSensValue, sizeof(RobloxSensValue)}},
+	{"RobloxWallWalkValueChar", {RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar)}},
+	{"RobloxWallWalkValueDelayChar", {RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar)}},
+	{"WallhopPixels", {WallhopPixels, sizeof(WallhopPixels)}},
+	{"SpamDelay", {SpamDelay, sizeof(SpamDelay)}},
+	{"RobloxPixelValueChar", {RobloxPixelValueChar, sizeof(RobloxPixelValueChar)}},
+	{"CustomTextChar", {CustomTextChar, sizeof(CustomTextChar)}},
 	{"RobloxFPSChar", {RobloxFPSChar, sizeof(RobloxFPSChar)}},
 	{"AntiAFKTimeChar", {AntiAFKTimeChar, sizeof(AntiAFKTimeChar)}},
 	{"WallhopDelayChar", {WallhopDelayChar, sizeof(WallhopDelayChar)}},
@@ -180,462 +182,876 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"FloorBounceDelay3Char", {FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char)}},
 };
 
-std::vector<std::string> GetProfileNames(const std::string& filepath) {
-    std::vector<std::string> names;
-    std::ifstream file(filepath);
-    if (!file.is_open()) {
-        return names;
-    }
-    json root_json;
-    try {
-        file >> root_json;
-        if (root_json.is_object()) {
-            for (auto& el : root_json.items()) {
-				// Skip Metadata
-				if (el.key() == METADATA_KEY) {
-                    continue;
-				}
+// ============================================================================
+//  FILE I/O — Centralized JSON file read/write with backup safety
+// ============================================================================
 
-                if (el.value().is_object()) { // Is it a profile
-                    names.push_back(el.key());
-                }
-            }
-        }
-    } catch (const json::parse_error& e) {
-        std::cerr << "GetProfileNames: JSON parse error in '" << filepath << "': " << e.what() << std::endl;
-    }
-    file.close();
-    // Sort the names alphabetically
-    std::sort(names.begin(), names.end());
+// Read and parse a JSON file. Returns {data, success, error_message}.
+struct JsonFileResult {
+	json data;
+	bool success;
+	std::string error;
+};
 
-    // Check if "default" exists in the names
-    auto it = std::find(names.begin(), names.end(), "(default)");
-    if (it != names.end()) {
-        // Move "default" to the front
-        names.erase(it);
-        names.insert(names.begin(), "(default)");
-    }
+static JsonFileResult ReadJsonFile(const std::string& filepath) {
+	JsonFileResult result;
+	result.success = false;
 
-    return names;
-}
-
-bool WriteJsonToFile(const std::string& filepath, const json& data) {
-    std::ofstream outfile(filepath);
-    if (outfile.is_open()) {
-        outfile << data.dump(4);
-        outfile.close();
-        return true;
-    }
-    std::cerr << "Error: Could not open file for writing: " << filepath << std::endl;
-    return false;
-}
-
-bool DeleteProfileFromFile(const std::string& filepath, const std::string& profile_name) {
-    std::ifstream infile(filepath);
-    if (!infile.is_open()) return false;
-    json root_json;
-    try { infile >> root_json; } catch (const json::parse_error&) { infile.close(); return false; }
-    infile.close();
-
-	if (profile_name == "(default)") {
-		return false;
+	std::ifstream file(filepath);
+	if (!file.is_open()) {
+		result.error = "Could not open file: " + filepath;
+		return result;
 	}
 
-    if (root_json.is_object() && root_json.contains(profile_name)) {
-        root_json.erase(profile_name);
-        if (WriteJsonToFile(filepath, root_json)) {
-            if (G_CURRENTLY_LOADED_PROFILE_NAME == profile_name) {
-                G_CURRENTLY_LOADED_PROFILE_NAME = "";
-                std::cout << "Info: Deleted profile '" << profile_name << "' was active." << std::endl;
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
-bool RenameProfileInFile(const std::string& filepath, const std::string& old_name, const std::string& new_name) {
-    if (old_name == new_name) return true;
-    std::ifstream infile(filepath);
-    if (!infile.is_open()) return false;
-    json root_json;
-    try { infile >> root_json; } catch (const json::parse_error&) { infile.close(); return false; }
-    infile.close();
-
-	if (old_name == "(default)" || new_name == "(default)") {
-		return false;
+	try {
+		file >> result.data;
+		result.success = true;
+	} catch (const json::parse_error& e) {
+		result.error = std::string("JSON parse error: ") + e.what();
 	}
-
-    if (root_json.is_object() && root_json.contains(old_name)) {
-        if (root_json.contains(new_name)) {
-             std::cerr << "Rename Error: Target name '" << new_name << "' already exists in file." << std::endl;
-            return false;
-        }
-		
-        json profile_data = root_json[old_name];
-        root_json.erase(old_name);
-        root_json[new_name] = profile_data;
-        if (WriteJsonToFile(filepath, root_json)) {
-            if (G_CURRENTLY_LOADED_PROFILE_NAME == old_name) {
-                G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
-            }
-            return true;
-        }
-    }
-    return false;
+	file.close();
+	return result;
 }
 
-bool DuplicateProfileInFile(const std::string& filepath, const std::string& source_name, const std::string& new_name) {
-    std::ifstream infile(filepath);
-    if (!infile.is_open()) return false;
-    json root_json;
-    try { infile >> root_json; } catch (const json::parse_error&) { infile.close(); return false; }
-    infile.close();
-
-    if (root_json.is_object() && root_json.contains(source_name)) {
-        if (root_json.contains(new_name)) {
-            std::cerr << "Duplicate Error: Target name '" << new_name << "' already exists in file." << std::endl;
-            return false;
-        }
-        json profile_data_copy = root_json[source_name];
-        root_json[new_name] = profile_data_copy;
-        return WriteJsonToFile(filepath, root_json);
-    }
-    return false;
-}
-
-std::string GenerateUniqueProfileName(const std::string& base_name, const std::vector<std::string>& existing_names) {
-    std::string candidate_name = base_name + " (Copy)";
-    if (std::find(existing_names.begin(), existing_names.end(), candidate_name) == existing_names.end()) {
-        return candidate_name;
-    }
-    int i = 2;
-    while (true) {
-        candidate_name = base_name + " (Copy " + std::to_string(i) + ")";
-        if (std::find(existing_names.begin(), existing_names.end(), candidate_name) == existing_names.end()) {
-            return candidate_name;
-        }
-        i++;
-        if (i > 1000) return base_name + " (Copy Error)"; // Safety break
-    }
-}
-
-std::string GenerateNewDefaultProfileName(const std::vector<std::string>& existing_names) {
-    int i = 1;
-    while (true) {
-        std::string candidate_name = "Profile " + std::to_string(i);
-        if (std::find(existing_names.begin(), existing_names.end(), candidate_name) == existing_names.end()) {
-            return candidate_name;
-        }
-        i++;
-        if (i > 1000) return "Profile Error"; // Safety break
-    }
-}
-
-bool TryLoadLastActiveProfile(std::string filepath) {
-
-    std::ifstream file;
-	bool fileFound = false;
-	std::filesystem::path real_filepath;
-
-	// First try current directory
-	real_filepath = std::filesystem::current_path() / filepath;
-	file.open(real_filepath);
-	if (file.is_open()) {
-		fileFound = true;
-	}
-	else {
-		// If not found, try parent directory
-		std::filesystem::path current_path = std::filesystem::current_path();
-		if (current_path.has_parent_path()) {
-			real_filepath = current_path.parent_path() / filepath;
-			file.open(real_filepath);
-			if (file.is_open()) {
-				fileFound = true;
-				std::cerr << "Found Parent Save File!" << std::endl;
-				std::filesystem::copy_file(real_filepath, std::filesystem::current_path() / filepath);
-			} else {
-				real_filepath = current_path.parent_path() / "SMCSettings.json"; // Yes I know this should be a variable
-				file.open(real_filepath);
-				if (file.is_open()) {
-                    fileFound = true;
-					filepath = "SMCSettings.json";
-				    std::cerr << "Found Parent Save File!" << std::endl;
-                    std::filesystem::copy_file(real_filepath, std::filesystem::current_path() / filepath);
-				}
-            }
+// Write JSON to file. Creates a .bak backup of the previous version.
+static bool WriteJsonFile(const std::string& filepath, const json& data) {
+	// Create backup of existing file before overwriting
+	if (fs::exists(filepath)) {
+		std::string backup_path = filepath + ".bak";
+		try {
+			fs::copy_file(filepath, backup_path, fs::copy_options::overwrite_existing);
+		} catch (const fs::filesystem_error&) {
+			// Non-fatal — proceed without backup
 		}
 	}
 
-    if (!fileFound) {
-        std::cerr << "TryLoadLastActiveProfile: Settings file '" << filepath << "' not found." << std::endl;
-        return false;
-    }
-
-    json root_json;
-    try {
-        file >> root_json;
-        file.close();
-    } catch (const json::parse_error& e) {
-        std::cerr << "TryLoadLastActiveProfile: JSON parse error in '" << filepath << "': " << e.what() << std::endl;
-        file.close();
-        return false;
-    }
-
-    if (root_json.is_object() && root_json.contains(METADATA_KEY) && root_json[METADATA_KEY].is_object()) {
-        const auto& metadata = root_json[METADATA_KEY];
-        if (metadata.contains(LAST_ACTIVE_PROFILE_KEY) && metadata[LAST_ACTIVE_PROFILE_KEY].is_string()) {
-            std::string last_active_name = metadata[LAST_ACTIVE_PROFILE_KEY].get<std::string>();
-
-            // Check if this profile actually exists in the file
-            if (!last_active_name.empty() && root_json.contains(last_active_name) && root_json[last_active_name].is_object() ) {
-                LoadSettings(filepath, last_active_name); 
-                G_CURRENTLY_LOADED_PROFILE_NAME = last_active_name;
-                std::cout << "Successfully loaded last active profile: " << last_active_name << std::endl;
-                return true;
-            } else {
-                std::cerr << "TryLoadLastActiveProfile: Last active profile '" << last_active_name << "' not found or invalid in settings file. Trying to find last available profile..." << std::endl;
-            
-                // Try to find and load the last available profile
-                std::string last_profile_name;
-                for (const auto& [key, value] : root_json.items()) {
-                    // Skip metadata key
-                    if (key == METADATA_KEY) {
-                        continue;
-                    }
-                
-                    // Only consider valid profile objects
-                    if (value.is_object()) {
-                        last_profile_name = key; // Keep updating, will end with last one
-                    }
-                }
-            
-                if (!last_profile_name.empty()) {
-                    LoadSettings(filepath, last_profile_name);
-                    G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
-                    std::cout << "Loaded last available profile instead: " << last_profile_name << std::endl;
-                    return true;
-                } else {
-                    std::cerr << "TryLoadLastActiveProfile: No valid profiles found in the file." << std::endl;
-                }
-            }
-        } else {
-            std::cout << "TryLoadLastActiveProfile: No 'last_active_profile' key found in metadata." << std::endl;
-        
-            // Try to find and load the last available profile
-            std::string last_profile_name;
-            for (const auto& [key, value] : root_json.items()) {
-                if (key == METADATA_KEY) {
-                    continue;
-                }
-            
-                if (value.is_object()) {
-                    last_profile_name = key;
-                }
-            }
-        
-            if (!last_profile_name.empty() && last_profile_name != "(default)") {
-                LoadSettings(filepath, last_profile_name);
-                G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
-                std::cout << "Loaded last available profile: " << last_profile_name << std::endl;
-                return true;
-            }
-            else {
-                LoadSettings(filepath, "Profile 1");
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                SaveSettings(filepath, "Profile 1");
-                G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-                std::cout << "Created and loaded default profile: Profile 1" << std::endl;
-                return true;
-            }
-        }
-    } else {
-        // Import old settings format
-        if (root_json.is_object()) {
-            // Check if there are any profiles in the old format
-            std::string last_profile_name;
-            for (const auto& [key, value] : root_json.items()) {
-                if (value.is_object()) {
-                    last_profile_name = key;
-                }
-            }
-        
-            if (!last_profile_name.empty() && last_profile_name != "(default)") {
-                // Found at least one profile in old format
-                LoadSettings(filepath, last_profile_name);
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                SaveSettings(filepath, last_profile_name);
-                G_CURRENTLY_LOADED_PROFILE_NAME = last_profile_name;
-                std::cout << "Imported and loaded old format profile: " << last_profile_name << std::endl;
-                return true;
-            } else {
-                // No profiles found at all, create a default one
-                LoadSettings(filepath, "Profile 1");
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                SaveSettings(filepath, "Profile 1");
-                G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-                std::cout << "Created and loaded default profile: Profile 1" << std::endl;
-                return true;
-            }
-        }
-    }
-    return false;
+	std::ofstream outfile(filepath);
+	if (!outfile.is_open()) {
+		std::cerr << "Error: Could not open file for writing: " << filepath << std::endl;
+		return false;
+	}
+	outfile << data.dump(4);
+	outfile.close();
+	return true;
 }
 
+// ============================================================================
+//  FILE RESOLUTION — Single function to find the settings file
+//  Search order: current dir → parent dir, with SMC priority over RMC.
+//  Automatically renames RMCSettings.json → SMCSettings.json when found.
+//  Copies files from parent directory to current directory for future use.
+//  May throw std::filesystem::filesystem_error if filesystem queries,
+//  renames, or copies fail.
+// ============================================================================
+
+std::string ResolveSettingsFilePath() {
+	fs::path cwd = fs::current_path();
+
+	// 1. Check current directory: SMCSettings.json (preferred name)
+	if (fs::exists(cwd / "SMCSettings.json")) {
+		return "SMCSettings.json";
+	}
+
+	// 2. Check current directory: RMCSettings.json (legacy name) → rename it
+	if (fs::exists(cwd / "RMCSettings.json")) {
+		try {
+			fs::rename(cwd / "RMCSettings.json", cwd / "SMCSettings.json");
+		} catch (const fs::filesystem_error& e) {
+			std::cerr << "Warning: Could not rename RMCSettings.json: " << e.what() << std::endl;
+			return "RMCSettings.json"; // Use old name if rename fails
+		}
+		return "SMCSettings.json";
+	}
+
+	// 3. Check parent directory (for files that live one folder above the .exe)
+	if (cwd.has_parent_path()) {
+		fs::path parent = cwd.parent_path();
+
+		// Try SMCSettings.json in parent
+		if (fs::exists(parent / "SMCSettings.json")) {
+			try {
+				fs::copy_file(parent / "SMCSettings.json", cwd / "SMCSettings.json");
+				std::cout << "Found settings file in parent directory, copied locally." << std::endl;
+			} catch (const fs::filesystem_error&) {}
+			return "SMCSettings.json";
+		}
+
+		// Try RMCSettings.json in parent → copy as SMCSettings.json
+		if (fs::exists(parent / "RMCSettings.json")) {
+			try {
+				fs::copy_file(parent / "RMCSettings.json", cwd / "SMCSettings.json");
+				std::cout << "Found legacy settings file in parent directory, copied locally as SMCSettings.json." << std::endl;
+			} catch (const fs::filesystem_error&) {}
+			return "SMCSettings.json";
+		}
+	}
+
+	// 4. Nothing found — return default name for new file creation
+	return "SMCSettings.json";
+}
+
+// ============================================================================
+//  FORMAT DETECTION — Distinguish new profile format from legacy flat format
+// ============================================================================
+
+// New format has a _metadata key at the root level.
+static bool IsProfileFormat(const json& root) {
+	return root.is_object() && root.contains(METADATA_KEY) && root[METADATA_KEY].is_object();
+}
+
+// Legacy flat format: an object with recognizable settings keys at root, but NO _metadata.
+// Old save files from before the profile system stored settings directly at root level.
+static bool IsLegacyFlatFormat(const json& root) {
+	if (!root.is_object()) return false;
+	if (root.contains(METADATA_KEY)) return false;
+
+	// Check for recognizable settings keys
+	for (const auto& [key, _] : bool_vars) {
+		if (root.contains(key)) return true;
+	}
+	for (const auto& [key, _] : numeric_vars) {
+		if (root.contains(key)) return true;
+	}
+	if (root.contains("text")) return true;
+
+	return false;
+}
+
+// ============================================================================
+//  PROFILE DISCOVERY — Find the best profile to load
+//  Priority: exact match → last_active from metadata → any non-default profile.
+//  (default) is NEVER returned — it is read-only. Caller creates Profile 1 if needed.
+// ============================================================================
+
+static std::string FindBestProfile(const json& root, const std::string& requested_name) {
+	// 1. Exact match for the requested profile
+	if (!requested_name.empty() && root.contains(requested_name) && root[requested_name].is_object()) {
+		return requested_name;
+	}
+
+	// 2. Last active profile from metadata (skip (default) — read-only profiles are not valid resume targets)
+	if (root.contains(METADATA_KEY) && root[METADATA_KEY].is_object()) {
+		const auto& meta = root[METADATA_KEY];
+		if (meta.contains(LAST_ACTIVE_PROFILE_KEY) && meta[LAST_ACTIVE_PROFILE_KEY].is_string()) {
+			std::string last_active = meta[LAST_ACTIVE_PROFILE_KEY].get<std::string>();
+			if (!last_active.empty() && last_active != "(default)" && root.contains(last_active) && root[last_active].is_object()) {
+				return last_active;
+			}
+		}
+	}
+
+	// 3. Any non-(default) profile
+	std::string last_non_default;
+	for (const auto& [key, value] : root.items()) {
+		if (key == METADATA_KEY || key == "(default)") continue;
+		if (value.is_object()) {
+			last_non_default = key;
+		}
+	}
+	if (!last_non_default.empty()) return last_non_default;
+
+	// (default) is intentionally excluded as a fallback — it is read-only.
+	// TryLoadLastActiveProfile will create Profile 1 from compile-time defaults.
+	return "";
+}
+
+// ============================================================================
+//  SERIALIZATION — Convert between globals and JSON profile objects
+// ============================================================================
+
+static json SerializeProfileData() {
+	json data;
+
+	for (const auto& [key, ptr] : bool_vars) {
+		if (ptr) data[key] = *ptr;
+	}
+	for (const auto& [key, var] : numeric_vars) {
+		std::visit([&](auto&& arg) {
+			if (arg) data[key] = *arg;
+		}, var);
+	}
+	for (const auto& [key, cfg] : char_arrays) {
+		if (cfg.first) data[key] = TrimNullChars(cfg.first, cfg.second);
+	}
+
+	if (section_amounts > 0) {
+		data["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
+		data["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
+	}
+	data["text"] = text;
+	data["screen_width"] = screen_width;
+	data["screen_height"] = screen_height;
+
+	return data;
+}
+
+static void DeserializeProfileData(const json& settings) {
+	try {
+		// Load booleans
+		for (const auto& [key, ptr] : bool_vars) {
+			if (ptr && settings.contains(key) && settings[key].is_boolean()) {
+				*ptr = settings[key].get<bool>();
+			}
+		}
+
+		// Load numerics
+		for (const auto& [key, var] : numeric_vars) {
+			if (!settings.contains(key)) continue;
+			std::visit([&](auto&& arg) {
+				using T = std::decay_t<decltype(*arg)>;
+				if (arg && settings[key].is_number()) {
+					*arg = settings[key].get<T>();
+				}
+			}, var);
+		}
+
+		// Load char arrays
+		for (const auto& [key, cfg] : char_arrays) {
+			if (cfg.first && settings.contains(key) && settings[key].is_string()) {
+				std::string str_val = settings[key].get<std::string>();
+				strncpy_s(cfg.first, cfg.second, str_val.c_str(), cfg.second - 1);
+				cfg.first[cfg.second - 1] = '\0';
+			}
+		}
+
+		// Section toggles
+		if (settings.contains("section_toggles") && settings["section_toggles"].is_array()) {
+			auto toggles = settings["section_toggles"].get<std::vector<bool>>();
+			size_t count = std::min(toggles.size(), static_cast<size_t>(section_amounts));
+			std::copy(toggles.begin(), toggles.begin() + count, section_toggles);
+		}
+
+		// Section order (with backwards-compatible upgrades for older save files)
+		if (settings.contains("section_order_vector") && settings["section_order_vector"].is_array()) {
+			auto order = settings["section_order_vector"].get<std::vector<int>>();
+
+			// Inject missing section IDs from older save file versions:
+			// Bunnyhop (section 13) was added later — insert at position 7
+			if (std::find(order.begin(), order.end(), 13) == order.end() && order.size() >= 7) {
+				order.insert(order.begin() + 7, 13);
+			}
+			// Lagswitch (section 15) was added later — insert at position 4
+			if (std::find(order.begin(), order.end(), 15) == order.end() && order.size() >= 5) {
+				order.insert(order.begin() + 4, 15);
+			}
+
+			// Deduplicate and fill any still-missing section IDs
+			std::vector<int> final_order;
+			std::vector<bool> id_seen(section_amounts, false);
+
+			for (int id : order) {
+				if (id >= 0 && id < section_amounts && !id_seen[id]) {
+					final_order.push_back(id);
+					id_seen[id] = true;
+				}
+			}
+			for (int i = 0; i < section_amounts; ++i) {
+				if (!id_seen[i]) final_order.push_back(i);
+			}
+
+			size_t count = std::min(final_order.size(), static_cast<size_t>(section_amounts));
+			for (size_t i = 0; i < count; ++i) {
+				section_order[i] = final_order[i];
+			}
+		}
+
+		if (settings.contains("text") && settings["text"].is_string()) {
+			text = settings["text"].get<std::string>();
+		}
+		if (settings.contains("screen_width") && settings["screen_width"].is_number_integer()) {
+			screen_width = settings.value("screen_width", screen_width);
+		}
+		if (settings.contains("screen_height") && settings["screen_height"].is_number_integer()) {
+			screen_height = settings.value("screen_height", screen_height);
+		}
+	} catch (const json::exception& e) {
+		std::cerr << "Error deserializing profile data: " << e.what() << std::endl;
+	}
+}
+
+// ============================================================================
+//  THEME SERIALIZATION — Save/Load theme data to/from metadata
+// ============================================================================
+
+static auto rnd(float val) -> double { return std::floor(val * 1000.0f + 0.5f) / 1000.0; }
+
+static json ColorToJson(const ImVec4& col) {
+	return {rnd(col.x), rnd(col.y), rnd(col.z), rnd(col.w)};
+}
+
+static ImVec4 JsonToColor(const json& j, const std::string& key) {
+	if (j.contains(key) && j[key].is_array() && j[key].size() == 4) {
+		return ImVec4(j[key][0], j[key][1], j[key][2], j[key][3]);
+	}
+	return ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+}
+
+static json SerializeTheme(const Theme& theme) {
+	json t;
+	t["name"]             = theme.name;
+	t["bg_dark"]          = ColorToJson(theme.bg_dark);
+	t["bg_medium"]        = ColorToJson(theme.bg_medium);
+	t["bg_light"]         = ColorToJson(theme.bg_light);
+	t["accent_primary"]   = ColorToJson(theme.accent_primary);
+	t["accent_secondary"] = ColorToJson(theme.accent_secondary);
+	t["text_primary"]     = ColorToJson(theme.text_primary);
+	t["text_secondary"]   = ColorToJson(theme.text_secondary);
+	t["success_color"]    = ColorToJson(theme.success_color);
+	t["warning_color"]    = ColorToJson(theme.warning_color);
+	t["error_color"]      = ColorToJson(theme.error_color);
+	t["border_color"]     = ColorToJson(theme.border_color);
+	t["disabled_color"]   = ColorToJson(theme.disabled_color);
+	t["window_rounding"]  = rnd(theme.window_rounding);
+	t["frame_rounding"]   = rnd(theme.frame_rounding);
+	t["button_rounding"]  = rnd(theme.button_rounding);
+	return t;
+}
+
+static Theme DeserializeTheme(const json& t, const std::string& fallback_name) {
+	return Theme{
+		t.value("name", fallback_name),
+		JsonToColor(t, "bg_dark"),
+		JsonToColor(t, "bg_medium"),
+		JsonToColor(t, "bg_light"),
+		JsonToColor(t, "accent_primary"),
+		JsonToColor(t, "accent_secondary"),
+		JsonToColor(t, "text_primary"),
+		JsonToColor(t, "text_secondary"),
+		JsonToColor(t, "success_color"),
+		JsonToColor(t, "warning_color"),
+		JsonToColor(t, "error_color"),
+		JsonToColor(t, "border_color"),
+		JsonToColor(t, "disabled_color"),
+		t.value("window_rounding", 0.0f),
+		t.value("frame_rounding", 0.0f),
+		t.value("button_rounding", 0.0f)
+	};
+}
+
+static void SaveMetadataThemes(json& metadata) {
+	metadata["current_theme_index"] = Globals::current_theme_index;
+	metadata["show_theme_menu"] = Globals::show_theme_menu;
+	metadata["custom_theme"] = SerializeTheme(Globals::custom_theme);
+
+	metadata["themes"] = json::object();
+	for (const auto& theme : Globals::themes) {
+		metadata["themes"][theme.name] = SerializeTheme(theme);
+	}
+}
+
+static void LoadMetadataThemes(const json& metadata) {
+	Globals::current_theme_index = metadata.value("current_theme_index", 0);
+
+	if (metadata.contains("custom_theme")) {
+		const auto& ct = metadata["custom_theme"];
+		Globals::custom_theme = DeserializeTheme(ct, "Custom Theme");
+	}
+
+	if (metadata.contains("themes") && metadata["themes"].is_object()) {
+		for (const auto& [key, theme_json] : metadata["themes"].items()) {
+			Theme loaded = DeserializeTheme(theme_json, key);
+
+			bool found = false;
+			for (auto& existing : Globals::themes) {
+				if (existing.name == loaded.name) {
+					existing = loaded;
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				Globals::themes.push_back(loaded);
+			}
+		}
+	}
+}
+
+// ============================================================================
+//  METADATA I/O — Save/Load global settings that live in _metadata
+// ============================================================================
+
+static void SaveMetadata(json& root) {
+	if (!root.contains(METADATA_KEY) || !root[METADATA_KEY].is_object()) {
+		root[METADATA_KEY] = json::object();
+	}
+	auto& meta = root[METADATA_KEY];
+
+	if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+		meta[LAST_ACTIVE_PROFILE_KEY] = G_CURRENTLY_LOADED_PROFILE_NAME;
+	}
+
+	meta["shortdescriptions"] = shortdescriptions;
+	meta["DontShowAdminWarning"] = DontShowAdminWarning;
+
+	SaveMetadataThemes(meta);
+}
+
+static void LoadMetadata(const json& root) {
+	if (!root.contains(METADATA_KEY) || !root[METADATA_KEY].is_object()) return;
+	const auto& meta = root[METADATA_KEY];
+
+	if (meta.contains("shortdescriptions") && meta["shortdescriptions"].is_boolean()) {
+		shortdescriptions = meta["shortdescriptions"].get<bool>();
+	}
+	if (meta.contains("DontShowAdminWarning") && meta["DontShowAdminWarning"].is_boolean()) {
+		DontShowAdminWarning = meta["DontShowAdminWarning"].get<bool>();
+	}
+
+	LoadMetadataThemes(meta);
+}
+
+// ============================================================================
+//  PROFILE NAMES + UNIQUE NAME GENERATION
+// ============================================================================
+
+std::vector<std::string> GetProfileNames(const std::string& filepath) {
+	std::vector<std::string> names;
+
+	auto result = ReadJsonFile(filepath);
+	if (!result.success || !result.data.is_object()) return names;
+
+	for (const auto& [key, value] : result.data.items()) {
+		if (key == METADATA_KEY) continue;
+		if (value.is_object()) {
+			names.push_back(key);
+		}
+	}
+
+	std::sort(names.begin(), names.end());
+
+	// Always put (default) first
+	auto it = std::find(names.begin(), names.end(), "(default)");
+	if (it != names.end()) {
+		names.erase(it);
+		names.insert(names.begin(), "(default)");
+	}
+
+	return names;
+}
+
+std::string GenerateUniqueProfileName(const std::string& base_name, const std::vector<std::string>& existing_names) {
+	std::string candidate = base_name + " (Copy)";
+	if (std::find(existing_names.begin(), existing_names.end(), candidate) == existing_names.end()) {
+		return candidate;
+	}
+	for (int i = 2; i <= 1000; ++i) {
+		candidate = base_name + " (Copy " + std::to_string(i) + ")";
+		if (std::find(existing_names.begin(), existing_names.end(), candidate) == existing_names.end()) {
+			return candidate;
+		}
+	}
+	return base_name + " (Copy Error)";
+}
+
+static std::string GenerateNewProfileName(const std::vector<std::string>& existing_names) {
+	for (int i = 1; i <= 1000; ++i) {
+		std::string candidate = "Profile " + std::to_string(i);
+		if (std::find(existing_names.begin(), existing_names.end(), candidate) == existing_names.end()) {
+			return candidate;
+		}
+	}
+	return "Profile Error";
+}
+
+// ============================================================================
+//  CORE API: SaveSettings
+//  Saves the current global state as a named profile in the settings file.
+//  (default) is read-only — this function will not overwrite it.
+// ============================================================================
+
+void SaveSettings(const std::string& filepath, const std::string& profile_name) {
+	if (profile_name.empty() || profile_name == "(default)") return;
+
+	json profile_data = SerializeProfileData();
+
+	// Read existing file to preserve other profiles, or start fresh
+	json root = json::object();
+	if (fs::exists(filepath)) {
+		auto file_result = ReadJsonFile(filepath);
+		if (file_result.success && file_result.data.is_object()) {
+			if (IsProfileFormat(file_result.data)) {
+				root = file_result.data;
+			} else if (IsLegacyFlatFormat(file_result.data)) {
+				// Migrate old flat-format data under "Profile 1"
+				root["Profile 1"] = file_result.data;
+				std::cout << "Old format detected during save. Migrating old data to 'Profile 1'." << std::endl;
+			} else {
+				// Unknown structure — preserve as-is and add our profile on top
+				root = file_result.data;
+			}
+		}
+	}
+
+	root[profile_name] = profile_data;
+	SaveMetadata(root);
+	WriteJsonFile(filepath, root);
+}
+
+// ============================================================================
+//  CORE API: SaveDefaultProfile
+//  Writes current default values as the read-only (default) profile.
+//  Called once at startup so new settings fields always have a fallback.
+// ============================================================================
+
+void SaveDefaultProfile(const std::string& filepath) {
+	json default_data = SerializeProfileData();
+
+	json root = json::object();
+	if (fs::exists(filepath)) {
+		auto file_result = ReadJsonFile(filepath);
+		if (file_result.success && file_result.data.is_object()) {
+			root = file_result.data;
+		}
+	}
+
+	root["(default)"] = default_data;
+
+	if (!root.contains(METADATA_KEY) || !root[METADATA_KEY].is_object()) {
+		root[METADATA_KEY] = json::object();
+	}
+
+	WriteJsonFile(filepath, root);
+}
+
+// ============================================================================
+//  CORE API: LoadSettings
+//  Loads a named profile from the settings file into global state.
+//  Falls back through: exact match → last_active → any profile → legacy flat.
+// ============================================================================
+
+void LoadSettings(std::string filepath, std::string profile_name) {
+	if (profile_name.empty()) return;
+
+	auto file_result = ReadJsonFile(filepath);
+	if (!file_result.success) {
+		std::cerr << "Info: Settings file '" << filepath << "' not found or corrupt. Using defaults." << std::endl;
+		return;
+	}
+
+	json& root = file_result.data;
+
+	// Always load global metadata (themes, etc.) regardless of which profile we load
+	LoadMetadata(root);
+
+	// Determine which profile to actually load
+	json settings_to_load;
+	std::string actual_profile;
+	bool found = false;
+
+	if (IsProfileFormat(root) || (root.is_object() && !IsLegacyFlatFormat(root))) {
+		// New-format or unknown-but-structured file: use FindBestProfile
+		actual_profile = FindBestProfile(root, profile_name);
+		if (!actual_profile.empty() && root.contains(actual_profile)) {
+			settings_to_load = root[actual_profile];
+			found = true;
+		}
+	} else if (IsLegacyFlatFormat(root)) {
+		// Old flat format: treat root as profile data directly
+		settings_to_load = root;
+		actual_profile = "Profile 1";
+		found = true;
+		std::cout << "Info: Loaded legacy flat-format file as 'Profile 1'." << std::endl;
+	}
+
+	if (!found) {
+		std::cerr << "Warning: Profile '" << profile_name << "' not found in '" << filepath << "'." << std::endl;
+		return;
+	}
+
+	DeserializeProfileData(settings_to_load);
+}
+
+// ============================================================================
+//  CORE API: TryLoadLastActiveProfile
+//  Called at startup. Finds the settings file, loads the last active profile.
+//  Handles legacy format conversion and creates "Profile 1" if nothing exists.
+// ============================================================================
+
+bool TryLoadLastActiveProfile(std::string filepath) {
+	// File must exist (ResolveSettingsFilePath is called before this)
+	auto file_result = ReadJsonFile(filepath);
+	if (!file_result.success) {
+		std::cerr << "TryLoadLastActiveProfile: Could not read '" << filepath << "'." << std::endl;
+		return false;
+	}
+
+	json& root = file_result.data;
+
+	// Always load global metadata first
+	LoadMetadata(root);
+
+	// Handle legacy flat format: convert in-place
+	if (IsLegacyFlatFormat(root)) {
+		DeserializeProfileData(root);
+		G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+		SaveSettings(filepath, "Profile 1");
+		std::cout << "Converted legacy settings to 'Profile 1'." << std::endl;
+		return true;
+	}
+
+	if (!root.is_object()) return false;
+
+	// Find the best profile to load
+	std::string best = FindBestProfile(root, "");
+	if (best.empty()) {
+		// No profiles at all — create "Profile 1" with current defaults
+		G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+		SaveSettings(filepath, "Profile 1");
+		std::cout << "No profiles found. Created 'Profile 1'." << std::endl;
+		return true;
+	}
+
+	// Load the found profile
+	if (root.contains(best) && root[best].is_object()) {
+		DeserializeProfileData(root[best]);
+		G_CURRENTLY_LOADED_PROFILE_NAME = best;
+		std::cout << "Loaded profile: " << best << std::endl;
+		return true;
+	}
+
+	return false;
+}
+
+// ============================================================================
+//  CORE API: PromoteDefaultProfileIfDirty
+//  Called on application quit. If current profile is (default), always save to
+//  a new "Profile N" — (default) is read-only and must never hold user state.
+// ============================================================================
+
+std::string PromoteDefaultProfileIfDirty(const std::string& filepath) {
+	if (G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") return "";
+
+	auto names = GetProfileNames(filepath);
+	std::string new_name = GenerateNewProfileName(names);
+
+	G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
+	SaveSettings(filepath, new_name);
+
+	std::cout << "Auto-saved (default) edits as '" << new_name << "'." << std::endl;
+	return new_name;
+}
+
+// ============================================================================
+//  PROFILE CRUD — Delete, Rename, Duplicate
+// ============================================================================
+
+bool DeleteProfileFromFile(const std::string& filepath, const std::string& profile_name) {
+	if (profile_name == "(default)") return false;
+
+	auto file_result = ReadJsonFile(filepath);
+	if (!file_result.success || !file_result.data.is_object()) return false;
+
+	json& root = file_result.data;
+	if (!root.contains(profile_name)) return false;
+
+	root.erase(profile_name);
+
+	if (WriteJsonFile(filepath, root)) {
+		if (G_CURRENTLY_LOADED_PROFILE_NAME == profile_name) {
+			G_CURRENTLY_LOADED_PROFILE_NAME = "";
+			std::cout << "Info: Deleted active profile '" << profile_name << "'." << std::endl;
+		}
+		return true;
+	}
+	return false;
+}
+
+bool RenameProfileInFile(const std::string& filepath, const std::string& old_name, const std::string& new_name) {
+	if (old_name == new_name) return true;
+	if (old_name == "(default)" || new_name == "(default)") return false;
+
+	auto file_result = ReadJsonFile(filepath);
+	if (!file_result.success || !file_result.data.is_object()) return false;
+
+	json& root = file_result.data;
+	if (!root.contains(old_name)) return false;
+	if (root.contains(new_name)) {
+		std::cerr << "Rename Error: Target name '" << new_name << "' already exists." << std::endl;
+		return false;
+	}
+
+	json profile_data = root[old_name];
+	root.erase(old_name);
+	root[new_name] = profile_data;
+
+	if (WriteJsonFile(filepath, root)) {
+		if (G_CURRENTLY_LOADED_PROFILE_NAME == old_name) {
+			G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
+		}
+		return true;
+	}
+	return false;
+}
+
+bool DuplicateProfileInFile(const std::string& filepath, const std::string& source_name, const std::string& new_name) {
+	auto file_result = ReadJsonFile(filepath);
+	if (!file_result.success || !file_result.data.is_object()) return false;
+
+	json& root = file_result.data;
+	if (!root.contains(source_name)) return false;
+	if (root.contains(new_name)) {
+		std::cerr << "Duplicate Error: Target name '" << new_name << "' already exists." << std::endl;
+		return false;
+	}
+
+	root[new_name] = root[source_name];
+	return WriteJsonFile(filepath, root);
+}
+
+// ============================================================================
+//  UI — ImGui Profile Manager (unchanged behavior, cleaned up structure)
+// ============================================================================
+
 namespace ProfileUI {
-    static bool s_expanded = false;
-    static std::vector<std::string> s_profile_names;
-    static int s_selected_profile_idx = -1;
-    
-    static int s_editing_profile_idx = -1;
-    static char s_edit_buffer[256] = "";
-    static float s_last_click_time = -1.0f;
-    static int s_last_clicked_item_idx = -1;
+	static bool s_expanded = false;
+	static std::vector<std::string> s_profile_names;
+	static int s_selected_profile_idx = -1;
 
-    static bool s_profiles_initialized = false;
-    static std::string s_rename_error_msg = "";
+	static int s_editing_profile_idx = -1;
+	static char s_edit_buffer[256] = "";
+	static float s_last_click_time = -1.0f;
+	static int s_last_clicked_item_idx = -1;
 
-	// Delete button
-	static int s_delete_button_confirmation_stage = 0; // 0: Normal, 1: Yellow (confirm), 2: Red (deleted)
+	static bool s_profiles_initialized = false;
+	static std::string s_rename_error_msg = "";
+
+	// Delete button confirmation state
+	static int s_delete_button_confirmation_stage = 0;
 	static float s_delete_button_stage_timer = 0.0f;
 	static int s_target_profile_idx_for_confirm = -1;
 	static std::string s_G_LOADED_PROFILE_NAME_at_confirm_start = "";
 	bool delete_action_requested_this_frame = false;
 
-    void RefreshProfileListAndSelection() {
-        std::string previously_selected_name;
-        if (s_selected_profile_idx >= 0 && s_selected_profile_idx < s_profile_names.size()) {
-            previously_selected_name = s_profile_names[s_selected_profile_idx];
-        }
-        
-        s_profile_names = GetProfileNames(G_SETTINGS_FILEPATH); // Reads and sorts
+	void RefreshProfileListAndSelection() {
+		std::string previously_selected_name;
+		if (s_selected_profile_idx >= 0 && s_selected_profile_idx < (int)s_profile_names.size()) {
+			previously_selected_name = s_profile_names[s_selected_profile_idx];
+		}
 
-        s_selected_profile_idx = -1; // Reset selection
-        if (!previously_selected_name.empty()) {
-            auto it = std::find(s_profile_names.begin(), s_profile_names.end(), previously_selected_name);
-            if (it != s_profile_names.end()) {
-                s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
-            }
-        }
-        // If nothing was selected, or previous selection is gone, try to select G_CURRENTLY_LOADED_PROFILE_NAME
-        if (s_selected_profile_idx == -1 && !G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
-            auto it = std::find(s_profile_names.begin(), s_profile_names.end(), G_CURRENTLY_LOADED_PROFILE_NAME);
-            if (it != s_profile_names.end()) {
-                s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
-            }
-        }
-    }
+		s_profile_names = GetProfileNames(G_SETTINGS_FILEPATH);
 
+		s_selected_profile_idx = -1;
+		if (!previously_selected_name.empty()) {
+			auto it = std::find(s_profile_names.begin(), s_profile_names.end(), previously_selected_name);
+			if (it != s_profile_names.end()) {
+				s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+			}
+		}
+		if (s_selected_profile_idx == -1 && !G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+			auto it = std::find(s_profile_names.begin(), s_profile_names.end(), G_CURRENTLY_LOADED_PROFILE_NAME);
+			if (it != s_profile_names.end()) {
+				s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+			}
+		}
+	}
 
-    void InitializeProfiles() {
-        if (!s_profiles_initialized) {
-            RefreshProfileListAndSelection();
-            s_profiles_initialized = true;
-        }
-    }
+	void InitializeProfiles() {
+		if (!s_profiles_initialized) {
+			RefreshProfileListAndSelection();
+			s_profiles_initialized = true;
+		}
+	}
 
-    void DrawProfileManagerUI() {
-        InitializeProfiles();
+	void DrawProfileManagerUI() {
+		InitializeProfiles();
 		ImVec4 current_button_bg_color = ImGui::GetStyle().Colors[ImGuiCol_Button];
 		ImVec4 current_button_text_color = ImGui::GetStyle().Colors[ImGuiCol_Text];
 
-        if (ImGui::Button(s_expanded ? "Profiles <-" : "Profiles ->", ImVec2(270, 0))) {
-            s_expanded = !s_expanded;
-            if (s_expanded) {
-                RefreshProfileListAndSelection(); // Refresh list when opening
-                s_rename_error_msg = ""; // Clear previous rename errors
-            } else {
-                s_editing_profile_idx = -1; // Close editor if dropdown closes
-            }
-        }
+		if (ImGui::Button(s_expanded ? "Profiles <-" : "Profiles ->", ImVec2(270, 0))) {
+			s_expanded = !s_expanded;
+			if (s_expanded) {
+				RefreshProfileListAndSelection();
+				s_rename_error_msg = "";
+			} else {
+				s_editing_profile_idx = -1;
+			}
+		}
 
+		if (s_expanded) {
+			ImVec2 buttonPos = ImGui::GetItemRectMin();
+			float menuWidth = ImGui::GetItemRectSize().x;
 
-        if (s_expanded) {
-            ImVec2 buttonPos = ImGui::GetItemRectMin();
-            float menuWidth = ImGui::GetItemRectSize().x;
-            
-            float list_item_height = ImGui::GetTextLineHeightWithSpacing();
-            int num_items_to_show = std::min(10, (int)s_profile_names.size());
-            if (num_items_to_show == 0) num_items_to_show = 3; // Min height for empty list
-            float buttons_height = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetStyle().ItemSpacing.y * 2.0f;
-            float list_height = num_items_to_show * list_item_height + ImGui::GetStyle().WindowPadding.y * 2;
-            float menuHeight = buttons_height + list_height + ImGui::GetStyle().SeparatorTextAlign.y; // Approx
+			float list_item_height = ImGui::GetTextLineHeightWithSpacing();
+			int num_items_to_show = std::min(10, (int)s_profile_names.size());
+			if (num_items_to_show == 0) num_items_to_show = 3;
+			float buttons_height = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetStyle().ItemSpacing.y * 2.0f;
+			float list_height = num_items_to_show * list_item_height + ImGui::GetStyle().WindowPadding.y * 2;
+			float menuHeight = buttons_height + list_height + ImGui::GetStyle().SeparatorTextAlign.y;
 			int old_s_selected_profile_idx = -1;
-            menuHeight = std::min(menuHeight, 300.0f);
+			menuHeight = std::min(menuHeight, 300.0f);
 
+			ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
+			ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
-            ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
-            ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
+			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
+			ImGui::Begin("##ProfilesDropUpMenu", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
 
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
-            ImGui::Begin("##ProfilesDropUpMenu", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings);
+			float actionButtonWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
+			bool profile_is_selected = (s_selected_profile_idx != -1 && s_selected_profile_idx < (int)s_profile_names.size());
 
-            float actionButtonWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
-            bool profile_is_selected = (s_selected_profile_idx != -1 && s_selected_profile_idx < s_profile_names.size());
-
-			// Save current profile every time s_selected_profile_idx is updated
+			// Auto-save current profile when selection changes
 			if (old_s_selected_profile_idx != s_selected_profile_idx) {
 				SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
 			}
-
 			if (profile_is_selected) {
 				old_s_selected_profile_idx = s_selected_profile_idx;
 			}
 
-            // Buttons
-            if (ImGui::Button("Save To", ImVec2(actionButtonWidth, 0))) {
-                std::string profileToSave;
+			// --- "Save To" Button ---
+			if (ImGui::Button("Save To", ImVec2(actionButtonWidth, 0))) {
+				std::string profileToSave;
 
-                if (profile_is_selected) {
-                    profileToSave = s_profile_names[s_selected_profile_idx];
-                } else {
-                    profileToSave = GenerateNewDefaultProfileName(s_profile_names);
-                }
+				if (profile_is_selected) {
+					profileToSave = s_profile_names[s_selected_profile_idx];
+				} else {
+					profileToSave = GenerateNewProfileName(s_profile_names);
+				}
+
+				// If trying to save to (default), create a new profile instead
+				if (profileToSave == "(default)") {
+					profileToSave = GenerateNewProfileName(s_profile_names);
+				}
 
 				G_CURRENTLY_LOADED_PROFILE_NAME = profileToSave;
-                SaveSettings(G_SETTINGS_FILEPATH, profileToSave);
-                RefreshProfileListAndSelection(); // Update list
-                // Ensure the saved profile is selected
-                auto it = std::find(s_profile_names.begin(), s_profile_names.end(), profileToSave);
-                if (it != s_profile_names.end()) {
-                    s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
-                }
-                s_editing_profile_idx = -1; // Ensure editing stops
-            }
+				SaveSettings(G_SETTINGS_FILEPATH, profileToSave);
+				RefreshProfileListAndSelection();
+				auto it = std::find(s_profile_names.begin(), s_profile_names.end(), profileToSave);
+				if (it != s_profile_names.end()) {
+					s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+				}
+				s_editing_profile_idx = -1;
+			}
 
-            ImGui::SameLine();
-            if (!profile_is_selected) ImGui::BeginDisabled();
+			// --- "Load" Button ---
+			ImGui::SameLine();
+			if (!profile_is_selected) ImGui::BeginDisabled();
 
-            if (ImGui::Button("Load", ImVec2(actionButtonWidth, 0))) {
-                if (profile_is_selected) {
-                    LoadSettings(G_SETTINGS_FILEPATH, s_profile_names[s_selected_profile_idx]);
-                    G_CURRENTLY_LOADED_PROFILE_NAME = s_profile_names[s_selected_profile_idx];
-                    s_editing_profile_idx = -1;
-                }
-            }
+			if (ImGui::Button("Load", ImVec2(actionButtonWidth, 0))) {
+				if (profile_is_selected) {
+					LoadSettings(G_SETTINGS_FILEPATH, s_profile_names[s_selected_profile_idx]);
+					G_CURRENTLY_LOADED_PROFILE_NAME = s_profile_names[s_selected_profile_idx];
+					s_editing_profile_idx = -1;
+				}
+			}
 
-            if (!profile_is_selected) ImGui::EndDisabled();
-            ImGui::SameLine();
+			if (!profile_is_selected) ImGui::EndDisabled();
+			ImGui::SameLine();
 
-            if (!profile_is_selected) ImGui::BeginDisabled();
+			// --- "Delete" Button ---
+			if (!profile_is_selected) ImGui::BeginDisabled();
 
 			ImGuiIO &io = ImGui::GetIO();
 
-			// Manage Delete Color
+			// Manage delete confirmation timer
 			if (s_delete_button_confirmation_stage != 0) {
 				s_delete_button_stage_timer -= io.DeltaTime;
-				bool should_reset_state = false;
-				if (s_delete_button_stage_timer <= 0.0f) {
-					should_reset_state = true; // Timer expired
-				}
-				if (s_target_profile_idx_for_confirm != -1 && s_selected_profile_idx != s_target_profile_idx_for_confirm) {
-					should_reset_state = true;
-				}
-				if (!s_G_LOADED_PROFILE_NAME_at_confirm_start.empty() && 
-					G_CURRENTLY_LOADED_PROFILE_NAME != s_G_LOADED_PROFILE_NAME_at_confirm_start) {
-					should_reset_state = true;
-				}
-				if (should_reset_state) {
+				bool should_reset = false;
+				if (s_delete_button_stage_timer <= 0.0f) should_reset = true;
+				if (s_target_profile_idx_for_confirm != -1 && s_selected_profile_idx != s_target_profile_idx_for_confirm) should_reset = true;
+				if (!s_G_LOADED_PROFILE_NAME_at_confirm_start.empty() &&
+					G_CURRENTLY_LOADED_PROFILE_NAME != s_G_LOADED_PROFILE_NAME_at_confirm_start) should_reset = true;
+
+				if (should_reset) {
 					s_delete_button_confirmation_stage = 0;
 					s_target_profile_idx_for_confirm = -1;
 					s_G_LOADED_PROFILE_NAME_at_confirm_start = "";
@@ -643,11 +1059,10 @@ namespace ProfileUI {
 				}
 			}
 
-			// Update Delete Button Color
 			if (profile_is_selected && s_selected_profile_idx == s_target_profile_idx_for_confirm) {
 				if (s_delete_button_confirmation_stage == 1) {
-					current_button_bg_color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
-					current_button_text_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f); // Black
+					current_button_bg_color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
+					current_button_text_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 				}
 			}
 
@@ -656,673 +1071,155 @@ namespace ProfileUI {
 			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, current_button_bg_color);
 			ImGui::PushStyleColor(ImGuiCol_ButtonActive, current_button_bg_color);
 
-            if (ImGui::Button("Delete", ImVec2(actionButtonWidth, 0))) {
-                if (profile_is_selected) {
-                    delete_action_requested_this_frame = true;
-                }
-            }
+			if (ImGui::Button("Delete", ImVec2(actionButtonWidth, 0))) {
+				if (profile_is_selected) {
+					delete_action_requested_this_frame = true;
+				}
+			}
 			ImGui::PopStyleColor(4);
-
 
 			if (delete_action_requested_this_frame) {
 				if (profile_is_selected) {
 					if (s_delete_button_confirmation_stage == 0 || s_selected_profile_idx != s_target_profile_idx_for_confirm) {
-						s_delete_button_confirmation_stage = 1; // Yellow
+						s_delete_button_confirmation_stage = 1;
 						s_delete_button_stage_timer = 0.7f;
 						s_target_profile_idx_for_confirm = s_selected_profile_idx;
 						s_G_LOADED_PROFILE_NAME_at_confirm_start = G_CURRENTLY_LOADED_PROFILE_NAME;
 					} else if (s_delete_button_confirmation_stage == 1 && s_selected_profile_idx == s_target_profile_idx_for_confirm) {
 						s_delete_button_confirmation_stage = 2;
 
-						// Delete Profile
 						std::string name_to_delete = s_profile_names[s_target_profile_idx_for_confirm];
 						if (DeleteProfileFromFile(G_SETTINGS_FILEPATH, name_to_delete)) {
 							RefreshProfileListAndSelection();
-							// Delete your profile if you deleted your last save file
-							std::ifstream infile(G_SETTINGS_FILEPATH);
-
-							if (!infile.is_open()) return;
-							json root_json;
-							try { infile >> root_json; } catch (const json::parse_error&) { infile.close(); return; }
-							infile.close();
-
-							if (root_json.is_object() && root_json.size() == 1) {
-								std::filesystem::remove(G_SETTINGS_FILEPATH);
+							// If only metadata remains, remove the file entirely
+							auto check = ReadJsonFile(G_SETTINGS_FILEPATH);
+							if (check.success && check.data.is_object() && check.data.size() == 1) {
+								fs::remove(G_SETTINGS_FILEPATH);
 							}
 						}
 						s_editing_profile_idx = -1;
 					}
 				}
 			}
-	
+
 			delete_action_requested_this_frame = false;
 
-            if (!profile_is_selected) ImGui::EndDisabled();
+			if (!profile_is_selected) ImGui::EndDisabled();
 
-            if (!profile_is_selected) ImGui::BeginDisabled();
-            if (ImGui::Button("Duplicate", ImVec2(-FLT_MIN, 0))) {
-                if (profile_is_selected) {
-                    std::string source_name = s_profile_names[s_selected_profile_idx];
-                    std::string new_name = GenerateUniqueProfileName(source_name, s_profile_names);
-                    if (DuplicateProfileInFile(G_SETTINGS_FILEPATH, source_name, new_name)) {
-						// Load New Profile
-                        LoadSettings(G_SETTINGS_FILEPATH, new_name);
-                        G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
-                        RefreshProfileListAndSelection();
+			// --- "Duplicate" Button ---
+			if (!profile_is_selected) ImGui::BeginDisabled();
+			if (ImGui::Button("Duplicate", ImVec2(-FLT_MIN, 0))) {
+				if (profile_is_selected) {
+					std::string source_name = s_profile_names[s_selected_profile_idx];
+					if (source_name == "(default)") {
+						// Duplicate (default): capture live globals, not stale file data
+						std::string new_name = GenerateNewProfileName(s_profile_names);
+						G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
+						SaveSettings(G_SETTINGS_FILEPATH, new_name);
+						RefreshProfileListAndSelection();
+						auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
+						if (it != s_profile_names.end()) {
+							s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+						}
+					} else {
+						std::string new_name = GenerateUniqueProfileName(source_name, s_profile_names);
+						if (DuplicateProfileInFile(G_SETTINGS_FILEPATH, source_name, new_name)) {
+							LoadSettings(G_SETTINGS_FILEPATH, new_name);
+							G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
+							RefreshProfileListAndSelection();
+							auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
+							if (it != s_profile_names.end()) {
+								s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+							}
+						}
+					}
+					s_editing_profile_idx = -1;
+				}
+			}
+			if (!profile_is_selected) ImGui::EndDisabled();
+			ImGui::Separator();
 
-                        auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
-                        if (it != s_profile_names.end()) s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+			// --- Scrollable selectable profile list ---
+			ImGui::BeginChild("##ProfilesOptionsList", ImVec2(0, ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y - (s_rename_error_msg.empty() ? 0 : ImGui::GetTextLineHeightWithSpacing())), true, ImGuiWindowFlags_HorizontalScrollbar);
+			{
+				for (int i = 0; i < (int)s_profile_names.size(); ++i) {
+					bool is_editing_this_item = (s_editing_profile_idx == i);
+					bool is_selected_this_item = (s_selected_profile_idx == i);
+					bool is_currently_loaded = (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME == s_profile_names[i]);
 
-                    }
-                    s_editing_profile_idx = -1;
-                }
-            }
-            if (!profile_is_selected) ImGui::EndDisabled();
-            ImGui::Separator();
-
-            // --- Scrollable selectable list ---
-            ImGui::BeginChild("##ProfilesOptionsList", ImVec2(0, ImGui::GetContentRegionAvail().y - ImGui::GetStyle().ItemSpacing.y - (s_rename_error_msg.empty() ? 0 : ImGui::GetTextLineHeightWithSpacing())) , true, ImGuiWindowFlags_HorizontalScrollbar);
-            {
-                for (int i = 0; i < s_profile_names.size(); ++i) {
-                    bool is_editing_this_item = (s_editing_profile_idx == i);
-                    bool is_selected_this_item = (s_selected_profile_idx == i);
-
-                    bool is_currently_loaded = (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME == s_profile_names[i]);
-
-                    if (is_currently_loaded) {
-                        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Green
-                    }
-
+					if (is_currently_loaded) {
+						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 0.0f, 1.0f)); // Green
+					}
 					if (s_profile_names[i] == "(default)") {
 						ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.54f, 0.0f, 1.0f)); // Orange
 					}
 
-                    if (is_editing_this_item) {
-                        ImGui::SetKeyboardFocusHere();
-                        ImGui::SetNextItemWidth(-FLT_MIN); 
+					if (is_editing_this_item) {
+						ImGui::SetKeyboardFocusHere();
+						ImGui::SetNextItemWidth(-FLT_MIN);
 
-                        if ((ImGui::InputText("##EditProfileName", s_edit_buffer, IM_ARRAYSIZE(s_edit_buffer), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) || (ImGui::IsMouseClicked(0) && !ImGui::IsItemHovered())) {
-                            std::string new_name_candidate = s_edit_buffer;
-                            s_rename_error_msg = ""; // Clear previous error
-                            
+						if ((ImGui::InputText("##EditProfileName", s_edit_buffer, IM_ARRAYSIZE(s_edit_buffer), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll)) || (ImGui::IsMouseClicked(0) && !ImGui::IsItemHovered())) {
+							std::string new_name_candidate = s_edit_buffer;
+							s_rename_error_msg = "";
+
 							if (new_name_candidate == "(default)") {
 								s_rename_error_msg = "Name cannot be default.";
 							}
+							if (new_name_candidate.empty()) {
+								s_rename_error_msg = "Name cannot be empty.";
+							} else {
+								for (int j = 0; j < (int)s_profile_names.size(); ++j) {
+									if (j != i && s_profile_names[j] == new_name_candidate) {
+										s_rename_error_msg = "Name already exists.";
+										break;
+									}
+								}
+							}
 
-                            if (new_name_candidate.empty()) {
-                                s_rename_error_msg = "Name cannot be empty.";
-                            } else {
-                                bool name_exists_for_another_profile = false;
-                                for (int j = 0; j < s_profile_names.size(); ++j) {
-                                    if (j != i && s_profile_names[j] == new_name_candidate) {
-                                        name_exists_for_another_profile = true;
-                                        break;
-                                    }
-                                }
-                                if (name_exists_for_another_profile) {
-                                     s_rename_error_msg = "Name already exists.";
-                                }
-                            }
-                            
-                            if (s_rename_error_msg.empty()) { // If no error
-                                if (RenameProfileInFile(G_SETTINGS_FILEPATH, s_profile_names[i], new_name_candidate)) {
-                                    s_profile_names[i] = new_name_candidate; // Update local list immediately
-                                    RefreshProfileListAndSelection();
-                                    // Re-find the selected index after sort
-                                    auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name_candidate);
-                                    if (it != s_profile_names.end()) s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
-                                    
-                                    if (G_CURRENTLY_LOADED_PROFILE_NAME == s_profile_names[i] && s_profile_names[i] != new_name_candidate) {
-                                        // This case should be handled by RenameProfileInFile updating G_CURRENTLY_LOADED_PROFILE_NAME
-                                    }
-                                    std::cout << "Renamed profile to: " << new_name_candidate << std::endl;
-                                }
-
-                                s_editing_profile_idx = -1; // Exit editing mode on success or file failure
-                            }
-                            // If s_rename_error_msg is set, stay in editing mode for user to fix.
-                        }
-
-                    } else {
-                        if (ImGui::Selectable(s_profile_names[i].c_str(), is_selected_this_item, ImGuiSelectableFlags_AllowDoubleClick)) {
-                            s_selected_profile_idx = i;
-                            if (ImGui::IsMouseDoubleClicked(0)) { // Check for double click on this item
-                                s_editing_profile_idx = i;
-                                strncpy_s(s_edit_buffer, sizeof(s_edit_buffer), s_profile_names[i].c_str(), sizeof(s_edit_buffer) - 1);
-                                s_edit_buffer[sizeof(s_edit_buffer) - 1] = '\0';
-                                s_last_click_time = -1.0f; // Reset double-click state
-                                s_rename_error_msg = ""; // Clear rename error when starting new edit
-                            } else { // Single click
-                                // Handled by s_selected_profile_idx = i;
-                                s_last_clicked_item_idx = i; // For your original double click logic if needed
-                                s_last_click_time = static_cast<float>(ImGui::GetTime());
-                            }
-                        }
-                         if (is_selected_this_item) ImGui::SetItemDefaultFocus();
-                    }
-
-					if (is_currently_loaded) {
-                        ImGui::PopStyleColor();
-                    }
-
-					if (s_profile_names[i] == "(default)") {
-						ImGui::PopStyleColor();
+							if (s_rename_error_msg.empty()) {
+								if (RenameProfileInFile(G_SETTINGS_FILEPATH, s_profile_names[i], new_name_candidate)) {
+									s_profile_names[i] = new_name_candidate;
+									RefreshProfileListAndSelection();
+									auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name_candidate);
+									if (it != s_profile_names.end()) {
+										s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+									}
+									std::cout << "Renamed profile to: " << new_name_candidate << std::endl;
+								}
+								s_editing_profile_idx = -1;
+							}
+						}
+					} else {
+						if (ImGui::Selectable(s_profile_names[i].c_str(), is_selected_this_item, ImGuiSelectableFlags_AllowDoubleClick)) {
+							s_selected_profile_idx = i;
+							if (ImGui::IsMouseDoubleClicked(0) && s_profile_names[i] != "(default)") {
+								s_editing_profile_idx = i;
+								strncpy_s(s_edit_buffer, sizeof(s_edit_buffer), s_profile_names[i].c_str(), sizeof(s_edit_buffer) - 1);
+								s_edit_buffer[sizeof(s_edit_buffer) - 1] = '\0';
+								s_last_click_time = -1.0f;
+								s_rename_error_msg = "";
+							} else {
+								s_last_clicked_item_idx = i;
+								s_last_click_time = static_cast<float>(ImGui::GetTime());
+							}
+						}
+						if (is_selected_this_item) ImGui::SetItemDefaultFocus();
 					}
-                }
-            }
-            ImGui::EndChild(); // ##ProfilesOptionsList
 
-            if (!s_rename_error_msg.empty()) {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
-                ImGui::TextWrapped("%s", s_rename_error_msg.c_str());
-                ImGui::PopStyleColor();
-            }
-
-            ImGui::End(); // ##ProfilesDropUpMenu
-            ImGui::PopStyleVar();
-        }
-    }
-}
-
-void SaveSettings(const std::string& filepath, const std::string& profile_name) {
-    json current_profile_data; // JSON object for the settings of the current profile
-
-	if (profile_name.empty() || profile_name == "(default)") {
-		return;
-    }
-
-	std::string profile_name_modified = profile_name;
-
-	// Secret code to save a default profile
-	if (profile_name == "SAVE_DEFAULT_90493") {
-		profile_name_modified = "(default)";
-	}
-
-    // Save booleans
-    for (const auto& [key, ptr] : bool_vars) {
-        if (ptr) current_profile_data[key] = *ptr;
-    }
-
-    // Save numerics
-    for (const auto& [key, var] : numeric_vars) {
-        std::visit([&](auto&& arg) {
-            if (arg) current_profile_data[key] = *arg;
-        }, var);
-    }
-
-    // Save char arrays
-    for (const auto& [key, cfg] : char_arrays) {
-        if (cfg.first) current_profile_data[key] = TrimNullChars(cfg.first, cfg.second);
-    }
-
-    // Special cases
-    if (section_amounts > 0) {
-        current_profile_data["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
-        current_profile_data["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
-    }
-
-    current_profile_data["text"] = text;
-    current_profile_data["screen_width"] = screen_width;
-    current_profile_data["screen_height"] = screen_height;
-
-    // --- Profile Handling ---
-    json root_json_output = json::object(); // This will be written to the file
-
-    std::ifstream infile(filepath);
-    if (infile.is_open()) {
-        try {
-            json existing_file_data;
-            infile >> existing_file_data;
-            infile.close();
-
-            if (existing_file_data.is_object() && !existing_file_data.empty()) {
-                bool is_already_profile_format = false;
-                // Check if any top-level key looks like a profile name (e.g., starts with "Profile ")
-                for (const auto& item : existing_file_data.items()) {
-                    if (item.key().rfind("(default)", 0) == 0 && item.value().is_object()) {
-                        is_already_profile_format = true;
-                        break;
-                    }
-                }
-
-                if (is_already_profile_format) {
-                    root_json_output = existing_file_data; // It's already in the new profile format
-                } else {
-                    // It's an object, but not in "Profile X" format.
-                    // Assume it's an old flat format if it contains recognizable settings.
-                    // This check helps differentiate an old config from an empty or unrelated JSON object.
-                    if ((!bool_vars.empty() && !bool_vars.begin()->first.empty() && existing_file_data.contains(bool_vars.begin()->first)) ||
-                        (!numeric_vars.empty() && !numeric_vars.begin()->first.empty() && existing_file_data.contains(numeric_vars.begin()->first)))
-                    {
-                        std::cout << "Old format detected during save. Converting. Old data will be under 'Profile 1'." << std::endl;
-                        root_json_output["Profile 1"] = existing_file_data; // Convert old data to "Profile 1"
-                    } else {
-                        if (!existing_file_data.empty()) {
-                             std::cerr << "Warning: Existing settings file '" << filepath << "' contains an unrecognized JSON object structure. "
-                                       << "It will be treated as a base for new profile data." << std::endl;
-                             root_json_output = existing_file_data; // Keep it if it was some other map
-                        }
-                        // If existing_file_data was empty, root_json_output is already a new empty object.
-                    }
-                }
-            }
-            // If file was empty or not a JSON object, existing_file_data might be null or non-object.
-            // In such cases, root_json_output remains a fresh json::object().
-        } catch (const json::parse_error& e) {
-            std::cerr << "JSON parse error reading '" << filepath << "' for save: " << e.what() << ". Starting with a new profile structure." << std::endl;
-            infile.close(); // Ensure file is closed on error
-            // root_json_output will be a fresh json::object()
-        }
-    }
-    // If file didn't exist, infile.is_open() was false, root_json_output is a fresh json::object().
-
-    // Add/update the current profile's settings into the root JSON
-    root_json_output[profile_name_modified] = current_profile_data;
-
-    // Ensure metadata object exists
-    if (!root_json_output.contains(METADATA_KEY) || !root_json_output[METADATA_KEY].is_object()) {
-        root_json_output[METADATA_KEY] = json::object();
-    }
-
-    // Save Last Active Profile
-    if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
-        root_json_output[METADATA_KEY][LAST_ACTIVE_PROFILE_KEY] = G_CURRENTLY_LOADED_PROFILE_NAME;
-    }
-
-    // Save Global Variables
-    root_json_output[METADATA_KEY]["shortdescriptions"] = shortdescriptions;
-    root_json_output[METADATA_KEY]["DontShowAdminWarning"] = DontShowAdminWarning;
-
-    // --- SAVE THEME DATA TO METADATA ---
-    
-    // Helper: Round to 3 decimal places
-    auto rnd = [](float val) -> double { return std::floor(val * 1000.0f + 0.5f) / 1000.0; };
-
-    auto color_to_json = [&](const ImVec4 &col) -> json {
-	    return {rnd(col.x), rnd(col.y), rnd(col.z), rnd(col.w)};
-    };
-
-
-    // 1. Save state
-    root_json_output[METADATA_KEY]["current_theme_index"] = Globals::current_theme_index;
-    root_json_output[METADATA_KEY]["show_theme_menu"] = Globals::show_theme_menu;
-
-    // 2. Save Custom Theme
-    json custom_theme_json;
-    custom_theme_json["name"] = Globals::custom_theme.name;
-    custom_theme_json["bg_dark"] = color_to_json(Globals::custom_theme.bg_dark);
-    custom_theme_json["bg_medium"] = color_to_json(Globals::custom_theme.bg_medium);
-    custom_theme_json["bg_light"] = color_to_json(Globals::custom_theme.bg_light);
-    custom_theme_json["accent_primary"] = color_to_json(Globals::custom_theme.accent_primary);
-    custom_theme_json["accent_secondary"] = color_to_json(Globals::custom_theme.accent_secondary);
-    custom_theme_json["text_primary"] = color_to_json(Globals::custom_theme.text_primary);
-    custom_theme_json["text_secondary"] = color_to_json(Globals::custom_theme.text_secondary);
-    custom_theme_json["success_color"] = color_to_json(Globals::custom_theme.success_color);
-    custom_theme_json["warning_color"] = color_to_json(Globals::custom_theme.warning_color);
-    custom_theme_json["error_color"] = color_to_json(Globals::custom_theme.error_color);
-    custom_theme_json["border_color"] = color_to_json(Globals::custom_theme.border_color);
-    custom_theme_json["disabled_color"] = color_to_json(Globals::custom_theme.disabled_color);
-    custom_theme_json["window_rounding"] = rnd(Globals::custom_theme.window_rounding);
-    custom_theme_json["frame_rounding"] = rnd(Globals::custom_theme.frame_rounding);
-    custom_theme_json["button_rounding"] = rnd(Globals::custom_theme.button_rounding);
-    
-    root_json_output[METADATA_KEY]["custom_theme"] = custom_theme_json;
-
-    // 3. Save All Themes
-    root_json_output[METADATA_KEY]["themes"] = json::object();
-    for (const auto& theme : Globals::themes) {
-        json t_json;
-        t_json["name"] = theme.name;
-        t_json["bg_dark"] = color_to_json(theme.bg_dark);
-        t_json["bg_medium"] = color_to_json(theme.bg_medium);
-        t_json["bg_light"] = color_to_json(theme.bg_light);
-        t_json["accent_primary"] = color_to_json(theme.accent_primary);
-        t_json["accent_secondary"] = color_to_json(theme.accent_secondary);
-        t_json["text_primary"] = color_to_json(theme.text_primary);
-        t_json["text_secondary"] = color_to_json(theme.text_secondary);
-        t_json["success_color"] = color_to_json(theme.success_color);
-        t_json["warning_color"] = color_to_json(theme.warning_color);
-        t_json["error_color"] = color_to_json(theme.error_color);
-        t_json["border_color"] = color_to_json(theme.border_color);
-        t_json["disabled_color"] = color_to_json(theme.disabled_color);
-        t_json["window_rounding"] = rnd(theme.window_rounding);
-        t_json["frame_rounding"] = rnd(theme.frame_rounding);
-        t_json["button_rounding"] = rnd(theme.button_rounding);
-
-        root_json_output[METADATA_KEY]["themes"][theme.name] = t_json;
-    }
-
-    // Write the root JSON (which now contains all profiles) to file
-    std::ofstream outfile(filepath);
-    if (outfile.is_open()) {
-        outfile << root_json_output.dump(4); // pretty print with 4 spaces
-        outfile.close();
-    } else {
-        std::cerr << "Error: Could not open settings file for writing: " << filepath << std::endl;
-    }
-}
-
-void LoadSettings(std::string filepath, std::string profile_name) {
-
-	if (profile_name == "") {
-		return;
-	}
-
-	std::ifstream file;
-	bool fileFound = false;
-	std::filesystem::path real_filepath;
-
-	// First try current directory
-	real_filepath = std::filesystem::current_path() / filepath;
-	file.open(real_filepath);
-	if (file.is_open()) {
-		fileFound = true;
-	}
-	else {
-		// If not found, try parent directory
-		std::filesystem::path current_path = std::filesystem::current_path();
-		if (current_path.has_parent_path()) {
-			real_filepath = current_path.parent_path() / filepath;
-			file.open(real_filepath);
-			if (file.is_open()) {
-				fileFound = true;
-			} else {
-				real_filepath = current_path.parent_path() / "SMCSettings.json"; // Yes I know this should be a variable
-				file.open(real_filepath);
-				if (file.is_open()) {
-				    fileFound = true;
-					filepath = "SMCSettings.json";
-				}
-            }
-		}
-	}
-
-	if (!fileFound) {
-		std::cerr << "Info: Settings file '" << filepath 
-				 << "' not found in current or parent directory. Using default values. Saving profile 1." << std::endl;
-		return;
-	}
-
-	json root_file_json;
-	try {
-		file >> root_file_json;
-		file.close();
-	} catch (const json::parse_error& e) {
-		std::cerr << "JSON parse error in '" << real_filepath.string() << "': " << e.what() << std::endl;
-		file.close();
-		return;
-	}
-
-	// Make default profile if it doesn't exist
-    if ((!root_file_json.contains("(default)") && (profile_name == "SAVE_DEFAULT_90493"))) {
-        SaveSettings(filepath, "SAVE_DEFAULT_90493");
-    }
-
-    // LOAD GLOBAL METADATA (Themes, etc.)
-    // We do this immediately so themes are applied even if profile loading fails or we switch profiles
-    if (root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
-        const auto& metadata = root_file_json[METADATA_KEY];
-
-        if (metadata.contains("shortdescriptions") && metadata["shortdescriptions"].is_boolean()) {
-            shortdescriptions = metadata["shortdescriptions"].get<bool>();
-        }
-
-        if (metadata.contains("DontShowAdminWarning") && metadata["DontShowAdminWarning"].is_boolean()) {
-            DontShowAdminWarning = metadata["DontShowAdminWarning"].get<bool>();
-        }
-        
-        // Load Theme State
-        Globals::current_theme_index = metadata.value("current_theme_index", 0);
-
-        auto load_color = [](const json& j, const std::string& key) -> ImVec4 {
-            if (j.contains(key) && j[key].is_array() && j[key].size() == 4) {
-                return ImVec4(j[key][0], j[key][1], j[key][2], j[key][3]);
-            }
-            return ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-        };
-
-        // Load Custom Theme
-        if (metadata.contains("custom_theme")) {
-            json c_theme_json = metadata["custom_theme"];
-            Globals::custom_theme.name = c_theme_json.value("name", "Custom Theme");
-            Globals::custom_theme.bg_dark = load_color(c_theme_json, "bg_dark");
-            Globals::custom_theme.bg_medium = load_color(c_theme_json, "bg_medium");
-            Globals::custom_theme.bg_light = load_color(c_theme_json, "bg_light");
-            Globals::custom_theme.accent_primary = load_color(c_theme_json, "accent_primary");
-            Globals::custom_theme.accent_secondary = load_color(c_theme_json, "accent_secondary");
-            Globals::custom_theme.text_primary = load_color(c_theme_json, "text_primary");
-            Globals::custom_theme.text_secondary = load_color(c_theme_json, "text_secondary");
-            Globals::custom_theme.success_color = load_color(c_theme_json, "success_color");
-            Globals::custom_theme.warning_color = load_color(c_theme_json, "warning_color");
-            Globals::custom_theme.error_color = load_color(c_theme_json, "error_color");
-            Globals::custom_theme.border_color = load_color(c_theme_json, "border_color");
-	        Globals::custom_theme.disabled_color = load_color(c_theme_json, "disabled_color");
-            Globals::custom_theme.window_rounding = c_theme_json.value("window_rounding", 0.0f);
-            Globals::custom_theme.frame_rounding = c_theme_json.value("frame_rounding", 0.0f);
-            Globals::custom_theme.button_rounding = c_theme_json.value("button_rounding", 0.0f);
-        }
-
-        // Load All Themes
-        if (metadata.contains("themes") && metadata["themes"].is_object()) {
-            for (const auto& [key, theme_json] : metadata["themes"].items()) {
-                std::string name = theme_json.value("name", key);
-
-                Theme loaded_theme = {
-                    name,
-                    load_color(theme_json, "bg_dark"),
-                    load_color(theme_json, "bg_medium"),
-                    load_color(theme_json, "bg_light"),
-                    load_color(theme_json, "accent_primary"),
-                    load_color(theme_json, "accent_secondary"),
-                    load_color(theme_json, "text_primary"),
-                    load_color(theme_json, "text_secondary"),
-                    load_color(theme_json, "success_color"),
-                    load_color(theme_json, "warning_color"),
-                    load_color(theme_json, "error_color"),
-                    load_color(theme_json, "border_color"),
-				    load_color(theme_json, "disabled_color"),
-                    theme_json.value("window_rounding", 0.0f),
-                    theme_json.value("frame_rounding", 0.0f),
-                    theme_json.value("button_rounding", 0.0f)
-                };
-
-                // Check if we already have a theme with this name
-                bool found = false;
-                for (auto& existing_theme : Globals::themes) {
-                    if (existing_theme.name == name) {
-                        existing_theme = loaded_theme; // Overwrite/Update existing
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    Globals::themes.push_back(loaded_theme); // Add new theme
-                }
-            }
-        }
-    }
-
-    json settings_to_load; // This will hold the JSON data for the specific profile
-    bool profile_data_extracted = false;
-
-    // Try to load as new format (profile-based)
-    if (root_file_json.is_object() && root_file_json.contains(profile_name)) {
-        if (root_file_json.at(profile_name).is_object()) {
-            settings_to_load = root_file_json.at(profile_name);
-            profile_data_extracted = true;
-        }
-    } else if (root_file_json.is_object() && root_file_json.contains(METADATA_KEY) && root_file_json[METADATA_KEY].is_object()) {
-        const auto& metadata = root_file_json[METADATA_KEY];
-    
-        // Try to load last active profile
-        if (metadata.contains(LAST_ACTIVE_PROFILE_KEY) && metadata[LAST_ACTIVE_PROFILE_KEY].is_string()) {
-            std::string last_active_name = metadata[LAST_ACTIVE_PROFILE_KEY].get<std::string>(); 
-        
-            // Check if the last active profile exists
-            if (root_file_json.contains(last_active_name) && root_file_json[last_active_name].is_object()) {
-                settings_to_load = root_file_json.at(last_active_name);
-                profile_name = last_active_name;
-                profile_data_extracted = true;
-            }
-        }
-    }
-
-    // If we still haven't found a profile, try to pick the last profile in the JSON
-    if (!profile_data_extracted && root_file_json.is_object()) {
-        std::string last_profile_name;
-    
-        // Iterate through all items to find the last valid profile
-        for (const auto& [key, value] : root_file_json.items()) {
-            // Skip the metadata key (if it exists)
-            if (key == METADATA_KEY) {
-                continue;
-            }
-        
-            // Only consider objects that are profiles
-            if (value.is_object()) {
-                last_profile_name = key;  // This will keep overwriting, ending with the last one
-            }
-        }
-    
-        if (!last_profile_name.empty()) {
-            settings_to_load = root_file_json.at(last_profile_name);
-            profile_name = last_profile_name;
-            profile_data_extracted = true;
-        }
-    }
-
-    // Final fallback: if nothing worked
-    if (!profile_data_extracted) {
-        std::cerr << "Warning: Could not find any valid profile in '" << filepath << "'." << std::endl;
-    }
-
-    // Backwards Compatibility: If profile wasn't found AND we are trying to load the designated "legacy" profile name
-    if (!profile_data_extracted && profile_name == "Profile 1") { // "Profile 1" is the designated default for old files
-        bool looks_like_multi_profile_file = false;
-        if (root_file_json.is_object()) {
-            for (const auto& item : root_file_json.items()) {
-                // Heuristic: if any key starts with "Profile " and its value is an object.
-                if (item.key().rfind("Profile ", 0) == 0 && item.value().is_object()) {
-                    looks_like_multi_profile_file = true;
-                    break;
-                }
-            }
-        }
-
-        // If it doesn't look like a multi-profile file and it contains recognizable settings keys at the root,
-        // then treat the root_file_json itself as the settings for "Profile 1".
-        if (!looks_like_multi_profile_file && root_file_json.is_object() &&
-            (root_file_json.contains("text") || // A common key from old format
-             (!bool_vars.empty() && !bool_vars.begin()->first.empty() && root_file_json.contains(bool_vars.begin()->first)) ||
-             (!numeric_vars.empty() && !numeric_vars.begin()->first.empty() && root_file_json.contains(numeric_vars.begin()->first))
-            ))
-        {
-            settings_to_load = root_file_json;
-            profile_data_extracted = true;
-            std::cout << "Info: Loaded legacy format file as '" << profile_name << "'." << std::endl;
-        }
-    }
-
-    if (!profile_data_extracted) {
-		if (profile_name != "SAVE_DEFAULT_90493") {
-			std::cerr << "Warning: Profile '" << profile_name << "' not found or data is invalid in '" << filepath << "'. Using current/default values." << std::endl;
-		}
-        return;
-    }
-    
-    // --- Actual loading  ---
-    try {
-        // Load booleans
-        for (const auto& [key, ptr] : bool_vars) {
-            if (ptr && settings_to_load.contains(key) && settings_to_load[key].is_boolean()) {
-                *ptr = settings_to_load[key].get<bool>();
-            }
-        }
-
-        // Load numerics
-        for (const auto& [key, var] : numeric_vars) {
-            if (!settings_to_load.contains(key)) continue;
-            std::visit([&](auto&& arg) {
-                using T = std::decay_t<decltype(*arg)>;
-                if (arg && settings_to_load[key].is_number()) {
-                    *arg = settings_to_load[key].get<T>();
-                }
-            }, var);
-        }
-
-        // Load char arrays
-        for (const auto& [key, cfg] : char_arrays) {
-            if (cfg.first && settings_to_load.contains(key) && settings_to_load[key].is_string()) {
-                std::string str_val = settings_to_load[key].get<std::string>();
-                strncpy_s(cfg.first, cfg.second, str_val.c_str(), cfg.second - 1); // Leave space for null terminator
-                cfg.first[cfg.second - 1] = '\0'; // Ensure null-termination
-            }
-        }
-
-		if (settings_to_load.contains("section_toggles") && settings_to_load["section_toggles"].is_array()) {
-            auto toggles = settings_to_load["section_toggles"].get<std::vector<bool>>();
-            size_t count = std::min(toggles.size(), static_cast<size_t>(section_amounts));
-            // Copy loaded values. Any new sections (indices >= count) keep their default values set at the top of the file.
-            std::copy(toggles.begin(), toggles.begin() + count, section_toggles);
-        }
-
-		if (settings_to_load.contains("section_order_vector") && settings_to_load["section_order_vector"].is_array()) {
-            auto order = settings_to_load["section_order_vector"].get<std::vector<int>>();
-                
-            // 1. HACKY SOLUTION: Add in Bunnyhop Location to older save files
-            // We apply this to 'order' BEFORE processing it further
-            if (std::find(order.begin(), order.end(), 13) == order.end() && order.size() >= 6) {
-                    if (order.size() >= 7) {
-                        order.insert(order.begin() + 7, 13); // Insert at index 6 (7th element)
-                    }
-            }
-			// Add in Lagswitch location to older save files
-			if (std::find(order.begin(), order.end(), 15) == order.end() && order.size() >= 4) {
-				if (order.size() >= 5) {
-					order.insert(order.begin() + 4, 15); // Insert at index 4 (5th element)
+					if (is_currently_loaded) ImGui::PopStyleColor();
+					if (s_profile_names[i] == "(default)") ImGui::PopStyleColor();
 				}
 			}
-        
-            // Filter duplicates and fill missing IDs
-            std::vector<int> final_order;
-            std::vector<bool> id_exists(section_amounts, false);
+			ImGui::EndChild();
 
-            // Add loaded items ONLY if they are valid and NOT duplicates
-            for (int id : order) {
-                if (id >= 0 && id < section_amounts) {
-                    if (!id_exists[id]) {
-                        final_order.push_back(id);
-                        id_exists[id] = true;
-                    }
-                }
-            }
+			if (!s_rename_error_msg.empty()) {
+				ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
+				ImGui::TextWrapped("%s", s_rename_error_msg.c_str());
+				ImGui::PopStyleColor();
+			}
 
-            // Find any new IDs (like 15) that weren't in the file and append them
-            for (int i = 0; i < section_amounts; ++i) {
-                if (!id_exists[i]) {
-                    final_order.push_back(i);
-                }
-            }
-
-            // Update the global array correctly
-            size_t count = std::min(final_order.size(), static_cast<size_t>(section_amounts));
-            for (size_t i = 0; i < count; ++i) {
-                section_order[i] = final_order[i];
-            }
-        }
-
-        if (settings_to_load.contains("text") && settings_to_load["text"].is_string()) {
-            text = settings_to_load["text"].get<std::string>();
-        }
-        if (settings_to_load.contains("screen_width") && settings_to_load["screen_width"].is_number_integer()) {
-            screen_width = settings_to_load.value("screen_width", screen_width);
-        }
-        if (settings_to_load.contains("screen_height") && settings_to_load["screen_height"].is_number_integer()) {
-            screen_height = settings_to_load.value("screen_height", screen_height);
-        }
-
-    } catch (const json::exception& e) {
-        std::cerr << "Load error processing profile '" << profile_name << "': " << e.what() << '\n';
-    }
+			ImGui::End();
+			ImGui::PopStyleVar();
+		}
+	}
 }

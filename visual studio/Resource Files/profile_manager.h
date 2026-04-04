@@ -3,10 +3,15 @@
 #include <vector>
 
 
+// --- File Resolution ---
+std::string ResolveSettingsFilePath();
+
 // --- Core Settings Logic ---
 void SaveSettings(const std::string& filepath, const std::string& profile_name);
 void LoadSettings(std::string filepath, std::string profile_name);
 bool TryLoadLastActiveProfile(std::string filepath);
+void SaveDefaultProfile(const std::string& filepath);
+std::string PromoteDefaultProfileIfDirty(const std::string& filepath);
 
 // --- Profile Manipulation ---
 std::vector<std::string> GetProfileNames(const std::string& filepath);

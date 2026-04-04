@@ -830,36 +830,12 @@ static void SetWorkingDirectoryToExecutablePath() // Allows non-standard executi
     }
 }
 
-static bool renameRMCToSMC() {
-    namespace fs = std::filesystem;
-    const fs::path source = "RMCSettings.json";
-    const fs::path target = "SMCSettings.json";
-
-    // Check if the source exists
-    if (!fs::exists(target)) {
-	    if (fs::exists(source)) {
-		    try {
-			    // Rename the file
-			    fs::rename(source, target);
-			    return true;
-		    } catch (const fs::filesystem_error &e) {
-			    std::cerr << "Error renaming file: " << e.what() << std::endl;
-			    return false;
-		    }
-	    }
-    }
-    
-    // Source didn't exist, so no action needed.
-    return true;
-}
-
 // START OF GUI
 static void RunGUI() {
 	// Set working directory to correct path
     SetWorkingDirectoryToExecutablePath();
 
-	renameRMCToSMC();
-    G_SETTINGS_FILEPATH = getSettingsFileName();
+	G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
 
 	// Setup Linux Compatibility Layer if Needed
 	InitLinuxCompatLayer();
@@ -877,16 +853,10 @@ static void RunGUI() {
 	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 	wc.hIconSm = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 
-	// Check and load if settings currently exist
-	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+	// Snapshot compile-time defaults as the read-only (default) profile (must come before loading any user profile)
+	SaveDefaultProfile(G_SETTINGS_FILEPATH);
 
-	// Override old default profile to new one
-	SaveSettings(G_SETTINGS_FILEPATH, "SAVE_DEFAULT_90493");
-
-	renameRMCToSMC();
-    G_SETTINGS_FILEPATH = getSettingsFileName();
-	
-	// Reload Save file again since we updated our defaults
+	// Load last active profile (handles legacy format conversion automatically)
 	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
 
 	RegisterClassEx(&wc);
@@ -2679,7 +2649,7 @@ static void RunGUI() {
 					}
 
                     if (ImGui::IsItemHovered()) {
-                        ImGui::SetTooltip("Filters only Roblox traffic. Uncheck this AND Only Lag Switch Roblox to block EVERYTHING.");
+                        ImGui::SetTooltip("Filters only Roblox traffic.");
 					}
 
 					if (ImGui::Checkbox("Also Block TCP (Websites)", &lagswitchusetcp)) {
@@ -3016,6 +2986,15 @@ void CreateDebugConsole() {
         freopen_s(&pCin, "CONIN$", "r", stdin);   // Redirect stdin
 
         SetConsoleTitle(L"SMC Debug Console");
+
+        // Apply high-quality app icon to the console window
+        HWND hConsole = GetConsoleWindow();
+        if (hConsole) {
+            HICON hIconLarge = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+            HICON hIconSmall = (HICON)LoadImage(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
+            SendMessage(hConsole, WM_SETICON, ICON_BIG,   (LPARAM)hIconLarge);
+            SendMessage(hConsole, WM_SETICON, ICON_SMALL, (LPARAM)hIconSmall);
+        }
 
         std::cout.sync_with_stdio(true);
     }
@@ -3693,8 +3672,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 				}
 			}
         } else {
-            // Safety: If module is disabled or tabbed out, ensure we aren't blocking internet
-            if (!section_toggles[15]) {
+            // Safety: If module is disabled or macrotoggle is off, ensure we aren't blocking internet
+            if (!section_toggles[15] || !macrotoggled) {
                 g_windivert_blocking = false;
             }
         }
@@ -3858,15 +3837,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	screen_width = screen_rect.right - screen_rect.left;
 	screen_height = screen_rect.bottom - screen_rect.top;
 
-	// If save file, save normally, if not, save as Profile 1
-	if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+	// Auto-promote (default) edits to a named profile if settings were changed
+	PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);
+
+	// Save current profile on exit
+	if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
 		SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
-	} else {
-		std::ifstream file(G_SETTINGS_FILEPATH);
-		if (!file.is_open()) {
-			G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-			SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
-		}
 	}
 
 	if (g_keyboardHook) {

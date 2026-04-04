@@ -21,7 +21,7 @@ LRESULT CALLBACK OverlayWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 void UpdateLagswitchOverlay()
 {
 	// 1. Determine Visibility
-	bool shouldExist = show_lag_overlay && bWinDivertEnabled;
+	bool shouldExist = show_lag_overlay && bWinDivertEnabled && macrotoggled;
 	if (overlay_hide_inactive && !g_windivert_blocking.load())
 		shouldExist = false;
 
