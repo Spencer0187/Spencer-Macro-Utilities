@@ -457,39 +457,38 @@ std::vector<pid_t> find_all_processes_by_exes_or_pids(const std::string& input) 
     }), pids.end());
 
 
-    // If there are no executable names, we’re done
+    // If there are no executable names, we're done
     if (exe_names.empty()) return pids;
 
     // Scan /proc for processes matching executable names
     DIR* dir = opendir("/proc");
     if (!dir) return pids;
 
+    pids.clear();
     struct dirent* entry;
     while ((entry = readdir(dir)) != nullptr) {
         pid_t pid = atoi(entry->d_name);
         if (pid <= 0) continue;
 
-        std::string exe_path = "/proc/" + std::string(entry->d_name) + "/exe";
-        char link_target[4096] = {0};
-        ssize_t len = readlink(exe_path.c_str(), link_target, sizeof(link_target) - 1);
-        if (len == -1) continue; // cannot read (permission or gone)
-        link_target[len] = '\0';
-        std::string target_path(link_target);
-
-        bool matched = false;
-        for (const auto& exe : exe_names) {
-            if (target_path.size() >= exe.size() &&
-                target_path.compare(target_path.size() - exe.size(), exe.size(), exe) == 0) {
-                matched = true;
-                pids.push_back(pid);
+        std::string comm_path = "/proc/" + std::string(entry->d_name) + "/comm";
+        std::ifstream comm_file(comm_path);
+        if (comm_file) {
+            std::string comm;
+            std::getline(comm_file, comm);
+            
+            for (const auto& exe : exe_names) {
+                if (comm == exe) {
+                    pids.push_back(pid);
+                    break;
+                }
             }
-            if (matched) break;
         }
     }
 
     closedir(dir);
     return pids;
 }
+
 
 /**
  * @brief Replaces the old "newest" process finder with a reliable method.
