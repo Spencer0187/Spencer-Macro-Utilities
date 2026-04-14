@@ -3352,6 +3352,15 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			if (selected_spamkey_instance >= static_cast<int>(spamkey_instances.size()))
 				selected_spamkey_instance = static_cast<int>(spamkey_instances.size()) - 1;
 		}
+		// Start threads for extra instances that were loaded from a save file
+		if (g_extra_instances_loaded.exchange(false)) {
+			while (wallhop_threads.size() < wallhop_instances.size())
+				wallhop_threads.emplace_back(WallhopThread, &wallhop_instances[wallhop_threads.size()]);
+			while (presskey_threads.size() < presskey_instances.size())
+				presskey_threads.emplace_back(PressKeyThread, &presskey_instances[presskey_threads.size()]);
+			while (spamkey_threads.size() < spamkey_instances.size())
+				spamkey_threads.emplace_back(SpamKeyLoop, &spamkey_instances[spamkey_threads.size()]);
+		}
 		// Freeze
 		if ((macrotoggled && notbinding && section_toggles[0])) {
 			bool isMButtonPressed = IsHotkeyPressed(vk_mbutton);

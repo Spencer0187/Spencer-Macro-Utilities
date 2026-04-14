@@ -534,4 +534,8 @@ namespace Globals {
     inline std::atomic<bool> request_remove_wallhop_instance{false};
     inline std::atomic<bool> request_remove_presskey_instance{false};
     inline std::atomic<bool> request_remove_spamkey_instance{false};
+
+    // Set by DeserializeProfileData after populating extra instances in the deques;
+    // the main loop detects this flag and starts threads for the newly added slots.
+    inline std::atomic<bool> g_extra_instances_loaded{false};
 }
