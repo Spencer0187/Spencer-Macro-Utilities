@@ -114,19 +114,19 @@ void SpeedglitchloopHHJ()
     }
 }
 
-void SpamKeyLoop()
+void SpamKeyLoop(Globals::SpamkeyInstance* inst)
 {
     while (running)
     {
-        while (running && !isspamloop) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (!running) break;
+        while (running && !inst->should_exit && !inst->thread_active.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running || inst->should_exit) break;
 
-        if (macrotoggled && notbinding && section_toggles[11])
+        if (macrotoggled && notbinding && inst->section_enabled)
         {
-            HoldKeyBinded(vk_spamkey);
-            std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
-            ReleaseKeyBinded(vk_spamkey);
-            std::this_thread::sleep_for(std::chrono::milliseconds(real_delay));
+            HoldKeyBinded(inst->vk_spamkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(inst->real_delay));
+            ReleaseKeyBinded(inst->vk_spamkey);
+            std::this_thread::sleep_for(std::chrono::milliseconds(inst->real_delay));
         }
     }
 }
@@ -204,57 +204,57 @@ void BhopLoop()
 }
 
 
-void WallhopThread()
+void WallhopThread(Globals::WallhopInstance* inst)
 {
     while (running)
     {
-        while (running && !iswallhopthread.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (!running) break;
+        while (running && !inst->should_exit && !inst->thread_active.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running || inst->should_exit) break;
 
-        if (wallhopswitch) MoveMouse(-wallhop_dx, 0);
-        else MoveMouse(wallhop_dx, 0);
+        if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dx, 0);
+        else MoveMouse(inst->wallhop_dx, 0);
 
-        if (toggle_flick)
+        if (inst->toggle_flick)
         {
-            if (WallhopBonusDelay > 0 && WallhopBonusDelay < WallhopDelay)
+            if (inst->WallhopBonusDelay > 0 && inst->WallhopBonusDelay < inst->WallhopDelay)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(WallhopBonusDelay));
-                if (toggle_jump) HoldKey(0x39);
-                std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay - WallhopBonusDelay));
+                std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopBonusDelay));
+                if (inst->toggle_jump) HoldKey(0x39);
+                std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopDelay - inst->WallhopBonusDelay));
             }
-            else { if (toggle_jump) HoldKey(0x39); std::this_thread::sleep_for(std::chrono::milliseconds(WallhopDelay)); }
+            else { if (inst->toggle_jump) HoldKey(0x39); std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopDelay)); }
 
-            if (wallhopswitch) MoveMouse(-wallhop_dy, 0);
-            else MoveMouse(wallhop_dy, 0);
+            if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dy, 0);
+            else MoveMouse(inst->wallhop_dy, 0);
         }
-        else { if (toggle_jump) HoldKey(0x39); }
+        else { if (inst->toggle_jump) HoldKey(0x39); }
 
-        if (toggle_jump)
+        if (inst->toggle_jump)
         {
-            if (100 - WallhopDelay > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100 - WallhopDelay));
+            if (100 - inst->WallhopDelay > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100 - inst->WallhopDelay));
             ReleaseKey(0x39);
         }
 
-        iswallhopthread = false;
+        inst->thread_active.store(false, std::memory_order_relaxed);
     }
 }
 
-void PressKeyThread()
+void PressKeyThread(Globals::PresskeyInstance* inst)
 {
     while (running)
     {
-        while (running && !ispresskeythread.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        if (!running) break;
+        while (running && !inst->should_exit && !inst->thread_active.load(std::memory_order_relaxed)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (!running || inst->should_exit) break;
 
-        if (vk_zkey == vk_dkey) ReleaseKeyBinded(vk_zkey);
+        if (inst->vk_trigger == inst->vk_presskey) ReleaseKeyBinded(inst->vk_trigger);
 
-        if (PressKeyBonusDelay != 0) std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyBonusDelay));
+        if (inst->PressKeyBonusDelay != 0) std::this_thread::sleep_for(std::chrono::milliseconds(inst->PressKeyBonusDelay));
 
-        HoldKeyBinded(vk_dkey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(PressKeyDelay));
-        ReleaseKeyBinded(vk_dkey);
+        HoldKeyBinded(inst->vk_presskey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(inst->PressKeyDelay));
+        ReleaseKeyBinded(inst->vk_presskey);
 
-        ispresskeythread = false;
+        inst->thread_active.store(false, std::memory_order_relaxed);
     }
 }
 
