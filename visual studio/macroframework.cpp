@@ -3621,13 +3621,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		for (auto& inst : spamkey_instances) {
 			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled) {
 				if (!inst.isRunning) {
-					inst.thread_active = !inst.thread_active;
+					inst.thread_active.store(!inst.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
 					inst.isRunning = true;
 				}
 			} else {
 				inst.isRunning = false;
 				if (inst.isspamswitch) {
-					inst.thread_active = false;
+					inst.thread_active.store(false, std::memory_order_relaxed);
 				}
 			}
 		}

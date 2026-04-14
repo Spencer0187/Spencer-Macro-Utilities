@@ -493,7 +493,7 @@ namespace Globals {
 
     struct SpamkeyInstance {
         // Config
-        unsigned int vk_trigger = 0xDB;   // VK_OEM_4 ('[') on US layout; updated at startup
+        unsigned int vk_trigger = 0xDB;   // VK_OEM_4 ('[') on US layout; synced from vk_leftbracket at startup
         unsigned int vk_spamkey = VK_LBUTTON;
         float spam_delay        = 20.0f;
         int   real_delay        = 1000;
