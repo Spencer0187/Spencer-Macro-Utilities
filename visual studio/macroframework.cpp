@@ -529,6 +529,125 @@ struct BindingState {
 // Global map to store binding states for each key variable
 static std::unordered_map<unsigned int *, BindingState> g_bindingStates;
 
+struct InstanceRemoveConfirmState {
+	int stage = 0;
+	float timer = 0.0f;
+	int section_index = -1;
+	int target_instance_index = -1;
+};
+
+static InstanceRemoveConfirmState g_instance_remove_confirm_state{};
+
+static void ResetInstanceRemoveConfirmState() {
+	g_instance_remove_confirm_state = {};
+}
+
+static std::string BuildMultiInstanceName(int sectionIndex, int oneBasedIndex) {
+	if (sectionIndex >= 0 && sectionIndex < static_cast<int>(sections.size())) {
+		return sections[sectionIndex].title + " " + std::to_string(oneBasedIndex);
+	}
+	return "Instance " + std::to_string(oneBasedIndex);
+}
+
+static int GetInstanceRemovalTargetIndex(size_t instanceCount, int selectedIndex) {
+	if (instanceCount <= 1) {
+		return -1;
+	}
+
+	const int lastIndex = static_cast<int>(instanceCount) - 1;
+	if (selectedIndex > 0 && selectedIndex <= lastIndex) {
+		return selectedIndex;
+	}
+
+	return lastIndex;
+}
+
+static int GetCurrentRemovalTargetForSection(int sectionIndex) {
+	if (sectionIndex == 5) {
+		return GetInstanceRemovalTargetIndex(presskey_instances.size(), selected_presskey_instance);
+	}
+	if (sectionIndex == 6) {
+		return GetInstanceRemovalTargetIndex(wallhop_instances.size(), selected_wallhop_instance);
+	}
+	if (sectionIndex == 11) {
+		return GetInstanceRemovalTargetIndex(spamkey_instances.size(), selected_spamkey_instance);
+	}
+
+	return -1;
+}
+
+static void CopyWallhopInstanceData(const WallhopInstance& src, WallhopInstance& dst) {
+	dst.wallhop_dx = src.wallhop_dx;
+	dst.wallhop_dy = src.wallhop_dy;
+	dst.WallhopDelay = src.WallhopDelay;
+	dst.WallhopBonusDelay = src.WallhopBonusDelay;
+	strncpy_s(dst.WallhopPixels, sizeof(dst.WallhopPixels), src.WallhopPixels, _TRUNCATE);
+	strncpy_s(dst.WallhopDelayChar, sizeof(dst.WallhopDelayChar), src.WallhopDelayChar, _TRUNCATE);
+	strncpy_s(dst.WallhopBonusDelayChar, sizeof(dst.WallhopBonusDelayChar), src.WallhopBonusDelayChar, _TRUNCATE);
+	strncpy_s(dst.WallhopDegrees, sizeof(dst.WallhopDegrees), src.WallhopDegrees, _TRUNCATE);
+	dst.wallhopswitch = src.wallhopswitch;
+	dst.toggle_jump = src.toggle_jump;
+	dst.toggle_flick = src.toggle_flick;
+	dst.wallhopcamfix = src.wallhopcamfix;
+	dst.section_enabled = src.section_enabled;
+	dst.vk_trigger = src.vk_trigger;
+	dst.thread_active.store(src.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
+	dst.should_exit = false;
+	dst.isRunning = src.isRunning;
+}
+
+static void CopyPresskeyInstanceData(const PresskeyInstance& src, PresskeyInstance& dst) {
+	dst.vk_trigger = src.vk_trigger;
+	dst.vk_presskey = src.vk_presskey;
+	dst.PressKeyDelay = src.PressKeyDelay;
+	dst.PressKeyBonusDelay = src.PressKeyBonusDelay;
+	strncpy_s(dst.PressKeyDelayChar, sizeof(dst.PressKeyDelayChar), src.PressKeyDelayChar, _TRUNCATE);
+	strncpy_s(dst.PressKeyBonusDelayChar, sizeof(dst.PressKeyBonusDelayChar), src.PressKeyBonusDelayChar, _TRUNCATE);
+	dst.presskeyinroblox = src.presskeyinroblox;
+	dst.section_enabled = src.section_enabled;
+	dst.thread_active.store(src.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
+	dst.should_exit = false;
+	dst.isRunning = src.isRunning;
+}
+
+static void CopySpamkeyInstanceData(const SpamkeyInstance& src, SpamkeyInstance& dst) {
+	dst.vk_trigger = src.vk_trigger;
+	dst.vk_spamkey = src.vk_spamkey;
+	dst.spam_delay = src.spam_delay;
+	dst.real_delay = src.real_delay;
+	strncpy_s(dst.SpamDelay, sizeof(dst.SpamDelay), src.SpamDelay, _TRUNCATE);
+	dst.isspamswitch = src.isspamswitch;
+	dst.section_enabled = src.section_enabled;
+	dst.thread_active.store(src.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
+	dst.should_exit = false;
+	dst.isRunning = src.isRunning;
+}
+
+template <typename T, typename CopyFn>
+static void RemoveRequestedInstance(std::deque<T>& instances, std::deque<std::thread>& threads, int requestedIndex, CopyFn copyFn) {
+	if (instances.size() <= 1 || threads.empty() || instances.size() != threads.size()) {
+		return;
+	}
+
+	const int lastIndex = static_cast<int>(instances.size()) - 1;
+	int removeIndex = requestedIndex;
+	if (removeIndex <= 0 || removeIndex > lastIndex) {
+		removeIndex = lastIndex;
+	}
+
+	for (int i = removeIndex; i < lastIndex; ++i) {
+		copyFn(instances[i + 1], instances[i]);
+	}
+
+	instances[lastIndex].thread_active.store(false, std::memory_order_relaxed);
+	instances[lastIndex].should_exit = true;
+	if (threads[lastIndex].joinable()) {
+		threads[lastIndex].join();
+	}
+	threads.pop_back();
+	instances.pop_back();
+}
+
 static bool IsHotkeyPressed(unsigned int combinedKey) {
     // Extract the Virtual Key
     unsigned int vk = combinedKey & HOTKEY_KEY_MASK;
@@ -1114,6 +1233,24 @@ static void RunGUI() {
             ImGui::Begin("Main SMU Window", nullptr, window_flags); // Main ImGui window
 			ImGui::PopStyleVar();
 
+			// Manage remove-instance confirmation timer and context consistency.
+			if (g_instance_remove_confirm_state.stage != 0) {
+				g_instance_remove_confirm_state.timer -= io.DeltaTime;
+				bool should_reset = (g_instance_remove_confirm_state.timer <= 0.0f);
+
+				const int currentTarget = GetCurrentRemovalTargetForSection(g_instance_remove_confirm_state.section_index);
+				if (currentTarget < 0 || currentTarget != g_instance_remove_confirm_state.target_instance_index) {
+					should_reset = true;
+				}
+				if (selected_section != g_instance_remove_confirm_state.section_index) {
+					should_reset = true;
+				}
+
+				if (should_reset) {
+					ResetInstanceRemoveConfirmState();
+				}
+			}
+
 			// Admin Warning Popup
 			if (bShowAdminPopup) {
 				ImGui::OpenPopup("Administrator Required");
@@ -1257,16 +1394,16 @@ static void RunGUI() {
 			ImGui::SetNextItemWidth(70.0f);
 			if (ImGui::InputText("##Sens", RobloxSensValue, sizeof(RobloxSensValue), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 				PreviousSensValue = -1;
-				// Update Wallhop Degrees every change only if sensitivity is not zero/null
+				// Update Wallhop pixels for ALL instances whenever sensitivity changes
 				float sensValue = static_cast<float>(std::atof(RobloxSensValue));
 				if (sensValue != 0.0f) {
-					float pixels = static_cast<float>(std::atof(WallhopDegrees)) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * sensValue);
-					snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
-					try {
-						wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
-						wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
-					} catch (const std::invalid_argument &e) {
-					} catch (const std::out_of_range &e) {
+					for (auto& winst : wallhop_instances) {
+						float pixels = static_cast<float>(std::atof(winst.WallhopDegrees)) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * sensValue);
+						snprintf(winst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), "%.0f", pixels);
+						try {
+							winst.wallhop_dx = static_cast<int>(std::round(std::stoi(winst.WallhopPixels)));
+							winst.wallhop_dy = -static_cast<int>(std::round(std::stoi(winst.WallhopPixels)));
+						} catch (...) {}
 					}
 				}
 			}
@@ -1293,20 +1430,20 @@ static void RunGUI() {
 				PreviousSensValue = -1;
 
 				PreviousWallWalkValue = -1;
-				try {
-					if (wallhopupdate) {
-						float factor = camfixtoggle ? 1.388888889f : 1.0f / 1.388888889f;
-						if (wallhopswitch) {
-							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels) * (camfixtoggle ? -factor : factor)));
-							wallhop_dy = static_cast<int>(std::round(std::stoi(WallhopPixels) * (camfixtoggle ? factor : -factor)));
-						} else {
-							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels) * factor));
-							wallhop_dy = static_cast<int>(std::round(std::stoi(WallhopPixels) * -factor));
-							sprintf(WallhopPixels, "%d", wallhop_dx);
-						}
+				if (wallhopupdate) {
+					float factor = camfixtoggle ? 1.388888889f : 1.0f / 1.388888889f;
+					for (auto& winst : wallhop_instances) {
+						try {
+							if (winst.wallhopswitch) {
+								winst.wallhop_dx = static_cast<int>(std::round(std::stoi(winst.WallhopPixels) * (camfixtoggle ? -factor : factor)));
+								winst.wallhop_dy = static_cast<int>(std::round(std::stoi(winst.WallhopPixels) * (camfixtoggle ? factor : -factor)));
+							} else {
+								winst.wallhop_dx = static_cast<int>(std::round(std::stoi(winst.WallhopPixels) * factor));
+								winst.wallhop_dy = static_cast<int>(std::round(std::stoi(winst.WallhopPixels) * -factor));
+								snprintf(winst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), "%d", winst.wallhop_dx);
+							}
+						} catch (...) {}
 					}
-				} catch (const std::invalid_argument &) {
-				} catch (const std::out_of_range &) {
 				}
 
 				float CurrentWallWalkValue = static_cast<float>(atof(RobloxSensValue)); // Wallwalk
@@ -1588,7 +1725,17 @@ static void RunGUI() {
 									col.w);
 				};
 
-				if (section_toggles[i]) {
+				// For duplicatable sections, the main sidebar entry reflects instance 0 only.
+				bool sectionActive = section_toggles[i];
+				if (i == 5) {
+					sectionActive = !presskey_instances.empty() && presskey_instances[0].section_enabled;
+				} else if (i == 6) {
+					sectionActive = !wallhop_instances.empty() && wallhop_instances[0].section_enabled;
+				} else if (i == 11) {
+					sectionActive = !spamkey_instances.empty() && spamkey_instances[0].section_enabled;
+				}
+
+				if (sectionActive) {
 					// ACTIVE (Toggled On) - Use Accent Primary
 					if (selected_section == i) {
 						// Selected: Make it significantly brighter
@@ -1626,10 +1773,17 @@ static void RunGUI() {
 				if (ImGui::GetScrollMaxY() == 0) {
 					if (ImGui::Button("", ImVec2(buttonWidth - 7, buttonHeight))) {
 						selected_section = i;
+						// Reset instance selection when clicking the section header
+						if (i == 5) selected_presskey_instance = 0;
+						else if (i == 6) selected_wallhop_instance = 0;
+						else if (i == 11) selected_spamkey_instance = 0;
 					}
 				} else {
 					if (ImGui::Button("", ImVec2(buttonWidth - 18, buttonHeight))) {
 						selected_section = i;
+						if (i == 5) selected_presskey_instance = 0;
+						else if (i == 6) selected_wallhop_instance = 0;
+						else if (i == 11) selected_spamkey_instance = 0;
 					}
 				}
 
@@ -1691,6 +1845,65 @@ static void RunGUI() {
 				ImGui::PopStyleColor(3);
 				ImGui::PopID();
 
+				// ---- Sub-buttons for duplicatable sections ----
+				if (i == 5 || i == 6 || i == 11) {
+					float indentW = 0.0f;
+					float subBtnW = (ImGui::GetScrollMaxY() == 0) ? (buttonWidth - 7 - indentW) : (buttonWidth - 18 - indentW);
+
+					// Determine instance count and which instance is currently selected
+					size_t instCount = (i == 5) ? presskey_instances.size()
+					                 : (i == 6) ? wallhop_instances.size()
+					                 :             spamkey_instances.size();
+					int& selInst    = (i == 5) ? selected_presskey_instance
+					                : (i == 6) ? selected_wallhop_instance
+					                :             selected_spamkey_instance;
+
+					// Show sub-button for instances 1+  (instance 0 = the section header above)
+					for (size_t j = 1; j < instCount; ++j) {
+						ImGui::PushID(static_cast<int>(j) * 1000 + i);
+						ImGui::SetCursorPosX(ImGui::GetCursorPosX() + indentW);
+
+						bool instEnabled = (i == 5) ? presskey_instances[j].section_enabled
+						                : (i == 6) ? wallhop_instances[j].section_enabled
+						                :             spamkey_instances[j].section_enabled;
+
+						if (instEnabled) {
+							bool isSelJ = (selected_section == i && selInst == (int)j);
+							if (isSelJ) ImGui::PushStyleColor(ImGuiCol_Button, Brighten(theme.accent_primary, 1.4f));
+							else        ImGui::PushStyleColor(ImGuiCol_Button, theme.accent_primary);
+						} else {
+							bool isSelJ = (selected_section == i && selInst == (int)j);
+							if (isSelJ) ImGui::PushStyleColor(ImGuiCol_Button, Brighten(theme.disabled_color, 1.6f));
+							else        ImGui::PushStyleColor(ImGuiCol_Button, theme.disabled_color);
+						}
+						ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.accent_primary, 1.3f));
+						ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.accent_primary, 0.8f));
+
+						std::string subLabel = BuildMultiInstanceName(i, static_cast<int>(j) + 1);
+						if (ImGui::Button(subLabel.c_str(), ImVec2(subBtnW, 0))) {
+							selected_section = i;
+							selInst = static_cast<int>(j);
+						}
+						ImGui::PopStyleColor(3);
+						ImGui::PopID();
+					}
+
+					// '+' button to add a new instance
+					ImGui::PushID(9999 + i);
+					ImGui::SetCursorPosX(ImGui::GetCursorPosX() + indentW);
+					ImGui::PushStyleColor(ImGuiCol_Button,        theme.bg_light);
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.bg_light, 1.3f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive,  Brighten(theme.bg_light, 1.1f));
+					if (ImGui::Button("+", ImVec2(subBtnW, 0))) {
+						if (i == 5)  request_new_presskey_instance = true;
+						else if (i == 6) request_new_wallhop_instance  = true;
+						else if (i == 11) request_new_spamkey_instance = true;
+					}
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("Add a new independent instance of this macro");
+					ImGui::PopStyleColor(3);
+					ImGui::PopID();
+				}
+
 				ImGui::Separator();
 			}
 
@@ -1709,12 +1922,40 @@ static void RunGUI() {
 
 			// Display different content based on the selected section
 			if (selected_section >= 0 && selected_section < sections.size()) {
-				// Get the binding state for this section's key
-				unsigned int* currentKey = section_to_key.at(selected_section);
+				// For duplicatable sections (5, 6, 11) use the selected instance's trigger key;
+				// for all other sections use the shared section_to_key map.
+				unsigned int* currentKey = nullptr;
+				bool* instanceEnabledPtr = nullptr;
+				if (selected_section == 5 && !presskey_instances.empty()) {
+					auto& inst = presskey_instances[selected_presskey_instance];
+					currentKey         = &inst.vk_trigger;
+					instanceEnabledPtr = &inst.section_enabled;
+				} else if (selected_section == 6 && !wallhop_instances.empty()) {
+					auto& inst = wallhop_instances[selected_wallhop_instance];
+					currentKey         = &inst.vk_trigger;
+					instanceEnabledPtr = &inst.section_enabled;
+				} else if (selected_section == 11 && !spamkey_instances.empty()) {
+					auto& inst = spamkey_instances[selected_spamkey_instance];
+					currentKey         = &inst.vk_trigger;
+					instanceEnabledPtr = &inst.section_enabled;
+				} else {
+					currentKey = section_to_key.at(selected_section);
+				}
 				BindingState& state = g_bindingStates[currentKey];
     
 				// Display section title and keybind UI
-				ImGui::TextWrapped("Settings for %s", sections[selected_section].title.c_str());
+				if (selected_section == 5 && presskey_instances.size() > 1) {
+					std::string activeLabel = BuildMultiInstanceName(selected_section, selected_presskey_instance + 1);
+					ImGui::TextWrapped("Settings for %s", activeLabel.c_str());
+				} else if (selected_section == 6 && wallhop_instances.size() > 1) {
+					std::string activeLabel = BuildMultiInstanceName(selected_section, selected_wallhop_instance + 1);
+					ImGui::TextWrapped("Settings for %s", activeLabel.c_str());
+				} else if (selected_section == 11 && spamkey_instances.size() > 1) {
+					std::string activeLabel = BuildMultiInstanceName(selected_section, selected_spamkey_instance + 1);
+					ImGui::TextWrapped("Settings for %s", activeLabel.c_str());
+				} else {
+					ImGui::TextWrapped("Settings for %s", sections[selected_section].title.c_str());
+				}
 				ImGui::Separator();
 				ImGui::NewLine();
 				ImGui::TextWrapped("Keybind:");
@@ -1730,12 +1971,9 @@ static void RunGUI() {
 				ImGui::SameLine();
 
 				// Handle key bindings for all sections
-				if (section_to_key.count(selected_section)) {
-					*currentKey = BindKeyMode(currentKey, *currentKey, selected_section);
-					ImGui::SetNextItemWidth(170.0f);
-        
-					GetKeyNameFromHex(*currentKey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-				}
+				*currentKey = BindKeyMode(currentKey, *currentKey, selected_section);
+				ImGui::SetNextItemWidth(170.0f);
+				GetKeyNameFromHex(*currentKey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
 
 				// Use the state's keyBuffer for display
 				ImGui::InputText("##KeyBufferHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
@@ -1748,13 +1986,20 @@ static void RunGUI() {
 
 				ImGui::SameLine();
 				ImGui::TextWrapped("(Hexadecimal)");
-				ImGui::PushStyleColor(ImGuiCol_Text, section_toggles[selected_section] ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
+
+				// Enable/disable toggle — per-instance for sections 5, 6, 11
+				bool toggleVal = instanceEnabledPtr ? *instanceEnabledPtr : section_toggles[selected_section];
+				ImGui::PushStyleColor(ImGuiCol_Text, toggleVal ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
 				ImGui::TextWrapped("Enable This Macro:");
 				ImGui::PopStyleColor();
 				ImGui::SameLine();
 				if (selected_section >= 0 && selected_section < section_amounts) {
-					ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), 
-									&section_toggles[selected_section]);
+					if (instanceEnabledPtr) {
+						ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), instanceEnabledPtr);
+					} else {
+						ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(),
+										&section_toggles[selected_section]);
+					}
 				}
 
 				if (selected_section == 0) { // Freeze Macro
@@ -2198,118 +2443,194 @@ static void RunGUI() {
 				}
 
 				if (selected_section == 5) { // Presskey / Press a Key
-					// Get the binding state for vk_dkey
-					BindingState& dkeyState = g_bindingStates[&vk_dkey];
+					if (presskey_instances.empty()) { ImGui::TextWrapped("No presskey instances."); }
+					else {
+					PresskeyInstance& inst = presskey_instances[selected_presskey_instance];
+					std::string sid = "_pk" + std::to_string(selected_presskey_instance);
+
+					// Instance management bar
+					if (presskey_instances.size() > 1) {
+						std::string activeLabel = BuildMultiInstanceName(5, selected_presskey_instance + 1);
+						ImGui::TextWrapped("%s of %d", activeLabel.c_str(), static_cast<int>(presskey_instances.size()));
+						ImGui::SameLine();
+					}
+					if (ImGui::Button(("+ Add New##AddPK" + sid).c_str())) request_new_presskey_instance = true;
+					if (presskey_instances.size() > 1) {
+						const int removeTarget = GetInstanceRemovalTargetIndex(presskey_instances.size(), selected_presskey_instance);
+						const bool removingMainSlot = (selected_presskey_instance == 0);
+						const bool isConfirmArmed = g_instance_remove_confirm_state.stage == 1 &&
+							g_instance_remove_confirm_state.section_index == 5 &&
+							g_instance_remove_confirm_state.target_instance_index == removeTarget;
+
+						ImGui::SameLine();
+						if (isConfirmArmed) {
+							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+						}
+
+						std::string removeButtonLabel = removingMainSlot ? "- Remove Last Instance" : "- Remove Current Instance";
+						bool removeClicked = ImGui::Button((removeButtonLabel + "##RemPK" + sid).c_str());
+
+						if (isConfirmArmed) {
+							ImGui::PopStyleColor(4);
+						}
+
+						if (removeClicked) {
+							if (isConfirmArmed) {
+								request_remove_presskey_instance_index.store(removeTarget, std::memory_order_release);
+								ResetInstanceRemoveConfirmState();
+							} else {
+								g_instance_remove_confirm_state.stage = 1;
+								g_instance_remove_confirm_state.timer = 0.7f;
+								g_instance_remove_confirm_state.section_index = 5;
+								g_instance_remove_confirm_state.target_instance_index = removeTarget;
+							}
+						}
+					}
+					ImGui::Separator();
+
+					// Get the binding state for vk_presskey of this instance
+					BindingState& dkeyState = g_bindingStates[&inst.vk_presskey];
     
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
     
-					if (ImGui::Button((dkeyState.buttonText + "##DKey").c_str())) {
+					if (ImGui::Button((dkeyState.buttonText + "##DKey" + sid).c_str())) {
 						dkeyState.bindingMode = true;
 						dkeyState.notBinding = false;
 						dkeyState.buttonText = "Press a Key...";
 					}
     
 					ImGui::SameLine();
-					vk_dkey = BindKeyMode(&vk_dkey, vk_dkey, selected_section);
+					inst.vk_presskey = BindKeyMode(&inst.vk_presskey, inst.vk_presskey, selected_section);
 					ImGui::SetNextItemWidth(170.0f);
-					GetKeyNameFromHex(vk_dkey, dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman));
-					ImGui::InputText("Key to Press", dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+					GetKeyNameFromHex(inst.vk_presskey, dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman));
+					ImGui::InputText(("Key to Press##" + sid).c_str(), dkeyState.keyBufferHuman, sizeof(dkeyState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(130.0f);
-					ImGui::PushID("Press2");
-					// Use the state's keyBuffer for hex display
+					ImGui::PushID(("PK_Press2" + sid).c_str());
 					ImGui::InputText("(Hexadecimal)", dkeyState.keyBuffer, sizeof(dkeyState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
 					ImGui::Text("Length of Second Button Press (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(80);
-					if (ImGui::InputText("##PressKeyDelayChar", PressKeyDelayChar, sizeof(PressKeyDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							PressKeyDelay = std::stoi(PressKeyDelayChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+					if (ImGui::InputText(("##PressKeyDelayChar" + sid).c_str(), inst.PressKeyDelayChar, sizeof(PresskeyInstance::PressKeyDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { inst.PressKeyDelay = std::stoi(inst.PressKeyDelayChar); } catch (...) {}
 					}
 
 					ImGui::Text("Delay Before Second Press (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(80);
-					if (ImGui::InputText("##PressKeyBonusDelayChar", PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							PressKeyBonusDelay = std::stoi(PressKeyBonusDelayChar);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+					if (ImGui::InputText(("##PressKeyBonusDelayChar" + sid).c_str(), inst.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { inst.PressKeyBonusDelay = std::stoi(inst.PressKeyBonusDelayChar); } catch (...) {}
 					}
 
-
-					ImGui::Checkbox("Make PressKey only work while tabbed into Roblox", &presskeyinroblox);
+					ImGui::Checkbox(("Make PressKey only work while tabbed into Roblox##" + sid).c_str(), &inst.presskeyinroblox);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind. "
 										"This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
+					} // end if !empty
 				}
 
 				if (selected_section == 6) { // Wallhop
+					if (wallhop_instances.empty()) { ImGui::TextWrapped("No wallhop instances."); }
+					else {
+					WallhopInstance& inst = wallhop_instances[selected_wallhop_instance];
+					std::string sid = "_wh" + std::to_string(selected_wallhop_instance);
+
+					// Instance management bar
+					if (wallhop_instances.size() > 1) {
+						std::string activeLabel = BuildMultiInstanceName(6, selected_wallhop_instance + 1);
+						ImGui::TextWrapped("%s of %d", activeLabel.c_str(), static_cast<int>(wallhop_instances.size()));
+						ImGui::SameLine();
+					}
+					if (ImGui::Button(("+ Add New##AddWH" + sid).c_str())) request_new_wallhop_instance = true;
+					if (wallhop_instances.size() > 1) {
+						const int removeTarget = GetInstanceRemovalTargetIndex(wallhop_instances.size(), selected_wallhop_instance);
+						const bool removingMainSlot = (selected_wallhop_instance == 0);
+						const bool isConfirmArmed = g_instance_remove_confirm_state.stage == 1 &&
+							g_instance_remove_confirm_state.section_index == 6 &&
+							g_instance_remove_confirm_state.target_instance_index == removeTarget;
+
+						ImGui::SameLine();
+						if (isConfirmArmed) {
+							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+						}
+
+						std::string removeButtonLabel = removingMainSlot ? "- Remove Last Instance" : "- Remove Current Instance";
+						bool removeClicked = ImGui::Button((removeButtonLabel + "##RemWH" + sid).c_str());
+
+						if (isConfirmArmed) {
+							ImGui::PopStyleColor(4);
+						}
+
+						if (removeClicked) {
+							if (isConfirmArmed) {
+								request_remove_wallhop_instance_index.store(removeTarget, std::memory_order_release);
+								ResetInstanceRemoveConfirmState();
+							} else {
+								g_instance_remove_confirm_state.stage = 1;
+								g_instance_remove_confirm_state.timer = 0.7f;
+								g_instance_remove_confirm_state.section_index = 6;
+								g_instance_remove_confirm_state.target_instance_index = removeTarget;
+							}
+						}
+					}
+					ImGui::Separator();
+
 					ImGui::TextWrapped("Flick Degrees (Estimated):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
 					float sensValue = static_cast<float>(std::atof(RobloxSensValue));
 					if (sensValue != 0.0f) {
-						snprintf(WallhopDegrees, sizeof(WallhopDegrees), "%d", static_cast<int>(360 * (std::atof(WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
+						snprintf(inst.WallhopDegrees, sizeof(WallhopInstance::WallhopDegrees), "%d",
+							static_cast<int>(360 * (std::atof(inst.WallhopPixels) * std::atof(RobloxSensValue)) / (camfixtoggle ? 1000 : 720)));
 					}
 					
-					if (ImGui::InputText("##WallhopDegrees", WallhopDegrees, sizeof(WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						float pixels = static_cast<float>(std::atof(WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue)));
-						snprintf(WallhopPixels, sizeof(WallhopPixels), "%.0f", pixels);
+					if (ImGui::InputText(("##WallhopDegrees" + sid).c_str(), inst.WallhopDegrees, sizeof(WallhopInstance::WallhopDegrees), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						float pixels = static_cast<float>(std::atof(inst.WallhopDegrees) * (camfixtoggle ? 1000.0f : 720.0f) / (360.0f * std::atof(RobloxSensValue)));
+						snprintf(inst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), "%.0f", pixels);
 						try {
-							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
-							wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+							inst.wallhop_dx = static_cast<int>(std::round(std::stoi(inst.WallhopPixels)));
+							inst.wallhop_dy = -static_cast<int>(std::round(std::stoi(inst.WallhopPixels)));
+						} catch (...) {}
 					}
 
 					ImGui::TextWrapped("Flick Pixel Amount:");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopPixels", WallhopPixels, sizeof(WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+					if (ImGui::InputText(("##WallhopPixels" + sid).c_str(), inst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-							wallhop_dx = static_cast<int>(std::round(std::stoi(WallhopPixels)));
-							wallhop_dy = -static_cast<int>(std::round(std::stoi(WallhopPixels)));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+							inst.wallhop_dx = static_cast<int>(std::round(std::stoi(inst.WallhopPixels)));
+							inst.wallhop_dy = -static_cast<int>(std::round(std::stoi(inst.WallhopPixels)));
+						} catch (...) {}
 					}
 
 					ImGui::TextWrapped("Wallhop Length (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopDelay", WallhopDelayChar, sizeof(WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							WallhopDelay = static_cast<int>(std::round(std::stoi(WallhopDelayChar)));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+					if (ImGui::InputText(("##WallhopDelay" + sid).c_str(), inst.WallhopDelayChar, sizeof(WallhopInstance::WallhopDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { inst.WallhopDelay = static_cast<int>(std::round(std::stoi(inst.WallhopDelayChar))); } catch (...) {}
 					}
 
 					ImGui::TextWrapped("Bonus Wallhop Delay Before Jumping (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
-					if (ImGui::InputText("##WallhopBonusDelay", WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-						try {
-							WallhopBonusDelay = static_cast<int>(std::round(std::stoi(WallhopBonusDelayChar)));
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+					if (ImGui::InputText(("##WallhopBonusDelay" + sid).c_str(), inst.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { inst.WallhopBonusDelay = static_cast<int>(std::round(std::stoi(inst.WallhopBonusDelayChar))); } catch (...) {}
 					}
 
-					ImGui::Checkbox("Switch to Left-Flick Wallhop", &wallhopswitch); // Left Sided wallhop switch
-					ImGui::Checkbox("Jump During Wallhop", &toggle_jump);
-					ImGui::Checkbox("Flick-Back During Wallhop", &toggle_flick);
+					ImGui::Checkbox(("Switch to Left-Flick Wallhop##" + sid).c_str(), &inst.wallhopswitch);
+					ImGui::Checkbox(("Jump During Wallhop##" + sid).c_str(), &inst.toggle_jump);
+					ImGui::Checkbox(("Flick-Back During Wallhop##" + sid).c_str(), &inst.toggle_flick);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
@@ -2323,6 +2644,7 @@ static void RunGUI() {
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("This Macro automatically flicks your screen AND jumps at the same time, performing a wallhop.");
+					} // end if !empty
 				}
 
 				if (selected_section == 7) { // Walless LHJ
@@ -2440,44 +2762,91 @@ static void RunGUI() {
 			}
 
 				if (selected_section == 11) { // Spamkey
-					BindingState& spamState = g_bindingStates[&vk_spamkey];
+					if (spamkey_instances.empty()) { ImGui::TextWrapped("No spamkey instances."); }
+					else {
+					SpamkeyInstance& inst = spamkey_instances[selected_spamkey_instance];
+					std::string sid = "_sk" + std::to_string(selected_spamkey_instance);
+
+					// Instance management bar
+					if (spamkey_instances.size() > 1) {
+						std::string activeLabel = BuildMultiInstanceName(11, selected_spamkey_instance + 1);
+						ImGui::TextWrapped("%s of %d", activeLabel.c_str(), static_cast<int>(spamkey_instances.size()));
+						ImGui::SameLine();
+					}
+					if (ImGui::Button(("+ Add New##AddSK" + sid).c_str())) request_new_spamkey_instance = true;
+					if (spamkey_instances.size() > 1) {
+						const int removeTarget = GetInstanceRemovalTargetIndex(spamkey_instances.size(), selected_spamkey_instance);
+						const bool removingMainSlot = (selected_spamkey_instance == 0);
+						const bool isConfirmArmed = g_instance_remove_confirm_state.stage == 1 &&
+							g_instance_remove_confirm_state.section_index == 11 &&
+							g_instance_remove_confirm_state.target_instance_index == removeTarget;
+
+						ImGui::SameLine();
+						if (isConfirmArmed) {
+							ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+							ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 1.0f, 0.0f, 1.0f));
+						}
+
+						std::string removeButtonLabel = removingMainSlot ? "- Remove Last Instance" : "- Remove Current Instance";
+						bool removeClicked = ImGui::Button((removeButtonLabel + "##RemSK" + sid).c_str());
+
+						if (isConfirmArmed) {
+							ImGui::PopStyleColor(4);
+						}
+
+						if (removeClicked) {
+							if (isConfirmArmed) {
+								request_remove_spamkey_instance_index.store(removeTarget, std::memory_order_release);
+								ResetInstanceRemoveConfirmState();
+							} else {
+								g_instance_remove_confirm_state.stage = 1;
+								g_instance_remove_confirm_state.timer = 0.7f;
+								g_instance_remove_confirm_state.section_index = 11;
+								g_instance_remove_confirm_state.target_instance_index = removeTarget;
+							}
+						}
+					}
+					ImGui::Separator();
+
+					BindingState& spamState = g_bindingStates[&inst.vk_spamkey];
     
 					ImGui::TextWrapped("Key to Press:");
 					ImGui::SameLine();
-					if (ImGui::Button((spamState.buttonText + "##").c_str())) {
+					if (ImGui::Button((spamState.buttonText + "##SpamKey" + sid).c_str())) {
 						spamState.bindingMode = true;
 						spamState.notBinding = false;
 						spamState.buttonText = "Press a Key...";
 					}
 					ImGui::SameLine();
-					vk_spamkey = BindKeyMode(&vk_spamkey, vk_spamkey, selected_section);
+					inst.vk_spamkey = BindKeyMode(&inst.vk_spamkey, inst.vk_spamkey, selected_section);
 					ImGui::SetNextItemWidth(170.0f);
-					GetKeyNameFromHex(vk_spamkey, spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman));
-					ImGui::InputText("Key to Press", spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
+					GetKeyNameFromHex(inst.vk_spamkey, spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman));
+					ImGui::InputText(("Key to Press##" + sid).c_str(), spamState.keyBufferHuman, sizeof(spamState.keyBufferHuman), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_ReadOnly);
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(130.0f);
-					ImGui::PushID("Press2");
+					ImGui::PushID(("SK_Press2" + sid).c_str());
 					ImGui::InputText("(Hexadecimal)", spamState.keyBuffer, sizeof(spamState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal);
 					ImGui::PopID();
 					ImGui::TextWrapped("Spam Delay (Milliseconds):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(120.0f);
-					if (ImGui::InputText("##SpamDelay", SpamDelay, sizeof(SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+					if (ImGui::InputText(("##SpamDelay" + sid).c_str(), inst.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try {
-						spam_delay = std::stof(SpamDelay);
-						real_delay = static_cast<int>((spam_delay + 0.5f) / 2);
-						} catch (const std::invalid_argument &e) {
-						} catch (const std::out_of_range &e) {
-						}
+							inst.spam_delay = std::stof(inst.SpamDelay);
+							inst.real_delay  = static_cast<int>((inst.spam_delay + 0.5f) / 2);
+						} catch (...) {}
 					}
 
 					ImGui::TextWrapped("I do not take any responsibility if you set the delay to 0ms");
-					ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspamswitch);
+					ImGui::Checkbox(("Switch from Toggle Key to Hold Key##" + sid).c_str(), &inst.isspamswitch);
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
 					ImGui::TextWrapped("This macro will spam the second key with a millisecond delay. "
 										"This can be used as an autoclicker for any games you want, or a key-spam.");
+					} // end if !empty
 				}
 
 				if (selected_section == 12) { // Ledge Bounce
@@ -3065,15 +3434,27 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	// Setup suspension
 
+	// Initialize duplicatable macro instances with default values (settings loaded later by GUI thread)
+	wallhop_instances.emplace_back();
+	wallhop_instances[0].vk_trigger = vk_xbutton2;
+
+	presskey_instances.emplace_back();
+	presskey_instances[0].vk_trigger  = vk_zkey;
+	presskey_instances[0].vk_presskey = vk_dkey;
+
+	spamkey_instances.emplace_back();
+	spamkey_instances[0].vk_trigger = vk_leftbracket;
+	spamkey_instances[0].vk_spamkey = vk_spamkey;
+
 	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, lets functions run alongside
 	std::thread actionThread2(ItemDesyncLoop);
 	std::thread actionThread3(SpeedglitchloopHHJ);
-	std::thread actionThread4(SpamKeyLoop);
+	spamkey_threads.emplace_back(SpamKeyLoop, &spamkey_instances[0]);
 	std::thread actionThread5(ItemClipLoop);
 	std::thread actionThread6(WallWalkLoop);
 	std::thread actionThread7(BhopLoop);
-	std::thread actionThread8(WallhopThread);
-	std::thread actionThread9(PressKeyThread);
+	wallhop_threads.emplace_back(WallhopThread, &wallhop_instances[0]);
+	presskey_threads.emplace_back(PressKeyThread, &presskey_instances[0]);
 	std::thread actionThread10(FloorBounceThread);
 	std::thread logScannerThread(RobloxLogScannerThread);
 
@@ -3130,6 +3511,81 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	bool tabbedintoroblox = IsForegroundWindowProcess(hProcess);
     {
 		tabbedintoroblox = IsForegroundWindowProcess(hProcess);
+
+		// --- Handle new/remove instance requests from GUI thread ---
+		// Wallhop
+		if (request_new_wallhop_instance.exchange(false)) {
+			wallhop_instances.emplace_back();
+			auto& src = wallhop_instances.front();
+			auto& dst = wallhop_instances.back();
+			dst.vk_trigger = src.vk_trigger;
+			dst.WallhopDelay = src.WallhopDelay;
+			dst.WallhopBonusDelay = src.WallhopBonusDelay;
+			strncpy_s(dst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), src.WallhopPixels, _TRUNCATE);
+			strncpy_s(dst.WallhopDelayChar, sizeof(WallhopInstance::WallhopDelayChar), src.WallhopDelayChar, _TRUNCATE);
+			strncpy_s(dst.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), src.WallhopBonusDelayChar, _TRUNCATE);
+			strncpy_s(dst.WallhopDegrees, sizeof(WallhopInstance::WallhopDegrees), src.WallhopDegrees, _TRUNCATE);
+			dst.wallhop_dx = src.wallhop_dx;  dst.wallhop_dy = src.wallhop_dy;
+			dst.wallhopswitch = src.wallhopswitch;  dst.toggle_jump = src.toggle_jump;
+			dst.toggle_flick = src.toggle_flick;    dst.wallhopcamfix = src.wallhopcamfix;
+			dst.section_enabled = false; // start disabled; user enables explicitly
+			wallhop_threads.emplace_back(WallhopThread, &wallhop_instances.back());
+			selected_wallhop_instance = static_cast<int>(wallhop_instances.size()) - 1;
+		}
+		const int remove_wallhop_index = request_remove_wallhop_instance_index.exchange(-1, std::memory_order_acq_rel);
+		if (remove_wallhop_index >= 0 && wallhop_instances.size() > 1) {
+			RemoveRequestedInstance(wallhop_instances, wallhop_threads, remove_wallhop_index, CopyWallhopInstanceData);
+			if (selected_wallhop_instance >= static_cast<int>(wallhop_instances.size()))
+				selected_wallhop_instance = static_cast<int>(wallhop_instances.size()) - 1;
+		}
+		// Presskey
+		if (request_new_presskey_instance.exchange(false)) {
+			presskey_instances.emplace_back();
+			auto& src = presskey_instances.front();
+			auto& dst = presskey_instances.back();
+			dst.vk_trigger = src.vk_trigger;  dst.vk_presskey = src.vk_presskey;
+			dst.PressKeyDelay = src.PressKeyDelay;  dst.PressKeyBonusDelay = src.PressKeyBonusDelay;
+			strncpy_s(dst.PressKeyDelayChar, sizeof(PresskeyInstance::PressKeyDelayChar), src.PressKeyDelayChar, _TRUNCATE);
+			strncpy_s(dst.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), src.PressKeyBonusDelayChar, _TRUNCATE);
+			dst.presskeyinroblox = src.presskeyinroblox;
+			dst.section_enabled = false;
+			presskey_threads.emplace_back(PressKeyThread, &presskey_instances.back());
+			selected_presskey_instance = static_cast<int>(presskey_instances.size()) - 1;
+		}
+		const int remove_presskey_index = request_remove_presskey_instance_index.exchange(-1, std::memory_order_acq_rel);
+		if (remove_presskey_index >= 0 && presskey_instances.size() > 1) {
+			RemoveRequestedInstance(presskey_instances, presskey_threads, remove_presskey_index, CopyPresskeyInstanceData);
+			if (selected_presskey_instance >= static_cast<int>(presskey_instances.size()))
+				selected_presskey_instance = static_cast<int>(presskey_instances.size()) - 1;
+		}
+		// Spamkey
+		if (request_new_spamkey_instance.exchange(false)) {
+			spamkey_instances.emplace_back();
+			auto& src = spamkey_instances.front();
+			auto& dst = spamkey_instances.back();
+			dst.vk_trigger = src.vk_trigger;  dst.vk_spamkey = src.vk_spamkey;
+			dst.spam_delay = src.spam_delay;   dst.real_delay = src.real_delay;
+			strncpy_s(dst.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), src.SpamDelay, _TRUNCATE);
+			dst.isspamswitch = src.isspamswitch;
+			dst.section_enabled = false;
+			spamkey_threads.emplace_back(SpamKeyLoop, &spamkey_instances.back());
+			selected_spamkey_instance = static_cast<int>(spamkey_instances.size()) - 1;
+		}
+		const int remove_spamkey_index = request_remove_spamkey_instance_index.exchange(-1, std::memory_order_acq_rel);
+		if (remove_spamkey_index >= 0 && spamkey_instances.size() > 1) {
+			RemoveRequestedInstance(spamkey_instances, spamkey_threads, remove_spamkey_index, CopySpamkeyInstanceData);
+			if (selected_spamkey_instance >= static_cast<int>(spamkey_instances.size()))
+				selected_spamkey_instance = static_cast<int>(spamkey_instances.size()) - 1;
+		}
+		// Start threads for extra instances that were loaded from a save file
+		if (g_extra_instances_loaded.exchange(false)) {
+			while (wallhop_threads.size() < wallhop_instances.size())
+				wallhop_threads.emplace_back(WallhopThread, &wallhop_instances[wallhop_threads.size()]);
+			while (presskey_threads.size() < presskey_instances.size())
+				presskey_threads.emplace_back(PressKeyThread, &presskey_instances[presskey_threads.size()]);
+			while (spamkey_threads.size() < spamkey_instances.size())
+				spamkey_threads.emplace_back(SpamKeyLoop, &spamkey_instances[spamkey_threads.size()]);
+		}
 		// Freeze
 		if ((macrotoggled && notbinding && section_toggles[0])) {
 			bool isMButtonPressed = IsHotkeyPressed(vk_mbutton);
@@ -3186,26 +3642,30 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			isdesyncloop.store(false, std::memory_order_relaxed);
 		}
 
-		// PressKey
-		if (IsHotkeyPressed(vk_zkey) && macrotoggled && notbinding && section_toggles[5] && (!presskeyinroblox || tabbedintoroblox)) {
-			if (!ispresskey) {
-				ispresskeythread.store(true, std::memory_order_relaxed);
-				ispresskey = true;
+		// PressKey — loop over all instances
+		for (auto& inst : presskey_instances) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.presskeyinroblox || tabbedintoroblox)) {
+				if (!inst.isRunning) {
+					inst.thread_active.store(true, std::memory_order_relaxed);
+					inst.isRunning = true;
+				}
+			} else {
+				inst.isRunning = false;
+				inst.thread_active.store(false, std::memory_order_relaxed);
 			}
-		} else {
-			ispresskey = false;
-			ispresskeythread.store(false, std::memory_order_relaxed);
 		}
 
-		// Wallhop (Ran in separate thread)
-		if (IsHotkeyPressed(vk_xbutton2) && macrotoggled && notbinding && section_toggles[6]) {
-			if (!iswallhop) {
-				iswallhopthread.store(true, std::memory_order_relaxed);
-				iswallhop = true;
+		// Wallhop — loop over all instances
+		for (auto& inst : wallhop_instances) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled) {
+				if (!inst.isRunning) {
+					inst.thread_active.store(true, std::memory_order_relaxed);
+					inst.isRunning = true;
 				}
-		} else {
-			iswallhopthread.store(false, std::memory_order_relaxed);
-			iswallhop = false;
+			} else {
+				inst.thread_active.store(false, std::memory_order_relaxed);
+				inst.isRunning = false;
+			}
 		}
 
 		// Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
@@ -3382,16 +3842,18 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			HHJ = false;
 		}
 
-		// Spamkey
-		if (IsHotkeyPressed(vk_leftbracket) && macrotoggled && notbinding && section_toggles[11]) {
-			if (!isspam) {
-				isspamloop = !isspamloop;
-				isspam = true;
-			}
-		} else {
-			isspam = false;
-			if (isspamswitch) {
-				isspamloop = false;
+		// Spamkey — loop over all instances
+		for (auto& inst : spamkey_instances) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled) {
+				if (!inst.isRunning) {
+					inst.thread_active.store(!inst.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
+					inst.isRunning = true;
+				}
+			} else {
+				inst.isRunning = false;
+				if (inst.isspamswitch) {
+					inst.thread_active.store(false, std::memory_order_relaxed);
+				}
 			}
 		}
 
@@ -3860,12 +4322,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	actionThread.join();
 	actionThread2.join();
 	actionThread3.join();
-	actionThread4.join();
+	for (auto& t : spamkey_threads) t.join();
 	actionThread5.join();
 	actionThread6.join();
 	actionThread7.join();
-	actionThread8.join();
-	actionThread9.join();
+	for (auto& t : wallhop_threads) t.join();
+	for (auto& t : presskey_threads) t.join();
 	actionThread10.join();
 
 	SafeCloseWinDivert();

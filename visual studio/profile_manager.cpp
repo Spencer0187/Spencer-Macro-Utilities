@@ -362,6 +362,35 @@ static std::string FindBestProfile(const json& root, const std::string& requeste
 static json SerializeProfileData() {
 	json data;
 
+	// Sync instances[0] → flat globals so the existing variable maps reflect current state
+	if (!wallhop_instances.empty()) {
+		auto& w = wallhop_instances[0];
+		wallhopswitch  = w.wallhopswitch;    wallhopcamfix  = w.wallhopcamfix;
+		toggle_jump    = w.toggle_jump;       toggle_flick   = w.toggle_flick;
+		wallhop_dx     = w.wallhop_dx;        wallhop_dy     = w.wallhop_dy;
+		vk_xbutton2    = w.vk_trigger;
+		strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         w.WallhopPixels,         _TRUNCATE);
+		strncpy_s(WallhopDelayChar,      sizeof(WallhopDelayChar),      w.WallhopDelayChar,      _TRUNCATE);
+		strncpy_s(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), w.WallhopBonusDelayChar, _TRUNCATE);
+		section_toggles[6] = w.section_enabled;
+	}
+	if (!presskey_instances.empty()) {
+		auto& p = presskey_instances[0];
+		presskeyinroblox = p.presskeyinroblox;
+		vk_zkey = p.vk_trigger;   vk_dkey = p.vk_presskey;
+		strncpy_s(PressKeyDelayChar,      sizeof(PressKeyDelayChar),      p.PressKeyDelayChar,      _TRUNCATE);
+		strncpy_s(PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), p.PressKeyBonusDelayChar, _TRUNCATE);
+		section_toggles[5] = p.section_enabled;
+	}
+	if (!spamkey_instances.empty()) {
+		auto& s = spamkey_instances[0];
+		isspamswitch   = s.isspamswitch;
+		spam_delay     = s.spam_delay;    real_delay     = s.real_delay;
+		vk_spamkey     = s.vk_spamkey;   vk_leftbracket = s.vk_trigger;
+		strncpy_s(SpamDelay, sizeof(SpamDelay), s.SpamDelay, _TRUNCATE);
+		section_toggles[11] = s.section_enabled;
+	}
+
 	for (const auto& [key, ptr] : bool_vars) {
 		if (ptr) data[key] = *ptr;
 	}
@@ -381,6 +410,66 @@ static json SerializeProfileData() {
 	data["text"] = text;
 	data["screen_width"] = screen_width;
 	data["screen_height"] = screen_height;
+
+	// Serialize extra wallhop instances (index 1+)
+	if (wallhop_instances.size() > 1) {
+		json whArr = json::array();
+		for (size_t j = 1; j < wallhop_instances.size(); ++j) {
+			const auto& w = wallhop_instances[j];
+			json jw;
+			jw["vk_trigger"]           = w.vk_trigger;
+			jw["wallhop_dx"]           = w.wallhop_dx;
+			jw["wallhop_dy"]           = w.wallhop_dy;
+			jw["WallhopDelay"]         = w.WallhopDelay;
+			jw["WallhopBonusDelay"]    = w.WallhopBonusDelay;
+			jw["WallhopPixels"]        = TrimNullChars(w.WallhopPixels,         sizeof(WallhopInstance::WallhopPixels));
+			jw["WallhopDelayChar"]     = TrimNullChars(w.WallhopDelayChar,      sizeof(WallhopInstance::WallhopDelayChar));
+			jw["WallhopBonusDelayChar"]= TrimNullChars(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar));
+			jw["WallhopDegrees"]       = TrimNullChars(w.WallhopDegrees,        sizeof(WallhopInstance::WallhopDegrees));
+			jw["wallhopswitch"]        = w.wallhopswitch;
+			jw["toggle_jump"]          = w.toggle_jump;
+			jw["toggle_flick"]         = w.toggle_flick;
+			jw["wallhopcamfix"]        = w.wallhopcamfix;
+			jw["section_enabled"]      = w.section_enabled;
+			whArr.push_back(jw);
+		}
+		data["extra_wallhop_instances"] = whArr;
+	}
+	// Serialize extra presskey instances (index 1+)
+	if (presskey_instances.size() > 1) {
+		json pkArr = json::array();
+		for (size_t j = 1; j < presskey_instances.size(); ++j) {
+			const auto& p = presskey_instances[j];
+			json jp;
+			jp["vk_trigger"]           = p.vk_trigger;
+			jp["vk_presskey"]          = p.vk_presskey;
+			jp["PressKeyDelay"]        = p.PressKeyDelay;
+			jp["PressKeyBonusDelay"]   = p.PressKeyBonusDelay;
+			jp["PressKeyDelayChar"]    = TrimNullChars(p.PressKeyDelayChar,      sizeof(PresskeyInstance::PressKeyDelayChar));
+			jp["PressKeyBonusDelayChar"]= TrimNullChars(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar));
+			jp["presskeyinroblox"]     = p.presskeyinroblox;
+			jp["section_enabled"]      = p.section_enabled;
+			pkArr.push_back(jp);
+		}
+		data["extra_presskey_instances"] = pkArr;
+	}
+	// Serialize extra spamkey instances (index 1+)
+	if (spamkey_instances.size() > 1) {
+		json skArr = json::array();
+		for (size_t j = 1; j < spamkey_instances.size(); ++j) {
+			const auto& s = spamkey_instances[j];
+			json js;
+			js["vk_trigger"]    = s.vk_trigger;
+			js["vk_spamkey"]    = s.vk_spamkey;
+			js["spam_delay"]    = s.spam_delay;
+			js["real_delay"]    = s.real_delay;
+			js["SpamDelay"]     = TrimNullChars(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay));
+			js["isspamswitch"]  = s.isspamswitch;
+			js["section_enabled"]= s.section_enabled;
+			skArr.push_back(js);
+		}
+		data["extra_spamkey_instances"] = skArr;
+	}
 
 	return data;
 }
@@ -463,6 +552,117 @@ static void DeserializeProfileData(const json& settings) {
 		}
 		if (settings.contains("screen_height") && settings["screen_height"].is_number_integer()) {
 			screen_height = settings.value("screen_height", screen_height);
+		}
+
+		// Sync flat globals → instances[0] (for backwards compatibility)
+		if (!wallhop_instances.empty()) {
+			auto& w = wallhop_instances[0];
+			w.wallhopswitch = wallhopswitch;  w.wallhopcamfix = wallhopcamfix;
+			w.toggle_jump   = toggle_jump;    w.toggle_flick  = toggle_flick;
+			w.wallhop_dx    = wallhop_dx;     w.wallhop_dy    = wallhop_dy;
+			w.vk_trigger    = vk_xbutton2;
+			strncpy_s(w.WallhopPixels,         sizeof(WallhopInstance::WallhopPixels),         WallhopPixels,         _TRUNCATE);
+			strncpy_s(w.WallhopDelayChar,      sizeof(WallhopInstance::WallhopDelayChar),      WallhopDelayChar,      _TRUNCATE);
+			strncpy_s(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), WallhopBonusDelayChar, _TRUNCATE);
+			w.section_enabled = section_toggles[6];
+			try { w.WallhopDelay      = std::stoi(WallhopDelayChar); }      catch (...) {}
+			try { w.WallhopBonusDelay = std::stoi(WallhopBonusDelayChar); } catch (...) {}
+		}
+		if (!presskey_instances.empty()) {
+			auto& p = presskey_instances[0];
+			p.presskeyinroblox = presskeyinroblox;
+			p.vk_trigger = vk_zkey;  p.vk_presskey = vk_dkey;
+			strncpy_s(p.PressKeyDelayChar,      sizeof(PresskeyInstance::PressKeyDelayChar),      PressKeyDelayChar,      _TRUNCATE);
+			strncpy_s(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), PressKeyBonusDelayChar, _TRUNCATE);
+			p.section_enabled = section_toggles[5];
+			try { p.PressKeyDelay      = std::stoi(PressKeyDelayChar); }      catch (...) {}
+			try { p.PressKeyBonusDelay = std::stoi(PressKeyBonusDelayChar); } catch (...) {}
+		}
+		if (!spamkey_instances.empty()) {
+			auto& s = spamkey_instances[0];
+			s.isspamswitch = isspamswitch;
+			s.spam_delay   = spam_delay;   s.real_delay = real_delay;
+			s.vk_spamkey   = vk_spamkey;  s.vk_trigger = vk_leftbracket;
+			strncpy_s(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), SpamDelay, _TRUNCATE);
+			s.section_enabled = section_toggles[11];
+		}
+
+		// Load extra instances (index 1+) that were saved in previous sessions.
+		// Threads for these will be started by the main loop when it detects g_extra_instances_loaded.
+		bool extra_loaded = false;
+		if (settings.contains("extra_wallhop_instances") && settings["extra_wallhop_instances"].is_array()) {
+			for (const auto& jw : settings["extra_wallhop_instances"]) {
+				wallhop_instances.emplace_back();
+				auto& w = wallhop_instances.back();
+				w.vk_trigger     = jw.value("vk_trigger", static_cast<unsigned int>(VK_XBUTTON2));
+				w.wallhop_dx     = jw.value("wallhop_dx", 300);
+				w.wallhop_dy     = jw.value("wallhop_dy", -300);
+				w.WallhopDelay   = jw.value("WallhopDelay", 17);
+				w.WallhopBonusDelay = jw.value("WallhopBonusDelay", 0);
+				if (jw.contains("WallhopPixels") && jw["WallhopPixels"].is_string()) {
+					std::string s = jw["WallhopPixels"].get<std::string>();
+					strncpy_s(w.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), s.c_str(), _TRUNCATE);
+				}
+				if (jw.contains("WallhopDelayChar") && jw["WallhopDelayChar"].is_string()) {
+					std::string s = jw["WallhopDelayChar"].get<std::string>();
+					strncpy_s(w.WallhopDelayChar, sizeof(WallhopInstance::WallhopDelayChar), s.c_str(), _TRUNCATE);
+				}
+				if (jw.contains("WallhopBonusDelayChar") && jw["WallhopBonusDelayChar"].is_string()) {
+					std::string s = jw["WallhopBonusDelayChar"].get<std::string>();
+					strncpy_s(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), s.c_str(), _TRUNCATE);
+				}
+				if (jw.contains("WallhopDegrees") && jw["WallhopDegrees"].is_string()) {
+					std::string s = jw["WallhopDegrees"].get<std::string>();
+					strncpy_s(w.WallhopDegrees, sizeof(WallhopInstance::WallhopDegrees), s.c_str(), _TRUNCATE);
+				}
+				w.wallhopswitch   = jw.value("wallhopswitch", false);
+				w.toggle_jump     = jw.value("toggle_jump", true);
+				w.toggle_flick    = jw.value("toggle_flick", true);
+				w.wallhopcamfix   = jw.value("wallhopcamfix", false);
+				w.section_enabled = jw.value("section_enabled", false);
+				extra_loaded = true;
+			}
+		}
+		if (settings.contains("extra_presskey_instances") && settings["extra_presskey_instances"].is_array()) {
+			for (const auto& jp : settings["extra_presskey_instances"]) {
+				presskey_instances.emplace_back();
+				auto& p = presskey_instances.back();
+				p.vk_trigger        = jp.value("vk_trigger",  static_cast<unsigned int>(0x5A));
+				p.vk_presskey       = jp.value("vk_presskey", static_cast<unsigned int>(0x44));
+				p.PressKeyDelay     = jp.value("PressKeyDelay", 16);
+				p.PressKeyBonusDelay= jp.value("PressKeyBonusDelay", 0);
+				if (jp.contains("PressKeyDelayChar") && jp["PressKeyDelayChar"].is_string()) {
+					std::string s = jp["PressKeyDelayChar"].get<std::string>();
+					strncpy_s(p.PressKeyDelayChar, sizeof(PresskeyInstance::PressKeyDelayChar), s.c_str(), _TRUNCATE);
+				}
+				if (jp.contains("PressKeyBonusDelayChar") && jp["PressKeyBonusDelayChar"].is_string()) {
+					std::string s = jp["PressKeyBonusDelayChar"].get<std::string>();
+					strncpy_s(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), s.c_str(), _TRUNCATE);
+				}
+				p.presskeyinroblox = jp.value("presskeyinroblox", false);
+				p.section_enabled  = jp.value("section_enabled", false);
+				extra_loaded = true;
+			}
+		}
+		if (settings.contains("extra_spamkey_instances") && settings["extra_spamkey_instances"].is_array()) {
+			for (const auto& js : settings["extra_spamkey_instances"]) {
+				spamkey_instances.emplace_back();
+				auto& s = spamkey_instances.back();
+				s.vk_trigger    = js.value("vk_trigger",  static_cast<unsigned int>(0xDB));
+				s.vk_spamkey    = js.value("vk_spamkey",  static_cast<unsigned int>(VK_LBUTTON));
+				s.spam_delay    = js.value("spam_delay",  20.0f);
+				s.real_delay    = js.value("real_delay",  1000);
+				if (js.contains("SpamDelay") && js["SpamDelay"].is_string()) {
+					std::string ss = js["SpamDelay"].get<std::string>();
+					strncpy_s(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), ss.c_str(), _TRUNCATE);
+				}
+				s.isspamswitch  = js.value("isspamswitch", false);
+				s.section_enabled = js.value("section_enabled", false);
+				extra_loaded = true;
+			}
+		}
+		if (extra_loaded) {
+			g_extra_instances_loaded.store(true, std::memory_order_release);
 		}
 	} catch (const json::exception& e) {
 		std::cerr << "Error deserializing profile data: " << e.what() << std::endl;

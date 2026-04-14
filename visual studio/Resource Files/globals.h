@@ -11,6 +11,8 @@
 #include <filesystem>
 #include <cctype>
 #include <cstring>
+#include <deque>
+#include <thread>
 
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -429,4 +431,111 @@ namespace Globals {
     inline tWinDivertClose pWinDivertClose = nullptr;
     inline tWinDivertHelperParsePacket pWinDivertHelperParsePacket = nullptr;
     inline tWinDivertHelperCalcChecksums pWinDivertHelperCalcChecksums = nullptr;
+
+    // =========================================================================
+    //  Per-instance structs for dynamically duplicatable macros
+    //  Copy constructor is deleted: use std::deque and emplace_back() only.
+    // =========================================================================
+
+    struct WallhopInstance {
+        // Config
+        int wallhop_dx          = 300;
+        int wallhop_dy          = -300;
+        int WallhopDelay        = 17;
+        int WallhopBonusDelay   = 0;
+        char WallhopPixels[256];
+        char WallhopDelayChar[256];
+        char WallhopBonusDelayChar[256];
+        char WallhopDegrees[256];
+        bool wallhopswitch      = false;
+        bool toggle_jump        = true;
+        bool toggle_flick       = true;
+        bool wallhopcamfix      = false;
+        bool section_enabled    = true;
+        unsigned int vk_trigger = VK_XBUTTON2;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        WallhopInstance() {
+            strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         "300", _TRUNCATE);
+            strncpy_s(WallhopDelayChar,      sizeof(WallhopDelayChar),      "19",  _TRUNCATE);
+            strncpy_s(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), "0",   _TRUNCATE);
+            strncpy_s(WallhopDegrees,        sizeof(WallhopDegrees),        "150", _TRUNCATE);
+        }
+        WallhopInstance(const WallhopInstance&)            = delete;
+        WallhopInstance& operator=(const WallhopInstance&) = delete;
+    };
+
+    struct PresskeyInstance {
+        // Config
+        unsigned int vk_trigger  = 0x5A;  // 'Z'
+        unsigned int vk_presskey = 0x44;  // 'D'
+        int PressKeyDelay        = 16;
+        int PressKeyBonusDelay   = 0;
+        char PressKeyDelayChar[256];
+        char PressKeyBonusDelayChar[256];
+        bool presskeyinroblox  = false;
+        bool section_enabled   = true;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        PresskeyInstance() {
+            strncpy_s(PressKeyDelayChar,      sizeof(PressKeyDelayChar),      "16", _TRUNCATE);
+            strncpy_s(PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), "0",  _TRUNCATE);
+        }
+        PresskeyInstance(const PresskeyInstance&)            = delete;
+        PresskeyInstance& operator=(const PresskeyInstance&) = delete;
+    };
+
+    struct SpamkeyInstance {
+        // Config
+        unsigned int vk_trigger = 0xDB;   // VK_OEM_4 ('[') on US layout; synced from vk_leftbracket at startup
+        unsigned int vk_spamkey = VK_LBUTTON;
+        float spam_delay        = 20.0f;
+        int   real_delay        = 1000;
+        char  SpamDelay[256];
+        bool  isspamswitch    = false;
+        bool  section_enabled = false;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        SpamkeyInstance() {
+            strncpy_s(SpamDelay, sizeof(SpamDelay), "20", _TRUNCATE);
+        }
+        SpamkeyInstance(const SpamkeyInstance&)            = delete;
+        SpamkeyInstance& operator=(const SpamkeyInstance&) = delete;
+    };
+
+    // Instance deques — use emplace_back() to add elements; never copy/move
+    inline std::deque<WallhopInstance>  wallhop_instances;
+    inline std::deque<PresskeyInstance> presskey_instances;
+    inline std::deque<SpamkeyInstance>  spamkey_instances;
+
+    // Threads for instances — emplace_back(func, &inst) to launch
+    inline std::deque<std::thread> wallhop_threads;
+    inline std::deque<std::thread> presskey_threads;
+    inline std::deque<std::thread> spamkey_threads;
+
+    // Which instance is shown in the right panel
+    inline int selected_wallhop_instance  = 0;
+    inline int selected_presskey_instance = 0;
+    inline int selected_spamkey_instance  = 0;
+
+    // Request flags: set by GUI thread, consumed by main hotkey loop
+    inline std::atomic<bool> request_new_wallhop_instance{false};
+    inline std::atomic<bool> request_new_presskey_instance{false};
+    inline std::atomic<bool> request_new_spamkey_instance{false};
+    inline std::atomic<int> request_remove_wallhop_instance_index{-1};
+    inline std::atomic<int> request_remove_presskey_instance_index{-1};
+    inline std::atomic<int> request_remove_spamkey_instance_index{-1};
+
+    // Set by DeserializeProfileData after populating extra instances in the deques;
+    // the main loop detects this flag and starts threads for the newly added slots.
+    inline std::atomic<bool> g_extra_instances_loaded{false};
 }
