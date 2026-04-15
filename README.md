@@ -1,9 +1,6 @@
 # Spencer Macro Client
 An open-source, Cross-Platform Windows + Linux C++ Roblox ImGui Macro with many features.
 
-To compile, run the project in Visual Studio 2022 and build it. The main source code is located inside of Visual Studio/macroframework.cpp. It is intended to be compiled through windows.
-To compile the linux helper binary, there is a separate source code folder inside the Resource Files folder. Compile this with g++.
-
 ### Is this A CHEAT???
 No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
@@ -33,12 +30,12 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 7. Dropless Item Desync Hitboxes
 8. Freeze Macro
 9. Unequip Speedglitch (Deprecated, Roblox patched)
-10. Wallhop Macro
+10. Wallhop/Mouse-Move Macro (Supports multiple instances natively in the GUI)
 11. Walless Lag High Jump (14 Studs)
 12. Press a Key for One Frame
 13. Wall-Walk
 14. Item-Clip
-15. Spam a Key/Button
+15. Spam a Key/Button (Supports multiple instances natively in the GUI)
 16. Intelligent Bhop/Bunnyhop
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
@@ -64,6 +61,19 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
   (To show printed messages)
   - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
   - Linux: Run using `DEBUG=1 wine suspend.exe`.  
+
+## Compilation
+
+### Method #1:
+- Run the .sln file in any Version of Visual Studio 2022 or newer and compile it.
+
+### Method #2:
+- Open the project folder in Visual Studio Code and run the `Build Release` task with [MSBuild 2022 Tools for Desktop C++](https://aka.ms/vs/17/release/vs_buildtools.exe) installed.
+
+### Note:
+- To compile the linux helper binary, there is a separate source code folder inside the Resource Files folder. Compile this with g++.
+
+---
 
 ### Team Roles
 - **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/) | [Discord](https://discord.com/users/618407079622737931)
