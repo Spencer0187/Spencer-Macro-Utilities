@@ -1818,7 +1818,7 @@ static void RunGUI() {
 					ImVec2 potentialLineSize = ImGui::CalcTextSize(potentialLine.c_str());
 
 					if (ImGui::GetScrollMaxY() == 0) { // No scrollbar
-						if (potentialLineSize.x > buttonWidth - 7) {
+						if (potentialLineSize.x > buttonWidth - 11) {
 							// Draw the current line and move to the next
 							drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), currentLine.c_str());
 							textPos.y += potentialLineSize.y;
@@ -1827,7 +1827,7 @@ static void RunGUI() {
 							currentLine = potentialLine;
 						}
 					} else {
-						if (potentialLineSize.x > buttonWidth - 18) { // Scrollbar
+						if (potentialLineSize.x > buttonWidth - 22) { // Scrollbar
 							// Draw the current line and move to the next
 							drawList->AddText(textPos, ImGui::ColorConvertFloat4ToU32(GetCurrentTheme().text_primary), currentLine.c_str());
 							textPos.y += potentialLineSize.y;
