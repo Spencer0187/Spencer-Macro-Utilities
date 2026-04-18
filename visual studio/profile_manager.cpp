@@ -93,6 +93,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"vk_mbutton", &vk_mbutton},
 	{"vk_xbutton1", &vk_xbutton1},
 	{"vk_xbutton2", &vk_xbutton2},
+	{"vk_wallhopjumpkey", &vk_wallhopjumpkey},
 	{"vk_leftbracket", &vk_leftbracket},
 	{"vk_spamkey", &vk_spamkey},
 	{"vk_zkey", &vk_zkey},
@@ -113,6 +114,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"selected_dropdown", &selected_dropdown},
 	{"vk_wallkey", &vk_wallkey},
 	{"PreviousWallWalkSide", &PreviousWallWalkSide},
+	{"selected_wallhop_instance", &selected_wallhop_instance},
 	{"speed_slot", &speed_slot},
 	{"desync_slot", &desync_slot},
 	{"clip_slot", &clip_slot},
@@ -120,6 +122,7 @@ const std::unordered_map<std::string, NumericVar> numeric_vars = {
 	{"real_delay", &real_delay},
 	{"wallhop_dx", &wallhop_dx},
 	{"wallhop_dy", &wallhop_dy},
+	{"wallhop_vertical", &wallhop_vertical},
 	{"PreviousWallWalkValue", &PreviousWallWalkValue},
 	{"maxfreezetime", &maxfreezetime},
 	{"maxfreezeoverride", &maxfreezeoverride},
@@ -160,6 +163,7 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"RobloxWallWalkValueChar", {RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar)}},
 	{"RobloxWallWalkValueDelayChar", {RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar)}},
 	{"WallhopPixels", {WallhopPixels, sizeof(WallhopPixels)}},
+	{"WallhopVerticalChar", {WallhopVerticalChar, sizeof(WallhopVerticalChar)}},
 	{"SpamDelay", {SpamDelay, sizeof(SpamDelay)}},
 	{"RobloxPixelValueChar", {RobloxPixelValueChar, sizeof(RobloxPixelValueChar)}},
 	{"CustomTextChar", {CustomTextChar, sizeof(CustomTextChar)}},
@@ -368,8 +372,11 @@ static json SerializeProfileData() {
 		wallhopswitch  = w.wallhopswitch;    wallhopcamfix  = w.wallhopcamfix;
 		toggle_jump    = w.toggle_jump;       toggle_flick   = w.toggle_flick;
 		wallhop_dx     = w.wallhop_dx;        wallhop_dy     = w.wallhop_dy;
+		wallhop_vertical = w.wallhop_vertical;
 		vk_xbutton2    = w.vk_trigger;
+		vk_wallhopjumpkey = w.vk_jumpkey;
 		strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         w.WallhopPixels,         _TRUNCATE);
+		strncpy_s(WallhopVerticalChar,   sizeof(WallhopVerticalChar),   w.WallhopVerticalChar,   _TRUNCATE);
 		strncpy_s(WallhopDelayChar,      sizeof(WallhopDelayChar),      w.WallhopDelayChar,      _TRUNCATE);
 		strncpy_s(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), w.WallhopBonusDelayChar, _TRUNCATE);
 		section_toggles[6] = w.section_enabled;
@@ -418,11 +425,14 @@ static json SerializeProfileData() {
 			const auto& w = wallhop_instances[j];
 			json jw;
 			jw["vk_trigger"]           = w.vk_trigger;
+			jw["vk_jumpkey"]           = w.vk_jumpkey;
 			jw["wallhop_dx"]           = w.wallhop_dx;
 			jw["wallhop_dy"]           = w.wallhop_dy;
+			jw["wallhop_vertical"]     = w.wallhop_vertical;
 			jw["WallhopDelay"]         = w.WallhopDelay;
 			jw["WallhopBonusDelay"]    = w.WallhopBonusDelay;
 			jw["WallhopPixels"]        = TrimNullChars(w.WallhopPixels,         sizeof(WallhopInstance::WallhopPixels));
+			jw["WallhopVerticalChar"]   = TrimNullChars(w.WallhopVerticalChar,   sizeof(WallhopInstance::WallhopVerticalChar));
 			jw["WallhopDelayChar"]     = TrimNullChars(w.WallhopDelayChar,      sizeof(WallhopInstance::WallhopDelayChar));
 			jw["WallhopBonusDelayChar"]= TrimNullChars(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar));
 			jw["WallhopDegrees"]       = TrimNullChars(w.WallhopDegrees,        sizeof(WallhopInstance::WallhopDegrees));
@@ -560,8 +570,11 @@ static void DeserializeProfileData(const json& settings) {
 			w.wallhopswitch = wallhopswitch;  w.wallhopcamfix = wallhopcamfix;
 			w.toggle_jump   = toggle_jump;    w.toggle_flick  = toggle_flick;
 			w.wallhop_dx    = wallhop_dx;     w.wallhop_dy    = wallhop_dy;
+			w.wallhop_vertical = wallhop_vertical;
 			w.vk_trigger    = vk_xbutton2;
+			w.vk_jumpkey    = vk_wallhopjumpkey;
 			strncpy_s(w.WallhopPixels,         sizeof(WallhopInstance::WallhopPixels),         WallhopPixels,         _TRUNCATE);
+			strncpy_s(w.WallhopVerticalChar,   sizeof(WallhopInstance::WallhopVerticalChar),   WallhopVerticalChar,   _TRUNCATE);
 			strncpy_s(w.WallhopDelayChar,      sizeof(WallhopInstance::WallhopDelayChar),      WallhopDelayChar,      _TRUNCATE);
 			strncpy_s(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), WallhopBonusDelayChar, _TRUNCATE);
 			w.section_enabled = section_toggles[6];
@@ -595,13 +608,19 @@ static void DeserializeProfileData(const json& settings) {
 				wallhop_instances.emplace_back();
 				auto& w = wallhop_instances.back();
 				w.vk_trigger     = jw.value("vk_trigger", static_cast<unsigned int>(VK_XBUTTON2));
+				w.vk_jumpkey     = jw.value("vk_jumpkey", static_cast<unsigned int>(VK_SPACE));
 				w.wallhop_dx     = jw.value("wallhop_dx", 300);
 				w.wallhop_dy     = jw.value("wallhop_dy", -300);
+				w.wallhop_vertical = jw.value("wallhop_vertical", 0);
 				w.WallhopDelay   = jw.value("WallhopDelay", 17);
 				w.WallhopBonusDelay = jw.value("WallhopBonusDelay", 0);
 				if (jw.contains("WallhopPixels") && jw["WallhopPixels"].is_string()) {
 					std::string s = jw["WallhopPixels"].get<std::string>();
 					strncpy_s(w.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), s.c_str(), _TRUNCATE);
+				}
+				if (jw.contains("WallhopVerticalChar") && jw["WallhopVerticalChar"].is_string()) {
+					std::string s = jw["WallhopVerticalChar"].get<std::string>();
+					strncpy_s(w.WallhopVerticalChar, sizeof(WallhopInstance::WallhopVerticalChar), s.c_str(), _TRUNCATE);
 				}
 				if (jw.contains("WallhopDelayChar") && jw["WallhopDelayChar"].is_string()) {
 					std::string s = jw["WallhopDelayChar"].get<std::string>();
@@ -659,6 +678,14 @@ static void DeserializeProfileData(const json& settings) {
 				s.isspamswitch  = js.value("isspamswitch", false);
 				s.section_enabled = js.value("section_enabled", false);
 				extra_loaded = true;
+			}
+		}
+		if (!wallhop_instances.empty()) {
+			if (selected_wallhop_instance < 0) {
+				selected_wallhop_instance = 0;
+			}
+			if (selected_wallhop_instance >= static_cast<int>(wallhop_instances.size())) {
+				selected_wallhop_instance = static_cast<int>(wallhop_instances.size()) - 1;
 			}
 		}
 		if (extra_loaded) {

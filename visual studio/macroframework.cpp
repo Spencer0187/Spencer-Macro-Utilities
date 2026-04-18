@@ -579,9 +579,11 @@ static int GetCurrentRemovalTargetForSection(int sectionIndex) {
 static void CopyWallhopInstanceData(const WallhopInstance& src, WallhopInstance& dst) {
 	dst.wallhop_dx = src.wallhop_dx;
 	dst.wallhop_dy = src.wallhop_dy;
+	dst.wallhop_vertical = src.wallhop_vertical;
 	dst.WallhopDelay = src.WallhopDelay;
 	dst.WallhopBonusDelay = src.WallhopBonusDelay;
 	strncpy_s(dst.WallhopPixels, sizeof(dst.WallhopPixels), src.WallhopPixels, _TRUNCATE);
+	strncpy_s(dst.WallhopVerticalChar, sizeof(dst.WallhopVerticalChar), src.WallhopVerticalChar, _TRUNCATE);
 	strncpy_s(dst.WallhopDelayChar, sizeof(dst.WallhopDelayChar), src.WallhopDelayChar, _TRUNCATE);
 	strncpy_s(dst.WallhopBonusDelayChar, sizeof(dst.WallhopBonusDelayChar), src.WallhopBonusDelayChar, _TRUNCATE);
 	strncpy_s(dst.WallhopDegrees, sizeof(dst.WallhopDegrees), src.WallhopDegrees, _TRUNCATE);
@@ -591,6 +593,7 @@ static void CopyWallhopInstanceData(const WallhopInstance& src, WallhopInstance&
 	dst.wallhopcamfix = src.wallhopcamfix;
 	dst.section_enabled = src.section_enabled;
 	dst.vk_trigger = src.vk_trigger;
+	dst.vk_jumpkey = src.vk_jumpkey;
 	dst.thread_active.store(src.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
 	dst.should_exit = false;
 	dst.isRunning = src.isRunning;
@@ -2614,6 +2617,14 @@ static void RunGUI() {
 						} catch (...) {}
 					}
 
+					ImGui::SameLine();
+					ImGui::Text("Vertical Pixel Movement:");
+					ImGui::SameLine();
+					ImGui::SetNextItemWidth(70.0f);
+					if (ImGui::InputText(("##WallhopVertical" + sid).c_str(), &inst.WallhopVerticalChar[0], sizeof(inst.WallhopVerticalChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
+						try { inst.wallhop_vertical = static_cast<int>(std::round(std::stoi(inst.WallhopVerticalChar))); } catch (...) {}
+					}
+
 					ImGui::TextWrapped("Wallhop Length (ms):");
 					ImGui::SameLine();
 					ImGui::SetNextItemWidth(70.0f);
@@ -2631,6 +2642,40 @@ static void RunGUI() {
 					ImGui::Checkbox(("Switch to Left-Flick Wallhop##" + sid).c_str(), &inst.wallhopswitch);
 					ImGui::Checkbox(("Jump During Wallhop##" + sid).c_str(), &inst.toggle_jump);
 					ImGui::Checkbox(("Flick-Back During Wallhop##" + sid).c_str(), &inst.toggle_flick);
+
+					if (ImGui::CollapsingHeader(("Hotkeys##WallhopHotkeys" + sid).c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+						BindingState& wallhopJumpState = g_bindingStates[&inst.vk_jumpkey];
+
+						if (ImGui::Button(("R##WallhopJumpKeyReset" + sid).c_str(), ImVec2(25, 0))) {
+							inst.vk_jumpkey = VK_SPACE;
+							FormatHexKeyString(inst.vk_jumpkey, wallhopJumpState.keyBuffer, sizeof(wallhopJumpState.keyBuffer));
+							GetKeyNameFromHex(inst.vk_jumpkey, wallhopJumpState.keyBufferHuman, sizeof(wallhopJumpState.keyBufferHuman));
+							wallhopJumpState.buttonText = "Click to Bind Key";
+						}
+						ImGui::SameLine();
+						ImGui::TextWrapped("Jump Key:");
+						ImGui::SameLine();
+
+						if (ImGui::Button((wallhopJumpState.buttonText + "##WallhopJumpKey" + sid).c_str())) {
+							wallhopJumpState.bindingMode = true;
+							wallhopJumpState.notBinding = false;
+							wallhopJumpState.buttonText = "Press a Key...";
+						}
+						ImGui::SameLine();
+						inst.vk_jumpkey = BindKeyMode(&inst.vk_jumpkey, inst.vk_jumpkey, selected_section);
+
+						ImGui::SetNextItemWidth(150.0f);
+						GetKeyNameFromHex(inst.vk_jumpkey, wallhopJumpState.keyBufferHuman, sizeof(wallhopJumpState.keyBufferHuman));
+						ImGui::InputText(("##WallhopJumpKeyHuman" + sid).c_str(), wallhopJumpState.keyBufferHuman, sizeof(wallhopJumpState.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+						ImGui::SameLine();
+						ImGui::TextWrapped("Key");
+
+						ImGui::SetNextItemWidth(50.0f);
+						ImGui::SameLine();
+						ImGui::InputText(("##WallhopJumpKeyHex" + sid).c_str(), wallhopJumpState.keyBuffer, sizeof(wallhopJumpState.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+						ImGui::SameLine();
+						ImGui::TextWrapped("Hex");
+					}
 
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT:");
@@ -3521,13 +3566,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			dst.vk_trigger = src.vk_trigger;
 			dst.WallhopDelay = src.WallhopDelay;
 			dst.WallhopBonusDelay = src.WallhopBonusDelay;
+			dst.wallhop_vertical = src.wallhop_vertical;
 			strncpy_s(dst.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), src.WallhopPixels, _TRUNCATE);
+			strncpy_s(dst.WallhopVerticalChar, sizeof(WallhopInstance::WallhopVerticalChar), src.WallhopVerticalChar, _TRUNCATE);
 			strncpy_s(dst.WallhopDelayChar, sizeof(WallhopInstance::WallhopDelayChar), src.WallhopDelayChar, _TRUNCATE);
 			strncpy_s(dst.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), src.WallhopBonusDelayChar, _TRUNCATE);
 			strncpy_s(dst.WallhopDegrees, sizeof(WallhopInstance::WallhopDegrees), src.WallhopDegrees, _TRUNCATE);
 			dst.wallhop_dx = src.wallhop_dx;  dst.wallhop_dy = src.wallhop_dy;
 			dst.wallhopswitch = src.wallhopswitch;  dst.toggle_jump = src.toggle_jump;
 			dst.toggle_flick = src.toggle_flick;    dst.wallhopcamfix = src.wallhopcamfix;
+			dst.vk_jumpkey = src.vk_jumpkey;
 			dst.section_enabled = false; // start disabled; user enables explicitly
 			wallhop_threads.emplace_back(WallhopThread, &wallhop_instances.back());
 			selected_wallhop_instance = static_cast<int>(wallhop_instances.size()) - 1;

@@ -211,28 +211,28 @@ void WallhopThread(Globals::WallhopInstance* inst)
         while (running && !inst->should_exit && !inst->thread_active.load(std::memory_order_acquire)) std::this_thread::sleep_for(std::chrono::milliseconds(1));
         if (!running || inst->should_exit) break;
 
-        if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dx, 0);
-        else MoveMouse(inst->wallhop_dx, 0);
+        if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dx, inst->wallhop_vertical);
+        else MoveMouse(inst->wallhop_dx, inst->wallhop_vertical);
 
         if (inst->toggle_flick)
         {
             if (inst->WallhopBonusDelay > 0 && inst->WallhopBonusDelay < inst->WallhopDelay)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopBonusDelay));
-                if (inst->toggle_jump) HoldKey(0x39);
+                if (inst->toggle_jump) HoldKeyBinded(inst->vk_jumpkey);
                 std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopDelay - inst->WallhopBonusDelay));
             }
-            else { if (inst->toggle_jump) HoldKey(0x39); std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopDelay)); }
+            else { if (inst->toggle_jump) HoldKeyBinded(inst->vk_jumpkey); std::this_thread::sleep_for(std::chrono::milliseconds(inst->WallhopDelay)); }
 
-            if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dy, 0);
-            else MoveMouse(inst->wallhop_dy, 0);
+            if (inst->wallhopswitch) MoveMouse(-inst->wallhop_dy, -inst->wallhop_vertical);
+            else MoveMouse(inst->wallhop_dy, -inst->wallhop_vertical);
         }
-        else { if (inst->toggle_jump) HoldKey(0x39); }
+        else { if (inst->toggle_jump) HoldKeyBinded(inst->vk_jumpkey); }
 
         if (inst->toggle_jump)
         {
             if (100 - inst->WallhopDelay > 0) std::this_thread::sleep_for(std::chrono::milliseconds(100 - inst->WallhopDelay));
-            ReleaseKey(0x39);
+            ReleaseKeyBinded(inst->vk_jumpkey);
         }
 
         inst->thread_active.store(false, std::memory_order_relaxed);

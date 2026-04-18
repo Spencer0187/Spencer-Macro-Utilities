@@ -90,6 +90,7 @@ namespace Globals {
     inline unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_autohhjkey1 = VK_SPACE;  // First auto HHJ key (default: Spacebar)
     inline unsigned int vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;  // Second auto HHJ key (default: W)
+    inline unsigned int vk_wallhopjumpkey = VK_SPACE;
 
     // --- Main Toggles & Switches ---
     inline bool g_isLinuxWine = false;
@@ -142,6 +143,7 @@ namespace Globals {
     // --- Numeric Settings ---
     inline int wallhop_dx = 300;
     inline int wallhop_dy = -300;
+    inline int wallhop_vertical = 0;
     inline int speed_strengthx = 959;
     inline int speed_strengthy = -959;
     inline int wallwalk_strengthx = 94;
@@ -197,6 +199,7 @@ namespace Globals {
     inline char ItemClipDelay[256] = "34";
     inline char BunnyHopDelayChar[256] = "10";
     inline char WallhopPixels[256] = "300";
+    inline char WallhopVerticalChar[256] = "0";
     inline char WallhopDelayChar[256] = "19";
     inline char WallhopBonusDelayChar[256] = "0";
     inline char WallhopDegrees[256] = "150";
@@ -441,9 +444,11 @@ namespace Globals {
         // Config
         int wallhop_dx          = 300;
         int wallhop_dy          = -300;
+        int wallhop_vertical    = 0;
         int WallhopDelay        = 17;
         int WallhopBonusDelay   = 0;
         char WallhopPixels[256];
+        char WallhopVerticalChar[256];
         char WallhopDelayChar[256];
         char WallhopBonusDelayChar[256];
         char WallhopDegrees[256];
@@ -453,6 +458,7 @@ namespace Globals {
         bool wallhopcamfix      = false;
         bool section_enabled    = true;
         unsigned int vk_trigger = VK_XBUTTON2;
+        unsigned int vk_jumpkey = VK_SPACE;
         // Runtime
         std::atomic<bool> thread_active{false};
         bool should_exit = false;
@@ -460,6 +466,7 @@ namespace Globals {
 
         WallhopInstance() {
             strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         "300", _TRUNCATE);
+            strncpy_s(WallhopVerticalChar,    sizeof(WallhopVerticalChar),    "0",   _TRUNCATE);
             strncpy_s(WallhopDelayChar,      sizeof(WallhopDelayChar),      "19",  _TRUNCATE);
             strncpy_s(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), "0",   _TRUNCATE);
             strncpy_s(WallhopDegrees,        sizeof(WallhopDegrees),        "150", _TRUNCATE);
