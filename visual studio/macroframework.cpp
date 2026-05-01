@@ -22,6 +22,7 @@
 #include <shlwapi.h>
 #include <random>
 #include <optional>
+#include <memory>
 
 #include "imgui-files/imgui.h"
 #include "imgui-files/imgui_impl_opengl3.h"
@@ -49,6 +50,8 @@
 #include "Resource Files/overlay.h"
 #include "Resource Files/imgui_helpers.h"
 #include "../platform/logging.h"
+#include "../platform/network_backend.h"
+#include "../platform/platform_capabilities.h"
 
 #include <comdef.h>
 #include <shlobj.h>
@@ -117,8 +120,6 @@ INPUT inputkey = {};
 INPUT inputhold = {};
 INPUT inputrelease = {};
 
-std::thread WinDivertThread;
-
 // Window and UI settings
 std::string KeyButtonText = "Click to Bind Key";
 std::string KeyButtonTextalt = "Click to Bind Key";
@@ -144,6 +145,131 @@ static INPUT createInput()
 	INPUT inputkey = {};
 	inputkey.type = INPUT_KEYBOARD;
 	return inputkey;
+}
+
+static const char* kForegroundFallbackTooltip =
+	"Foreground Roblox window detection is unavailable on this display server. This usually happens on Wayland because apps cannot reliably inspect other apps' active windows. This macro has been forced to always-active mode.";
+
+static const smu::platform::PlatformCapabilities& GetRuntimePlatformCapabilities()
+{
+	static const smu::platform::PlatformCapabilities capabilities = smu::platform::GetPlatformCapabilities();
+	return capabilities;
+}
+
+static bool IsForegroundDetectionFallbackActive()
+{
+	return g_isLinuxWine || !GetRuntimePlatformCapabilities().canDetectForegroundProcess;
+}
+
+static bool ForegroundRestrictionAllows(bool disableOutsideRoblox, bool tabbedIntoRoblox)
+{
+	if (IsForegroundDetectionFallbackActive()) {
+		return true;
+	}
+	return !disableOutsideRoblox || tabbedIntoRoblox;
+}
+
+static void MaybeWarnForegroundDetectionFallback()
+{
+	static bool warned = false;
+	if (warned || !IsForegroundDetectionFallbackActive()) {
+		return;
+	}
+
+	warned = true;
+	LogWarning("Foreground-detection-dependent macros were forced into always-active mode because foreground Roblox window detection is unavailable on this display server.");
+}
+
+static smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
+{
+	smu::platform::LagSwitchConfig config;
+	config.enabled = bWinDivertEnabled;
+	config.currentlyBlocking = g_windivert_blocking.load(std::memory_order_relaxed);
+	config.inboundHardBlock = lagswitchinbound;
+	config.outboundHardBlock = lagswitchoutbound;
+	config.fakeLagEnabled = lagswitchlag;
+	config.inboundFakeLag = lagswitchlaginbound;
+	config.outboundFakeLag = lagswitchlagoutbound;
+	config.fakeLagDelayMs = lagswitchlagdelay;
+	config.targetRobloxOnly = lagswitchtargetroblox;
+	config.useUdp = true;
+	config.useTcp = lagswitchusetcp;
+	config.preventDisconnect = prevent_disconnect;
+	config.autoUnblock = lagswitch_autounblock;
+	config.maxDurationSeconds = lagswitch_max_duration;
+	config.unblockDurationMs = lagswitch_unblock_ms;
+	return config;
+}
+
+static std::shared_ptr<smu::platform::NetworkLagBackend> GetLagSwitchBackend()
+{
+	return smu::platform::GetNetworkLagBackend();
+}
+
+static void SyncLagSwitchBackendConfig()
+{
+	if (auto backend = GetLagSwitchBackend()) {
+		backend->setConfig(BuildLagSwitchConfigFromUiState());
+	}
+}
+
+static bool InitializeLagSwitchBackend(std::string* errorMessage = nullptr)
+{
+	SyncLagSwitchBackendConfig();
+	if (auto backend = GetLagSwitchBackend()) {
+		return backend->init(errorMessage);
+	}
+	if (errorMessage) {
+		*errorMessage = "Network lagswitch backend is unavailable.";
+	}
+	return false;
+}
+
+static void ShutdownLagSwitchBackend()
+{
+	if (auto backend = GetLagSwitchBackend()) {
+		backend->shutdown();
+	}
+}
+
+static void RestartLagSwitchCapture()
+{
+	SyncLagSwitchBackendConfig();
+	if (auto backend = GetLagSwitchBackend()) {
+		backend->restartCapture();
+	}
+}
+
+static void SetLagSwitchBlocking(bool active)
+{
+	if (auto backend = GetLagSwitchBackend()) {
+		backend->setBlockingActive(active);
+	} else {
+		g_windivert_blocking.store(active, std::memory_order_relaxed);
+	}
+}
+
+static void RenderForegroundDependentCheckbox(const char* label, const char* id, bool* value)
+{
+	if (!value) {
+		return;
+	}
+
+	const bool fallbackActive = IsForegroundDetectionFallbackActive();
+	bool forcedValue = false;
+	bool* checkboxValue = fallbackActive ? &forcedValue : value;
+
+	ImGui::BeginDisabled(fallbackActive);
+	ImGui::BeginGroup();
+	ImGui::TextWrapped("%s", label);
+	ImGui::SameLine();
+	ImGui::Checkbox(id, checkboxValue);
+	ImGui::EndGroup();
+	ImGui::EndDisabled();
+
+	if (fallbackActive && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+		ImGui::SetTooltip("%s", kForegroundFallbackTooltip);
+	}
 }
 
 // This is ran in a separate thread to avoid interfering with other functions
@@ -438,6 +564,10 @@ static HWND FindNewestProcessWindow(const std::vector<HWND> &hwnds)
 
 static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
 {
+    if (IsForegroundDetectionFallbackActive()) {
+		return true;
+	}
+
     if (g_isLinuxWine) {
 		return true;
 	}
@@ -1289,6 +1419,7 @@ static void RunGUI() {
 
 	// Load last active profile (handles legacy format conversion automatically)
 	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+	MaybeWarnForegroundDetectionFallback();
 
 #if SMU_USE_SDL_UI
 	constexpr int defaultWindowWidth = 1280;
@@ -2477,9 +2608,7 @@ static void RunGUI() {
 					}
 
 					ImGui::SameLine();
-					ImGui::TextWrapped("Disable outside of Roblox:");
-					ImGui::SameLine();
-					ImGui::Checkbox(disableOutsideId.c_str(), disableOutsidePtr);
+					RenderForegroundDependentCheckbox("Disable outside of Roblox:", disableOutsideId.c_str(), disableOutsidePtr);
 				}
 
 				if (selected_section == 0) { // Freeze Macro
@@ -3621,7 +3750,9 @@ static void RunGUI() {
 
                     // If filters changed and driver is active, force restart
                     if (filter_changed && bWinDivertEnabled) {
-						SafeCloseWinDivert();
+						RestartLagSwitchCapture();
+                    } else {
+						SyncLagSwitchBackendConfig();
                     }
 
 					ImGui::Checkbox("Show Lagswitch Status Overlay", &show_lag_overlay);
@@ -3667,11 +3798,12 @@ static void RunGUI() {
                     if (ImGui::Button(bWinDivertEnabled ? "Disable WinDivert" : "Enable WinDivert")) {
                         if (!bWinDivertEnabled) {
                             if (IsRunAsAdmin()) {
-                                if (TryLoadWinDivert()) {
-                                    bWinDivertEnabled = true;
-                                    g_windivert_running = true;
-                                    WinDivertThread = std::thread(WindivertWorkerThread);
+								std::string backendError;
+                                if (InitializeLagSwitchBackend(&backendError)) {
                                 } else {
+									if (!backendError.empty()) {
+										LogCritical(backendError);
+									}
                                     std::cerr << "Failed to load WinDivert files." << std::endl;
                                 }
                             } else {
@@ -3682,11 +3814,7 @@ static void RunGUI() {
                                 }
                             }
                         } else {
-                            bWinDivertEnabled = false;
-                            g_windivert_running = false;
-                            g_windivert_blocking = false; // Reset blocking state
-                            SafeCloseWinDivert(); // Kill the thread loop
-                            if (WinDivertThread.joinable()) WinDivertThread.join();
+                            ShutdownLagSwitchBackend();
                         }
                     }
 
@@ -3991,6 +4119,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	// Setup suspension
 
+	smu::platform::SetNetworkLagBackend(CreateWinDivertNetworkLagBackend());
+
 	// Initialize duplicatable macro instances with default values (settings loaded later by GUI thread)
 	wallhop_instances.emplace_back();
 	wallhop_instances[0].vk_trigger = vk_xbutton2;
@@ -4156,7 +4286,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			bool isMButtonPressed = IsHotkeyPressed(vk_mbutton);
 
 			if (isfreezeswitch) {  // Toggle mode
-				if (isMButtonPressed && !wasMButtonPressed && (!disable_outside_roblox[0] || tabbedintoroblox)) {  // Detect button press edge
+				if (isMButtonPressed && !wasMButtonPressed && ForegroundRestrictionAllows(disable_outside_roblox[0], tabbedintoroblox)) {  // Detect button press edge
 					isSuspended = !isSuspended;  // Toggle the freeze state
 					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, isSuspended);
 
@@ -4165,7 +4295,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 					}
 				}
 			} else {  // Hold mode
-				if (isMButtonPressed && (!disable_outside_roblox[0] || tabbedintoroblox)) {
+				if (isMButtonPressed && ForegroundRestrictionAllows(disable_outside_roblox[0], tabbedintoroblox)) {
 					if (!isSuspended) {
 						SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);  // Freeze on hold
 						isSuspended = true;
@@ -4197,7 +4327,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Item Desync Macro with anti-idiot design
-		if (IsHotkeyPressed(vk_f5) && (!disable_outside_roblox[1] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[1]) {
+		if (IsHotkeyPressed(vk_f5) && ForegroundRestrictionAllows(disable_outside_roblox[1], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[1]) {
 			if (!isdesync) {
 				isdesyncloop.store(true, std::memory_order_relaxed);
 				isdesync = true;
@@ -4209,7 +4339,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		// PressKey — loop over all instances
 		for (auto& inst : presskey_instances) {
-			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.presskeyinroblox || tabbedintoroblox)) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && ForegroundRestrictionAllows(inst.presskeyinroblox, tabbedintoroblox)) {
 				if (!inst.isRunning) {
 					inst.thread_active.store(true, std::memory_order_relaxed);
 					inst.isRunning = true;
@@ -4222,7 +4352,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		// Wallhop — loop over all instances
 		for (auto& inst : wallhop_instances) {
-			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.disable_outside_roblox || tabbedintoroblox)) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && ForegroundRestrictionAllows(inst.disable_outside_roblox, tabbedintoroblox)) {
 				if (!inst.isRunning) {
 					inst.thread_active.store(true, std::memory_order_relaxed);
 					inst.isRunning = true;
@@ -4234,7 +4364,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
-		if (IsHotkeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7] && (!disable_outside_roblox[7] || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7] && ForegroundRestrictionAllows(disable_outside_roblox[7], tabbedintoroblox)) {
 			if (!islhj) {
 				if (wallesslhjswitch) {
 					HoldKey(0x1E);
@@ -4272,7 +4402,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Speedglitch
-		if (IsHotkeyPressed(vk_xkey) && (!disable_outside_roblox[3] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[3]) {
+		if (IsHotkeyPressed(vk_xkey) && ForegroundRestrictionAllows(disable_outside_roblox[3], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[3]) {
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -4285,7 +4415,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Gear Unequip COM Offset
-		if (IsHotkeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!disable_outside_roblox[4] || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && ForegroundRestrictionAllows(disable_outside_roblox[4], tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -4344,7 +4474,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Helicopter High jump
-		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2] && (!disable_outside_roblox[2] || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2] && ForegroundRestrictionAllows(disable_outside_roblox[2], tabbedintoroblox)) {
 			if (!HHJ) {
 				if (autotoggle) { // Auto-Key-Timer
 					HoldKeyBinded(vk_autohhjkey1);
@@ -4410,7 +4540,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		// Spamkey — loop over all instances
 		for (auto& inst : spamkey_instances) {
 			const bool shouldRunSpam =
-				IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.disable_outside_roblox || tabbedintoroblox);
+				IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && ForegroundRestrictionAllows(inst.disable_outside_roblox, tabbedintoroblox);
 
 			if (shouldRunSpam) {
 				if (!inst.isRunning) {
@@ -4419,14 +4549,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 				}
 			} else {
 				inst.isRunning = false;
-				if ((inst.disable_outside_roblox && !tabbedintoroblox) || inst.isspamswitch) {
+				if (!ForegroundRestrictionAllows(inst.disable_outside_roblox, tabbedintoroblox) || inst.isspamswitch) {
 					inst.thread_active.store(false, std::memory_order_relaxed);
 				}
 			}
 		}
 
 		// Laughkey
-		if (IsHotkeyPressed(vk_laughkey) && (!disable_outside_roblox[9] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[9]) {
+		if (IsHotkeyPressed(vk_laughkey) && ForegroundRestrictionAllows(disable_outside_roblox[9], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[9]) {
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -4482,7 +4612,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Ledge Bounce
-		if (IsHotkeyPressed(vk_bouncekey) && (!disable_outside_roblox[12] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[12]) {
+		if (IsHotkeyPressed(vk_bouncekey) && ForegroundRestrictionAllows(disable_outside_roblox[12], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
 				int turn90 = static_cast<int>((camfixtoggle ? 250 : 180) / atof(RobloxSensValue));
 				int skey = 0x1F; // S key
@@ -4540,7 +4670,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Item Clip
-		if (IsHotkeyPressed(vk_clipkey) && (!disable_outside_roblox[8] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[8]) {
+		if (IsHotkeyPressed(vk_clipkey) && ForegroundRestrictionAllows(disable_outside_roblox[8], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[8]) {
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -4554,7 +4684,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// WallWalk
-		if (IsHotkeyPressed(vk_wallkey) && (!disable_outside_roblox[10] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[10]) {
+		if (IsHotkeyPressed(vk_wallkey) && ForegroundRestrictionAllows(disable_outside_roblox[10], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[10]) {
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -4566,7 +4696,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			}
 		}
 
-		bool can_process_bhop = (!disable_outside_roblox[13] || tabbedintoroblox) && section_toggles[13] && macrotoggled && notbinding;
+		bool can_process_bhop = ForegroundRestrictionAllows(disable_outside_roblox[13], tabbedintoroblox) && section_toggles[13] && macrotoggled && notbinding;
 		if (IsHotkeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
@@ -4608,7 +4738,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Floor Bounce
-		if (IsHotkeyPressed(vk_floorbouncekey) && (!disable_outside_roblox[14] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[14]) {
+		if (IsHotkeyPressed(vk_floorbouncekey) && ForegroundRestrictionAllows(disable_outside_roblox[14], tabbedintoroblox) && macrotoggled && notbinding && section_toggles[14]) {
 			if (!isfloorbounce) {
 				isfloorbouncethread = true;
 				isfloorbounce = true;
@@ -4631,13 +4761,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 				if (islagswitchswitch) {
 					// TOGGLE MODE
 					if (isPressed && !wasLagSwitchPressed) {
-						g_windivert_blocking = !g_windivert_blocking; // Flip state
+						SetLagSwitchBlocking(!g_windivert_blocking.load(std::memory_order_relaxed)); // Flip state
 					}
-                    logical_on_state = g_windivert_blocking;
+                    logical_on_state = g_windivert_blocking.load(std::memory_order_relaxed);
 					wasLagSwitchPressed = isPressed;
 				} else {
 					// HOLD MODE
-					g_windivert_blocking = isPressed;
+					SetLagSwitchBlocking(isPressed);
                     logical_on_state = isPressed;
 				}
 
@@ -4653,7 +4783,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                     
                     if (elapsed >= (lagswitch_max_duration * 1000)) {
                         // 1. Unblock momentarily (Let traffic pass)
-                        g_windivert_blocking = false;
+                        SetLagSwitchBlocking(false);
                         
                         // 2. Wait
                         std::this_thread::sleep_for(std::chrono::milliseconds(lagswitch_unblock_ms));
@@ -4672,7 +4802,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                         }
 
                         if (should_resume) {
-                            g_windivert_blocking = true;
+                            SetLagSwitchBlocking(true);
                         }
                         
                         // 4. Reset timer
@@ -4684,14 +4814,15 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
                 // If user presses key but driver isn't loaded, prompt for admin
 				if (IsHotkeyPressed(vk_lagswitchkey)) {
 					if (IsRunAsAdmin()) {
-						if (TryLoadWinDivert()) {
-							bWinDivertEnabled = true;
-							g_windivert_running = true;
-							WinDivertThread = std::thread(WindivertWorkerThread);
+						std::string backendError;
+						if (InitializeLagSwitchBackend(&backendError)) {
 							// Allow 200ms for the driver to load before toggling on
 							std::this_thread::sleep_for(std::chrono::milliseconds(200));
-							g_windivert_blocking = true;
+							SetLagSwitchBlocking(true);
 						} else {
+							if (!backendError.empty()) {
+								LogCritical(backendError);
+							}
 							std::cerr << "Failed to load WinDivert files." << std::endl;
 						}
 					} else if (DontShowAdminWarning) {
@@ -4704,7 +4835,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
         } else {
             // Safety: If module is disabled or macrotoggle is off, ensure we aren't blocking internet
             if (!section_toggles[15] || !macrotoggled) {
-                g_windivert_blocking = false;
+                SetLagSwitchBlocking(false);
             }
         }
 
@@ -4893,7 +5024,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	CleanupOverlay(); // Destroys the window context
 
 	running = false;
-	g_windivert_running = false;
+	ShutdownLagSwitchBackend();
 
 	StopKeyboardThread();
 
@@ -4908,8 +5039,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	for (auto& t : presskey_threads) t.join();
 	actionThread10.join();
 
-	SafeCloseWinDivert();
-
 	g_log_thread_running = false;
 	logScannerThread.join();
 
@@ -4920,8 +5049,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		DestroyWindow(hwnd);
 	}
 	
-	if (WinDivertThread.joinable()) WinDivertThread.join();
-
 	if (IsRunAsAdmin()) {
 		quiet_system("sc stop WinDivert >nul 2>&1"); // Remove windivert service upon closing the app
 		quiet_system("sc delete WinDivert >nul 2>&1"); // Remove windivert service upon closing the app

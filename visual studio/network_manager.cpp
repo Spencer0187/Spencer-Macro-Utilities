@@ -2,6 +2,7 @@
 
 #include "Resource Files/network_manager.h"
 #include "resource.h"
+#include "../platform/network_backend.h"
 #include <mutex>
 #include <iostream>
 #include <fstream>
@@ -16,6 +17,7 @@
 #include <vector>
 #include <condition_variable>
 #include <chrono>
+#include <thread>
 
 // Include windivert
 #include "windivert-files/windivert.h"
@@ -535,4 +537,140 @@ void WindivertWorkerThread() {
     if (senderThread.joinable()) {
         senderThread.join();
     }
+}
+
+namespace {
+
+smu::platform::LagSwitchConfig LagSwitchConfigFromGlobals()
+{
+    smu::platform::LagSwitchConfig config;
+    config.enabled = bWinDivertEnabled;
+    config.currentlyBlocking = g_windivert_blocking.load(std::memory_order_relaxed);
+    config.inboundHardBlock = lagswitchinbound;
+    config.outboundHardBlock = lagswitchoutbound;
+    config.fakeLagEnabled = lagswitchlag;
+    config.inboundFakeLag = lagswitchlaginbound;
+    config.outboundFakeLag = lagswitchlagoutbound;
+    config.fakeLagDelayMs = lagswitchlagdelay;
+    config.targetRobloxOnly = lagswitchtargetroblox;
+    config.useUdp = true;
+    config.useTcp = lagswitchusetcp;
+    config.preventDisconnect = prevent_disconnect;
+    config.autoUnblock = lagswitch_autounblock;
+    config.maxDurationSeconds = lagswitch_max_duration;
+    config.unblockDurationMs = lagswitch_unblock_ms;
+    return config;
+}
+
+void ApplyLagSwitchConfigToGlobals(const smu::platform::LagSwitchConfig& config)
+{
+    g_windivert_blocking.store(config.currentlyBlocking, std::memory_order_relaxed);
+    lagswitchinbound = config.inboundHardBlock;
+    lagswitchoutbound = config.outboundHardBlock;
+    lagswitchlag = config.fakeLagEnabled;
+    lagswitchlaginbound = config.inboundFakeLag;
+    lagswitchlagoutbound = config.outboundFakeLag;
+    lagswitchlagdelay = config.fakeLagDelayMs;
+    lagswitchtargetroblox = config.targetRobloxOnly;
+    lagswitchusetcp = config.useTcp;
+    prevent_disconnect = config.preventDisconnect;
+    lagswitch_autounblock = config.autoUnblock;
+    lagswitch_max_duration = config.maxDurationSeconds;
+    lagswitch_unblock_ms = config.unblockDurationMs;
+}
+
+class WinDivertNetworkLagBackend final : public smu::platform::NetworkLagBackend {
+public:
+    ~WinDivertNetworkLagBackend() override
+    {
+        shutdown();
+    }
+
+    bool init(std::string* errorMessage = nullptr) override
+    {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
+
+        if (bWinDivertEnabled) {
+            return true;
+        }
+
+        if (!TryLoadWinDivert()) {
+            if (errorMessage) {
+                *errorMessage = "Failed to load or initialize WinDivert.";
+            }
+            return false;
+        }
+
+        bWinDivertEnabled = true;
+        g_windivert_running.store(true, std::memory_order_relaxed);
+        if (!workerThread_.joinable()) {
+            workerThread_ = std::thread(WindivertWorkerThread);
+        }
+        return true;
+    }
+
+    void shutdown() override
+    {
+        if (!bWinDivertEnabled && !workerThread_.joinable()) {
+            return;
+        }
+
+        bWinDivertEnabled = false;
+        g_windivert_running.store(false, std::memory_order_relaxed);
+        g_windivert_blocking.store(false, std::memory_order_relaxed);
+        SafeCloseWinDivert();
+
+        if (workerThread_.joinable()) {
+            workerThread_.join();
+        }
+    }
+
+    bool isAvailable() const override
+    {
+        return bWinDivertEnabled;
+    }
+
+    bool isBlockingActive() const override
+    {
+        return g_windivert_blocking.load(std::memory_order_relaxed);
+    }
+
+    void setBlockingActive(bool active) override
+    {
+        g_windivert_blocking.store(active, std::memory_order_relaxed);
+    }
+
+    void setConfig(const smu::platform::LagSwitchConfig& config) override
+    {
+        ApplyLagSwitchConfigToGlobals(config);
+    }
+
+    smu::platform::LagSwitchConfig config() const override
+    {
+        return LagSwitchConfigFromGlobals();
+    }
+
+    void restartCapture() override
+    {
+        if (bWinDivertEnabled) {
+            SafeCloseWinDivert();
+        }
+    }
+
+    std::string unsupportedReason() const override
+    {
+        return {};
+    }
+
+private:
+    std::thread workerThread_;
+};
+
+} // namespace
+
+std::shared_ptr<smu::platform::NetworkLagBackend> CreateWinDivertNetworkLagBackend()
+{
+    return std::make_shared<WinDivertNetworkLagBackend>();
 }

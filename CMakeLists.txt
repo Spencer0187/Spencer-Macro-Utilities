@@ -119,14 +119,48 @@ if(WIN32)
         xinput
     )
 elseif(UNIX AND NOT APPLE)
-    add_custom_target(suspend
-        COMMAND "${CMAKE_COMMAND}" -E echo
-                "Linux scaffold only: add Linux platform sources before building suspend."
+    find_package(Threads REQUIRED)
+    find_package(X11 QUIET)
+
+    set(SMU_LINUX_PLATFORM_SOURCES
+        "${SMU_PLATFORM_DIR}/input_backend.cpp"
+        "${SMU_PLATFORM_DIR}/logging.cpp"
+        "${SMU_PLATFORM_DIR}/network_backend.cpp"
+        "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
+        "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/window_backend.cpp"
+        "${SMU_PLATFORM_DIR}/linux/display_server.cpp"
+        "${SMU_PLATFORM_DIR}/linux/foreground_x11.cpp"
+        "${SMU_PLATFORM_DIR}/linux/input_evdev_uinput.cpp"
+        "${SMU_PLATFORM_DIR}/linux/process_proc_cgroup.cpp"
     )
 
-    # Future Linux platform files should be added here once the Win32-heavy
-    # application code is split behind platform interfaces. The existing helper
-    # source is intentionally not wired into the app target by this scaffold:
+    add_library(smu_platform_linux STATIC ${SMU_LINUX_PLATFORM_SOURCES})
+
+    target_include_directories(smu_platform_linux PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${SMU_PLATFORM_DIR}"
+        "${SMU_RESOURCE_DIR}"
+    )
+
+    target_link_libraries(smu_platform_linux PRIVATE Threads::Threads)
+
+    if(X11_FOUND)
+        target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_X11=1)
+        target_link_libraries(smu_platform_linux PRIVATE X11::X11)
+    else()
+        target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_X11=0)
+        message(WARNING "X11 development files were not found; Linux foreground detection will compile as unsupported.")
+    endif()
+
+    add_custom_target(suspend
+        COMMAND "${CMAKE_COMMAND}" -E echo
+                "Linux scaffold only: native platform backends compile in smu_platform_linux; Win32-heavy app entry point is still split separately."
+        DEPENDS smu_platform_linux
+    )
+
+    # The existing Wine helper remains intentionally unwired into the native
+    # Linux backend target while the Win32-heavy app entry point is split:
     # "${SMU_RESOURCE_DIR}/Suspend_Input_Helper_Source/linux_helper.cpp"
 else()
     message(FATAL_ERROR "Unsupported platform for the suspend target.")

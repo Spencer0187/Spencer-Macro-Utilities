@@ -2,6 +2,10 @@
 
 #include <cstdlib>
 
+#if defined(__linux__)
+#include "linux/display_server.h"
+#endif
+
 namespace smu::platform {
 
 PlatformCapabilities GetPlatformCapabilities()
@@ -17,17 +21,12 @@ PlatformCapabilities GetPlatformCapabilities()
     caps.canShowGlobalOverlay = true;
     caps.displayServer = "windows";
 #elif defined(__linux__)
-    caps.displayServer = "unknown";
+    const linux::DisplayServer displayServer = linux::DetectDisplayServer();
+    caps.displayServer = linux::DisplayServerName(displayServer);
 
-    const char* sessionType = std::getenv("XDG_SESSION_TYPE");
-    const char* waylandDisplay = std::getenv("WAYLAND_DISPLAY");
-    const char* x11Display = std::getenv("DISPLAY");
-
-    if ((sessionType && std::string(sessionType) == "wayland") || waylandDisplay) {
-        caps.displayServer = "wayland";
+    if (displayServer == linux::DisplayServer::Wayland) {
         caps.warnings.push_back("Generic foreground process detection is unsupported on Wayland.");
-    } else if ((sessionType && std::string(sessionType) == "x11") || x11Display) {
-        caps.displayServer = "x11";
+    } else if (displayServer == linux::DisplayServer::X11) {
         caps.canDetectForegroundProcess = true;
         caps.warnings.push_back("X11 foreground process detection requires _NET_ACTIVE_WINDOW and _NET_WM_PID support.");
     } else {

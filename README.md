@@ -64,14 +64,51 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
 
 ## Compilation
 
-### Method #1:
+### Windows Method #1:
 - Run the .sln file in any Version of Visual Studio 2022 or newer and compile it.
 
-### Method #2:
+### Windows Method #2:
 - Open the project folder in Visual Studio Code and run the `Build Release` task with [MSBuild 2022 Tools for Desktop C++](https://aka.ms/vs/17/release/vs_buildtools.exe) installed.
 
-### Note:
-- To compile the linux helper binary, there is a separate source code folder inside the Resource Files folder. Compile this with g++.
+### Windows CMake:
+```powershell
+cmake --preset windows-msvc-debug
+cmake --build --preset windows-msvc-debug
+```
+
+Use `windows-msvc-release` instead of `windows-msvc-debug` for a release build.
+
+### Linux Native Backend:
+The native Linux port currently builds the platform backend library target. The full GUI executable is still being split away from Win32-specific app code, so the `suspend` target is a scaffold on Linux.
+
+Install dependencies on Ubuntu/Debian:
+```bash
+sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libx11-dev
+```
+
+Configure and build:
+```bash
+cmake --preset linux-debug
+cmake --build --preset linux-debug
+```
+
+Useful direct target build:
+```bash
+cmake --build out/build/linux-debug --target smu_platform_linux
+```
+
+Use `linux-release` instead of `linux-debug` for a release build.
+
+Runtime notes for the native Linux backend:
+- Input injection uses `/dev/uinput`.
+- Input state reading uses `/dev/input/event*`.
+- The backend must run as root or with equivalent uinput/input device permissions.
+- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`.
+- Wayland foreground process detection is intentionally unsupported.
+- Linux network lagswitch support is not part of the native backend target.
+
+### Linux Wine Helper:
+The existing Wine path still uses the separate Linux helper source in `visual studio/Resource Files/Suspend_Input_Helper_Source`. Compile that helper with `g++` when updating the Wine compatibility helper binary.
 
 ---
 
