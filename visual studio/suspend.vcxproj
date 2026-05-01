@@ -108,7 +108,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;SMU_USE_SDL_UI=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>imgui-files;imgui;"$(ProjectDir)Resource Files\SDL3\include";%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -154,7 +154,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;SMU_USE_SDL_UI=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <WholeProgramOptimization>false</WholeProgramOptimization>
@@ -189,9 +189,7 @@
     <ClCompile Include="imgui-files\imgui_demo.cpp" />
     <ClCompile Include="imgui-files\imgui_draw.cpp" />
     <ClCompile Include="imgui-files\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="imgui-files\imgui_impl_sdl3.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="imgui-files\imgui_impl_sdl3.cpp" />
     <ClCompile Include="imgui-files\imgui_impl_win32.cpp" />
     <ClCompile Include="imgui-files\imgui_tables.cpp" />
     <ClCompile Include="imgui-files\imgui_widgets.cpp" />
@@ -202,6 +200,12 @@
     <ClCompile Include="network_manager.cpp" />
     <ClCompile Include="overlay.cpp" />
     <ClCompile Include="profile_manager.cpp" />
+    <ClCompile Include="..\platform\input_backend.cpp" />
+    <ClCompile Include="..\platform\logging.cpp" />
+    <ClCompile Include="..\platform\network_backend.cpp" />
+    <ClCompile Include="..\platform\platform_capabilities.cpp" />
+    <ClCompile Include="..\platform\process_backend.cpp" />
+    <ClCompile Include="..\platform\window_backend.cpp" />
     <ClCompile Include="Resource Files\miniz.c" />
     <ClCompile Include="theme_manager.cpp" />
     <ClCompile Include="wine_compatibility_layer.cpp" />
@@ -220,6 +224,7 @@
     <ClInclude Include="imgui-files\imstb_textedit.h" />
     <ClInclude Include="imgui-files\imstb_truetype.h" />
     <ClInclude Include="Resource Files\globals.h" />
+    <ClInclude Include="Resource Files\imgui_helpers.h" />
     <ClInclude Include="Resource Files\json.hpp" />
     <ClInclude Include="Resource Files\keymapping.h" />
     <ClInclude Include="Resource Files\logzz.hpp" />
@@ -227,6 +232,13 @@
     <ClInclude Include="Resource Files\miniz.h" />
     <ClInclude Include="Resource Files\network_manager.h" />
     <ClInclude Include="Resource Files\overlay.h" />
+    <ClInclude Include="..\platform\input_backend.h" />
+    <ClInclude Include="..\platform\logging.h" />
+    <ClInclude Include="..\platform\network_backend.h" />
+    <ClInclude Include="..\platform\platform_capabilities.h" />
+    <ClInclude Include="..\platform\platform_types.h" />
+    <ClInclude Include="..\platform\process_backend.h" />
+    <ClInclude Include="..\platform\window_backend.h" />
     <ClInclude Include="Resource Files\profile_manager.h" />
     <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

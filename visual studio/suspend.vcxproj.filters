@@ -34,6 +34,12 @@
     <Filter Include="Resource Files\SDL3\include\SDL3">
       <UniqueIdentifier>{6e4cfeeb-be22-4ab5-ad9d-2aff0e193fb2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\platform">
+      <UniqueIdentifier>{58f260c5-8b6e-4287-ae93-b94308b6bf35}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\platform">
+      <UniqueIdentifier>{ac4ef3be-28ce-41e2-a8be-f9c2eb4045ee}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="macroframework.cpp">
@@ -84,6 +90,24 @@
     <ClCompile Include="imgui-files\imgui_impl_sdl3.cpp">
       <Filter>Header Files\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="..\platform\input_backend.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\logging.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\network_backend.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\platform_capabilities.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\process_backend.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\window_backend.cpp">
+      <Filter>Source Files\platform</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h">
@@ -120,6 +144,9 @@
       <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="Resource Files\keymapping.h">
+      <Filter>Resource Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resource Files\imgui_helpers.h">
       <Filter>Resource Files</Filter>
     </ClInclude>
     <ClInclude Include="Resource Files\updater_system.h">
@@ -160,6 +187,27 @@
     </ClInclude>
     <ClInclude Include="imgui-files\imgui_impl_sdl3.h">
       <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\input_backend.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\logging.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\network_backend.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\platform_capabilities.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\platform_types.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\process_backend.h">
+      <Filter>Header Files\platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\window_backend.h">
+      <Filter>Header Files\platform</Filter>
     </ClInclude>
     <ClInclude Include="Resource Files\SDL3\include\SDL3\SDL.h">
       <Filter>Resource Files\SDL3\include\SDL3</Filter>

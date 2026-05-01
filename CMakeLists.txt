@@ -12,6 +12,9 @@ set(SMU_VISUAL_STUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/visual studio")
 set(SMU_IMGUI_DIR "${SMU_VISUAL_STUDIO_DIR}/imgui-files")
 set(SMU_RESOURCE_DIR "${SMU_VISUAL_STUDIO_DIR}/Resource Files")
 set(SMU_WINDIVERT_DIR "${SMU_VISUAL_STUDIO_DIR}/windivert-files")
+set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
+
+option(SMU_USE_SDL_UI "Build the app GUI on SDL3 instead of the legacy Win32/WGL window backend." ON)
 
 if(WIN32)
     enable_language(RC)
@@ -21,7 +24,6 @@ if(WIN32)
         "${SMU_IMGUI_DIR}/imgui_demo.cpp"
         "${SMU_IMGUI_DIR}/imgui_draw.cpp"
         "${SMU_IMGUI_DIR}/imgui_impl_opengl3.cpp"
-        "${SMU_IMGUI_DIR}/imgui_impl_win32.cpp"
         "${SMU_IMGUI_DIR}/imgui_tables.cpp"
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/macroframework.cpp"
@@ -29,12 +31,23 @@ if(WIN32)
         "${SMU_VISUAL_STUDIO_DIR}/network_manager.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/overlay.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
+        "${SMU_PLATFORM_DIR}/input_backend.cpp"
+        "${SMU_PLATFORM_DIR}/logging.cpp"
+        "${SMU_PLATFORM_DIR}/network_backend.cpp"
+        "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
+        "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_RESOURCE_DIR}/miniz.c"
         "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/suspend1.rc"
-        "$<$<CONFIG:Debug>:${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp>"
     )
+
+    if(SMU_USE_SDL_UI)
+        list(APPEND SMU_WINDOWS_SOURCES "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp")
+    else()
+        list(APPEND SMU_WINDOWS_SOURCES "${SMU_IMGUI_DIR}/imgui_impl_win32.cpp")
+    endif()
 
     add_executable(suspend WIN32 ${SMU_WINDOWS_SOURCES})
 
@@ -50,6 +63,7 @@ if(WIN32)
         UNICODE
         _UNICODE
         _CONSOLE
+        "SMU_USE_SDL_UI=$<BOOL:${SMU_USE_SDL_UI}>"
         "$<$<CONFIG:Debug>:_DEBUG>"
         "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>"
     )
@@ -75,11 +89,13 @@ if(WIN32)
         )
     endif()
 
-    set(SMU_SDL3_STATIC_LIB "${SMU_RESOURCE_DIR}/SDL3/lib/SDL3-static.lib")
-    if(EXISTS "${SMU_SDL3_STATIC_LIB}")
-        target_link_libraries(suspend PRIVATE "${SMU_SDL3_STATIC_LIB}")
-    else()
-        message(WARNING "SDL3 static library was not found: ${SMU_SDL3_STATIC_LIB}")
+    if(SMU_USE_SDL_UI)
+        set(SMU_SDL3_STATIC_LIB "${SMU_RESOURCE_DIR}/SDL3/lib/SDL3-static.lib")
+        if(EXISTS "${SMU_SDL3_STATIC_LIB}")
+            target_link_libraries(suspend PRIVATE "${SMU_SDL3_STATIC_LIB}")
+        else()
+            message(WARNING "SDL3 static library was not found: ${SMU_SDL3_STATIC_LIB}")
+        endif()
     endif()
 
     target_link_libraries(suspend PRIVATE

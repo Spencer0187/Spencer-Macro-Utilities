@@ -8,8 +8,12 @@
 #include <chrono>
 #include <mutex>
 #include <TlHelp32.h>
+#include <memory>
 
 #include "Resource Files/globals.h"
+#include "../platform/input_backend.h"
+#include "../platform/logging.h"
+#include "../platform/process_backend.h"
 using namespace Globals;
 
 std::string g_linuxHelperPath_Windows;
@@ -26,6 +30,18 @@ static HANDLE g_hMapFile = NULL;
 static std::mutex g_guiInjectedInputBudgetMutex;
 static auto g_guiInjectedInputBudgetResetTime = std::chrono::steady_clock::now();
 static int g_guiInjectedInputBudgetRemaining = 50;
+static void EnsureWineCompatPlatformBackendsRegistered();
+static bool IsKeyPressed_Impl(WORD vk_key);
+static void HoldKey_Impl(WORD scanCode);
+static void HoldKey_Impl(WORD scanCode, bool extended);
+static void ReleaseKey_Impl(WORD scanCode);
+static void ReleaseKey_Impl(WORD scanCode, bool extended);
+static void HoldKeyBinded_Impl(unsigned int combinedKey);
+static void ReleaseKeyBinded_Impl(unsigned int combinedKey);
+static void MoveMouse_Impl(int dx, int dy);
+static std::vector<DWORD> FindProcessIdsByName_Impl(const std::string& targetName, bool findAll);
+static std::vector<HANDLE> GetProcessHandles_Impl(const std::vector<DWORD>& pids, DWORD accessRights);
+static void SuspendOrResumeProcesses_Impl(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend);
 
 const char *LINUX_HELPER_BINARY_NAME = "Suspend_Input_Helper_Linux_Binary";
 const char *LINUX_SHARED_MEM_FILE_WINE_PATH = "Z:\\tmp\\cross_input_shm_file";
@@ -119,6 +135,8 @@ std::string ExecuteAndGetStdout(const std::string& cmd) {
 
 // Main Logic for Launching
 void InitLinuxCompatLayer() {
+    EnsureWineCompatPlatformBackendsRegistered();
+
     if (!IsRunningOnWine() || GetWineHostOS() != "linux") {
         g_isLinuxWine = false;
         return;
@@ -143,6 +161,7 @@ void InitLinuxCompatLayer() {
         HRSRC hRes = FindResource(NULL, MAKEINTRESOURCE(IDR_BINARY1), TEXT("Binary"));
         if (!hRes) {
             std::cerr << "Error: Could not find embedded resource IDR_BINARY1." << std::endl;
+            LogCritical("Failed required platform backend initialization: could not find embedded Linux helper resource.");
             g_isLinuxWine = false;
             return;
         }
@@ -151,6 +170,7 @@ void InitLinuxCompatLayer() {
         DWORD dwSize = SizeofResource(NULL, hRes);
         if (!pResData || dwSize == 0) {
             std::cerr << "Error: Could not load or lock embedded Linux helper binary. Resource might be empty." << std::endl;
+            LogCritical("Failed required platform backend initialization: embedded Linux helper resource is empty.");
             g_isLinuxWine = false;
             return;
         }
@@ -163,6 +183,7 @@ void InitLinuxCompatLayer() {
         std::ofstream outFile(helperWindowsPath, std::ios::binary | std::ios::trunc);
         if (!outFile) {
             std::cerr << "Error: Failed to create temporary file for Linux helper at: " << helperWindowsPath << std::endl;
+            LogCritical("Failed required platform backend initialization: could not write the Linux helper binary.");
             g_isLinuxWine = false;
             return;
         }
@@ -182,6 +203,7 @@ void InitLinuxCompatLayer() {
 
         if (helperLinuxPath.empty()) {
             std::cerr << "Error: 'winepath' failed to translate the helper path. Ensure wine-binfmt is configured." << std::endl;
+            LogCritical("Failed required platform backend initialization: winepath could not translate the Linux helper path.");
             remove(helperWindowsPath.c_str());
             g_isLinuxWine = false;
             return;
@@ -200,6 +222,7 @@ void InitLinuxCompatLayer() {
 
         if (!CreateProcessA(NULL, chmodCmdVector.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si_chmod, &pi_chmod)) {
             std::cerr << "Error: CreateProcess failed for chmod command." << std::endl;
+            LogCritical("Failed required platform backend initialization: could not mark the Linux helper executable.");
             remove(helperWindowsPath.c_str());
             g_isLinuxWine = false;
             return;
@@ -238,6 +261,7 @@ void InitLinuxCompatLayer() {
 
         if (!CreateProcessA(NULL, execCmdVector.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si_exec, &pi_exec)) {
             std::cerr << "Error: CreateProcess failed to launch the graphical sudo command." << std::endl;
+            LogCritical("Failed required platform backend initialization: could not launch the Linux helper sudo prompt.");
             remove(helperWindowsPath.c_str());
             g_isLinuxWine = false;
             return;
@@ -278,6 +302,7 @@ void InitLinuxCompatLayer() {
 
         if (!helperReady) {
             std::cerr << "\nError: Timed out waiting for the helper process to create the shared memory file." << std::endl;
+            LogCritical("Failed required platform backend initialization: Linux helper did not become ready. This can happen when sudo/root permission was not granted.");
             remove(helperWindowsPath.c_str()); // Clean up the helper binary on failure
             g_isLinuxWine = false;
             MessageBoxW(
@@ -296,6 +321,7 @@ void InitLinuxCompatLayer() {
     HANDLE hFile = CreateFileA(LINUX_SHARED_MEM_FILE_WINE_PATH, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
         std::cerr << "Error: CreateFileA failed to open the helper's memory map file even after it was detected. Error: " << GetLastError() << std::endl;
+        LogCritical("Failed required platform backend initialization: could not open the Linux helper shared memory file.");
         if (!helperWindowsPath.empty()) remove(helperWindowsPath.c_str());
         g_isLinuxWine = false;
         return;
@@ -305,6 +331,7 @@ void InitLinuxCompatLayer() {
     CloseHandle(hFile);
     if (g_hMapFile == NULL) {
         std::cerr << "Error: CreateFileMappingA failed. Error: " << GetLastError() << std::endl;
+        LogCritical("Failed required platform backend initialization: could not create the Linux helper shared memory mapping.");
         if (!helperWindowsPath.empty()) remove(helperWindowsPath.c_str());
         g_isLinuxWine = false;
         return;
@@ -313,6 +340,7 @@ void InitLinuxCompatLayer() {
     g_sharedData = (SharedMemory*)MapViewOfFile(g_hMapFile, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedMemory));
     if (g_sharedData == nullptr) {
         std::cerr << "Error: MapViewOfFile failed. Error: " << GetLastError() << std::endl;
+        LogCritical("Failed required platform backend initialization: could not map the Linux helper shared memory.");
         CloseHandle(g_hMapFile);
         if (!helperWindowsPath.empty()) remove(helperWindowsPath.c_str());
         g_isLinuxWine = false;
@@ -432,7 +460,7 @@ static void DispatchTaggedInputs(INPUT* inputs, size_t inputCount)
 }
 
 // Replacement for GetAsyncKeyState
-bool IsKeyPressed(WORD vk_key)
+static bool IsKeyPressed_Impl(WORD vk_key)
 {
 	if (g_isLinuxWine) {
 		if (vk_key > 255)
@@ -450,7 +478,7 @@ bool IsKeyPressed(WORD vk_key)
 	return ::GetAsyncKeyState(vk_key) & 0x8000;
 }
 
-void HoldKey(WORD scanCode)
+static void HoldKey_Impl(WORD scanCode)
 {
 	if (g_isLinuxWine) {
 		// Convert the scan code to a virtual-key code, which our system uses.
@@ -474,11 +502,11 @@ void HoldKey(WORD scanCode)
 	}
 }
 
-void HoldKey(WORD scanCode, bool extended)
+static void HoldKey_Impl(WORD scanCode, bool extended)
 {
     if (g_isLinuxWine) {
         // Linux/Wine doesn't need extended flag, use the original function
-        HoldKey(scanCode);
+        HoldKey_Impl(scanCode);
     } else {
         // Windows method with extended flag
         INPUT input = {};
@@ -493,7 +521,7 @@ void HoldKey(WORD scanCode, bool extended)
     }
 }
 
-void ReleaseKey(WORD scanCode)
+static void ReleaseKey_Impl(WORD scanCode)
 {
 	if (g_isLinuxWine) {
 		// Convert the scan code to a virtual-key code.
@@ -517,11 +545,11 @@ void ReleaseKey(WORD scanCode)
 	}
 }
 
-void ReleaseKey(WORD scanCode, bool extended)
+static void ReleaseKey_Impl(WORD scanCode, bool extended)
 {
     if (g_isLinuxWine) {
         // Linux/Wine doesn't need extended flag - use the original function
-        ReleaseKey(scanCode);
+        ReleaseKey_Impl(scanCode);
     } else {
         // Windows method with extended flag
         INPUT input = {};
@@ -563,7 +591,7 @@ void SetDesyncState(bool enable) {
     EnqueueCommand(cmd);
 }
 
-void HoldKeyBinded(unsigned int combinedKey) {
+static void HoldKeyBinded_Impl(unsigned int combinedKey) {
     // 1. Extract Flags and Key
     WORD vk = combinedKey & 0xFFFF; 
     bool useWin   = (combinedKey & 0x80000) != 0; // HOTKEY_MASK_WIN
@@ -634,7 +662,7 @@ void HoldKeyBinded(unsigned int combinedKey) {
     }
 }
 
-void ReleaseKeyBinded(unsigned int combinedKey) {
+static void ReleaseKeyBinded_Impl(unsigned int combinedKey) {
     WORD vk = combinedKey & 0xFFFF;
     bool useWin   = (combinedKey & 0x80000) != 0;
     bool useCtrl  = (combinedKey & 0x20000) != 0;
@@ -685,7 +713,7 @@ void ReleaseKeyBinded(unsigned int combinedKey) {
     }
 }
 
-void MoveMouse(int dx, int dy)
+static void MoveMouse_Impl(int dx, int dy)
 {
 	if (g_isLinuxWine) {
 		Command cmd = {};
@@ -774,7 +802,7 @@ void SetDesyncItem(int itemSlot) {
 }
 
 
-void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
+static void SuspendOrResumeProcesses_Impl(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend) {
     if (g_isLinuxWine) {
         // On Linux, we ignore the (empty) handles vector and use the PIDs.
         for (DWORD pid : pids) {
@@ -802,7 +830,7 @@ void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::
     }
 }
 
-std::vector<HANDLE> GetProcessHandles_Compat(const std::vector<DWORD>& pids, DWORD accessRights) {
+static std::vector<HANDLE> GetProcessHandles_Impl(const std::vector<DWORD>& pids, DWORD accessRights) {
     std::vector<HANDLE> handles;
     if (g_isLinuxWine) {
         // On Linux, we don't need handles. The PID is enough.
@@ -820,7 +848,7 @@ std::vector<HANDLE> GetProcessHandles_Compat(const std::vector<DWORD>& pids, DWO
     return handles;
 }
 
-std::vector<DWORD> FindProcessIdsByName_Compat(const std::string& targetName, bool findAll) {
+static std::vector<DWORD> FindProcessIdsByName_Impl(const std::string& targetName, bool findAll) {
     std::vector<DWORD> pids;
     if (g_isLinuxWine) {
         std::string linux_name = targetName;
@@ -896,6 +924,301 @@ std::vector<DWORD> FindProcessIdsByName_Compat(const std::string& targetName, bo
         CloseHandle(hSnapshot);
     }
     return pids;
+}
+
+namespace {
+
+class WineCompatInputBackend final : public smu::platform::InputBackend {
+public:
+    bool init(std::string* errorMessage = nullptr) override
+    {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
+        return true;
+    }
+
+    void shutdown() override {}
+
+    bool isKeyPressed(smu::platform::PlatformKeyCode key) const override
+    {
+        return IsKeyPressed_Impl(static_cast<WORD>(key));
+    }
+
+    void holdKey(smu::platform::PlatformKeyCode key, bool extended = false) override
+    {
+        if (extended) {
+            HoldKey_Impl(static_cast<WORD>(key), true);
+        } else {
+            HoldKey_Impl(static_cast<WORD>(key));
+        }
+    }
+
+    void releaseKey(smu::platform::PlatformKeyCode key, bool extended = false) override
+    {
+        if (extended) {
+            ReleaseKey_Impl(static_cast<WORD>(key), true);
+        } else {
+            ReleaseKey_Impl(static_cast<WORD>(key));
+        }
+    }
+
+    void pressKey(smu::platform::PlatformKeyCode key, int delayMs = 50) override
+    {
+        holdKey(key);
+        std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
+        releaseKey(key);
+    }
+
+    void holdKeyChord(smu::platform::PlatformKeyCode combinedKey) override
+    {
+        HoldKeyBinded_Impl(combinedKey);
+    }
+
+    void releaseKeyChord(smu::platform::PlatformKeyCode combinedKey) override
+    {
+        ReleaseKeyBinded_Impl(combinedKey);
+    }
+
+    void moveMouse(int dx, int dy) override
+    {
+        MoveMouse_Impl(dx, dy);
+    }
+
+    void mouseWheel(int delta) override
+    {
+        HoldKeyBinded_Impl(delta >= 0 ? VK_MOUSE_WHEEL_UP : VK_MOUSE_WHEEL_DOWN);
+    }
+
+    std::optional<smu::platform::PlatformKeyCode> getCurrentPressedKey() const override
+    {
+        for (smu::platform::PlatformKeyCode key = 1; key <= VK_MOUSE_WHEEL_DOWN; ++key) {
+            if (IsKeyPressed_Impl(static_cast<WORD>(key))) {
+                return key;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::string formatKeyName(smu::platform::PlatformKeyCode key) const override
+    {
+        char keyNameBuffer[64] = {};
+        const UINT scanCode = MapVirtualKeyA(static_cast<UINT>(key), MAPVK_VK_TO_VSC);
+        if (scanCode != 0 && GetKeyNameTextA(static_cast<LONG>(scanCode << 16), keyNameBuffer, sizeof(keyNameBuffer)) > 0) {
+            return keyNameBuffer;
+        }
+
+        auto it = vkToString.find(static_cast<int>(key));
+        if (it != vkToString.end()) {
+            return it->second;
+        }
+
+        char fallback[16] = {};
+        std::snprintf(fallback, sizeof(fallback), "0x%X", static_cast<unsigned int>(key));
+        return fallback;
+    }
+};
+
+class WineCompatProcessBackend final : public smu::platform::ProcessBackend {
+public:
+    bool init(std::string* errorMessage = nullptr) override
+    {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
+        return true;
+    }
+
+    void shutdown() override {}
+
+    std::optional<smu::platform::PlatformPid> findProcess(const std::string& executableName) const override
+    {
+        auto pids = FindProcessIdsByName_Impl(executableName, false);
+        if (pids.empty()) {
+            return std::nullopt;
+        }
+        return static_cast<smu::platform::PlatformPid>(pids.front());
+    }
+
+    std::vector<smu::platform::PlatformPid> findAllProcesses(const std::string& executableName) const override
+    {
+        auto nativePids = FindProcessIdsByName_Impl(executableName, true);
+        std::vector<smu::platform::PlatformPid> pids;
+        pids.reserve(nativePids.size());
+        for (DWORD pid : nativePids) {
+            pids.push_back(static_cast<smu::platform::PlatformPid>(pid));
+        }
+        return pids;
+    }
+
+    std::optional<smu::platform::PlatformPid> findMainProcess(const std::string& executableName) const override
+    {
+        return findProcess(executableName);
+    }
+
+    bool suspend(smu::platform::PlatformPid pid) override
+    {
+        std::vector<DWORD> pids{static_cast<DWORD>(pid)};
+        auto handles = GetProcessHandles_Impl(pids, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
+        SuspendOrResumeProcesses_Impl(pids, handles, true);
+        for (HANDLE handle : handles) {
+            CloseHandle(handle);
+        }
+        return true;
+    }
+
+    bool resume(smu::platform::PlatformPid pid) override
+    {
+        std::vector<DWORD> pids{static_cast<DWORD>(pid)};
+        auto handles = GetProcessHandles_Impl(pids, PROCESS_SUSPEND_RESUME | PROCESS_QUERY_LIMITED_INFORMATION);
+        SuspendOrResumeProcesses_Impl(pids, handles, false);
+        for (HANDLE handle : handles) {
+            CloseHandle(handle);
+        }
+        return true;
+    }
+
+    bool isForegroundProcess(smu::platform::PlatformPid pid) const override
+    {
+        if (g_isLinuxWine) {
+            return true;
+        }
+
+        HWND foreground = GetForegroundWindow();
+        if (!foreground) {
+            return false;
+        }
+
+        DWORD foregroundPid = 0;
+        GetWindowThreadProcessId(foreground, &foregroundPid);
+        return foregroundPid == static_cast<DWORD>(pid);
+    }
+};
+
+} // namespace
+
+static void EnsureWineCompatPlatformBackendsRegistered()
+{
+    static std::once_flag registerOnce;
+    std::call_once(registerOnce, [] {
+        if (!smu::platform::GetInputBackend()) {
+            smu::platform::SetInputBackend(std::make_shared<WineCompatInputBackend>());
+        }
+        if (!smu::platform::GetProcessBackend()) {
+            smu::platform::SetProcessBackend(std::make_shared<WineCompatProcessBackend>());
+        }
+    });
+}
+
+bool IsKeyPressed(WORD vk_key)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        return backend->isKeyPressed(vk_key);
+    }
+    return IsKeyPressed_Impl(vk_key);
+}
+
+void HoldKey(WORD scanCode)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->holdKey(scanCode);
+        return;
+    }
+    HoldKey_Impl(scanCode);
+}
+
+void HoldKey(WORD scanCode, bool extended)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->holdKey(scanCode, extended);
+        return;
+    }
+    HoldKey_Impl(scanCode, extended);
+}
+
+void ReleaseKey(WORD scanCode)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->releaseKey(scanCode);
+        return;
+    }
+    ReleaseKey_Impl(scanCode);
+}
+
+void ReleaseKey(WORD scanCode, bool extended)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->releaseKey(scanCode, extended);
+        return;
+    }
+    ReleaseKey_Impl(scanCode, extended);
+}
+
+void HoldKeyBinded(unsigned int combinedKey)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->holdKeyChord(combinedKey);
+        return;
+    }
+    HoldKeyBinded_Impl(combinedKey);
+}
+
+void ReleaseKeyBinded(unsigned int combinedKey)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->releaseKeyChord(combinedKey);
+        return;
+    }
+    ReleaseKeyBinded_Impl(combinedKey);
+}
+
+void MoveMouse(int dx, int dy)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetInputBackend()) {
+        backend->moveMouse(dx, dy);
+        return;
+    }
+    MoveMouse_Impl(dx, dy);
+}
+
+std::vector<DWORD> FindProcessIdsByName_Compat(const std::string& targetName, bool findAll)
+{
+    EnsureWineCompatPlatformBackendsRegistered();
+    if (auto backend = smu::platform::GetProcessBackend()) {
+        if (findAll) {
+            auto platformPids = backend->findAllProcesses(targetName);
+            std::vector<DWORD> pids;
+            pids.reserve(platformPids.size());
+            for (auto pid : platformPids) {
+                pids.push_back(static_cast<DWORD>(pid));
+            }
+            return pids;
+        }
+
+        if (auto pid = backend->findMainProcess(targetName)) {
+            return {static_cast<DWORD>(*pid)};
+        }
+        return {};
+    }
+    return FindProcessIdsByName_Impl(targetName, findAll);
+}
+
+std::vector<HANDLE> GetProcessHandles_Compat(const std::vector<DWORD>& pids, DWORD accessRights)
+{
+    return GetProcessHandles_Impl(pids, accessRights);
+}
+
+void SuspendOrResumeProcesses_Compat(const std::vector<DWORD>& pids, const std::vector<HANDLE>& handles, bool suspend)
+{
+    SuspendOrResumeProcesses_Impl(pids, handles, suspend);
 }
 
 // This translates a single character into the key actions needed to type it on a standard US keyboard.

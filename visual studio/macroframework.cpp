@@ -4,6 +4,10 @@
 #include <windows.h>
 #include "resource.h"
 
+#ifndef SMU_USE_SDL_UI
+#define SMU_USE_SDL_UI 1
+#endif
+
 #include <iostream>
 #include <vector>
 #include <processthreadsapi.h>
@@ -12,15 +16,25 @@
 #include <chrono>
 #include <string>
 #include <atomic>
-#include <algorithm>  
+#include <algorithm>
 #include <tlhelp32.h>
 #include <GL/gl.h>
 #include <shlwapi.h>
 #include <random>
+#include <optional>
 
 #include "imgui-files/imgui.h"
 #include "imgui-files/imgui_impl_opengl3.h"
+#if SMU_USE_SDL_UI
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_properties.h>
+#include <SDL3/SDL_system.h>
+#include "imgui-files/imgui_impl_sdl3.h"
+#else
 #include "imgui-files/imgui_impl_win32.h"
+#endif
 
 #include "Resource Files/json.hpp"
 #include "Resource Files/globals.h"
@@ -33,6 +47,8 @@
 #include "Resource Files/profile_manager.h"
 #include "Resource Files/theme_manager.h"
 #include "Resource Files/overlay.h"
+#include "Resource Files/imgui_helpers.h"
+#include "../platform/logging.h"
 
 #include <comdef.h>
 #include <shlobj.h>
@@ -50,10 +66,6 @@
 #include <dwmapi.h>
 #include <variant>
 #include <shellscalingapi.h>
-
-// #define SDL_MAIN_HANDLED 
-// #include <SDL3/SDL.h>
-// This will be added eventually for native linux/mac parity
 
 // Include windivert
 #include "windivert-files/windivert.h"
@@ -78,9 +90,11 @@ using PFNWGLSWAPINTERVALEXTPROC = BOOL(WINAPI*)(int);
 
 using json = nlohmann::json;
 
+#if !SMU_USE_SDL_UI
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 
 // TO PUT IN A KEYBOARD KEY, GO TO https://www.millisecond.com/support/docs/current/html/language/scancodes.htm
 // Convert the scancode into hexadecimal before putting it into the HoldKey or ReleaseKey functions
@@ -231,6 +245,15 @@ private:
     }
 
 public:
+	void ReportWheelDelta(float wheelDelta) {
+		if (wheelDelta > 0.0f) {
+			SetWheelUp();
+		} else if (wheelDelta < 0.0f) {
+			SetWheelDown();
+		}
+	}
+
+#if !SMU_USE_SDL_UI
     // Call this once when GUI initializes
     bool Initialize(HWND windowhandle) {
         RAWINPUTDEVICE rid;
@@ -266,12 +289,43 @@ public:
             delete[] lpb;
         }
     }
+#else
+    bool Initialize(HWND windowhandle) {
+        RAWINPUTDEVICE rid;
+        rid.usUsagePage = 0x01;
+        rid.usUsage = 0x02;
+        rid.dwFlags = RIDEV_INPUTSINK;
+        rid.hwndTarget = windowhandle;
+
+        return RegisterRawInputDevices(&rid, 1, sizeof(rid));
+    }
+
+    void ProcessRawInput(LPARAM lParam) {
+        UINT dwSize = 0;
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
+
+        if (dwSize > 0) {
+            LPBYTE lpb = new BYTE[dwSize];
+            if (GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER)) == dwSize) {
+                RAWINPUT* raw = (RAWINPUT*)lpb;
+
+                if (raw->header.dwType == RIM_TYPEMOUSE && (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)) {
+                    ReportWheelDelta(static_cast<short>(raw->data.mouse.usButtonData));
+                }
+            }
+            delete[] lpb;
+        }
+    }
+#endif
 
     bool IsWheelUp() const { return wheelUp.load(); }
     bool IsWheelDown() const { return wheelDown.load(); }
 };
 
 MouseWheelHandler g_mouseWheel;
+#if SMU_USE_SDL_UI
+static bool g_mouseWheelRawInputEnabled = false;
+#endif
 
 // Tell the other file containg IsKeyPressed that these functions exist 
 bool IsWheelUp() { return g_mouseWheel.IsWheelUp(); }
@@ -403,7 +457,113 @@ static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
     return false; // No match
 }
 
+#if SMU_USE_SDL_UI
+static HWND GetNativeWindowHandle(SDL_Window* window)
+{
+	if (!window) {
+		return nullptr;
+	}
 
+	SDL_PropertiesID props = SDL_GetWindowProperties(window);
+	return reinterpret_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+}
+
+static void UpdateWindowMetrics(SDL_Window* window, HWND nativeWindow)
+{
+	if (window) {
+		int pixelWidth = 0;
+		int pixelHeight = 0;
+		if (SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight) && pixelWidth > 0 && pixelHeight > 0) {
+			screen_width = pixelWidth;
+			screen_height = pixelHeight;
+		} else {
+			int windowWidth = 0;
+			int windowHeight = 0;
+			if (SDL_GetWindowSize(window, &windowWidth, &windowHeight) && windowWidth > 0 && windowHeight > 0) {
+				screen_width = windowWidth;
+				screen_height = windowHeight;
+			}
+		}
+	}
+
+	if (nativeWindow) {
+		RECT raw_screen_rect;
+		GetWindowRect(nativeWindow, &raw_screen_rect);
+		raw_window_width = raw_screen_rect.right - raw_screen_rect.left;
+		raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
+	}
+}
+
+static bool SetGuiWindowTopmost(SDL_Window* window, HWND nativeWindow, bool enabled)
+{
+	if (window && SDL_SetWindowAlwaysOnTop(window, enabled)) {
+		return true;
+	}
+
+	if (nativeWindow) {
+		return SetWindowPos(nativeWindow, enabled ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE) != FALSE;
+	}
+
+	return false;
+}
+
+static bool SetGuiWindowOpacity(SDL_Window* window, HWND nativeWindow, float opacityPercent)
+{
+	const float opacity = std::clamp(opacityPercent / 100.0f, 0.2f, 1.0f);
+	if (window && SDL_SetWindowOpacity(window, opacity)) {
+		return true;
+	}
+
+	if (nativeWindow) {
+		LONG_PTR style = GetWindowLongPtr(nativeWindow, GWL_EXSTYLE);
+		SetWindowLongPtr(nativeWindow, GWL_EXSTYLE, style | WS_EX_LAYERED);
+		BYTE alpha = static_cast<BYTE>(opacity * 255.0f);
+		return SetLayeredWindowAttributes(nativeWindow, 0, alpha, LWA_ALPHA) != FALSE;
+	}
+
+	return false;
+}
+
+static bool IsSdlWindowFocused(SDL_Window* window)
+{
+	return window && ((SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0);
+}
+
+static bool SDLCALL SdlWindowsMessageHook(void*, MSG* msg)
+{
+	if (!msg) {
+		return true;
+	}
+
+	if (IsTaggedInjectedGuiInputMessage(msg->message)) {
+		return false;
+	}
+
+	if (msg->message == WM_INPUT) {
+		g_mouseWheel.ProcessRawInput(msg->lParam);
+	}
+
+	return true;
+}
+#else
+static bool SetGuiWindowTopmost(HWND nativeWindow, bool enabled)
+{
+	return SetWindowPos(nativeWindow, enabled ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+		SWP_NOMOVE | SWP_NOSIZE) != FALSE;
+}
+
+static bool SetGuiWindowOpacity(HWND nativeWindow, float opacityPercent)
+{
+	const float opacity = std::clamp(opacityPercent / 100.0f, 0.2f, 1.0f);
+	LONG_PTR style = GetWindowLongPtr(nativeWindow, GWL_EXSTYLE);
+	SetWindowLongPtr(nativeWindow, GWL_EXSTYLE, style | WS_EX_LAYERED);
+	BYTE alpha = static_cast<BYTE>(opacity * 255.0f);
+	return SetLayeredWindowAttributes(nativeWindow, 0, alpha, LWA_ALPHA) != FALSE;
+}
+#endif
+
+#if !SMU_USE_SDL_UI
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (IsTaggedInjectedGuiInputMessage(msg)) {
@@ -453,6 +613,84 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+#endif
+
+static void RenderPlatformCriticalNotifications()
+{
+	static std::vector<smu::log::LogEntry> activeNotifications;
+
+	auto newNotifications = smu::log::DrainCriticalNotifications();
+	activeNotifications.insert(activeNotifications.end(), newNotifications.begin(), newNotifications.end());
+
+	if (activeNotifications.empty()) {
+		return;
+	}
+
+	ImGui::OpenPopup("Critical Platform Error");
+	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+	ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowSize(ImVec2(560.0f, 0.0f), ImGuiCond_Appearing);
+
+	if (ImGui::BeginPopupModal("Critical Platform Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+		ImGui::TextWrapped("A required platform feature failed to initialize.");
+		ImGui::Separator();
+		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 520.0f);
+		ImGui::TextUnformatted(activeNotifications.front().message.c_str());
+		ImGui::PopTextWrapPos();
+		ImGui::Separator();
+
+		const bool hasMore = activeNotifications.size() > 1;
+		if (ImGui::Button(hasMore ? "Next" : "Dismiss", ImVec2(120, 0))) {
+			activeNotifications.erase(activeNotifications.begin());
+			if (activeNotifications.empty()) {
+				ImGui::CloseCurrentPopup();
+			}
+		}
+
+		ImGui::EndPopup();
+	}
+}
+
+static void RenderPlatformWarningNotifications()
+{
+	static std::vector<smu::log::LogEntry> activeWarnings;
+
+	auto newWarnings = smu::log::DrainWarningNotifications();
+	activeWarnings.insert(activeWarnings.end(), newWarnings.begin(), newWarnings.end());
+
+	if (activeWarnings.empty()) {
+		return;
+	}
+
+	const ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImVec2 pos = ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - 24.0f, viewport->WorkPos.y + 24.0f);
+	ImGui::SetNextWindowPos(pos, ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+	ImGui::SetNextWindowSize(ImVec2(420.0f, 0.0f), ImGuiCond_Always);
+	ImGui::SetNextWindowBgAlpha(0.96f);
+
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_AlwaysAutoResize |
+		ImGuiWindowFlags_NoFocusOnAppearing |
+		ImGuiWindowFlags_NoNav;
+
+	if (ImGui::Begin("Platform Warnings", nullptr, flags)) {
+		ImGui::TextUnformatted("Warning");
+		ImGui::Separator();
+		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 380.0f);
+		ImGui::TextUnformatted(activeWarnings.front().message.c_str());
+		ImGui::PopTextWrapPos();
+
+		if (ImGui::Button("Dismiss", ImVec2(100.0f, 0.0f))) {
+			activeWarnings.erase(activeWarnings.begin());
+		}
+		if (activeWarnings.size() > 1) {
+			ImGui::SameLine();
+			ImGui::Text("%zu more", activeWarnings.size() - 1);
+		}
+	}
+	ImGui::End();
+}
 
 bool CreateDeviceWGL(HWND hWnd)
 {
@@ -466,18 +704,25 @@ bool CreateDeviceWGL(HWND hWnd)
 
 	int pf = ChoosePixelFormat(hDc, &pfd);
 	if (pf == 0) {
+		LogCritical("Failed OpenGL initialization: ChoosePixelFormat returned no compatible format.");
 		ReleaseDC(hWnd, hDc);
 		return false;
 	}
 	if (SetPixelFormat(hDc, pf, &pfd) == FALSE) {
+		LogCritical("Failed OpenGL initialization: SetPixelFormat failed.");
 		ReleaseDC(hWnd, hDc);
 		return false;
 	}
 
 	g_hRC = wglCreateContext(hDc);
-	
+	if (!g_hRC) {
+		LogCritical("Failed OpenGL initialization: wglCreateContext failed.");
+		ReleaseDC(hWnd, hDc);
+		return false;
+	}
+
 	g_hDC = hDc;
-	
+
 	return true;
 }
 
@@ -1039,18 +1284,103 @@ static void RunGUI() {
 	// Load Default Themes into memory to be overwritten
 	ThemeManager::Initialize();
 
+	// Snapshot compile-time defaults as the read-only (default) profile (must come before loading any user profile)
+	SaveDefaultProfile(G_SETTINGS_FILEPATH);
+
+	// Load last active profile (handles legacy format conversion automatically)
+	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+
+#if SMU_USE_SDL_UI
+	constexpr int defaultWindowWidth = 1280;
+	constexpr int defaultWindowHeight = 800;
+
+	if (screen_width <= 0 || screen_width > 15360) {
+		screen_width = defaultWindowWidth;
+	}
+
+	if (screen_height <= 0 || screen_height > 8640) {
+		screen_height = defaultWindowHeight;
+	}
+
+	if (WindowPosX < 0 || WindowPosX > 15360) {
+		WindowPosX = 0;
+	}
+
+	if (WindowPosY < 0 || WindowPosY > 8640) {
+		WindowPosY = 0;
+	}
+
+	SDL_SetMainReady();
+	if (!SDL_Init(SDL_INIT_VIDEO)) {
+		LogCritical(std::string("Failed SDL initialization: ") + SDL_GetError());
+		return;
+	}
+
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+	SDL_Window* sdlWindow = SDL_CreateWindow("Spencer Macro Client", screen_width, screen_height,
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
+	if (!sdlWindow) {
+		LogCritical(std::string("Failed SDL window creation: ") + SDL_GetError());
+		SDL_Quit();
+		return;
+	}
+
+	SDL_SetWindowMinimumSize(sdlWindow, 1147, 780);
+	if (WindowPosX != 0 || WindowPosY != 0) {
+		SDL_SetWindowPosition(sdlWindow, WindowPosX, WindowPosY);
+	}
+
+	SDL_GLContext glContext = SDL_GL_CreateContext(sdlWindow);
+	if (!glContext) {
+		LogCritical(std::string("Failed OpenGL initialization: SDL_GL_CreateContext failed: ") + SDL_GetError());
+		SDL_DestroyWindow(sdlWindow);
+		SDL_Quit();
+		return;
+	}
+
+	if (!SDL_GL_MakeCurrent(sdlWindow, glContext)) {
+		LogCritical(std::string("Failed OpenGL initialization: SDL_GL_MakeCurrent failed: ") + SDL_GetError());
+		SDL_GL_DestroyContext(glContext);
+		SDL_DestroyWindow(sdlWindow);
+		SDL_Quit();
+		return;
+	}
+
+	SDL_GL_SetSwapInterval(0);
+	SDL_SetWindowsMessageHook(SdlWindowsMessageHook, nullptr);
+
+	HWND hwnd = GetNativeWindowHandle(sdlWindow);
+	::hwnd = hwnd;
+	if (hwnd) {
+		SendMessage(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1))));
+		SendMessage(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1))));
+		SetTitleBarColor(hwnd, RGB(0, 0, 0));
+		g_mouseWheelRawInputEnabled = g_mouseWheel.Initialize(hwnd);
+	}
+	UpdateWindowMetrics(sdlWindow, hwnd);
+
+	if (!SetGuiWindowOpacity(sdlWindow, hwnd, windowOpacityPercent)) {
+		LogWarning("SDL window opacity could not be applied on this platform.");
+	}
+
+	if (ontoptoggle && !SetGuiWindowTopmost(sdlWindow, hwnd, true)) {
+		LogWarning("SDL always-on-top could not be applied on this platform.");
+	}
+
+	SDL_ShowWindow(sdlWindow);
+#else
 	// Initialize a basic Win32 window
 	WNDCLASSEX wc = { sizeof(WNDCLASSEX), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(NULL), NULL, NULL, NULL, NULL, _T("Spencer Macro Client"), NULL };
 
 	// Load icons
 	wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
 	wc.hIconSm = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_ICON1));
-
-	// Snapshot compile-time defaults as the read-only (default) profile (must come before loading any user profile)
-	SaveDefaultProfile(G_SETTINGS_FILEPATH);
-
-	// Load last active profile (handles legacy format conversion automatically)
-	TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
 
 	RegisterClassEx(&wc);
 	HWND hwnd = CreateWindow(wc.lpszClassName, _T("Spencer Macro Client"), WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, NULL, NULL, wc.hInstance, NULL);
@@ -1095,7 +1425,12 @@ static void RunGUI() {
 		return;
 	}
 
-	wglMakeCurrent(g_hDC, g_hRC);
+	if (!wglMakeCurrent(g_hDC, g_hRC)) {
+		LogCritical("Failed OpenGL initialization: wglMakeCurrent failed.");
+		CleanupDeviceWGL(hwnd);
+		UnregisterClass(wc.lpszClassName, wc.hInstance);
+		return;
+	}
 	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXTProc = reinterpret_cast<PFNWGLSWAPINTERVALEXTPROC>(wglGetProcAddress("wglSwapIntervalEXT"));
 	if (wglSwapIntervalEXTProc) {
 		wglSwapIntervalEXTProc(0);
@@ -1115,6 +1450,7 @@ static void RunGUI() {
 
     ShowWindow(hwnd, SW_SHOWDEFAULT);
     UpdateWindow(hwnd);
+#endif
 
     // Initialize ImGui context
     IMGUI_CHECKVERSION();
@@ -1133,9 +1469,17 @@ static void RunGUI() {
 	cfg.FontDataOwnedByAtlas = false;
 	ImGui::GetIO().Fonts->AddFontFromMemoryTTF(pData, (int)size, 20.0f, &cfg);
 
-    // Initialize ImGui for Win32 and DirectX 11
+#if SMU_USE_SDL_UI
+    if (!ImGui_ImplSDL3_InitForOpenGL(sdlWindow, glContext)) {
+		LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");
+	}
+#else
+    // Initialize ImGui for Win32 and OpenGL
     ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplOpenGL3_Init("#version 130");
+#endif
+	if (!ImGui_ImplOpenGL3_Init("#version 130")) {
+		LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
+	}
 
 	constexpr int guiTargetFps = 60;
 	const auto targetFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -1145,7 +1489,9 @@ static void RunGUI() {
 
 	InitializeSections();
 
+#if !SMU_USE_SDL_UI
 	MSG msg;
+#endif
 
 	// Update Specific Variables on startup (Update int values from the corresponding char values)
 
@@ -1220,9 +1566,11 @@ static void RunGUI() {
 	}
 
     // Attach the GUI thread to the input of the main thread
-    DWORD mainThreadId = GetWindowThreadProcessId(hwnd, NULL);
+    DWORD mainThreadId = hwnd ? GetWindowThreadProcessId(hwnd, NULL) : 0;
     DWORD guiThreadId = GetCurrentThreadId();
-    AttachThreadInput(mainThreadId, guiThreadId, TRUE); // Attach the threads
+    if (mainThreadId != 0 && mainThreadId != guiThreadId) {
+	    AttachThreadInput(mainThreadId, guiThreadId, TRUE);
+	}
 
     // Set window flags to disable resizing, moving, and title bar
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize |
@@ -1233,7 +1581,9 @@ static void RunGUI() {
 										ImGuiWindowFlags_NoBringToFrontOnFocus;
 
 	// Check if the display scale is accurate to the macro
-	CheckDisplayScale(hwnd, display_scale);
+	if (hwnd) {
+		CheckDisplayScale(hwnd, display_scale);
+	}
 
 	bool amIFocused = true;
 	bool processFoundOld = false;
@@ -1245,6 +1595,31 @@ static void RunGUI() {
 	while (running) {
 		// Process all pending messages first
 		int processedMessages = 0;
+#if SMU_USE_SDL_UI
+		SDL_Event event;
+		while (processedMessages < maxMessagesPerIteration && SDL_PollEvent(&event)) {
+			ImGui_ImplSDL3_ProcessEvent(&event);
+
+			if (event.type == SDL_EVENT_QUIT ||
+				event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+				done = true;
+				running = false;
+				break;
+			}
+
+			if (event.type == SDL_EVENT_WINDOW_RESIZED ||
+				event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+				event.type == SDL_EVENT_WINDOW_MOVED) {
+				UpdateWindowMetrics(sdlWindow, hwnd);
+			}
+
+			if (event.type == SDL_EVENT_MOUSE_WHEEL && !g_mouseWheelRawInputEnabled) {
+				g_mouseWheel.ReportWheelDelta(event.wheel.y);
+			}
+
+			processedMessages++;
+		}
+#else
 		while (processedMessages < maxMessagesPerIteration && PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
 			if (msg.message == WM_QUIT) {
 				running = false;
@@ -1254,13 +1629,18 @@ static void RunGUI() {
 			DispatchMessage(&msg);
 			processedMessages++;
 		}
+#endif
 
 		if (!running) break;
 
 		// RENDER ONLY IF YOU'RE FOCUSED OR PROCESSFOUND CHANGES
-		if (hwnd) { 
+#if SMU_USE_SDL_UI
+		amIFocused = IsSdlWindowFocused(sdlWindow);
+#else
+		if (hwnd) {
 			amIFocused = (GetForegroundWindow() == hwnd);
 		}
+#endif
 
 		if ((processFoundOld != processFound) || (lagswitchOld != g_windivert_blocking)) {
 			amIFocused = true;
@@ -1290,7 +1670,11 @@ static void RunGUI() {
 			// Start ImGui frame
 
 			ImGui_ImplOpenGL3_NewFrame();
+#if SMU_USE_SDL_UI
+			ImGui_ImplSDL3_NewFrame();
+#else
 			ImGui_ImplWin32_NewFrame();
+#endif
 			ImGui::NewFrame();
 			// Apply the current theme styles every frame
 			ThemeManager::ApplyTheme();
@@ -1326,6 +1710,9 @@ static void RunGUI() {
 					ResetInstanceRemoveConfirmState();
 				}
 			}
+
+			RenderPlatformCriticalNotifications();
+			RenderPlatformWarningNotifications();
 
 			// Admin Warning Popup
 			if (bShowAdminPopup) {
@@ -3359,7 +3746,13 @@ static void RunGUI() {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
                 if (ImGui::Checkbox("##OnTopToggle", &ontoptoggle))
                 {
-                    SetWindowPos(hwnd, ontoptoggle ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+#if SMU_USE_SDL_UI
+                    if (!SetGuiWindowTopmost(sdlWindow, hwnd, ontoptoggle)) {
+						LogWarning("Always-on-top could not be applied to the SDL window on this platform.");
+					}
+#else
+                    SetGuiWindowTopmost(hwnd, ontoptoggle);
+#endif
                 }
 
                 ImGui::SameLine();
@@ -3372,8 +3765,13 @@ static void RunGUI() {
 				ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
                 if (ImGui::SliderFloat("##OpacitySlider", &windowOpacityPercent, 20.0f, 100.0f, "%.0f%%"))
                 {
-                    BYTE alpha = static_cast<BYTE>((windowOpacityPercent / 100.0f) * 255);
-                    SetLayeredWindowAttributes(hwnd, 0, alpha, LWA_ALPHA);
+#if SMU_USE_SDL_UI
+                    if (!SetGuiWindowOpacity(sdlWindow, hwnd, windowOpacityPercent)) {
+						LogWarning("Window opacity could not be applied to the SDL window on this platform.");
+					}
+#else
+                    SetGuiWindowOpacity(hwnd, windowOpacityPercent);
+#endif
                 }
 
 				// Patch the Background (Fill the empty rounded gaps with background color)
@@ -3440,14 +3838,21 @@ static void RunGUI() {
 
             // Render
             ImGui::Render();
-            
+
+#if SMU_USE_SDL_UI
+			UpdateWindowMetrics(sdlWindow, hwnd);
+#endif
             glViewport(0, 0, screen_width, screen_height);
             glClearColor(0.45f, 0.55f, 0.60f, 1.00f);
             glClear(GL_COLOR_BUFFER_BIT);
-            
+
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-            
+
+#if SMU_USE_SDL_UI
+            SDL_GL_SwapWindow(sdlWindow);
+#else
             SwapBuffers(g_hDC);
+#endif
 			UpdateLagswitchOverlay();
 			if (startupWarmupFramesRemaining > 0) {
 				startupWarmupFramesRemaining--;
@@ -3464,15 +3869,28 @@ static void RunGUI() {
 			// No rendering needed
 			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
-    }
+	}
 
 	ImGui_ImplOpenGL3_Shutdown();
+#if SMU_USE_SDL_UI
+    ImGui_ImplSDL3_Shutdown();
+#else
     ImGui_ImplWin32_Shutdown();
+#endif
     ImGui::DestroyContext();
+#if SMU_USE_SDL_UI
+	SDL_SetWindowsMessageHook(nullptr, nullptr);
+	SDL_GL_DestroyContext(glContext);
+	SDL_DestroyWindow(sdlWindow);
+	SDL_Quit();
+#else
     CleanupDeviceWGL(hwnd);
 
     UnregisterClass(wc.lpszClassName, wc.hInstance);
-    AttachThreadInput(mainThreadId, guiThreadId, FALSE);
+#endif
+    if (mainThreadId != 0 && mainThreadId != guiThreadId) {
+	    AttachThreadInput(mainThreadId, guiThreadId, FALSE);
+	}
 }
 
 void DbgPrintf(const char* format, ...) {
@@ -4438,26 +4856,26 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 	// Save Window Positions and Size before closing
 	RECT windowrect;
-	GetWindowRect(hwnd, &windowrect);
+	if (hwnd && IsWindow(hwnd) && GetWindowRect(hwnd, &windowrect)) {
+		if (windowrect.left < 0) {
+			WindowPosX = 0;
+		} else {
+			WindowPosX = windowrect.left;
+		}
 
-	if (windowrect.left < 0) {
-		WindowPosX = 0;
-	} else {
-		WindowPosX = windowrect.left;
+		if (windowrect.top < 0) {
+			WindowPosY = 0;
+		} else {
+			WindowPosY = windowrect.top;
+		}
+
+		RECT screen_rect;
+
+		GetWindowRect(hwnd, &screen_rect);
+
+		screen_width = screen_rect.right - screen_rect.left;
+		screen_height = screen_rect.bottom - screen_rect.top;
 	}
-
-	if (windowrect.top < 0) {
-		WindowPosY = 0;
-	} else {
-		WindowPosY = windowrect.top;
-	}
-
-	RECT screen_rect;
-
-	GetWindowRect(hwnd, &screen_rect);
-
-	screen_width = screen_rect.right - screen_rect.left;
-	screen_height = screen_rect.bottom - screen_rect.top;
 
 	// Auto-promote (default) edits to a named profile if settings were changed
 	PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);
