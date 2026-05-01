@@ -249,6 +249,7 @@ namespace Globals {
     inline constexpr int section_amounts = 16;
     inline int section_order[16] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
     inline bool section_toggles[16] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false, false, false};
+    inline bool disable_outside_roblox[16] = {true, true, false, true, true, true, false, false, true, true, true, false, true, true, true, false};
     inline int selected_section = -1;
     inline int dragged_section = -1;
     inline int selected_dropdown = 0;
@@ -456,6 +457,7 @@ namespace Globals {
         bool toggle_jump        = true;
         bool toggle_flick       = true;
         bool wallhopcamfix      = false;
+        bool disable_outside_roblox = false;
         bool section_enabled    = true;
         unsigned int vk_trigger = VK_XBUTTON2;
         unsigned int vk_jumpkey = VK_SPACE;
@@ -506,6 +508,7 @@ namespace Globals {
         int   real_delay        = 1000;
         char  SpamDelay[256];
         bool  isspamswitch    = false;
+        bool  disable_outside_roblox = false;
         bool  section_enabled = false;
         // Runtime
         std::atomic<bool> thread_active{false};

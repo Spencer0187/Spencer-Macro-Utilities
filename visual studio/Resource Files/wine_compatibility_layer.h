@@ -14,6 +14,8 @@ struct KeyAction {
 #define VK_MOUSE_WHEEL_UP 256
 #define VK_MOUSE_WHEEL_DOWN 257
 
+inline constexpr ULONG_PTR kSmcInjectedInputTag = static_cast<ULONG_PTR>(0x534D4301u);
+
 // --- Global state declarations (extern means "defined elsewhere") ---
 extern std::string g_linuxHelperPath_Windows;
 

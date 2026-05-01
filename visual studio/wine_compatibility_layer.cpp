@@ -5,6 +5,8 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <chrono>
+#include <mutex>
 #include <TlHelp32.h>
 
 #include "Resource Files/globals.h"
@@ -21,6 +23,9 @@ typedef LONG(WINAPI *PntResumeProcess)(HANDLE);
 
 static SharedMemory *g_sharedData = nullptr;
 static HANDLE g_hMapFile = NULL;
+static std::mutex g_guiInjectedInputBudgetMutex;
+static auto g_guiInjectedInputBudgetResetTime = std::chrono::steady_clock::now();
+static int g_guiInjectedInputBudgetRemaining = 50;
 
 const char *LINUX_HELPER_BINARY_NAME = "Suspend_Input_Helper_Linux_Binary";
 const char *LINUX_SHARED_MEM_FILE_WINE_PATH = "Z:\\tmp\\cross_input_shm_file";
@@ -363,6 +368,69 @@ void EnqueueCommand(const Command& new_cmd) {
 
 // API Replacement Functions
 
+static void TagInjectedInput(INPUT& input)
+{
+    if (input.type == INPUT_MOUSE) {
+        input.mi.dwExtraInfo = kSmcInjectedInputTag;
+    } else if (input.type == INPUT_KEYBOARD) {
+        input.ki.dwExtraInfo = kSmcInjectedInputTag;
+    }
+}
+
+static bool IsGuiWindowForegroundForBudget()
+{
+    HWND guiWindow = hwnd;
+    HWND foreground = GetForegroundWindow();
+    if (!guiWindow || !foreground) {
+        return false;
+    }
+
+    return foreground == guiWindow || GetAncestor(foreground, GA_ROOT) == guiWindow;
+}
+
+static void AcquireInjectedInputBudget(size_t inputCount)
+{
+    if (g_isLinuxWine || !IsGuiWindowForegroundForBudget()) {
+        return;
+    }
+
+    constexpr int kMaxInjectedInputsPerGuiSlice = 50;
+    constexpr auto kGuiSliceDuration = std::chrono::milliseconds(16);
+
+    while (true) {
+        std::chrono::milliseconds sleepDuration{0};
+        {
+            std::lock_guard<std::mutex> lock(g_guiInjectedInputBudgetMutex);
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsed = now - g_guiInjectedInputBudgetResetTime;
+            if (elapsed >= kGuiSliceDuration) {
+                g_guiInjectedInputBudgetResetTime = now;
+                g_guiInjectedInputBudgetRemaining = kMaxInjectedInputsPerGuiSlice;
+            }
+
+            if (inputCount <= static_cast<size_t>(g_guiInjectedInputBudgetRemaining)) {
+                g_guiInjectedInputBudgetRemaining -= static_cast<int>(inputCount);
+                return;
+            }
+
+            const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(kGuiSliceDuration - elapsed);
+            sleepDuration = remaining > std::chrono::milliseconds(0) ? remaining : std::chrono::milliseconds(1);
+        }
+
+        std::this_thread::sleep_for(sleepDuration);
+    }
+}
+
+static void DispatchTaggedInputs(INPUT* inputs, size_t inputCount)
+{
+    if (inputCount == 0) {
+        return;
+    }
+
+    AcquireInjectedInputBudget(inputCount);
+    SendInput(static_cast<UINT>(inputCount), inputs, sizeof(INPUT));
+}
+
 // Replacement for GetAsyncKeyState
 bool IsKeyPressed(WORD vk_key)
 {
@@ -401,7 +469,8 @@ void HoldKey(WORD scanCode)
 		input.type = INPUT_KEYBOARD;
 		input.ki.wScan = scanCode;
 		input.ki.dwFlags = KEYEVENTF_SCANCODE;
-		SendInput(1, &input, sizeof(INPUT));
+		TagInjectedInput(input);
+		DispatchTaggedInputs(&input, 1);
 	}
 }
 
@@ -419,7 +488,8 @@ void HoldKey(WORD scanCode, bool extended)
         if (extended) {
             input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
         }
-        SendInput(1, &input, sizeof(INPUT));
+        TagInjectedInput(input);
+        DispatchTaggedInputs(&input, 1);
     }
 }
 
@@ -442,7 +512,8 @@ void ReleaseKey(WORD scanCode)
 		input.type = INPUT_KEYBOARD;
 		input.ki.wScan = scanCode;
 		input.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-		SendInput(1, &input, sizeof(INPUT));
+		TagInjectedInput(input);
+		DispatchTaggedInputs(&input, 1);
 	}
 }
 
@@ -460,7 +531,8 @@ void ReleaseKey(WORD scanCode, bool extended)
         if (extended) {
             input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
         }
-        SendInput(1, &input, sizeof(INPUT));
+        TagInjectedInput(input);
+        DispatchTaggedInputs(&input, 1);
     }
 }
 
@@ -525,10 +597,10 @@ void HoldKeyBinded(unsigned int combinedKey) {
         std::vector<INPUT> inputs;
         
         // 1. Modifiers Down
-        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    inputs.push_back(i); }
-        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; inputs.push_back(i); }
-        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    inputs.push_back(i); }
-        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   inputs.push_back(i); }
+        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    TagInjectedInput(i); inputs.push_back(i); }
+        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; TagInjectedInput(i); inputs.push_back(i); }
+        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    TagInjectedInput(i); inputs.push_back(i); }
+        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   TagInjectedInput(i); inputs.push_back(i); }
 
         // 2. Main Key/Mouse Down
         INPUT mainInput = {};
@@ -555,9 +627,10 @@ void HoldKeyBinded(unsigned int combinedKey) {
             mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
             mainInput.ki.dwFlags = KEYEVENTF_SCANCODE;
         }
+        TagInjectedInput(mainInput);
         inputs.push_back(mainInput);
 
-        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+        DispatchTaggedInputs(inputs.data(), inputs.size());
     }
 }
 
@@ -599,15 +672,16 @@ void ReleaseKeyBinded(unsigned int combinedKey) {
             mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
             mainInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
         }
+        TagInjectedInput(mainInput);
         inputs.push_back(mainInput);
 
         // 2. Release Modifiers (Reverse Order)
-        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
-        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    i.ki.dwFlags=KEYEVENTF_KEYUP; inputs.push_back(i); }
+        if (useShift) { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_SHIFT;   i.ki.dwFlags=KEYEVENTF_KEYUP; TagInjectedInput(i); inputs.push_back(i); }
+        if (useAlt)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_MENU;    i.ki.dwFlags=KEYEVENTF_KEYUP; TagInjectedInput(i); inputs.push_back(i); }
+        if (useCtrl)  { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_CONTROL; i.ki.dwFlags=KEYEVENTF_KEYUP; TagInjectedInput(i); inputs.push_back(i); }
+        if (useWin)   { INPUT i={}; i.type=INPUT_KEYBOARD; i.ki.wVk=VK_LWIN;    i.ki.dwFlags=KEYEVENTF_KEYUP; TagInjectedInput(i); inputs.push_back(i); }
 
-        SendInput((UINT)inputs.size(), inputs.data(), sizeof(INPUT));
+        DispatchTaggedInputs(inputs.data(), inputs.size());
     }
 }
 
@@ -628,7 +702,8 @@ void MoveMouse(int dx, int dy)
 		input.mi.dx = dx;
 		input.mi.dy = dy;
 		input.mi.dwFlags = MOUSEEVENTF_MOVE;
-		SendInput(1, &input, sizeof(INPUT));
+		TagInjectedInput(input);
+		DispatchTaggedInputs(&input, 1);
 	}
 }
 

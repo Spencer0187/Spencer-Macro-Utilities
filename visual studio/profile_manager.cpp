@@ -373,6 +373,7 @@ static json SerializeProfileData() {
 		toggle_jump    = w.toggle_jump;       toggle_flick   = w.toggle_flick;
 		wallhop_dx     = w.wallhop_dx;        wallhop_dy     = w.wallhop_dy;
 		wallhop_vertical = w.wallhop_vertical;
+		disable_outside_roblox[6] = w.disable_outside_roblox;
 		vk_xbutton2    = w.vk_trigger;
 		vk_wallhopjumpkey = w.vk_jumpkey;
 		strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         w.WallhopPixels,         _TRUNCATE);
@@ -384,6 +385,7 @@ static json SerializeProfileData() {
 	if (!presskey_instances.empty()) {
 		auto& p = presskey_instances[0];
 		presskeyinroblox = p.presskeyinroblox;
+		disable_outside_roblox[5] = p.presskeyinroblox;
 		vk_zkey = p.vk_trigger;   vk_dkey = p.vk_presskey;
 		strncpy_s(PressKeyDelayChar,      sizeof(PressKeyDelayChar),      p.PressKeyDelayChar,      _TRUNCATE);
 		strncpy_s(PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), p.PressKeyBonusDelayChar, _TRUNCATE);
@@ -392,11 +394,15 @@ static json SerializeProfileData() {
 	if (!spamkey_instances.empty()) {
 		auto& s = spamkey_instances[0];
 		isspamswitch   = s.isspamswitch;
+		disable_outside_roblox[11] = s.disable_outside_roblox;
 		spam_delay     = s.spam_delay;    real_delay     = s.real_delay;
 		vk_spamkey     = s.vk_spamkey;   vk_leftbracket = s.vk_trigger;
 		strncpy_s(SpamDelay, sizeof(SpamDelay), s.SpamDelay, _TRUNCATE);
 		section_toggles[11] = s.section_enabled;
 	}
+
+	freezeoutsideroblox = !disable_outside_roblox[0];
+	unequipinroblox = disable_outside_roblox[4];
 
 	for (const auto& [key, ptr] : bool_vars) {
 		if (ptr) data[key] = *ptr;
@@ -412,6 +418,7 @@ static json SerializeProfileData() {
 
 	if (section_amounts > 0) {
 		data["section_toggles"] = std::vector<bool>(section_toggles, section_toggles + section_amounts);
+		data["disable_outside_roblox"] = std::vector<bool>(disable_outside_roblox, disable_outside_roblox + section_amounts);
 		data["section_order_vector"] = std::vector<int>(section_order, section_order + section_amounts);
 	}
 	data["text"] = text;
@@ -440,6 +447,7 @@ static json SerializeProfileData() {
 			jw["toggle_jump"]          = w.toggle_jump;
 			jw["toggle_flick"]         = w.toggle_flick;
 			jw["wallhopcamfix"]        = w.wallhopcamfix;
+			jw["disable_outside_roblox"] = w.disable_outside_roblox;
 			jw["section_enabled"]      = w.section_enabled;
 			whArr.push_back(jw);
 		}
@@ -457,6 +465,7 @@ static json SerializeProfileData() {
 			jp["PressKeyBonusDelay"]   = p.PressKeyBonusDelay;
 			jp["PressKeyDelayChar"]    = TrimNullChars(p.PressKeyDelayChar,      sizeof(PresskeyInstance::PressKeyDelayChar));
 			jp["PressKeyBonusDelayChar"]= TrimNullChars(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar));
+			jp["disable_outside_roblox"] = p.presskeyinroblox;
 			jp["presskeyinroblox"]     = p.presskeyinroblox;
 			jp["section_enabled"]      = p.section_enabled;
 			pkArr.push_back(jp);
@@ -475,6 +484,7 @@ static json SerializeProfileData() {
 			js["real_delay"]    = s.real_delay;
 			js["SpamDelay"]     = TrimNullChars(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay));
 			js["isspamswitch"]  = s.isspamswitch;
+			js["disable_outside_roblox"] = s.disable_outside_roblox;
 			js["section_enabled"]= s.section_enabled;
 			skArr.push_back(js);
 		}
@@ -519,6 +529,24 @@ static void DeserializeProfileData(const json& settings) {
 			size_t count = std::min(toggles.size(), static_cast<size_t>(section_amounts));
 			std::copy(toggles.begin(), toggles.begin() + count, section_toggles);
 		}
+
+		bool loaded_disable_outside = false;
+		if (settings.contains("disable_outside_roblox") && settings["disable_outside_roblox"].is_array()) {
+			auto disableOutside = settings["disable_outside_roblox"].get<std::vector<bool>>();
+			size_t count = std::min(disableOutside.size(), static_cast<size_t>(section_amounts));
+			std::copy(disableOutside.begin(), disableOutside.begin() + count, disable_outside_roblox);
+			loaded_disable_outside = true;
+		}
+
+		if (!loaded_disable_outside) {
+			disable_outside_roblox[0] = !freezeoutsideroblox;
+			disable_outside_roblox[4] = unequipinroblox;
+			disable_outside_roblox[5] = presskeyinroblox;
+		}
+
+		freezeoutsideroblox = !disable_outside_roblox[0];
+		unequipinroblox = disable_outside_roblox[4];
+		presskeyinroblox = disable_outside_roblox[5];
 
 		// Section order (with backwards-compatible upgrades for older save files)
 		if (settings.contains("section_order_vector") && settings["section_order_vector"].is_array()) {
@@ -571,6 +599,7 @@ static void DeserializeProfileData(const json& settings) {
 			w.toggle_jump   = toggle_jump;    w.toggle_flick  = toggle_flick;
 			w.wallhop_dx    = wallhop_dx;     w.wallhop_dy    = wallhop_dy;
 			w.wallhop_vertical = wallhop_vertical;
+			w.disable_outside_roblox = disable_outside_roblox[6];
 			w.vk_trigger    = vk_xbutton2;
 			w.vk_jumpkey    = vk_wallhopjumpkey;
 			strncpy_s(w.WallhopPixels,         sizeof(WallhopInstance::WallhopPixels),         WallhopPixels,         _TRUNCATE);
@@ -594,6 +623,7 @@ static void DeserializeProfileData(const json& settings) {
 		if (!spamkey_instances.empty()) {
 			auto& s = spamkey_instances[0];
 			s.isspamswitch = isspamswitch;
+			s.disable_outside_roblox = disable_outside_roblox[11];
 			s.spam_delay   = spam_delay;   s.real_delay = real_delay;
 			s.vk_spamkey   = vk_spamkey;  s.vk_trigger = vk_leftbracket;
 			strncpy_s(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), SpamDelay, _TRUNCATE);
@@ -638,6 +668,7 @@ static void DeserializeProfileData(const json& settings) {
 				w.toggle_jump     = jw.value("toggle_jump", true);
 				w.toggle_flick    = jw.value("toggle_flick", true);
 				w.wallhopcamfix   = jw.value("wallhopcamfix", false);
+				w.disable_outside_roblox = jw.value("disable_outside_roblox", disable_outside_roblox[6]);
 				w.section_enabled = jw.value("section_enabled", false);
 				extra_loaded = true;
 			}
@@ -658,7 +689,7 @@ static void DeserializeProfileData(const json& settings) {
 					std::string s = jp["PressKeyBonusDelayChar"].get<std::string>();
 					strncpy_s(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), s.c_str(), _TRUNCATE);
 				}
-				p.presskeyinroblox = jp.value("presskeyinroblox", false);
+				p.presskeyinroblox = jp.value("disable_outside_roblox", jp.value("presskeyinroblox", disable_outside_roblox[5]));
 				p.section_enabled  = jp.value("section_enabled", false);
 				extra_loaded = true;
 			}
@@ -676,6 +707,7 @@ static void DeserializeProfileData(const json& settings) {
 					strncpy_s(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), ss.c_str(), _TRUNCATE);
 				}
 				s.isspamswitch  = js.value("isspamswitch", false);
+				s.disable_outside_roblox = js.value("disable_outside_roblox", disable_outside_roblox[11]);
 				s.section_enabled = js.value("section_enabled", false);
 				extra_loaded = true;
 			}

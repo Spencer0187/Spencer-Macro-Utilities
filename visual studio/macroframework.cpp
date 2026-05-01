@@ -74,6 +74,8 @@ using namespace Globals;
 static HGLRC g_hRC;
 HDC g_hDC;
 
+using PFNWGLSWAPINTERVALEXTPROC = BOOL(WINAPI*)(int);
+
 using json = nlohmann::json;
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -132,12 +134,43 @@ static INPUT createInput()
 
 // This is ran in a separate thread to avoid interfering with other functions
 
+static bool IsTaggedInjectedGuiInputMessage(UINT msg)
+{
+	switch (msg) {
+	case WM_KEYDOWN:
+	case WM_KEYUP:
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	case WM_CHAR:
+	case WM_SYSCHAR:
+	case WM_MOUSEMOVE:
+	case WM_LBUTTONDOWN:
+	case WM_LBUTTONUP:
+	case WM_LBUTTONDBLCLK:
+	case WM_RBUTTONDOWN:
+	case WM_RBUTTONUP:
+	case WM_RBUTTONDBLCLK:
+	case WM_MBUTTONDOWN:
+	case WM_MBUTTONUP:
+	case WM_MBUTTONDBLCLK:
+	case WM_XBUTTONDOWN:
+	case WM_XBUTTONUP:
+	case WM_XBUTTONDBLCLK:
+	case WM_MOUSEWHEEL:
+	case WM_MOUSEHWHEEL:
+		return GetMessageExtraInfo() == kSmcInjectedInputTag;
+	default:
+		return false;
+	}
+}
+
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
-        // Reset AFK on any key activity
-        isafk.store(false, std::memory_order_relaxed);
-        
         const KBDLLHOOKSTRUCT* pkbhs = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
+
+        // Reset AFK on any key activity seen by the low-level hook.
+        isafk.store(false, std::memory_order_relaxed);
+
         if (pkbhs->vkCode == vk_bunnyhopkey) {
             if ((pkbhs->flags & LLKHF_INJECTED) == 0) {
                 // Use relaxed for the bunnyhop flag
@@ -169,7 +202,10 @@ static void KeyboardHookThread()
         DispatchMessage(&msg);
     }
 
-    UnhookWindowsHookEx(g_keyboardHook);
+    if (g_keyboardHook) {
+        UnhookWindowsHookEx(g_keyboardHook);
+        g_keyboardHook = NULL;
+    }
 }
 
 // Special class to allow mouse scroll events to be found and used
@@ -370,6 +406,10 @@ static bool IsForegroundWindowProcess(const std::vector<HANDLE> &handles)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (IsTaggedInjectedGuiInputMessage(msg)) {
+		return 0;
+	}
+
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
 		return true; // Forward ImGUI-related messages
 
@@ -576,6 +616,35 @@ static int GetCurrentRemovalTargetForSection(int sectionIndex) {
 	return -1;
 }
 
+static bool* GetDisableOutsideTogglePtr(int sectionIndex) {
+	if (sectionIndex < 0 || sectionIndex >= section_amounts || sectionIndex == 15) {
+		return nullptr;
+	}
+
+	if (sectionIndex == 5) {
+		if (presskey_instances.empty() || selected_presskey_instance < 0 || selected_presskey_instance >= static_cast<int>(presskey_instances.size())) {
+			return nullptr;
+		}
+		return &presskey_instances[selected_presskey_instance].presskeyinroblox;
+	}
+
+	if (sectionIndex == 6) {
+		if (wallhop_instances.empty() || selected_wallhop_instance < 0 || selected_wallhop_instance >= static_cast<int>(wallhop_instances.size())) {
+			return nullptr;
+		}
+		return &wallhop_instances[selected_wallhop_instance].disable_outside_roblox;
+	}
+
+	if (sectionIndex == 11) {
+		if (spamkey_instances.empty() || selected_spamkey_instance < 0 || selected_spamkey_instance >= static_cast<int>(spamkey_instances.size())) {
+			return nullptr;
+		}
+		return &spamkey_instances[selected_spamkey_instance].disable_outside_roblox;
+	}
+
+	return &disable_outside_roblox[sectionIndex];
+}
+
 static void CopyWallhopInstanceData(const WallhopInstance& src, WallhopInstance& dst) {
 	dst.wallhop_dx = src.wallhop_dx;
 	dst.wallhop_dy = src.wallhop_dy;
@@ -591,6 +660,7 @@ static void CopyWallhopInstanceData(const WallhopInstance& src, WallhopInstance&
 	dst.toggle_jump = src.toggle_jump;
 	dst.toggle_flick = src.toggle_flick;
 	dst.wallhopcamfix = src.wallhopcamfix;
+	dst.disable_outside_roblox = src.disable_outside_roblox;
 	dst.section_enabled = src.section_enabled;
 	dst.vk_trigger = src.vk_trigger;
 	dst.vk_jumpkey = src.vk_jumpkey;
@@ -620,6 +690,7 @@ static void CopySpamkeyInstanceData(const SpamkeyInstance& src, SpamkeyInstance&
 	dst.real_delay = src.real_delay;
 	strncpy_s(dst.SpamDelay, sizeof(dst.SpamDelay), src.SpamDelay, _TRUNCATE);
 	dst.isspamswitch = src.isspamswitch;
+	dst.disable_outside_roblox = src.disable_outside_roblox;
 	dst.section_enabled = src.section_enabled;
 	dst.thread_active.store(src.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
 	dst.should_exit = false;
@@ -962,8 +1033,8 @@ static void RunGUI() {
 	// Setup Linux Compatibility Layer if Needed
 	InitLinuxCompatLayer();
 
-	// Gui Thread has lower priority
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
+	// Keep the GUI responsive even while macro worker threads are busy.
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
 
 	// Load Default Themes into memory to be overwritten
 	ThemeManager::Initialize();
@@ -1025,6 +1096,10 @@ static void RunGUI() {
 	}
 
 	wglMakeCurrent(g_hDC, g_hRC);
+	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXTProc = reinterpret_cast<PFNWGLSWAPINTERVALEXTPROC>(wglGetProcAddress("wglSwapIntervalEXT"));
+	if (wglSwapIntervalEXTProc) {
+		wglSwapIntervalEXTProc(0);
+	}
 
 	// Show the window
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
@@ -1062,9 +1137,11 @@ static void RunGUI() {
     ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplOpenGL3_Init("#version 130");
 
-	auto lastTime = std::chrono::steady_clock::now();
-	constexpr float targetFrameTime = 1.0f / 90.0f;  // 90 FPS target
-	auto nextFrameTime = lastTime + std::chrono::duration<float>(targetFrameTime);
+	constexpr int guiTargetFps = 60;
+	const auto targetFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+		std::chrono::duration<double>(1.0 / static_cast<double>(guiTargetFps)));
+	auto nextFrameTime = std::chrono::steady_clock::now();
+	constexpr int maxMessagesPerIteration = 512;
 
 	InitializeSections();
 
@@ -1161,19 +1238,21 @@ static void RunGUI() {
 	bool amIFocused = true;
 	bool processFoundOld = false;
 	bool lagswitchOld = false;
-	int renderfirstframe = 1;
+	int startupWarmupFramesRemaining = 8;
 
 	bool currentBlock = false;
 
 	while (running) {
 		// Process all pending messages first
-		while (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
+		int processedMessages = 0;
+		while (processedMessages < maxMessagesPerIteration && PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE)) {
 			if (msg.message == WM_QUIT) {
 				running = false;
 				break;
 			}
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+			processedMessages++;
 		}
 
 		if (!running) break;
@@ -1191,9 +1270,8 @@ static void RunGUI() {
 
 		lagswitchOld = g_windivert_blocking;
 
-		if (renderfirstframe < 8) {
+		if (startupWarmupFramesRemaining > 0) {
 			amIFocused = true;
-			renderfirstframe += 1;
 		}
 
 		// Makes sure the log thread is synced to whether lagswitching should target Roblox
@@ -1209,11 +1287,6 @@ static void RunGUI() {
 		// Check if it's time to render
 		auto currentTime = std::chrono::steady_clock::now();
 		if (currentTime >= nextFrameTime) {
-
-			// Update frame timing
-			lastTime = currentTime;
-			nextFrameTime = currentTime + std::chrono::duration<float>(targetFrameTime);
-
 			// Start ImGui frame
 
 			ImGui_ImplOpenGL3_NewFrame();
@@ -2005,6 +2078,23 @@ static void RunGUI() {
 					}
 				}
 
+				bool* disableOutsidePtr = GetDisableOutsideTogglePtr(selected_section);
+				if (disableOutsidePtr) {
+					std::string disableOutsideId = "##DisableOutsideRoblox_" + std::to_string(selected_section);
+					if (selected_section == 5) {
+						disableOutsideId += "_" + std::to_string(selected_presskey_instance);
+					} else if (selected_section == 6) {
+						disableOutsideId += "_" + std::to_string(selected_wallhop_instance);
+					} else if (selected_section == 11) {
+						disableOutsideId += "_" + std::to_string(selected_spamkey_instance);
+					}
+
+					ImGui::SameLine();
+					ImGui::TextWrapped("Disable outside of Roblox:");
+					ImGui::SameLine();
+					ImGui::Checkbox(disableOutsideId.c_str(), disableOutsidePtr);
+				}
+
 				if (selected_section == 0) { // Freeze Macro
 					ImGui::TextWrapped("Automatically Unfreeze after this amount of seconds (Anti-Internet-Kick)");
 					ImGui::SetNextItemWidth(60.0f);
@@ -2021,10 +2111,9 @@ static void RunGUI() {
 						maxfreezeoverride = std::atoi(maxfreezeoverrideBuffer);
 					}
 
-					ImGui::Checkbox("Allow Roblox to be frozen while not tabbed in", &freezeoutsideroblox);
 					ImGui::Checkbox("Switch from Hold Key to Toggle Key", &isfreezeswitch);
 					if (isfreezeswitch || takeallprocessids) {
-						freezeoutsideroblox = true;
+						disable_outside_roblox[0] = false;
 					}
 
 					ImGui::Checkbox("Freeze all Found Processes Instead of Newest", &takeallprocessids);
@@ -2062,8 +2151,8 @@ static void RunGUI() {
 										"client-side collision on the item.");
 					ImGui::Separator();
 					ImGui::TextWrapped(
-										"Also, for convenience sake, you cannot activate desync unless you're tabbed into roblox, You will "
-										"most likely crash any other program if you activate it in there.");
+									"If 'Disable outside of Roblox' is enabled, this module will only run while tabbed into Roblox. "
+									"Turning it off allows use in other windows (use carefully). ");
 				}
 
 				if (selected_section == 2) { // HHJ
@@ -2420,7 +2509,6 @@ static void RunGUI() {
 					ImGui::PopID();
 
 					ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
-					ImGui::Checkbox("Make Unequip Com only work while tabbed into Roblox", &unequipinroblox);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("IMPORTANT: This glitch has been patched by Roblox. This is currently deprecated. You may get a COM offset\n"
@@ -2529,8 +2617,6 @@ static void RunGUI() {
 					if (ImGui::InputText(("##PressKeyBonusDelayChar" + sid).c_str(), inst.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
 						try { inst.PressKeyBonusDelay = std::stoi(inst.PressKeyBonusDelayChar); } catch (...) {}
 					}
-
-					ImGui::Checkbox(("Make PressKey only work while tabbed into Roblox##" + sid).c_str(), &inst.presskeyinroblox);
 
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
@@ -2736,7 +2822,7 @@ static void RunGUI() {
 										"This lets you clip through walls in both R6 and R15, however, it is EXTREMELY RNG. "
 										"There are way too factors that control this, the delay, fps, the item's size, your animation, etc. "
 										"The item in the best scenario should be big and stretch far into the wall. ");
-					ImGui::TextWrapped("Also, for convenience sake, you cannot activate item clip unless you're tabbed into roblox.");
+					ImGui::TextWrapped("If 'Disable outside of Roblox' is enabled, item clip only runs while tabbed into Roblox.");
 				}
 
 				if (selected_section == 9) { // Laugh Clip
@@ -2798,7 +2884,7 @@ static void RunGUI() {
 					ImGui::TextWrapped("TICK OR UNTICK THE CHECKBOX DEPENDING ON WHETHER THE GAME USES CAM-FIX MODULE OR NOT. "
 										"If you don't know, do BOTH and check which one provides you with a 180 degree rotation. "
 										"You can also toggle whether it's right facing or left facing (Makes its respective side easier) "
-										"Also, for safety, you cannot activate wallwalk unless you're tabbed into roblox.");
+										"Use 'Disable outside of Roblox' to control whether wallwalk only runs in Roblox.");
 					ImGui::Separator();
 					ImGui::TextWrapped("Explanation:");
 					ImGui::NewLine();
@@ -2940,7 +3026,7 @@ static void RunGUI() {
 									"This Macro will automatically spam your key (typically space) with a specified delay whenever space is held down. "
 									"This is created as a more functional Spamkey implementation specifically for Bhop/Bunnyhop.");
 
-					ImGui::TextWrapped("This will not be active unless you are currently inside of the target program.");
+					ImGui::TextWrapped("This will only be restricted to Roblox when 'Disable outside of Roblox' is enabled.");
 				}
 
 				if (selected_section == 14) { // Floor Bounce
@@ -3363,13 +3449,21 @@ static void RunGUI() {
             
             SwapBuffers(g_hDC);
 			UpdateLagswitchOverlay();
-			// Wait until next frame
+			if (startupWarmupFramesRemaining > 0) {
+				startupWarmupFramesRemaining--;
+			}
+
+			nextFrameTime += targetFrameDuration;
+			auto nowAfterRender = std::chrono::steady_clock::now();
+			if (nextFrameTime <= nowAfterRender) {
+				nextFrameTime = nowAfterRender + targetFrameDuration;
+			}
 			std::this_thread::sleep_until(nextFrameTime);
 
-        }
-
-        // No rendering needed
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		} else {
+			// No rendering needed
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
     }
 
 	ImGui_ImplOpenGL3_Shutdown();
@@ -3474,22 +3568,25 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	// Run timers with max precision
     timeBeginPeriod(1);
 
-	// I LOVE THREAD PRIORITY!!!!!!!!!!!!!!!
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+	// Do not let the main polling loop starve the GUI thread.
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
 
 	// Setup suspension
 
 	// Initialize duplicatable macro instances with default values (settings loaded later by GUI thread)
 	wallhop_instances.emplace_back();
 	wallhop_instances[0].vk_trigger = vk_xbutton2;
+	wallhop_instances[0].disable_outside_roblox = disable_outside_roblox[6];
 
 	presskey_instances.emplace_back();
 	presskey_instances[0].vk_trigger  = vk_zkey;
 	presskey_instances[0].vk_presskey = vk_dkey;
+	presskey_instances[0].presskeyinroblox = disable_outside_roblox[5];
 
 	spamkey_instances.emplace_back();
 	spamkey_instances[0].vk_trigger = vk_leftbracket;
 	spamkey_instances[0].vk_spamkey = vk_spamkey;
+	spamkey_instances[0].disable_outside_roblox = disable_outside_roblox[11];
 
 	std::thread actionThread(Speedglitchloop); // Start a separate thread for item desync loop, lets functions run alongside
 	std::thread actionThread2(ItemDesyncLoop);
@@ -3575,6 +3672,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			dst.wallhop_dx = src.wallhop_dx;  dst.wallhop_dy = src.wallhop_dy;
 			dst.wallhopswitch = src.wallhopswitch;  dst.toggle_jump = src.toggle_jump;
 			dst.toggle_flick = src.toggle_flick;    dst.wallhopcamfix = src.wallhopcamfix;
+			dst.disable_outside_roblox = src.disable_outside_roblox;
 			dst.vk_jumpkey = src.vk_jumpkey;
 			dst.section_enabled = false; // start disabled; user enables explicitly
 			wallhop_threads.emplace_back(WallhopThread, &wallhop_instances.back());
@@ -3615,6 +3713,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			dst.spam_delay = src.spam_delay;   dst.real_delay = src.real_delay;
 			strncpy_s(dst.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), src.SpamDelay, _TRUNCATE);
 			dst.isspamswitch = src.isspamswitch;
+			dst.disable_outside_roblox = src.disable_outside_roblox;
 			dst.section_enabled = false;
 			spamkey_threads.emplace_back(SpamKeyLoop, &spamkey_instances.back());
 			selected_spamkey_instance = static_cast<int>(spamkey_instances.size()) - 1;
@@ -3639,7 +3738,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			bool isMButtonPressed = IsHotkeyPressed(vk_mbutton);
 
 			if (isfreezeswitch) {  // Toggle mode
-				if (isMButtonPressed && !wasMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {  // Detect button press edge
+				if (isMButtonPressed && !wasMButtonPressed && (!disable_outside_roblox[0] || tabbedintoroblox)) {  // Detect button press edge
 					isSuspended = !isSuspended;  // Toggle the freeze state
 					SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, isSuspended);
 
@@ -3648,7 +3747,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 					}
 				}
 			} else {  // Hold mode
-				if (isMButtonPressed && (freezeoutsideroblox || tabbedintoroblox)) {
+				if (isMButtonPressed && (!disable_outside_roblox[0] || tabbedintoroblox)) {
 					if (!isSuspended) {
 						SuspendOrResumeProcesses_Compat(targetPIDs, hProcess, true);  // Freeze on hold
 						isSuspended = true;
@@ -3680,7 +3779,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Item Desync Macro with anti-idiot design
-		if (IsHotkeyPressed(vk_f5) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[1]) {
+		if (IsHotkeyPressed(vk_f5) && (!disable_outside_roblox[1] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[1]) {
 			if (!isdesync) {
 				isdesyncloop.store(true, std::memory_order_relaxed);
 				isdesync = true;
@@ -3705,7 +3804,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		// Wallhop — loop over all instances
 		for (auto& inst : wallhop_instances) {
-			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled) {
+			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.disable_outside_roblox || tabbedintoroblox)) {
 				if (!inst.isRunning) {
 					inst.thread_active.store(true, std::memory_order_relaxed);
 					inst.isRunning = true;
@@ -3717,7 +3816,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Walless LHJ (REQUIRES COM OFFSET AND .5 STUDS OF A FOOT ON A PLATFORM)
-		if (IsHotkeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7]) {
+		if (IsHotkeyPressed(vk_f6) && macrotoggled && notbinding && section_toggles[7] && (!disable_outside_roblox[7] || tabbedintoroblox)) {
 			if (!islhj) {
 				if (wallesslhjswitch) {
 					HoldKey(0x1E);
@@ -3755,7 +3854,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Speedglitch
-		if (IsHotkeyPressed(vk_xkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[3]) {
+		if (IsHotkeyPressed(vk_xkey) && (!disable_outside_roblox[3] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[3]) {
 			if (!isspeedglitch) {
 				isspeed = !isspeed;
 				isspeedglitch = true;
@@ -3768,7 +3867,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Gear Unequip COM Offset
-		if (IsHotkeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!unequipinroblox || tabbedintoroblox)) {
+		if (IsHotkeyPressed(vk_f8) && macrotoggled && notbinding && section_toggles[4] && (!disable_outside_roblox[4] || tabbedintoroblox)) {
 			if (!isunequipspeed) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3827,7 +3926,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Helicopter High jump
-		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2]) {
+		if (IsHotkeyPressed(vk_xbutton1) && macrotoggled && notbinding && section_toggles[2] && (!disable_outside_roblox[2] || tabbedintoroblox)) {
 			if (!HHJ) {
 				if (autotoggle) { // Auto-Key-Timer
 					HoldKeyBinded(vk_autohhjkey1);
@@ -3892,21 +3991,24 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 		// Spamkey — loop over all instances
 		for (auto& inst : spamkey_instances) {
-			if (IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled) {
+			const bool shouldRunSpam =
+				IsHotkeyPressed(inst.vk_trigger) && macrotoggled && notbinding && inst.section_enabled && (!inst.disable_outside_roblox || tabbedintoroblox);
+
+			if (shouldRunSpam) {
 				if (!inst.isRunning) {
 					inst.thread_active.store(!inst.thread_active.load(std::memory_order_relaxed), std::memory_order_relaxed);
 					inst.isRunning = true;
 				}
 			} else {
 				inst.isRunning = false;
-				if (inst.isspamswitch) {
+				if ((inst.disable_outside_roblox && !tabbedintoroblox) || inst.isspamswitch) {
 					inst.thread_active.store(false, std::memory_order_relaxed);
 				}
 			}
 		}
 
 		// Laughkey
-		if (IsHotkeyPressed(vk_laughkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[9]) {
+		if (IsHotkeyPressed(vk_laughkey) && (!disable_outside_roblox[9] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[9]) {
 			if (!islaugh) {
 				if (chatoverride) {
 					HoldKey(0x35);
@@ -3962,7 +4064,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Ledge Bounce
-		if (IsHotkeyPressed(vk_bouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[12]) {
+		if (IsHotkeyPressed(vk_bouncekey) && (!disable_outside_roblox[12] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[12]) {
 			if (!isbounce) {
 				int turn90 = static_cast<int>((camfixtoggle ? 250 : 180) / atof(RobloxSensValue));
 				int skey = 0x1F; // S key
@@ -4020,7 +4122,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// Item Clip
-		if (IsHotkeyPressed(vk_clipkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[8]) {
+		if (IsHotkeyPressed(vk_clipkey) && (!disable_outside_roblox[8] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[8]) {
 			if (!isclip) {
 				isitemloop = !isitemloop;
 				isclip = true;
@@ -4034,7 +4136,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 
 		// WallWalk
-		if (IsHotkeyPressed(vk_wallkey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[10]) {
+		if (IsHotkeyPressed(vk_wallkey) && (!disable_outside_roblox[10] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[10]) {
 			if (!iswallwalk) {
 				iswallwalkloop = !iswallwalkloop;
 				iswallwalk = true;
@@ -4046,7 +4148,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 			}
 		}
 
-		bool can_process_bhop = tabbedintoroblox && section_toggles[13] && macrotoggled && notbinding;
+		bool can_process_bhop = (!disable_outside_roblox[13] || tabbedintoroblox) && section_toggles[13] && macrotoggled && notbinding;
 		if (IsHotkeyPressed(vk_chatkey)) {
 			bhoplocked = true;
 		}
@@ -4088,7 +4190,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 
 		// Floor Bounce
-		if (IsHotkeyPressed(vk_floorbouncekey) && tabbedintoroblox && macrotoggled && notbinding && section_toggles[14]) {
+		if (IsHotkeyPressed(vk_floorbouncekey) && (!disable_outside_roblox[14] || tabbedintoroblox) && macrotoggled && notbinding && section_toggles[14]) {
 			if (!isfloorbounce) {
 				isfloorbouncethread = true;
 				isfloorbounce = true;
@@ -4313,11 +4415,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	
 	// Automatically turn off these 4 modules if you leave roblox window (so it isn't annoying)
 	if (!tabbedintoroblox) {
-		isbhoploop = false;
-		iswallwalkloop = false;
-		isitemloop = false;
-		isdesyncloop = false;
-		isspeed = false;
+		if (disable_outside_roblox[13]) {
+			isbhoploop = false;
+		}
+		if (disable_outside_roblox[10]) {
+			iswallwalkloop = false;
+		}
+		if (disable_outside_roblox[8]) {
+			isitemloop = false;
+		}
+		if (disable_outside_roblox[1]) {
+			isdesyncloop = false;
+		}
+		if (disable_outside_roblox[3]) {
+			isspeed = false;
+		}
 	}
 
 	std::this_thread::sleep_for(std::chrono::microseconds(50)); // Delay between main code loop (so your cpu doesn't die instantly)
