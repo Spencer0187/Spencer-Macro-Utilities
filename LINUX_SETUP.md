@@ -2,27 +2,33 @@
 
 Spencer Macro Utilities reads global key state through `/dev/input/event*` and injects input through `/dev/uinput`. Linux protects those device files because they expose keyboard and mouse input for the whole desktop.
 
-The app should not run the whole GUI as root. Instead, install a one-time udev rule that grants access to members of the `smu-input` group.
+The GUI app should run as your normal desktop user. If SMU cannot access the Linux input devices on startup, it shows an in-app setup modal that can launch a one-time installer for the required permissions.
+
+Do not run the whole GUI as root, do not run the AppImage with `sudo`, and do not launch `suspend` with `sudo`. Only the installer script should be elevated.
 
 SMU never asks for your sudo password inside its own ImGui interface. Authentication is handled by `pkexec` or `sudo`.
 
-## Install
+## In-App Setup
 
-From the portable folder or repository root:
-
-```bash
-sudo ./scripts/install_linux_permissions.sh
-```
-
-Inside the app, the setup modal tries the installer in this order:
+When permissions are missing, the setup modal offers:
 
 1. Graphical `pkexec` using your desktop polkit agent.
 2. A terminal installer that runs `sudo ./scripts/install_linux_permissions.sh`.
 3. A copyable manual `sudo` command if no supported terminal could be launched.
 
+The installer writes persistent udev rules, adds your user to `smu-input`, and applies temporary ACLs with `setfacl` when it is available. If access still does not work immediately, log out and back in or reboot so your session gets the new group membership.
+
 If your desktop does not run a graphical polkit agent, `pkexec` may fail without showing an authentication window. Hyprland, i3, sway, Openbox, and other minimal environments often need an agent installed and autostarted, such as `hyprpolkitagent`, `polkit-kde-agent`, or `polkit-gnome`.
 
-The installer writes persistent udev rules, adds your user to `smu-input`, and applies temporary ACLs with `setfacl` when it is available. If access still does not work immediately, log out and back in or reboot so your session gets the new group membership.
+## Manual Install
+
+From the portable folder or repository root, the manual command is:
+
+```bash
+sudo ./scripts/install_linux_permissions.sh
+```
+
+If you extracted an AppImage manually, the installer script is bundled inside the `AppDir` and can be run from there with `sudo` the same way. In normal AppImage use, just run the AppImage as your user and use the in-app setup modal.
 
 ## Security
 
