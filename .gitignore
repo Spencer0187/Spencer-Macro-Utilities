@@ -388,6 +388,10 @@ FodyWeavers.xsd
 !.vscode/fast-build.ps1
 *.code-workspace
 
+# Build Artifacts from CMake
+build/*
+out/*
+
 # Local History for Visual Studio Code
 .history/
 

@@ -8,7 +8,9 @@
 #include <iostream>
 #include <variant>
 #include <unordered_map>
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
 #include <shlobj.h>
+#endif
 
 using namespace Globals;
 namespace fs = std::filesystem;

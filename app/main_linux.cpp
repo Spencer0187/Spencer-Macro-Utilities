@@ -10,6 +10,11 @@
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
 
+#ifndef SMU_PORTABLE_GLOBALS
+#define SMU_PORTABLE_GLOBALS
+#endif
+#include "Resource Files/globals.h"
+
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -24,6 +29,8 @@ int main(int argc, char** argv)
 
     smu::core::InitializeMacroSections(false);
     std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
+    Globals::g_isLinuxWine = true;
+    std::snprintf(Globals::settingsBuffer, sizeof(Globals::settingsBuffer), "sober");
 
     smu::app::AppContext context = smu::app::CreateAppContext();
 

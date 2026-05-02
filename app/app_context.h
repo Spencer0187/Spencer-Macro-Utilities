@@ -3,6 +3,7 @@
 #include "../platform/platform_capabilities.h"
 
 #include <cstddef>
+#include <functional>
 #include <string>
 
 namespace smu::app {
@@ -17,6 +18,9 @@ struct AppContext {
     std::string processBackendError;
     std::string networkBackendError;
     std::size_t detectedProcessCount = 0;
+    std::function<bool(bool)> setAlwaysOnTop;
+    std::function<bool(float)> setWindowOpacityPercent;
+    std::function<void(const char*)> openExternalUrl;
 };
 
 AppContext CreateAppContext();

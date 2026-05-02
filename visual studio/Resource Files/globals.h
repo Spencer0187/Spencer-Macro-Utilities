@@ -1,5 +1,4 @@
 #pragma once
-#include <windows.h>
 #include <atomic>
 #include <vector>
 #include <string>
@@ -13,12 +12,140 @@
 #include <cstring>
 #include <deque>
 #include <thread>
+#include <cstdint>
+#include <stdexcept>
 
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "../../core/key_codes.h"
-#include "../windivert-files/windivert.h"
 #include "imgui-files/imgui.h"
+
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+#include <windows.h>
+#include "../windivert-files/windivert.h"
+#else
+using HWND = void*;
+using HANDLE = void*;
+using DWORD = std::uint32_t;
+using BOOL = int;
+using INT16 = std::int16_t;
+using UINT = unsigned int;
+using UINT8 = std::uint8_t;
+using UINT64 = std::uint64_t;
+using PVOID = void*;
+using COLORREF = std::uint32_t;
+struct WINDIVERT_ADDRESS {};
+struct WINDIVERT_IPHDR {};
+struct WINDIVERT_IPV6HDR {};
+struct WINDIVERT_ICMPHDR {};
+struct WINDIVERT_ICMPV6HDR {};
+struct WINDIVERT_TCPHDR {};
+struct WINDIVERT_UDPHDR {};
+using PWINDIVERT_IPHDR = WINDIVERT_IPHDR*;
+using PWINDIVERT_IPV6HDR = WINDIVERT_IPV6HDR*;
+using PWINDIVERT_ICMPHDR = WINDIVERT_ICMPHDR*;
+using PWINDIVERT_ICMPV6HDR = WINDIVERT_ICMPV6HDR*;
+using PWINDIVERT_TCPHDR = WINDIVERT_TCPHDR*;
+using PWINDIVERT_UDPHDR = WINDIVERT_UDPHDR*;
+using WINDIVERT_LAYER = int;
+inline HANDLE const INVALID_HANDLE_VALUE = reinterpret_cast<HANDLE>(static_cast<std::intptr_t>(-1));
+inline constexpr int SM_CXSCREEN = 0;
+inline constexpr int SM_CYSCREEN = 1;
+inline constexpr int MAPVK_VSC_TO_VK = 1;
+inline int GetSystemMetrics(int index) { return index == SM_CXSCREEN ? 1280 : 800; }
+inline unsigned int VkKeyScanEx(char ch, void*) { return static_cast<unsigned int>(static_cast<unsigned char>(ch)); }
+inline void* GetKeyboardLayout(int) { return nullptr; }
+inline unsigned int MapVirtualKey(unsigned int code, unsigned int) { return code; }
+
+#ifndef _TRUNCATE
+#define _TRUNCATE static_cast<size_t>(-1)
+#endif
+
+inline int strncpy_s(char* destination, size_t destination_size, const char* source, size_t count)
+{
+    if (!destination || destination_size == 0) {
+        return 1;
+    }
+    if (!source) {
+        destination[0] = '\0';
+        return 0;
+    }
+    const size_t source_length = std::strlen(source);
+    const size_t copy_length = count == _TRUNCATE ? std::min(source_length, destination_size - 1) : std::min(count, destination_size - 1);
+    std::memcpy(destination, source, copy_length);
+    destination[copy_length] = '\0';
+    return source_length > copy_length ? 1 : 0;
+}
+
+#define VK_LBUTTON smu::core::SMU_VK_LBUTTON
+#define VK_RBUTTON smu::core::SMU_VK_RBUTTON
+#define VK_CANCEL smu::core::SMU_VK_CANCEL
+#define VK_MBUTTON smu::core::SMU_VK_MBUTTON
+#define VK_XBUTTON1 smu::core::SMU_VK_XBUTTON1
+#define VK_XBUTTON2 smu::core::SMU_VK_XBUTTON2
+#define VK_BACK smu::core::SMU_VK_BACK
+#define VK_TAB smu::core::SMU_VK_TAB
+#define VK_CLEAR 0x0C
+#define VK_RETURN smu::core::SMU_VK_RETURN
+#define VK_SHIFT smu::core::SMU_VK_SHIFT
+#define VK_CONTROL smu::core::SMU_VK_CONTROL
+#define VK_MENU smu::core::SMU_VK_MENU
+#define VK_PAUSE smu::core::SMU_VK_PAUSE
+#define VK_CAPITAL smu::core::SMU_VK_CAPITAL
+#define VK_ESCAPE smu::core::SMU_VK_ESCAPE
+#define VK_SPACE smu::core::SMU_VK_SPACE
+#define VK_PRIOR smu::core::SMU_VK_PRIOR
+#define VK_NEXT smu::core::SMU_VK_NEXT
+#define VK_END smu::core::SMU_VK_END
+#define VK_HOME smu::core::SMU_VK_HOME
+#define VK_LEFT smu::core::SMU_VK_LEFT
+#define VK_UP smu::core::SMU_VK_UP
+#define VK_RIGHT smu::core::SMU_VK_RIGHT
+#define VK_DOWN smu::core::SMU_VK_DOWN
+#define VK_SELECT 0x29
+#define VK_PRINT 0x2A
+#define VK_EXECUTE 0x2B
+#define VK_SNAPSHOT smu::core::SMU_VK_SNAPSHOT
+#define VK_INSERT smu::core::SMU_VK_INSERT
+#define VK_DELETE smu::core::SMU_VK_DELETE
+#define VK_HELP 0x2F
+#define VK_LWIN smu::core::SMU_VK_LWIN
+#define VK_RWIN smu::core::SMU_VK_RWIN
+#define VK_NUMPAD0 smu::core::SMU_VK_NUMPAD0
+#define VK_NUMPAD1 (smu::core::SMU_VK_NUMPAD0 + 1)
+#define VK_NUMPAD2 (smu::core::SMU_VK_NUMPAD0 + 2)
+#define VK_NUMPAD3 (smu::core::SMU_VK_NUMPAD0 + 3)
+#define VK_NUMPAD4 (smu::core::SMU_VK_NUMPAD0 + 4)
+#define VK_NUMPAD5 (smu::core::SMU_VK_NUMPAD0 + 5)
+#define VK_NUMPAD6 (smu::core::SMU_VK_NUMPAD0 + 6)
+#define VK_NUMPAD7 (smu::core::SMU_VK_NUMPAD0 + 7)
+#define VK_NUMPAD8 (smu::core::SMU_VK_NUMPAD0 + 8)
+#define VK_NUMPAD9 (smu::core::SMU_VK_NUMPAD0 + 9)
+#define VK_W smu::core::SMU_VK_W
+#define VK_MULTIPLY 0x6A
+#define VK_ADD 0x6B
+#define VK_SEPARATOR 0x6C
+#define VK_SUBTRACT 0x6D
+#define VK_DECIMAL 0x6E
+#define VK_DIVIDE 0x6F
+#define VK_LSHIFT smu::core::SMU_VK_LSHIFT
+#define VK_RSHIFT smu::core::SMU_VK_RSHIFT
+#define VK_LCONTROL smu::core::SMU_VK_LCONTROL
+#define VK_RCONTROL smu::core::SMU_VK_RCONTROL
+#define VK_LMENU smu::core::SMU_VK_LMENU
+#define VK_RMENU smu::core::SMU_VK_RMENU
+#define VK_OEM_PLUS smu::core::SMU_VK_OEM_PLUS
+#define VK_OEM_COMMA smu::core::SMU_VK_OEM_COMMA
+#define VK_OEM_MINUS smu::core::SMU_VK_OEM_MINUS
+#define VK_OEM_PERIOD smu::core::SMU_VK_OEM_PERIOD
+#define VK_OEM_2 smu::core::SMU_VK_OEM_2
+#define VK_OEM_3 smu::core::SMU_VK_OEM_3
+#define VK_OEM_4 smu::core::SMU_VK_OEM_4
+#define VK_OEM_5 smu::core::SMU_VK_OEM_5
+#define VK_OEM_6 smu::core::SMU_VK_OEM_6
+#define VK_OEM_7 smu::core::SMU_VK_OEM_7
+#define VK_OEM_8 0xDF
+#endif
 
 namespace Globals {
     // CURRENT VERSION NUMBER OF PROGRAM
@@ -269,6 +396,7 @@ namespace Globals {
 
     // Run admin system command without flashing CMD Window, Required for WinDivert
     inline int quiet_system(const std::string& cmd) {
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
         // Convert command to wide string (for CreateProcessW)
         int size_needed = MultiByteToWideChar(CP_UTF8, 0, cmd.c_str(), -1, nullptr, 0);
         std::wstring wcmd(size_needed, 0);
@@ -312,6 +440,10 @@ namespace Globals {
         CloseHandle(pi.hProcess);
 
         return static_cast<int>(exit_code);
+#else
+        (void)cmd;
+        return -1;
+#endif
     }
 
     // --- Lookup Tables ---

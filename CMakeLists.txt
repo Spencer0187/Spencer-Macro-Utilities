@@ -22,7 +22,7 @@ option(SMU_USE_SDL_UI "Build the app GUI on SDL3 instead of the legacy Win32/WGL
 if(WIN32)
     enable_language(RC)
 
-    set(SMU_WINDOWS_SOURCES
+    set(SMU_WINDOWS_COMMON_SOURCES
         "${SMU_IMGUI_DIR}/imgui.cpp"
         "${SMU_IMGUI_DIR}/imgui_demo.cpp"
         "${SMU_IMGUI_DIR}/imgui_draw.cpp"
@@ -30,26 +30,42 @@ if(WIN32)
         "${SMU_IMGUI_DIR}/imgui_tables.cpp"
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
         "${SMU_APP_DIR}/main_windows.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/macroframework.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/macros.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/network_manager.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/overlay.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
         "${SMU_PLATFORM_DIR}/input_backend.cpp"
         "${SMU_PLATFORM_DIR}/logging.cpp"
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
-        "${SMU_RESOURCE_DIR}/miniz.c"
-        "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/suspend1.rc"
     )
 
     if(SMU_USE_SDL_UI)
-        list(APPEND SMU_WINDOWS_SOURCES "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp")
+        set(SMU_WINDOWS_SOURCES
+            ${SMU_WINDOWS_COMMON_SOURCES}
+            "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
+            "${SMU_APP_DIR}/app_context.cpp"
+            "${SMU_APP_DIR}/app_main.cpp"
+            "${SMU_APP_DIR}/app_profile_bridge.cpp"
+            "${SMU_APP_DIR}/app_theme_bridge.cpp"
+            "${SMU_APP_DIR}/app_ui.cpp"
+            "${SMU_APP_DIR}/input_actions.cpp"
+            "${SMU_CORE_DIR}/app_state.cpp"
+            "${SMU_CORE_DIR}/macro_state.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
+        )
     else()
+        set(SMU_WINDOWS_SOURCES
+            ${SMU_WINDOWS_COMMON_SOURCES}
+            "${SMU_VISUAL_STUDIO_DIR}/macroframework.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/macros.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/network_manager.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/overlay.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
+            "${SMU_RESOURCE_DIR}/miniz.c"
+            "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
+        )
         list(APPEND SMU_WINDOWS_SOURCES "${SMU_IMGUI_DIR}/imgui_impl_win32.cpp")
     endif()
 
@@ -61,6 +77,8 @@ if(WIN32)
         "${SMU_RESOURCE_DIR}"
         "${SMU_RESOURCE_DIR}/SDL3/include"
         "${SMU_WINDIVERT_DIR}"
+        "${SMU_APP_DIR}"
+        "${SMU_CORE_DIR}"
     )
 
     target_compile_definitions(suspend PRIVATE
@@ -71,6 +89,7 @@ if(WIN32)
         "$<$<CONFIG:Debug>:_DEBUG>"
         "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>"
         SMU_USE_PLATFORM_ENTRYPOINT=1
+        "$<$<BOOL:${SMU_USE_SDL_UI}>:SMU_PORTABLE_GLOBALS=1>"
     )
 
     set_property(TARGET suspend PROPERTY
@@ -188,21 +207,28 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
         "${SMU_APP_DIR}/app_context.cpp"
         "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/app_profile_bridge.cpp"
+        "${SMU_APP_DIR}/app_theme_bridge.cpp"
         "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
+        "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
+        "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
     )
 
     add_executable(suspend ${SMU_LINUX_APP_SOURCES})
 
     target_include_directories(suspend PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}"
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
+        "${SMU_VISUAL_STUDIO_DIR}"
+        "${SMU_RESOURCE_DIR}"
         "${SMU_IMGUI_DIR}"
     )
+
+    target_compile_definitions(suspend PRIVATE SMU_PORTABLE_GLOBALS=1)
 
     if(TARGET SDL3::SDL3)
         set(SMU_SDL3_TARGET SDL3::SDL3)

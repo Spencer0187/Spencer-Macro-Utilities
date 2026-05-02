@@ -1,5 +1,7 @@
 #include "app_main.h"
 
+#include "app_profile_bridge.h"
+#include "app_theme_bridge.h"
 #include "app_ui.h"
 #include "../core/app_state.h"
 
@@ -50,6 +52,8 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 {
     auto& state = smu::core::GetAppState();
     smu::core::ResetRuntimeAppFlags();
+    InitializeSharedThemeSystem();
+    InitializeSharedProfiles();
 
     if (state.screenWidth <= 0 || state.screenWidth > 15360) {
         state.screenWidth = config.defaultWidth;
@@ -113,12 +117,25 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
     SDL_ShowWindow(window);
 
+    context.setAlwaysOnTop = [window](bool enabled) {
+        return SDL_SetWindowAlwaysOnTop(window, enabled);
+    };
+    context.setWindowOpacityPercent = [window](float opacityPercent) {
+        const float opacity = std::clamp(opacityPercent / 100.0f, 0.2f, 1.0f);
+        return SDL_SetWindowOpacity(window, opacity);
+    };
+    context.openExternalUrl = [](const char* url) {
+        if (url && url[0] != '\0') {
+            SDL_OpenURL(url);
+        }
+    };
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    ImGui::StyleColorsDark();
+    SetupSharedFontsAndStyle(io);
 
     if (!ImGui_ImplSDL3_InitForOpenGL(window, glContext)) {
         LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");

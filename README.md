@@ -91,11 +91,6 @@ Configure and build:
 cmake --preset linux-release && cmake --build --preset linux-release
 ```
 
-Useful direct target build:
-```bash
-cmake --build out/build/linux-release --target suspend
-```
-
 Runtime notes for the native Linux backend:
 - Input injection uses `/dev/uinput`.
 - Input state reading uses `/dev/input/event*`.
