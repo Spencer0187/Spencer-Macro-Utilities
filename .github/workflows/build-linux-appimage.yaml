@@ -48,6 +48,8 @@ jobs:
 
           chmod +x AppDir/AppRun
       - name: Download appimagetool
+        env:
+            GH_TOKEN: ${{ github.token }}
         run: |
           RELEASE=$(gh api https://api.github.com/repos/AppImage/appimagetool/releases/latest)
           URL=$(echo $RELEASE | jq -r '.assets[] | select(.name == "appimagetool-x86_64.AppImage") | .browser_download_url')
