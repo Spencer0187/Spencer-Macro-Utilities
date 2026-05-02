@@ -34,11 +34,10 @@ jobs:
       
       - name: Create AppImage framework 
         run: |
-          mkdir -p AppDir/usr/bin
+          cmake --install build --prefix AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/32x32/apps
 
-          cp build/suspend AppDir/usr/bin/
           cp AppImage/AppRun AppDir/
           cp AppImage/SMU.desktop AppDir/
           cp AppImage/SMU.png AppDir/

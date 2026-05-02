@@ -20,9 +20,16 @@ namespace {
 std::filesystem::path FindLinuxFontPath()
 {
     if (const char* appDir = std::getenv("APPDIR")) { // APPDIR env is set for AppImage runtimes
-        std::filesystem::path internalPath = std::filesystem::path(appDir) / "usr/bin/fonts/LSANS.TTF";
-        if (std::filesystem::exists(internalPath)) {
-            return internalPath;
+        const std::filesystem::path appImageFont =
+            std::filesystem::path(appDir) / "usr/bin/assets/LSANS.TTF";
+        if (std::filesystem::exists(appImageFont)) {
+            return appImageFont;
+        }
+
+        const std::filesystem::path legacyAppImageFont =
+            std::filesystem::path(appDir) / "usr/bin/fonts/LSANS.TTF";
+        if (std::filesystem::exists(legacyAppImageFont)) {
+            return legacyAppImageFont;
         }
     }
 
