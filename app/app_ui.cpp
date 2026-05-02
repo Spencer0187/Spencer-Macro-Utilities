@@ -543,7 +543,10 @@ void RenderLinuxInputSetup(AppContext& context)
 
     if (ImGui::BeginPopupModal("Linux Input Setup Required", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextWrapped("Native Linux input requires access to /dev/input/event* and /dev/uinput.");
-        ImGui::TextWrapped("Spencer Macro Utilities can install udev rules and add your user to an smu-input group. You may need to log out and back in, or reboot, before the new group membership reaches this desktop session.");
+        ImGui::TextWrapped(
+            "SMU can install a one-time udev rule and add your user to the smu-input group. "
+            "The graphical installer uses your desktop polkit agent. If no authentication window appears, "
+            "use the terminal installer or copy the manual sudo command.");
         ImGui::Separator();
         ImGui::TextWrapped("%s", context.linuxInputPermissionSummary.c_str());
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 580.0f);
@@ -551,13 +554,19 @@ void RenderLinuxInputSetup(AppContext& context)
         ImGui::PopTextWrapPos();
         ImGui::Separator();
 
-        if (ImGui::Button("Install permissions with pkexec", ImVec2(230.0f, 0.0f))) {
-            if (context.installLinuxPermissionsWithPkexec) {
-                context.installLinuxPermissionsWithPkexec();
+        if (ImGui::Button("Install permissions", ImVec2(180.0f, 0.0f))) {
+            if (context.installLinuxPermissionsGraphical) {
+                context.installLinuxPermissionsGraphical();
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Copy sudo command", ImVec2(170.0f, 0.0f))) {
+        if (ImGui::Button("Open terminal installer", ImVec2(210.0f, 0.0f))) {
+            if (context.installLinuxPermissionsTerminal) {
+                context.installLinuxPermissionsTerminal();
+            }
+        }
+
+        if (ImGui::Button("Copy manual sudo command", ImVec2(210.0f, 0.0f))) {
             if (!context.linuxInputSudoCommand.empty() && SDL_SetClipboardText(context.linuxInputSudoCommand.c_str())) {
                 context.linuxInputSetupActionMessage = "Copied: " + context.linuxInputSudoCommand;
             } else {
@@ -565,7 +574,7 @@ void RenderLinuxInputSetup(AppContext& context)
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Open Linux setup docs", ImVec2(190.0f, 0.0f))) {
+        if (ImGui::Button("Open setup docs", ImVec2(150.0f, 0.0f))) {
             if (context.openExternalUrl) {
                 const std::string docsUrl = FileUrlFromPath(context.linuxInputSetupDocsPath);
                 if (!docsUrl.empty()) {

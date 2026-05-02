@@ -28,7 +28,8 @@ struct AppContext {
     std::function<bool(bool)> setAlwaysOnTop;
     std::function<bool(float)> setWindowOpacityPercent;
     std::function<void(const char*)> openExternalUrl;
-    std::function<void()> installLinuxPermissionsWithPkexec;
+    std::function<void()> installLinuxPermissionsGraphical;
+    std::function<void()> installLinuxPermissionsTerminal;
     std::function<void()> refreshLinuxInputPermissions;
 };
 

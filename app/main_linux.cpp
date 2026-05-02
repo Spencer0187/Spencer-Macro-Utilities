@@ -253,17 +253,34 @@ int main(int argc, char** argv)
     context.refreshLinuxInputPermissions = [&context, &inputBackend]() {
         InitializeLinuxInputBackend(context, inputBackend);
     };
-    context.installLinuxPermissionsWithPkexec = [&context, &inputBackend]() {
-        const int exitCode = smu::app::RunPermissionInstallerWithPkexec(context.linuxInputInstallerPath);
+    context.installLinuxPermissionsGraphical = [&context, &inputBackend]() {
+        const int exitCode = smu::app::RunPermissionInstallerWithGraphicalPkexec(context.linuxInputInstallerPath);
         if (exitCode == 0) {
             context.linuxInputSetupActionMessage =
-                "Permission installer completed. Log out and back in or reboot if access is still missing.";
+                "Permission installer completed. Rechecking Linux input permissions...";
             InitializeLinuxInputBackend(context, inputBackend);
+            if (context.linuxInputSetupRequired) {
+                context.linuxInputSetupActionMessage =
+                    "Installer completed, but this session still cannot access input devices. "
+                    "Log out and back in, reboot, or click Retry after udev finishes applying rules.";
+            }
             return;
         }
 
         context.linuxInputSetupActionMessage =
             smu::app::BuildPolkitFailureMessage(context.linuxInputSudoCommand);
+        LogWarning(context.linuxInputSetupActionMessage);
+    };
+    context.installLinuxPermissionsTerminal = [&context]() {
+        std::string error;
+        if (smu::app::LaunchPermissionInstallerInTerminal(context.linuxInputInstallerPath, &error)) {
+            context.linuxInputSetupActionMessage =
+                "Terminal installer opened. Complete the prompt, then return here and click Retry permission check.";
+            return;
+        }
+
+        context.linuxInputSetupActionMessage =
+            smu::app::BuildTerminalFailureMessage(context.linuxInputSudoCommand, error);
         LogWarning(context.linuxInputSetupActionMessage);
     };
 

@@ -1,7 +1,6 @@
 ﻿#include "Resource Files/wine_compatibility_layer.h"
 #include "shared_mem.h"
 #include "resource.h"
-#include "../app/askpass.h"
 #include <Windows.h>
 #include <iostream>
 #include <fstream>
@@ -134,6 +133,26 @@ std::string ExecuteAndGetStdout(const std::string& cmd) {
     return output;
 }
 
+std::string ShellQuoteForSh(const std::string& value)
+{
+    std::string quoted = "'";
+    for (char ch : value) {
+        if (ch == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += ch;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
+std::string BuildWinePkexecCommand(const std::string& helperLinuxPath, const std::string& currentExeName)
+{
+    return "start /unix /bin/sh -c \"exec pkexec --disable-internal-agent " +
+        ShellQuoteForSh(helperLinuxPath) + " " + ShellQuoteForSh(currentExeName) + "\"";
+}
+
 // Main Logic for Launching
 void InitLinuxCompatLayer() {
     EnsureWineCompatPlatformBackendsRegistered();
@@ -242,8 +261,8 @@ void InitLinuxCompatLayer() {
             currentExeName = currentExeName.substr(lastSlash + 1);
         }
 
-        // Launch the Helper using a Graphical Sudo Wrapper
-        std::string sudoCommand = smu::app::BuildWineSudoCommand(helperLinuxPath, currentExeName);
+        // Launch the helper through pkexec so authentication stays outside the app.
+        std::string sudoCommand = BuildWinePkexecCommand(helperLinuxPath, currentExeName);
 
         STARTUPINFOA si_exec = {0};
         PROCESS_INFORMATION pi_exec = {0};
@@ -254,8 +273,8 @@ void InitLinuxCompatLayer() {
         execCmdVector.push_back('\0');
 
         if (!CreateProcessA(NULL, execCmdVector.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si_exec, &pi_exec)) {
-            std::cerr << "Error: CreateProcess failed to launch the graphical sudo command." << std::endl;
-            LogCritical("Failed required platform backend initialization: could not launch the Linux helper sudo prompt.");
+            std::cerr << "Error: CreateProcess failed to launch the pkexec helper command." << std::endl;
+            LogCritical("Failed required platform backend initialization: could not launch the Linux helper pkexec prompt.");
             remove(helperWindowsPath.c_str());
             g_isLinuxWine = false;
             return;
@@ -296,12 +315,12 @@ void InitLinuxCompatLayer() {
 
         if (!helperReady) {
             std::cerr << "\nError: Timed out waiting for the helper process to create the shared memory file." << std::endl;
-            LogCritical("Failed required platform backend initialization: Linux helper did not become ready. This can happen when sudo/root permission was not granted.");
+            LogCritical("Failed required platform backend initialization: Linux helper did not become ready. This can happen when authentication failed or permission was denied.");
             remove(helperWindowsPath.c_str()); // Clean up the helper binary on failure
             g_isLinuxWine = false;
             MessageBoxW(
                 NULL,
-                L"The macro cannot find the linux helper loaded in ram after 20 seconds. Did you incorrectly answer the sudo prompt? Did you run it through non-standard wine?",
+                L"The macro cannot find the linux helper loaded in ram after 20 seconds. Did the permission prompt fail or get denied? Did you run it through non-standard wine?",
                 L"Error",
                 MB_ICONERROR | MB_OK
             );
