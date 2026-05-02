@@ -4,7 +4,6 @@
 
 #if defined(__linux__)
 #include "linux/display_server.h"
-#include <unistd.h>
 #endif
 
 namespace smu::platform {
@@ -37,9 +36,6 @@ PlatformCapabilities GetPlatformCapabilities()
     caps.canSuspendProcesses = true;
     caps.canInjectGlobalInput = true;
     caps.canReadGlobalInput = true;
-    if (geteuid() != 0) {
-        caps.warnings.push_back("Linux global input injection/reading requires root or equivalent /dev/uinput and /dev/input permissions.");
-    }
     caps.canUseNetworkLagSwitch = false;
     caps.canShowGlobalOverlay = false;
 #else

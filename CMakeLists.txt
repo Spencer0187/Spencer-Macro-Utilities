@@ -14,6 +14,7 @@ set(SMU_RESOURCE_DIR "${SMU_VISUAL_STUDIO_DIR}/Resource Files")
 set(SMU_WINDIVERT_DIR "${SMU_VISUAL_STUDIO_DIR}/windivert-files")
 set(SMU_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
+set(SMU_UPDATER_DIR "${SMU_PLATFORM_DIR}/updater")
 set(SMU_APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/app")
 set(SMU_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
 
@@ -56,6 +57,9 @@ if(WIN32)
             "${SMU_APP_DIR}/input_actions.cpp"
             "${SMU_CORE_DIR}/app_state.cpp"
             "${SMU_CORE_DIR}/macro_state.cpp"
+            "${SMU_UPDATER_DIR}/updater.cpp"
+            "${SMU_UPDATER_DIR}/windows_updater.cpp"
+            "${SMU_RESOURCE_DIR}/miniz.c"
             "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
             "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
             "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
@@ -188,6 +192,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_DIR}/linux/display_server.cpp"
         "${SMU_PLATFORM_DIR}/linux/foreground_x11.cpp"
         "${SMU_PLATFORM_DIR}/linux/input_evdev_uinput.cpp"
+        "${SMU_PLATFORM_DIR}/linux/input_permissions.cpp"
         "${SMU_PLATFORM_DIR}/linux/process_proc_cgroup.cpp"
     )
 
@@ -228,6 +233,9 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/main_linux.cpp"
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
+        "${SMU_UPDATER_DIR}/updater.cpp"
+        "${SMU_UPDATER_DIR}/linux_updater.cpp"
+        "${SMU_RESOURCE_DIR}/miniz.c"
         "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
     )
@@ -305,6 +313,8 @@ elseif(UNIX AND NOT APPLE)
     install(FILES "${SMU_LINUX_FONT_ASSET}" DESTINATION "assets" RENAME "LSANS.TTF")
     install(FILES "${SMU_LINUX_ICON_ASSET}" DESTINATION "assets" RENAME "smu_icon.bmp")
     install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" DESTINATION ".")
+    install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" DESTINATION "scripts")
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" DESTINATION ".")
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         install(FILES
             "$<TARGET_FILE:${SMU_SDL3_TARGET}>"
@@ -321,7 +331,10 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/LSANS.TTF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/smu_icon.bmp"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" "${SMU_LINUX_PACKAGE_DIR}/run.sh"
-        COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/suspend"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/scripts"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "${SMU_LINUX_PACKAGE_DIR}/LINUX_SETUP.md"
+        COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/suspend" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"
         DEPENDS suspend
         COMMENT "Creating portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}"
     )

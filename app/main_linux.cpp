@@ -6,6 +6,7 @@
 #include "../core/macro_state.h"
 #include "../platform/input_backend.h"
 #include "../platform/linux/input_evdev_uinput.h"
+#include "../platform/linux/input_permissions.h"
 #include "../platform/linux/process_proc_cgroup.h"
 #include "../platform/logging.h"
 #include "../platform/network_backend.h"
@@ -25,12 +26,10 @@
 #include <memory>
 #include <pwd.h>
 #include <string>
+#include <sys/wait.h>
 #include <system_error>
 #include <vector>
 #include <unistd.h>
-
-#define SDL_MAIN_HANDLED
-#include <SDL3/SDL.h>
 
 namespace {
 
@@ -99,41 +98,22 @@ void LogLinuxStartupDiagnostics()
         ", DBUS_SESSION_BUS_ADDRESS=" + PresenceLabel(std::getenv("DBUS_SESSION_BUS_ADDRESS")));
 }
 
-void ShowErrorMessageBox(const char* title, const char* message)
+bool PathExists(const std::string& path)
 {
-    std::fprintf(stderr, "%s\n", message);
-    LogCritical(message);
-
-    if (SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, title, message, nullptr)) {
-        return;
-    }
-
-    const char* sdlError = SDL_GetError();
-    if (sdlError && sdlError[0] != '\0') {
-        LogWarning(std::string("Failed to show root requirement dialog: ") + sdlError);
-    }
-}
-
-void AppendEnvAssignment(std::vector<std::string>& args, const char* name, const char* value)
-{
-    if (!name || !value || value[0] == '\0') {
-        return;
-    }
-
-    args.push_back(std::string(name) + "=" + value);
-}
-
-void AppendEnvAssignment(std::vector<std::string>& args, const char* name, const std::string& value)
-{
-    if (!name || value.empty()) {
-        return;
-    }
-
-    args.push_back(std::string(name) + "=" + value);
+    std::error_code ec;
+    return !path.empty() && std::filesystem::exists(path, ec) && !ec;
 }
 
 std::string GetCurrentUserName()
 {
+    for (const char* name : {"SMU_REAL_USER", "SUDO_USER", "USER"}) {
+        if (const char* user = std::getenv(name)) {
+            if (user[0] != '\0' && std::string(user) != "root") {
+                return user;
+            }
+        }
+    }
+
     if (const char* user = std::getenv("USER")) {
         if (user[0] != '\0') {
             return user;
@@ -149,68 +129,171 @@ std::string GetCurrentUserName()
     return {};
 }
 
-int RelaunchWithPkexec(int argc, char** argv)
+std::string ShellQuote(const std::string& value)
 {
-    const std::string executablePath = GetExecutablePath();
-    if (executablePath.empty()) {
-        ShowErrorMessageBox("Root Required",
-            "Native Linux input requires root. Could not resolve the executable path for pkexec relaunch. Launch with sudo -E ./suspend");
+    std::string quoted = "'";
+    for (char ch : value) {
+        if (ch == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += ch;
+        }
+    }
+    quoted += "'";
+    return quoted;
+}
+
+std::string ResolveLinuxSetupScriptPath()
+{
+    const std::filesystem::path packagedPath = std::filesystem::path(GetExecutableBasePath()) /
+        "scripts" / "install_linux_permissions.sh";
+    if (PathExists(packagedPath.string())) {
+        return packagedPath.string();
+    }
+
+#ifdef SMU_SOURCE_ROOT
+    const std::filesystem::path sourcePath = std::filesystem::path(SMU_SOURCE_ROOT) /
+        "scripts" / "install_linux_permissions.sh";
+    if (PathExists(sourcePath.string())) {
+        return sourcePath.string();
+    }
+#endif
+
+    const std::filesystem::path cwdPath = std::filesystem::path(GetCurrentWorkingDirectory()) /
+        "scripts" / "install_linux_permissions.sh";
+    if (PathExists(cwdPath.string())) {
+        return cwdPath.string();
+    }
+
+    return packagedPath.string();
+}
+
+std::string ResolveLinuxSetupDocsPath()
+{
+    const std::filesystem::path packagedPath = std::filesystem::path(GetExecutableBasePath()) / "LINUX_SETUP.md";
+    if (PathExists(packagedPath.string())) {
+        return packagedPath.string();
+    }
+
+#ifdef SMU_SOURCE_ROOT
+    const std::filesystem::path sourcePath = std::filesystem::path(SMU_SOURCE_ROOT) / "LINUX_SETUP.md";
+    if (PathExists(sourcePath.string())) {
+        return sourcePath.string();
+    }
+#endif
+
+    const std::filesystem::path cwdPath = std::filesystem::path(GetCurrentWorkingDirectory()) / "LINUX_SETUP.md";
+    if (PathExists(cwdPath.string())) {
+        return cwdPath.string();
+    }
+
+    return packagedPath.string();
+}
+
+std::string BuildManualSudoCommand(const std::string& scriptPath)
+{
+    const std::filesystem::path cwdScript = std::filesystem::path(GetCurrentWorkingDirectory()) /
+        "scripts" / "install_linux_permissions.sh";
+    if (PathExists(cwdScript.string())) {
+        return "sudo ./scripts/install_linux_permissions.sh";
+    }
+
+    return "sudo " + ShellQuote(scriptPath);
+}
+
+std::string BuildPermissionDetails(const smu::platform::linux::InputPermissionStatus& status)
+{
+    std::string details = "Input events: " + status.inputEventsMessage + "\n";
+    details += "uinput: " + status.uinputMessage;
+    return details;
+}
+
+void UpdatePermissionContext(
+    smu::app::AppContext& context,
+    const smu::platform::linux::InputPermissionStatus& status)
+{
+    context.linuxInputSetupRequired = !status.ready();
+    context.linuxInputPermissionSummary = status.ready()
+        ? "Linux input permissions are configured."
+        : "Linux input permissions are not configured yet.";
+    context.linuxInputPermissionDetails = BuildPermissionDetails(status);
+}
+
+void InitializeLinuxInputBackend(
+    smu::app::AppContext& context,
+    std::shared_ptr<smu::platform::InputBackend>& inputBackend)
+{
+    const smu::platform::linux::InputPermissionStatus permissionStatus =
+        smu::platform::linux::GetInputPermissionStatus();
+    UpdatePermissionContext(context, permissionStatus);
+
+    if (!permissionStatus.ready()) {
+        context.inputBackendAvailable = false;
+        context.inputBackendError = context.linuxInputPermissionDetails;
+        inputBackend.reset();
+        smu::platform::SetInputBackend(nullptr);
+        LogInfo("Linux input backend setup required. " + context.linuxInputPermissionDetails);
+        return;
+    }
+
+    inputBackend = smu::platform::linux::CreateEvdevUinputInputBackend();
+    smu::platform::SetInputBackend(inputBackend);
+    context.inputBackendError.clear();
+    context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
+    if (!context.inputBackendAvailable) {
+        context.linuxInputSetupRequired = true;
+        if (!context.inputBackendError.empty()) {
+            context.linuxInputPermissionDetails += "\nBackend initialization: " + context.inputBackendError;
+            LogWarning(context.inputBackendError);
+        }
+        inputBackend.reset();
+        smu::platform::SetInputBackend(nullptr);
+        return;
+    }
+
+    context.linuxInputSetupRequired = false;
+    LogInfo("Linux input backend initialized.");
+}
+
+int RunPermissionInstallerWithPkexec(const std::string& scriptPath)
+{
+    if (!PathExists(scriptPath)) {
+        LogWarning("Linux permission installer script was not found at " + scriptPath);
+        return 127;
+    }
+
+    const std::string targetUser = GetCurrentUserName();
+    if (targetUser.empty()) {
+        LogWarning("Linux permission installer could not determine the current user.");
         return 1;
     }
 
-    LogInfo("Attempting pkexec relaunch for native Linux input access.");
-
-    const std::string realUid = std::to_string(getuid());
-    const std::string realGid = std::to_string(getgid());
-    const std::string realUser = GetCurrentUserName();
-
-    std::vector<std::string> args;
-    args.emplace_back("pkexec");
-    args.emplace_back("/usr/bin/env");
-
-    AppendEnvAssignment(args, "DISPLAY", std::getenv("DISPLAY"));
-    AppendEnvAssignment(args, "XAUTHORITY", std::getenv("XAUTHORITY"));
-    AppendEnvAssignment(args, "WAYLAND_DISPLAY", std::getenv("WAYLAND_DISPLAY"));
-    AppendEnvAssignment(args, "XDG_RUNTIME_DIR", std::getenv("XDG_RUNTIME_DIR"));
-    AppendEnvAssignment(args, "DBUS_SESSION_BUS_ADDRESS", std::getenv("DBUS_SESSION_BUS_ADDRESS"));
-    AppendEnvAssignment(args, "XDG_CONFIG_HOME", std::getenv("XDG_CONFIG_HOME"));
-    AppendEnvAssignment(args, "HOME", std::getenv("HOME"));
-    AppendEnvAssignment(args, "LD_LIBRARY_PATH", std::getenv("LD_LIBRARY_PATH"));
-    AppendEnvAssignment(args, "DEBUG", std::getenv("DEBUG"));
-    AppendEnvAssignment(args, "SMU_DEBUG", std::getenv("SMU_DEBUG"));
-
-    AppendEnvAssignment(args, "SMU_REAL_UID", realUid);
-    AppendEnvAssignment(args, "SMU_REAL_GID", realGid);
-    AppendEnvAssignment(args, "SMU_REAL_USER", realUser);
-    AppendEnvAssignment(args, "SMU_REAL_HOME", std::getenv("HOME"));
-    AppendEnvAssignment(args, "SMU_PKEXEC_RELAUNCHED", "1");
-
-    args.push_back(executablePath);
-    for (int i = 1; i < argc; ++i) {
-        if (argv[i]) {
-            args.emplace_back(argv[i]);
-        }
+    const std::string targetUserEnv = "SMU_TARGET_USER=" + targetUser;
+    const pid_t pid = fork();
+    if (pid < 0) {
+        LogWarning(std::string("Failed to fork pkexec installer: ") + std::strerror(errno));
+        return 1;
     }
 
-    std::vector<char*> execArgs;
-    execArgs.reserve(args.size() + 1);
-    for (std::string& arg : args) {
-        execArgs.push_back(arg.data());
+    if (pid == 0) {
+        execlp("pkexec",
+            "pkexec",
+            "/usr/bin/env",
+            targetUserEnv.c_str(),
+            scriptPath.c_str(),
+            static_cast<char*>(nullptr));
+        _exit(errno == ENOENT ? 127 : 126);
     }
-    execArgs.push_back(nullptr);
 
-    execvp("pkexec", execArgs.data());
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        LogWarning(std::string("Failed waiting for pkexec installer: ") + std::strerror(errno));
+        return 1;
+    }
 
-    const int launchErrno = errno;
-    std::string message = "Native Linux input requires root. Failed to launch pkexec";
-    if (launchErrno != 0) {
-        message += ": ";
-        message += std::strerror(launchErrno);
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
     }
-    if (launchErrno == ENOENT) {
-        message += ". Install pkexec or launch with sudo -E ./suspend";
-    }
-    ShowErrorMessageBox("Root Required", message.c_str());
     return 1;
 }
 
@@ -221,17 +304,8 @@ int main(int argc, char** argv)
     smu::log::SetFileLoggingEnabled(true);
     LogInfo("Starting Spencer Macro Utilities native Linux app.");
     LogLinuxStartupDiagnostics();
-
-    if (geteuid() != 0) {
-        const char* relaunched = std::getenv("SMU_PKEXEC_RELAUNCHED");
-        if (relaunched && std::string(relaunched) == "1") {
-            ShowErrorMessageBox("Root Required",
-                "Native Linux input requires root. pkexec did not relaunch the app with elevated privileges. Launch with sudo -E ./suspend");
-            return 1;
-        }
-
-        return RelaunchWithPkexec(argc, argv);
-    }
+    (void)argc;
+    (void)argv;
 
     smu::core::InitializeMacroSections(false);
     std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
@@ -239,15 +313,30 @@ int main(int argc, char** argv)
     std::snprintf(Globals::settingsBuffer, sizeof(Globals::settingsBuffer), "sober");
 
     smu::app::AppContext context = smu::app::CreateAppContext();
+    context.linuxInputInstallerPath = ResolveLinuxSetupScriptPath();
+    context.linuxInputSudoCommand = BuildManualSudoCommand(context.linuxInputInstallerPath);
+    context.linuxInputSetupDocsPath = ResolveLinuxSetupDocsPath();
 
-    std::shared_ptr<smu::platform::InputBackend> inputBackend = smu::platform::linux::CreateEvdevUinputInputBackend();
-    smu::platform::SetInputBackend(inputBackend);
-    context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
-    if (!context.inputBackendAvailable && !context.inputBackendError.empty()) {
-        LogWarning(context.inputBackendError);
-    } else if (context.inputBackendAvailable) {
-        LogInfo("Linux input backend initialized.");
-    }
+    std::shared_ptr<smu::platform::InputBackend> inputBackend;
+    InitializeLinuxInputBackend(context, inputBackend);
+    context.refreshLinuxInputPermissions = [&context, &inputBackend]() {
+        InitializeLinuxInputBackend(context, inputBackend);
+    };
+    context.installLinuxPermissionsWithPkexec = [&context, &inputBackend]() {
+        const int exitCode = RunPermissionInstallerWithPkexec(context.linuxInputInstallerPath);
+        if (exitCode == 0) {
+            context.linuxInputSetupActionMessage =
+                "Permission installer completed. Log out and back in or reboot if access is still missing.";
+            InitializeLinuxInputBackend(context, inputBackend);
+            return;
+        }
+
+        context.linuxInputSetupActionMessage =
+            "No graphical polkit authentication agent appears to be available, or authorization was cancelled. "
+            "Install/start a polkit agent such as hyprpolkitagent, polkit-kde-agent, or polkit-gnome, "
+            "or run this manually: sudo ./scripts/install_linux_permissions.sh";
+        LogWarning(context.linuxInputSetupActionMessage);
+    };
 
     std::shared_ptr<smu::platform::ProcessBackend> processBackend = smu::platform::linux::CreateProcCgroupProcessBackend();
     smu::platform::SetProcessBackend(processBackend);

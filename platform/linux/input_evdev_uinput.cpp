@@ -23,8 +23,8 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <thread>
-#include <unistd.h>
 #include <unordered_map>
+#include <unistd.h>
 
 namespace smu::platform::linux {
 namespace {
@@ -396,28 +396,19 @@ bool EvdevUinputInputBackend::init(std::string* errorMessage)
         return true;
     }
 
-    if (geteuid() != 0) {
-        const std::string message = "Linux input backend requires root/effective UID 0 for /dev/uinput and /dev/input access.";
-        if (errorMessage) {
-            *errorMessage = message;
-        }
-        smu::log::LogCritical(message);
-        return false;
-    }
-
     struct stat inputStat {};
     if (stat("/dev/input", &inputStat) != 0) {
         const std::string message = ErrnoText("Linux input backend cannot access /dev/input");
         if (errorMessage) {
             *errorMessage = message;
         }
-        smu::log::LogCritical(message);
+        smu::log::LogWarning(message);
         return false;
     }
 
     if (!setupUinput(errorMessage)) {
         if (errorMessage && !errorMessage->empty()) {
-            smu::log::LogCritical(*errorMessage);
+            smu::log::LogWarning(*errorMessage);
         }
         shutdown();
         return false;
@@ -425,7 +416,7 @@ bool EvdevUinputInputBackend::init(std::string* errorMessage)
 
     if (!detectInputDevices(errorMessage)) {
         if (errorMessage && !errorMessage->empty()) {
-            smu::log::LogCritical(*errorMessage);
+            smu::log::LogWarning(*errorMessage);
         }
         shutdown();
         return false;
@@ -614,7 +605,7 @@ void EvdevUinputInputBackend::readerThread(std::string devicePath)
 {
     int fd = open(devicePath.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
-        smu::log::LogCritical(ErrnoText("Linux input backend failed to open " + devicePath));
+        smu::log::LogWarning(ErrnoText("Linux input backend failed to open " + devicePath));
         return;
     }
 

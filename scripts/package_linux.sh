@@ -35,7 +35,10 @@ fi
 test -f "$PACKAGE_DIR/assets/LSANS.TTF"
 test -f "$PACKAGE_DIR/assets/smu_icon.bmp"
 test -x "$PACKAGE_DIR/run.sh"
+test -x "$PACKAGE_DIR/scripts/install_linux_permissions.sh"
+test -f "$PACKAGE_DIR/LINUX_SETUP.md"
 
 echo
 echo "Package diagnostics passed. Copy the whole SpencerMacroUtilities folder to a compatible Linux system and run ./run.sh."
+echo "If input permissions are missing, run: sudo ./scripts/install_linux_permissions.sh"
 echo "Recommended distribution formats: portable tarball now; AppImage or distro packages later."

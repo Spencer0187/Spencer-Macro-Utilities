@@ -13,8 +13,8 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 - Windows Installation: Run the executable "suspend" file.
-- Linux Installation: Run the executable "suspend" file through [Wine](https://gitlab.winehq.org/wine/wine/-/wikis/Download), and accept the Admin Confirmation. Works across nearly all distros.
-(Zenity must be installed on Linux to launch, run `sudo apt-get install zenity` or equivalent command)
+- Linux Native Installation: Run the native `suspend` build. If the setup screen appears, run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot.
+- Linux Wine Installation: The older Wine path remains available for compatibility, but the native build does not require Zenity or a root GUI session.
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
@@ -96,12 +96,13 @@ Build a portable folder:
 scripts/package_linux.sh
 ```
 
-This creates `build/linux-package/SpencerMacroUtilities/` with `suspend`, `run.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`. Copy the whole folder to a compatible Linux system and launch it with `./run.sh`. The launcher now performs the privileged hop with `pkexec` when available and falls back to `sudo -E`, preserving the GUI session environment. This is intended for portable tarballs; AppImage and distro packages are better future distribution formats.
+This creates `build/linux-package/SpencerMacroUtilities/` with `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`. Copy the whole folder to a compatible Linux system and launch it with `./run.sh`. The app starts unprivileged; if native input permissions are missing, it shows setup options inside the UI.
 
 Runtime notes for the native Linux backend:
 - Input injection uses `/dev/uinput`.
 - Input state reading uses `/dev/input/event*`.
-- The backend must run as root or with equivalent uinput/input device permissions. Launch the packaged build with `./run.sh`; launching `suspend` directly without root now exits with a clear error instead of trying to prompt for a password inside the app.
+- The backend needs group-based access to those devices. Run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot if access is still missing.
+- The app may launch the setup script with `pkexec`, but it does not relaunch the whole GUI as root and does not read your password.
 - Runtime assets are loaded from `assets/` next to the executable; developer builds fall back to the source tree assets.
 - X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`.
 - Wayland foreground process detection is intentionally unsupported.

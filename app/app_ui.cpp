@@ -8,6 +8,7 @@
 #include "../platform/logging.h"
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
+#include "../platform/updater/updater.h"
 
 #ifndef SMU_PORTABLE_GLOBALS
 #define SMU_PORTABLE_GLOBALS
@@ -15,6 +16,7 @@
 #include "Resource Files/globals.h"
 
 #include "imgui.h"
+#include <SDL3/SDL_clipboard.h>
 
 #include <algorithm>
 #include <array>
@@ -23,10 +25,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace smu::app {
@@ -94,6 +99,17 @@ struct InstanceRemoveConfirmState {
 
 InstanceRemoveConfirmState g_instance_remove_confirm_state{};
 
+struct UpdateUiState {
+    std::mutex mutex;
+    smu::updater::UpdaterStatus status;
+    bool checkedOnce = false;
+    bool checking = false;
+    bool applying = false;
+    std::string actionMessage;
+};
+
+UpdateUiState g_updateUiState;
+
 void InitializeSections()
 {
     sections.clear();
@@ -105,6 +121,65 @@ void InitializeSections()
 void ResetInstanceRemoveConfirmState()
 {
     g_instance_remove_confirm_state = {};
+}
+
+void StartUpdateCheck(bool force)
+{
+    {
+        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+        if (g_updateUiState.checking || g_updateUiState.applying || (g_updateUiState.checkedOnce && !force)) {
+            return;
+        }
+        g_updateUiState.checking = true;
+        g_updateUiState.actionMessage = "Checking for updates...";
+    }
+
+    const std::string version = localVersion;
+    std::thread([version]() {
+        smu::updater::UpdaterStatus status = smu::updater::CheckForUpdate(version);
+        if (!status.checkSucceeded) {
+            LogWarning("Update check failed: " + status.message);
+        } else if (status.updateAvailable) {
+            LogInfo("Update available: " + status.localVersion + " -> " + status.latestVersion);
+        }
+        {
+            std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+            g_updateUiState.status = std::move(status);
+            g_updateUiState.checkedOnce = true;
+            g_updateUiState.checking = false;
+            g_updateUiState.actionMessage = g_updateUiState.status.message;
+        }
+    }).detach();
+}
+
+void StartApplyUpdate()
+{
+    smu::updater::ReleaseInfo release;
+    {
+        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+        if (g_updateUiState.applying || !g_updateUiState.status.latestRelease) {
+            return;
+        }
+        release = *g_updateUiState.status.latestRelease;
+        g_updateUiState.applying = true;
+        g_updateUiState.actionMessage = "Downloading update...";
+    }
+
+    const std::string version = localVersion;
+    std::thread([release = std::move(release), version]() {
+        std::string error;
+        const bool ok = smu::updater::ApplyUpdate(release, version, &error);
+        {
+            std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+            g_updateUiState.applying = false;
+            g_updateUiState.actionMessage = ok
+                ? "Update installer launched. The app will restart shortly."
+                : (error.empty() ? "Update failed." : error);
+        }
+        if (!ok) {
+            LogWarning(error.empty() ? "Update failed." : error);
+        }
+    }).detach();
 }
 
 ImVec4 Brighten(ImVec4 col, float factor)
@@ -437,6 +512,92 @@ void ShutdownLagSwitchBackend()
     g_windivert_blocking.store(false, std::memory_order_relaxed);
 }
 
+std::string FileUrlFromPath(const std::string& path)
+{
+    if (path.empty()) {
+        return {};
+    }
+
+    std::string url = "file://";
+    for (char ch : path) {
+        if (ch == ' ') {
+            url += "%20";
+        } else {
+            url += ch;
+        }
+    }
+    return url;
+}
+
+void RenderLinuxInputSetup(AppContext& context)
+{
+#if defined(__linux__)
+    if (!context.linuxInputSetupRequired) {
+        return;
+    }
+
+    ImGui::OpenPopup("Linux Input Setup Required");
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(620.0f, 0.0f), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("Linux Input Setup Required", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("Native Linux input requires access to /dev/input/event* and /dev/uinput.");
+        ImGui::TextWrapped("Spencer Macro Utilities can install udev rules and add your user to an smu-input group. You may need to log out and back in, or reboot, before the new group membership reaches this desktop session.");
+        ImGui::Separator();
+        ImGui::TextWrapped("%s", context.linuxInputPermissionSummary.c_str());
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 580.0f);
+        ImGui::TextUnformatted(context.linuxInputPermissionDetails.c_str());
+        ImGui::PopTextWrapPos();
+        ImGui::Separator();
+
+        if (ImGui::Button("Install permissions with pkexec", ImVec2(230.0f, 0.0f))) {
+            if (context.installLinuxPermissionsWithPkexec) {
+                context.installLinuxPermissionsWithPkexec();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Copy sudo command", ImVec2(170.0f, 0.0f))) {
+            if (!context.linuxInputSudoCommand.empty() && SDL_SetClipboardText(context.linuxInputSudoCommand.c_str())) {
+                context.linuxInputSetupActionMessage = "Copied: " + context.linuxInputSudoCommand;
+            } else {
+                context.linuxInputSetupActionMessage = "Could not copy the sudo command to the clipboard.";
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Open Linux setup docs", ImVec2(190.0f, 0.0f))) {
+            if (context.openExternalUrl) {
+                const std::string docsUrl = FileUrlFromPath(context.linuxInputSetupDocsPath);
+                if (!docsUrl.empty()) {
+                    context.openExternalUrl(docsUrl.c_str());
+                }
+            }
+        }
+
+        if (ImGui::Button("Retry permission check", ImVec2(180.0f, 0.0f))) {
+            if (context.refreshLinuxInputPermissions) {
+                context.refreshLinuxInputPermissions();
+            }
+        }
+
+        if (!context.linuxInputSetupActionMessage.empty()) {
+            ImGui::Separator();
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 580.0f);
+            ImGui::TextUnformatted(context.linuxInputSetupActionMessage.c_str());
+            ImGui::PopTextWrapPos();
+        }
+
+        if (!context.linuxInputSetupRequired) {
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+#else
+    (void)context;
+#endif
+}
+
 void RestartLagSwitchCapture()
 {
     SyncLagSwitchBackendConfig();
@@ -466,6 +627,80 @@ void RefreshProcessStatus(AppContext& context)
     processFound = !pids.empty();
 }
 
+void RenderUpdaterPanel()
+{
+    StartUpdateCheck(false);
+
+    smu::updater::UpdaterStatus status;
+    bool checking = false;
+    bool applying = false;
+    bool checkedOnce = false;
+    std::string actionMessage;
+    {
+        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+        status = g_updateUiState.status;
+        checking = g_updateUiState.checking;
+        applying = g_updateUiState.applying;
+        checkedOnce = g_updateUiState.checkedOnce;
+        actionMessage = g_updateUiState.actionMessage;
+    }
+
+    UserOutdated = checkedOnce && status.updateAvailable;
+
+    if (!ImGui::CollapsingHeader("Updates", ImGuiTreeNodeFlags_DefaultOpen)) {
+        return;
+    }
+
+    ImGui::Text("Local version: %s", localVersion.c_str());
+    if (checkedOnce && !status.latestVersion.empty()) {
+        ImGui::Text("Latest version: %s", status.latestVersion.c_str());
+    } else {
+        ImGui::TextUnformatted("Latest version: unknown");
+    }
+
+    if (checking) {
+        ImGui::TextUnformatted("Status: checking...");
+    } else if (checkedOnce) {
+        ImGui::TextWrapped("Status: %s", status.message.c_str());
+    } else {
+        ImGui::TextUnformatted("Status: not checked yet");
+    }
+
+    if (status.selectedAsset) {
+        ImGui::TextWrapped("Selected package: %s", status.selectedAsset->name.c_str());
+    }
+
+    if (ImGui::Button("Check for updates")) {
+        StartUpdateCheck(true);
+    }
+
+    const bool canApply = checkedOnce &&
+        status.updateAvailable &&
+        status.autoApplySupported &&
+        status.latestRelease.has_value() &&
+        status.selectedAsset.has_value() &&
+        !checking &&
+        !applying;
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!canApply);
+    if (ImGui::Button(applying ? "Applying update..." : "Download and install update")) {
+        StartApplyUpdate();
+    }
+    ImGui::EndDisabled();
+
+    if (checkedOnce && status.updateAvailable && !status.autoApplySupported) {
+        ImGui::TextColored(GetCurrentTheme().warning_color,
+            "Update check available, auto-apply not implemented for this platform.");
+    }
+
+    if (!actionMessage.empty()) {
+        ImGui::TextWrapped("%s", actionMessage.c_str());
+    }
+
+    ImGui::Separator();
+}
+
 void RenderSettingsMenu(AppContext& context, bool* open)
 {
     if (!*open) {
@@ -482,6 +717,8 @@ void RenderSettingsMenu(AppContext& context, bool* open)
 
     if (ImGui::Begin("Settings Menu", open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse)) {
         ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
+
+        RenderUpdaterPanel();
 
         ImGui::TextUnformatted("Your Current Windows Display Scale Value (10-500%):");
         ImGui::SetNextItemWidth(150);
@@ -582,6 +819,13 @@ void RenderSettingsMenu(AppContext& context, bool* open)
 
 void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
 {
+    StartUpdateCheck(false);
+    {
+        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+        if (g_updateUiState.checkedOnce) {
+            UserOutdated = g_updateUiState.status.updateAvailable;
+        }
+    }
     RefreshProcessStatus(context);
 
     ImGui::AlignTextToFramePadding();
@@ -1735,6 +1979,7 @@ void RenderAppUi(AppContext& context)
 
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();
+    RenderLinuxInputSetup(context);
 
     float settingsPanelHeight = 140.0f;
     ImGui::BeginChild("GlobalSettings", ImVec2(displaySize.x - 16, settingsPanelHeight), true);
