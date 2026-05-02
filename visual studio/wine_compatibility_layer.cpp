@@ -1,6 +1,7 @@
 ﻿#include "Resource Files/wine_compatibility_layer.h"
 #include "shared_mem.h"
 #include "resource.h"
+#include "../app/askpass.h"
 #include <Windows.h>
 #include <iostream>
 #include <fstream>
@@ -242,14 +243,7 @@ void InitLinuxCompatLayer() {
         }
 
         // Launch the Helper using a Graphical Sudo Wrapper
-        std::string sudoCommand = 
-            "start /unix /bin/sh -c \""
-            "if command -v zenity >/dev/null; then "
-                "zenity --password --title='Authentication Required' --text='Enter your password to run the Input Helper:' | sudo -S -p '' '" + helperLinuxPath + "' '" + currentExeName + "';"  // Added argument here
-            "elif command -v kdialog >/dev/null; then "
-                "kdialog --password 'Enter your password to run the Input Helper:' | sudo -S -p '' '" + helperLinuxPath + "' '" + currentExeName + "';"  // And here
-            "fi"
-            "\"";
+        std::string sudoCommand = smu::app::BuildWineSudoCommand(helperLinuxPath, currentExeName);
 
         STARTUPINFOA si_exec = {0};
         PROCESS_INFORMATION pi_exec = {0};

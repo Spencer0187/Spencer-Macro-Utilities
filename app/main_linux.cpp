@@ -1,5 +1,6 @@
 #include "app_main.h"
 #include "app_context.h"
+#include "askpass.h"
 #include "macro_runtime.h"
 
 #include "../core/app_state.h"
@@ -18,15 +19,12 @@
 #include "Resource Files/globals.h"
 
 #include <array>
-#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
-#include <pwd.h>
 #include <string>
-#include <sys/wait.h>
 #include <system_error>
 #include <vector>
 #include <unistd.h>
@@ -102,31 +100,6 @@ bool PathExists(const std::string& path)
 {
     std::error_code ec;
     return !path.empty() && std::filesystem::exists(path, ec) && !ec;
-}
-
-std::string GetCurrentUserName()
-{
-    for (const char* name : {"SMU_REAL_USER", "SUDO_USER", "USER"}) {
-        if (const char* user = std::getenv(name)) {
-            if (user[0] != '\0' && std::string(user) != "root") {
-                return user;
-            }
-        }
-    }
-
-    if (const char* user = std::getenv("USER")) {
-        if (user[0] != '\0') {
-            return user;
-        }
-    }
-
-    if (passwd* pwd = getpwuid(getuid())) {
-        if (pwd->pw_name) {
-            return pwd->pw_name;
-        }
-    }
-
-    return {};
 }
 
 std::string ShellQuote(const std::string& value)
@@ -255,48 +228,6 @@ void InitializeLinuxInputBackend(
     LogInfo("Linux input backend initialized.");
 }
 
-int RunPermissionInstallerWithPkexec(const std::string& scriptPath)
-{
-    if (!PathExists(scriptPath)) {
-        LogWarning("Linux permission installer script was not found at " + scriptPath);
-        return 127;
-    }
-
-    const std::string targetUser = GetCurrentUserName();
-    if (targetUser.empty()) {
-        LogWarning("Linux permission installer could not determine the current user.");
-        return 1;
-    }
-
-    const std::string targetUserEnv = "SMU_TARGET_USER=" + targetUser;
-    const pid_t pid = fork();
-    if (pid < 0) {
-        LogWarning(std::string("Failed to fork pkexec installer: ") + std::strerror(errno));
-        return 1;
-    }
-
-    if (pid == 0) {
-        execlp("pkexec",
-            "pkexec",
-            "/usr/bin/env",
-            targetUserEnv.c_str(),
-            scriptPath.c_str(),
-            static_cast<char*>(nullptr));
-        _exit(errno == ENOENT ? 127 : 126);
-    }
-
-    int status = 0;
-    if (waitpid(pid, &status, 0) < 0) {
-        LogWarning(std::string("Failed waiting for pkexec installer: ") + std::strerror(errno));
-        return 1;
-    }
-
-    if (WIFEXITED(status)) {
-        return WEXITSTATUS(status);
-    }
-    return 1;
-}
-
 } // namespace
 
 int main(int argc, char** argv)
@@ -323,7 +254,7 @@ int main(int argc, char** argv)
         InitializeLinuxInputBackend(context, inputBackend);
     };
     context.installLinuxPermissionsWithPkexec = [&context, &inputBackend]() {
-        const int exitCode = RunPermissionInstallerWithPkexec(context.linuxInputInstallerPath);
+        const int exitCode = smu::app::RunPermissionInstallerWithPkexec(context.linuxInputInstallerPath);
         if (exitCode == 0) {
             context.linuxInputSetupActionMessage =
                 "Permission installer completed. Log out and back in or reboot if access is still missing.";
@@ -332,9 +263,7 @@ int main(int argc, char** argv)
         }
 
         context.linuxInputSetupActionMessage =
-            "No graphical polkit authentication agent appears to be available, or authorization was cancelled. "
-            "Install/start a polkit agent such as hyprpolkitagent, polkit-kde-agent, or polkit-gnome, "
-            "or run this manually: sudo ./scripts/install_linux_permissions.sh";
+            smu::app::BuildPolkitFailureMessage(context.linuxInputSudoCommand);
         LogWarning(context.linuxInputSetupActionMessage);
     };
 

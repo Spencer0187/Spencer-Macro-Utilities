@@ -1,5 +1,19 @@
 #include "askpass.h"
 
+#include "../platform/logging.h"
+
+#include <cstring>
+#include <string>
+
+#ifndef SMU_USE_SDL_UI
+#if defined(__linux__)
+#define SMU_USE_SDL_UI 1
+#else
+#define SMU_USE_SDL_UI 0
+#endif
+#endif
+
+#if SMU_USE_SDL_UI
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl3.h"
@@ -7,12 +21,21 @@
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#endif
 
-#include <cstring>
-#include <string>
+#if defined(__linux__)
+#include <cerrno>
+#include <cstdlib>
+#include <filesystem>
+#include <pwd.h>
+#include <system_error>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace smu::app {
 
+#if SMU_USE_SDL_UI
 std::string AskPassword(const char* title, const char* prompt)
 {
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -148,7 +171,7 @@ std::string AskPassword(const char* title, const char* prompt)
 
         ImGui::End();
 
-        if (font) ImGui::PopFont();
+        if (font) ImGui::PopFont(font);
 
         ImGui::Render();
 
@@ -170,6 +193,132 @@ std::string AskPassword(const char* title, const char* prompt)
     SDL_Quit();
 
     return cancelled ? std::string{} : result;
+}
+#else
+std::string AskPassword(const char* title, const char* prompt)
+{
+    (void)title;
+    (void)prompt;
+    return {};
+}
+#endif
+
+#if defined(__linux__)
+namespace {
+
+bool PathExists(const std::string& path)
+{
+    std::error_code ec;
+    return !path.empty() && std::filesystem::exists(path, ec) && !ec;
+}
+
+std::string GetCurrentUserName()
+{
+    for (const char* name : {"SMU_REAL_USER", "SUDO_USER", "USER"}) {
+        if (const char* user = std::getenv(name)) {
+            if (user[0] != '\0' && std::string(user) != "root") {
+                return user;
+            }
+        }
+    }
+
+    if (const char* user = std::getenv("USER")) {
+        if (user[0] != '\0') {
+            return user;
+        }
+    }
+
+    if (passwd* pwd = getpwuid(getuid())) {
+        if (pwd->pw_name) {
+            return pwd->pw_name;
+        }
+    }
+
+    return {};
+}
+
+} // namespace
+
+int RunPermissionInstallerWithPkexec(const std::string& scriptPath)
+{
+    if (!PathExists(scriptPath)) {
+        LogWarning("Linux permission installer script was not found at " + scriptPath);
+        return 127;
+    }
+
+    const std::string targetUser = GetCurrentUserName();
+    if (targetUser.empty()) {
+        LogWarning("Linux permission installer could not determine the current user.");
+        return 1;
+    }
+
+    const std::string targetUserEnv = "SMU_TARGET_USER=" + targetUser;
+    const pid_t pid = fork();
+    if (pid < 0) {
+        LogWarning(std::string("Failed to fork pkexec installer: ") + std::strerror(errno));
+        return 1;
+    }
+
+    if (pid == 0) {
+        execlp("pkexec",
+            "pkexec",
+            "/usr/bin/env",
+            targetUserEnv.c_str(),
+            scriptPath.c_str(),
+            static_cast<char*>(nullptr));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        LogWarning(std::string("Failed waiting for pkexec installer: ") + std::strerror(errno));
+        return 1;
+    }
+
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return 1;
+}
+#else
+int RunPermissionInstallerWithPkexec(const std::string& scriptPath)
+{
+    (void)scriptPath;
+    return 127;
+}
+#endif
+
+std::string BuildPolkitFailureMessage(const std::string& sudoCommand)
+{
+    std::string message =
+        "No graphical polkit authentication agent appears to be available, or authorization was cancelled. "
+        "Install/start a polkit agent such as hyprpolkitagent, polkit-kde-agent, or polkit-gnome, ";
+    if (!sudoCommand.empty()) {
+        message += "or run this manually: " + sudoCommand;
+    } else {
+        message += "or run the installer manually with sudo.";
+    }
+    return message;
+}
+
+std::string BuildWineSudoCommand(const std::string& helperLinuxPath, const std::string& currentExeName)
+{
+    std::string command = "start /unix /bin/sh -c \"";
+    command += "if command -v zenity >/dev/null; then ";
+    command += "zenity --password --title='Authentication Required' --text='Enter your password to run the Input Helper:' | sudo -S -p '' '";
+    command += helperLinuxPath;
+    command += "' '";
+    command += currentExeName;
+    command += "';";
+    command += "elif command -v kdialog >/dev/null; then ";
+    command += "kdialog --password 'Enter your password to run the Input Helper:' | sudo -S -p '' '";
+    command += helperLinuxPath;
+    command += "' '";
+    command += currentExeName;
+    command += "';";
+    command += "fi";
+    command += "\"";
+    return command;
 }
 
 } // namespace smu::app
