@@ -102,6 +102,35 @@ bool PathExists(const std::string& path)
     return !path.empty() && std::filesystem::exists(path, ec) && !ec;
 }
 
+std::vector<std::filesystem::path> GetAppDirCandidates()
+{
+    std::vector<std::filesystem::path> candidates;
+
+    if (const char* smuAppDir = std::getenv("SMU_APPDIR")) {
+        if (smuAppDir[0] != '\0') {
+            candidates.emplace_back(smuAppDir);
+        }
+    }
+
+    if (const char* appDir = std::getenv("APPDIR")) {
+        if (appDir[0] != '\0') {
+            std::filesystem::path path(appDir);
+            bool alreadyPresent = false;
+            for (const auto& candidate : candidates) {
+                if (candidate == path) {
+                    alreadyPresent = true;
+                    break;
+                }
+            }
+            if (!alreadyPresent) {
+                candidates.emplace_back(std::move(path));
+            }
+        }
+    }
+
+    return candidates;
+}
+
 std::string ShellQuote(const std::string& value)
 {
     std::string quoted = "'";
@@ -122,6 +151,19 @@ std::string ResolveLinuxSetupScriptPath()
         "scripts" / "install_linux_permissions.sh";
     if (PathExists(packagedPath.string())) {
         return packagedPath.string();
+    }
+
+    for (const auto& appDir : GetAppDirCandidates()) {
+        const std::filesystem::path appDirScriptPath = appDir / "scripts" / "install_linux_permissions.sh";
+        if (PathExists(appDirScriptPath.string())) {
+            return appDirScriptPath.string();
+        }
+
+        const std::filesystem::path sharedScriptPath = appDir / "usr" / "share" /
+            "spencer-macro-utilities" / "scripts" / "install_linux_permissions.sh";
+        if (PathExists(sharedScriptPath.string())) {
+            return sharedScriptPath.string();
+        }
     }
 
 #ifdef SMU_SOURCE_ROOT
@@ -146,6 +188,25 @@ std::string ResolveLinuxSetupDocsPath()
     const std::filesystem::path packagedPath = std::filesystem::path(GetExecutableBasePath()) / "LINUX_SETUP.md";
     if (PathExists(packagedPath.string())) {
         return packagedPath.string();
+    }
+
+    for (const auto& appDir : GetAppDirCandidates()) {
+        const std::filesystem::path appDirDocsPath = appDir / "LINUX_SETUP.md";
+        if (PathExists(appDirDocsPath.string())) {
+            return appDirDocsPath.string();
+        }
+
+        const std::filesystem::path sharedDocPath = appDir / "usr" / "share" / "doc" /
+            "spencer-macro-utilities" / "LINUX_SETUP.md";
+        if (PathExists(sharedDocPath.string())) {
+            return sharedDocPath.string();
+        }
+
+        const std::filesystem::path sharedDataDocPath = appDir / "usr" / "share" /
+            "spencer-macro-utilities" / "LINUX_SETUP.md";
+        if (PathExists(sharedDataDocPath.string())) {
+            return sharedDataDocPath.string();
+        }
     }
 
 #ifdef SMU_SOURCE_ROOT
