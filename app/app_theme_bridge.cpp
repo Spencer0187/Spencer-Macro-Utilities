@@ -19,6 +19,13 @@ namespace {
 #if defined(__linux__)
 std::filesystem::path FindLinuxFontPath()
 {
+    if (const char* appDir = std::getenv("APPDIR")) { // APPDIR env is set for AppImage runtimes
+        std::filesystem::path internalPath = std::filesystem::path(appDir) / "usr/bin/fonts/LSANS.TTF";
+        if (std::filesystem::exists(internalPath)) {
+            return internalPath;
+        }
+    }
+
     if (auto runtimeAsset = FindRuntimeAsset("LSANS.TTF"); !runtimeAsset.empty()) {
         return runtimeAsset;
     }
@@ -30,10 +37,10 @@ std::filesystem::path FindLinuxFontPath()
         return sourceTreeFont;
     }
 #endif
-
     return {};
 }
 #endif
+
 
 std::filesystem::path FindLegacyFontPath()
 {
