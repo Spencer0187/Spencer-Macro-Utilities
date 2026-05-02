@@ -1,15 +1,28 @@
 ﻿#define NOMINMAX
 #include "Resource Files/globals.h"
 #include "Resource Files/profile_manager.h"
+#include "../platform/logging.h"
 #include "imgui-files/imgui.h"
 #include "Resource Files/json.hpp"
+#include <array>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <filesystem>
 #include <iostream>
+#include <optional>
+#include <system_error>
 #include <variant>
 #include <unordered_map>
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
 #include <shlobj.h>
+#endif
+#if defined(__linux__)
+#include <pwd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
 using namespace Globals;
@@ -199,13 +212,258 @@ struct JsonFileResult {
 	std::string error;
 };
 
+namespace {
+
+struct RealUserContext {
+#if defined(__linux__)
+	uid_t uid = 0;
+	gid_t gid = 0;
+#else
+	int uid = 0;
+	int gid = 0;
+#endif
+	bool hasOriginalUser = false;
+	std::string username;
+	std::string homeDirectory;
+};
+
+#if defined(__linux__)
+std::optional<unsigned long> ParseUnsignedEnv(const char* name) {
+	const char* value = std::getenv(name);
+	if (!value || value[0] == '\0') {
+		return std::nullopt;
+	}
+
+	char* end = nullptr;
+	errno = 0;
+	const unsigned long parsed = std::strtoul(value, &end, 10);
+	if (errno != 0 || end == value || (end && *end != '\0')) {
+		LogWarning(std::string("Ignoring invalid ") + name + " value: " + value);
+		return std::nullopt;
+	}
+	return parsed;
+}
+#endif
+
+RealUserContext GetRealUserContext() {
+	RealUserContext context{};
+
+#if defined(__linux__)
+	const auto smuRealUid = ParseUnsignedEnv("SMU_REAL_UID");
+	const auto smuRealGid = ParseUnsignedEnv("SMU_REAL_GID");
+	const auto sudoUid = ParseUnsignedEnv("SUDO_UID");
+	const auto sudoGid = ParseUnsignedEnv("SUDO_GID");
+	context.uid = static_cast<uid_t>(smuRealUid.value_or(sudoUid.value_or(static_cast<unsigned long>(getuid()))));
+	context.gid = static_cast<gid_t>(smuRealGid.value_or(sudoGid.value_or(static_cast<unsigned long>(getgid()))));
+	context.hasOriginalUser = (smuRealUid.has_value() && smuRealGid.has_value()) ||
+		(sudoUid.has_value() && sudoGid.has_value());
+
+	if (const char* realUser = std::getenv("SMU_REAL_USER")) {
+		if (realUser[0] != '\0') {
+			context.username = realUser;
+		}
+	}
+	if (const char* realHome = std::getenv("SMU_REAL_HOME")) {
+		if (realHome[0] != '\0') {
+			context.homeDirectory = realHome;
+		}
+	}
+
+	if (passwd* pwd = getpwuid(context.uid)) {
+		if (context.username.empty() && pwd->pw_name) {
+			context.username = pwd->pw_name;
+		}
+		if (context.homeDirectory.empty() && pwd->pw_dir) {
+			context.homeDirectory = pwd->pw_dir;
+		}
+	}
+#endif
+
+	return context;
+}
+
+std::string FormatPathForLog(const fs::path& path) {
+	if (path.empty()) {
+		return std::string("<empty>");
+	}
+	return path.string();
+}
+
+bool PathExists(const fs::path& path) {
+	std::error_code ec;
+	const bool exists = fs::exists(path, ec);
+	if (ec) {
+		LogWarning("Filesystem exists() failed for " + FormatPathForLog(path) + ": " + ec.message());
+		return false;
+	}
+	return exists;
+}
+
+bool EnsureParentDirectoryExists(const fs::path& path) {
+	const fs::path parent = path.parent_path();
+	if (parent.empty()) {
+		return true;
+	}
+
+	std::error_code ec;
+	if (fs::exists(parent, ec)) {
+		if (ec) {
+			LogWarning("Could not inspect settings directory " + FormatPathForLog(parent) + ": " + ec.message());
+			return false;
+		}
+		return true;
+	}
+
+	if (fs::create_directories(parent, ec) || !ec) {
+#if defined(__linux__)
+		const RealUserContext realUser = GetRealUserContext();
+		if (geteuid() == 0 && realUser.hasOriginalUser) {
+			if (chown(parent.c_str(), realUser.uid, realUser.gid) != 0) {
+				LogWarning("Could not chown settings directory " + FormatPathForLog(parent) + ": " + std::strerror(errno));
+			}
+		}
+#endif
+		return true;
+	}
+
+	LogWarning("Could not create settings directory " + FormatPathForLog(parent) + ": " + ec.message());
+	return false;
+}
+
+fs::path GetCurrentDirectoryPath() {
+	std::error_code ec;
+	const fs::path cwd = fs::current_path(ec);
+	if (ec) {
+		LogWarning("Could not resolve current working directory: " + ec.message());
+		return {};
+	}
+	return cwd;
+}
+
+fs::path GetExecutableDirectoryPath() {
+#if defined(__linux__)
+	std::array<char, 4096> buffer{};
+	const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+	if (length > 0) {
+		buffer[static_cast<std::size_t>(length)] = '\0';
+		return fs::path(buffer.data()).parent_path();
+	}
+
+	LogWarning(std::string("Could not resolve /proc/self/exe: ") + std::strerror(errno));
+#endif
+	return GetCurrentDirectoryPath();
+}
+
+fs::path GetUserConfigDirectory(const RealUserContext& realUser) {
+	if (const char* xdgConfigHome = std::getenv("XDG_CONFIG_HOME")) {
+		if (xdgConfigHome[0] != '\0') {
+			return fs::path(xdgConfigHome) / "SpencerMacroUtilities";
+		}
+	}
+
+	if (!realUser.homeDirectory.empty()) {
+		return fs::path(realUser.homeDirectory) / ".config" / "SpencerMacroUtilities";
+	}
+
+	if (!realUser.username.empty()) {
+		return fs::path("/home") / realUser.username / ".config" / "SpencerMacroUtilities";
+	}
+
+	return {};
+}
+
+bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
+#if defined(__linux__)
+	if (path.empty()) {
+		return false;
+	}
+
+	const fs::path filename = path.filename();
+	const bool isSettingsFile = filename == "SMCSettings.json" ||
+		filename == "SMCSettings.json.bak" ||
+		filename == "RMCSettings.json" ||
+		filename == "RMCSettings.json.bak";
+
+	if (!isSettingsFile) {
+		return true;
+	}
+
+	const RealUserContext realUser = GetRealUserContext();
+	if (geteuid() == 0 && realUser.hasOriginalUser) {
+		if (chown(path.c_str(), realUser.uid, realUser.gid) != 0) {
+			LogWarning("Could not chown " + FormatPathForLog(path) + ": " + std::strerror(errno));
+		}
+	}
+
+	if (chmod(path.c_str(), 0666) != 0) {
+		LogWarning("Could not chmod 0666 on " + FormatPathForLog(path) + ": " + std::strerror(errno));
+		return false;
+	}
+#else
+	(void)path;
+#endif
+	return true;
+}
+
+bool CopySettingsFile(const fs::path& source, const fs::path& destination) {
+	if (!EnsureParentDirectoryExists(destination)) {
+		return false;
+	}
+
+	std::error_code ec;
+	if (!fs::copy_file(source, destination, fs::copy_options::overwrite_existing, ec)) {
+		if (ec) {
+			LogWarning("Could not copy settings file from " + FormatPathForLog(source) + " to " +
+				FormatPathForLog(destination) + ": " + ec.message());
+		}
+		return false;
+	}
+
+	AdjustSettingsFileOwnershipAndPermissions(destination);
+	return true;
+}
+
+bool RenameSettingsFile(const fs::path& source, const fs::path& destination) {
+	if (!EnsureParentDirectoryExists(destination)) {
+		return false;
+	}
+
+	std::error_code ec;
+	fs::rename(source, destination, ec);
+	if (ec) {
+		LogWarning("Could not rename settings file from " + FormatPathForLog(source) + " to " +
+			FormatPathForLog(destination) + ": " + ec.message());
+		return false;
+	}
+
+	AdjustSettingsFileOwnershipAndPermissions(destination);
+	return true;
+}
+
+bool RemoveFileNoThrow(const fs::path& path) {
+	std::error_code ec;
+	const bool removed = fs::remove(path, ec);
+	if (ec) {
+		LogWarning("Could not remove file " + FormatPathForLog(path) + ": " + ec.message());
+		return false;
+	}
+	return removed;
+}
+
+} // namespace
+
 static JsonFileResult ReadJsonFile(const std::string& filepath) {
 	JsonFileResult result;
 	result.success = false;
 
+	errno = 0;
 	std::ifstream file(filepath);
 	if (!file.is_open()) {
+		const int openErrno = errno;
 		result.error = "Could not open file: " + filepath;
+		if (openErrno != 0) {
+			result.error += " (" + std::string(std::strerror(openErrno)) + ")";
+		}
 		return result;
 	}
 
@@ -221,23 +479,37 @@ static JsonFileResult ReadJsonFile(const std::string& filepath) {
 
 // Write JSON to file. Creates a .bak backup of the previous version.
 static bool WriteJsonFile(const std::string& filepath, const json& data) {
+	const fs::path settingsPath(filepath);
+	if (!EnsureParentDirectoryExists(settingsPath)) {
+		LogCritical("Failed to save settings to " + filepath + ": parent directory is unavailable.");
+		return false;
+	}
+
 	// Create backup of existing file before overwriting
-	if (fs::exists(filepath)) {
-		std::string backup_path = filepath + ".bak";
-		try {
-			fs::copy_file(filepath, backup_path, fs::copy_options::overwrite_existing);
-		} catch (const fs::filesystem_error&) {
-			// Non-fatal — proceed without backup
+	if (PathExists(settingsPath)) {
+		const fs::path backupPath = settingsPath.string() + ".bak";
+		if (CopySettingsFile(settingsPath, backupPath)) {
+			AdjustSettingsFileOwnershipAndPermissions(backupPath);
 		}
 	}
 
+	errno = 0;
 	std::ofstream outfile(filepath);
 	if (!outfile.is_open()) {
-		std::cerr << "Error: Could not open file for writing: " << filepath << std::endl;
+		const int openErrno = errno;
+		LogCritical("Failed to save settings to " + filepath + ": could not open file for writing" +
+			(openErrno != 0 ? std::string(" (") + std::strerror(openErrno) + ")" : std::string(".")));
 		return false;
 	}
+
 	outfile << data.dump(4);
 	outfile.close();
+	if (!outfile) {
+		LogCritical("Failed to save settings to " + filepath + ": write did not complete successfully.");
+		return false;
+	}
+
+	AdjustSettingsFileOwnershipAndPermissions(settingsPath);
 	return true;
 }
 
@@ -251,48 +523,59 @@ static bool WriteJsonFile(const std::string& filepath, const json& data) {
 // ============================================================================
 
 std::string ResolveSettingsFilePath() {
-	fs::path cwd = fs::current_path();
+	const RealUserContext realUser = GetRealUserContext();
+	const fs::path executableDir = GetExecutableDirectoryPath();
+	const fs::path currentDir = GetCurrentDirectoryPath();
+	const fs::path configDir = GetUserConfigDirectory(realUser);
 
-	// 1. Check current directory: SMCSettings.json (preferred name)
-	if (fs::exists(cwd / "SMCSettings.json")) {
-		return "SMCSettings.json";
+	const fs::path executableSettings = executableDir / "SMCSettings.json";
+	if (PathExists(executableSettings)) {
+		LogInfo("Using existing settings file next to executable: " + executableSettings.string());
+		return executableSettings.string();
 	}
 
-	// 2. Check current directory: RMCSettings.json (legacy name) → rename it
-	if (fs::exists(cwd / "RMCSettings.json")) {
-		try {
-			fs::rename(cwd / "RMCSettings.json", cwd / "SMCSettings.json");
-		} catch (const fs::filesystem_error& e) {
-			std::cerr << "Warning: Could not rename RMCSettings.json: " << e.what() << std::endl;
-			return "RMCSettings.json"; // Use old name if rename fails
+	const fs::path executableLegacySettings = executableDir / "RMCSettings.json";
+	if (PathExists(executableLegacySettings)) {
+		if (RenameSettingsFile(executableLegacySettings, executableSettings)) {
+			LogInfo("Migrated legacy settings file next to executable: " + executableSettings.string());
+			return executableSettings.string();
 		}
-		return "SMCSettings.json";
+		LogWarning("Using legacy executable settings path because rename failed: " + executableLegacySettings.string());
+		return executableLegacySettings.string();
 	}
 
-	// 3. Check parent directory (for files that live one folder above the .exe)
-	if (cwd.has_parent_path()) {
-		fs::path parent = cwd.parent_path();
-
-		// Try SMCSettings.json in parent
-		if (fs::exists(parent / "SMCSettings.json")) {
-			try {
-				fs::copy_file(parent / "SMCSettings.json", cwd / "SMCSettings.json");
-				std::cout << "Found settings file in parent directory, copied locally." << std::endl;
-			} catch (const fs::filesystem_error&) {}
-			return "SMCSettings.json";
+	if (!configDir.empty()) {
+		const fs::path configSettings = configDir / "SMCSettings.json";
+		if (PathExists(configSettings)) {
+			LogInfo("Using settings file from config directory: " + configSettings.string());
+			return configSettings.string();
 		}
 
-		// Try RMCSettings.json in parent → copy as SMCSettings.json
-		if (fs::exists(parent / "RMCSettings.json")) {
-			try {
-				fs::copy_file(parent / "RMCSettings.json", cwd / "SMCSettings.json");
-				std::cout << "Found legacy settings file in parent directory, copied locally as SMCSettings.json." << std::endl;
-			} catch (const fs::filesystem_error&) {}
-			return "SMCSettings.json";
+		const fs::path legacyConfigSettings = configDir / "RMCSettings.json";
+		if (PathExists(legacyConfigSettings)) {
+			if (RenameSettingsFile(legacyConfigSettings, configSettings)) {
+				LogInfo("Migrated legacy settings file in config directory: " + configSettings.string());
+				return configSettings.string();
+			}
+			LogWarning("Using legacy config settings path because rename failed: " + legacyConfigSettings.string());
+			return legacyConfigSettings.string();
 		}
+
+		if (EnsureParentDirectoryExists(configSettings)) {
+			LogInfo("Using config directory settings path: " + configSettings.string());
+			return configSettings.string();
+		}
+
+		LogWarning("Falling back from preferred config settings path: " + configSettings.string());
 	}
 
-	// 4. Nothing found — return default name for new file creation
+	if (!currentDir.empty()) {
+		const fs::path fallbackSettings = currentDir / "SMCSettings.json";
+		LogWarning("Falling back to current-directory settings path: " + fallbackSettings.string());
+		return fallbackSettings.string();
+	}
+
+	LogWarning("Falling back to relative settings path: SMCSettings.json");
 	return "SMCSettings.json";
 }
 
@@ -726,7 +1009,7 @@ static void DeserializeProfileData(const json& settings) {
 			g_extra_instances_loaded.store(true, std::memory_order_release);
 		}
 	} catch (const json::exception& e) {
-		std::cerr << "Error deserializing profile data: " << e.what() << std::endl;
+		LogWarning(std::string("Error deserializing profile data: ") + e.what());
 	}
 }
 
@@ -920,14 +1203,16 @@ static std::string GenerateNewProfileName(const std::vector<std::string>& existi
 //  (default) is read-only — this function will not overwrite it.
 // ============================================================================
 
-void SaveSettings(const std::string& filepath, const std::string& profile_name) {
-	if (profile_name.empty() || profile_name == "(default)") return;
+bool SaveSettings(const std::string& filepath, const std::string& profile_name) {
+	if (profile_name.empty() || profile_name == "(default)") {
+		return false;
+	}
 
 	json profile_data = SerializeProfileData();
 
 	// Read existing file to preserve other profiles, or start fresh
 	json root = json::object();
-	if (fs::exists(filepath)) {
+	if (PathExists(filepath)) {
 		auto file_result = ReadJsonFile(filepath);
 		if (file_result.success && file_result.data.is_object()) {
 			if (IsProfileFormat(file_result.data)) {
@@ -935,17 +1220,23 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
 			} else if (IsLegacyFlatFormat(file_result.data)) {
 				// Migrate old flat-format data under "Profile 1"
 				root["Profile 1"] = file_result.data;
-				std::cout << "Old format detected during save. Migrating old data to 'Profile 1'." << std::endl;
+				LogInfo("Old settings format detected during save. Migrating data to 'Profile 1'.");
 			} else {
 				// Unknown structure — preserve as-is and add our profile on top
 				root = file_result.data;
 			}
+		} else if (!file_result.success) {
+			LogWarning("Could not read existing settings file before save: " + filepath + ": " + file_result.error);
 		}
 	}
 
 	root[profile_name] = profile_data;
 	SaveMetadata(root);
-	WriteJsonFile(filepath, root);
+	const bool saved = WriteJsonFile(filepath, root);
+	if (!saved) {
+		LogCritical("Failed to save settings profile '" + profile_name + "' to " + filepath + ".");
+	}
+	return saved;
 }
 
 // ============================================================================
@@ -954,14 +1245,16 @@ void SaveSettings(const std::string& filepath, const std::string& profile_name) 
 //  Called once at startup so new settings fields always have a fallback.
 // ============================================================================
 
-void SaveDefaultProfile(const std::string& filepath) {
+bool SaveDefaultProfile(const std::string& filepath) {
 	json default_data = SerializeProfileData();
 
 	json root = json::object();
-	if (fs::exists(filepath)) {
+	if (PathExists(filepath)) {
 		auto file_result = ReadJsonFile(filepath);
 		if (file_result.success && file_result.data.is_object()) {
 			root = file_result.data;
+		} else if (!file_result.success) {
+			LogWarning("Could not read existing settings file before saving defaults: " + filepath + ": " + file_result.error);
 		}
 	}
 
@@ -971,7 +1264,11 @@ void SaveDefaultProfile(const std::string& filepath) {
 		root[METADATA_KEY] = json::object();
 	}
 
-	WriteJsonFile(filepath, root);
+	const bool saved = WriteJsonFile(filepath, root);
+	if (!saved) {
+		LogCritical("Failed to save default settings profile to " + filepath + ".");
+	}
+	return saved;
 }
 
 // ============================================================================
@@ -985,7 +1282,7 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 
 	auto file_result = ReadJsonFile(filepath);
 	if (!file_result.success) {
-		std::cerr << "Info: Settings file '" << filepath << "' not found or corrupt. Using defaults." << std::endl;
+		LogWarning("Settings load skipped for " + filepath + ": " + file_result.error + ". Using in-memory defaults.");
 		return;
 	}
 
@@ -1011,15 +1308,17 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 		settings_to_load = root;
 		actual_profile = "Profile 1";
 		found = true;
-		std::cout << "Info: Loaded legacy flat-format file as 'Profile 1'." << std::endl;
+		LogInfo("Loaded legacy flat-format settings file as 'Profile 1'.");
 	}
 
 	if (!found) {
-		std::cerr << "Warning: Profile '" << profile_name << "' not found in '" << filepath << "'." << std::endl;
+		LogWarning("Profile '" + profile_name + "' was not found in " + filepath + ".");
 		return;
 	}
 
 	DeserializeProfileData(settings_to_load);
+	G_CURRENTLY_LOADED_PROFILE_NAME = actual_profile;
+	LogInfo("Loaded settings profile '" + actual_profile + "' from " + filepath + ".");
 }
 
 // ============================================================================
@@ -1029,10 +1328,20 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 // ============================================================================
 
 bool TryLoadLastActiveProfile(std::string filepath) {
-	// File must exist (ResolveSettingsFilePath is called before this)
 	auto file_result = ReadJsonFile(filepath);
 	if (!file_result.success) {
-		std::cerr << "TryLoadLastActiveProfile: Could not read '" << filepath << "'." << std::endl;
+		if (!PathExists(filepath)) {
+			G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+			const bool created = SaveSettings(filepath, G_CURRENTLY_LOADED_PROFILE_NAME);
+			if (created) {
+				LogInfo("Created initial settings file at " + filepath + ".");
+			} else {
+				LogCritical("Failed to create initial settings file at " + filepath + ".");
+			}
+			return created;
+		}
+
+		LogWarning("TryLoadLastActiveProfile could not read " + filepath + ": " + file_result.error);
 		return false;
 	}
 
@@ -1046,30 +1355,36 @@ bool TryLoadLastActiveProfile(std::string filepath) {
 		DeserializeProfileData(root);
 		G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
 		SaveSettings(filepath, "Profile 1");
-		std::cout << "Converted legacy settings to 'Profile 1'." << std::endl;
+		LogInfo("Converted legacy settings file to 'Profile 1'.");
 		return true;
 	}
 
-	if (!root.is_object()) return false;
+	if (!root.is_object()) {
+		LogWarning("Settings file did not contain a JSON object: " + filepath);
+		return false;
+	}
 
 	// Find the best profile to load
 	std::string best = FindBestProfile(root, "");
 	if (best.empty()) {
 		// No profiles at all — create "Profile 1" with current defaults
 		G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-		SaveSettings(filepath, "Profile 1");
-		std::cout << "No profiles found. Created 'Profile 1'." << std::endl;
-		return true;
+		const bool created = SaveSettings(filepath, "Profile 1");
+		if (created) {
+			LogInfo("No profiles found in settings file. Created 'Profile 1'.");
+		}
+		return created;
 	}
 
 	// Load the found profile
 	if (root.contains(best) && root[best].is_object()) {
 		DeserializeProfileData(root[best]);
 		G_CURRENTLY_LOADED_PROFILE_NAME = best;
-		std::cout << "Loaded profile: " << best << std::endl;
+		LogInfo("Loaded last active profile '" + best + "' from " + filepath + ".");
 		return true;
 	}
 
+	LogWarning("Could not find a loadable profile in " + filepath + ".");
 	return false;
 }
 
@@ -1088,7 +1403,7 @@ std::string PromoteDefaultProfileIfDirty(const std::string& filepath) {
 	G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
 	SaveSettings(filepath, new_name);
 
-	std::cout << "Auto-saved (default) edits as '" << new_name << "'." << std::endl;
+	LogInfo("Auto-saved '(default)' edits as '" + new_name + "'.");
 	return new_name;
 }
 
@@ -1110,7 +1425,7 @@ bool DeleteProfileFromFile(const std::string& filepath, const std::string& profi
 	if (WriteJsonFile(filepath, root)) {
 		if (G_CURRENTLY_LOADED_PROFILE_NAME == profile_name) {
 			G_CURRENTLY_LOADED_PROFILE_NAME = "";
-			std::cout << "Info: Deleted active profile '" << profile_name << "'." << std::endl;
+			LogInfo("Deleted active profile '" + profile_name + "'.");
 		}
 		return true;
 	}
@@ -1127,7 +1442,7 @@ bool RenameProfileInFile(const std::string& filepath, const std::string& old_nam
 	json& root = file_result.data;
 	if (!root.contains(old_name)) return false;
 	if (root.contains(new_name)) {
-		std::cerr << "Rename Error: Target name '" << new_name << "' already exists." << std::endl;
+		LogWarning("Rename failed because target profile name already exists: " + new_name);
 		return false;
 	}
 
@@ -1151,7 +1466,7 @@ bool DuplicateProfileInFile(const std::string& filepath, const std::string& sour
 	json& root = file_result.data;
 	if (!root.contains(source_name)) return false;
 	if (root.contains(new_name)) {
-		std::cerr << "Duplicate Error: Target name '" << new_name << "' already exists." << std::endl;
+		LogWarning("Duplicate failed because target profile name already exists: " + new_name);
 		return false;
 	}
 
@@ -1355,7 +1670,7 @@ namespace ProfileUI {
 							// If only metadata remains, remove the file entirely
 							auto check = ReadJsonFile(G_SETTINGS_FILEPATH);
 							if (check.success && check.data.is_object() && check.data.size() == 1) {
-								fs::remove(G_SETTINGS_FILEPATH);
+								RemoveFileNoThrow(G_SETTINGS_FILEPATH);
 							}
 						}
 						s_editing_profile_idx = -1;
@@ -1445,7 +1760,7 @@ namespace ProfileUI {
 									if (it != s_profile_names.end()) {
 										s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
 									}
-									std::cout << "Renamed profile to: " << new_name_candidate << std::endl;
+									LogInfo("Renamed profile to: " + new_name_candidate);
 								}
 								s_editing_profile_idx = -1;
 							}

@@ -37,6 +37,7 @@ if(WIN32)
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/suspend1.rc"
     )
@@ -48,6 +49,7 @@ if(WIN32)
             "${SMU_APP_DIR}/app_assets.cpp"
             "${SMU_APP_DIR}/app_context.cpp"
             "${SMU_APP_DIR}/app_main.cpp"
+            "${SMU_APP_DIR}/macro_runtime.cpp"
             "${SMU_APP_DIR}/app_profile_bridge.cpp"
             "${SMU_APP_DIR}/app_theme_bridge.cpp"
             "${SMU_APP_DIR}/app_ui.cpp"
@@ -56,6 +58,7 @@ if(WIN32)
             "${SMU_CORE_DIR}/macro_state.cpp"
             "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
             "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
+            "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
         )
     else()
         set(SMU_WINDOWS_SOURCES
@@ -180,6 +183,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_PLATFORM_DIR}/linux/display_server.cpp"
         "${SMU_PLATFORM_DIR}/linux/foreground_x11.cpp"
@@ -216,7 +220,6 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_assets.cpp"
         "${SMU_APP_DIR}/app_context.cpp"
         "${SMU_APP_DIR}/app_main.cpp"
-        "${SMU_APP_DIR}/askpass.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/app_profile_bridge.cpp"
         "${SMU_APP_DIR}/app_theme_bridge.cpp"

@@ -8,7 +8,9 @@
 
 #include "app_context.h"
 #include "app_main.h"
+#include "macro_runtime.h"
 #include "../platform/logging.h"
+#include "Resource Files/wine_compatibility_layer.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -19,8 +21,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     smu::log::SetFileLoggingEnabled(true);
     LogInfo("Starting Spencer Macro Utilities SDL3 Windows app.");
+    InitLinuxCompatLayer();
     smu::app::AppContext context = smu::app::CreateAppContext();
+    smu::app::MacroRuntime macroRuntime;
+    macroRuntime.start();
     const int result = smu::app::RunSharedApp(context);
+    macroRuntime.stop();
+    ShutdownLinuxCompatLayer();
     LogInfo("Spencer Macro Utilities SDL3 Windows app stopped.");
     return result;
 }

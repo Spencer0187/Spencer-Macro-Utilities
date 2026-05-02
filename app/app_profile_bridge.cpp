@@ -5,6 +5,7 @@
 #endif
 #include "Resource Files/globals.h"
 #include "Resource Files/profile_manager.h"
+#include "../platform/logging.h"
 
 namespace smu::app {
 
@@ -23,7 +24,26 @@ void InitializeSharedProfiles()
     }
 
     G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
-    TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+    LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
+    if (!TryLoadLastActiveProfile(G_SETTINGS_FILEPATH) && G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+        G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+        LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.");
+    }
+}
+
+void ShutdownSharedProfiles()
+{
+    using namespace Globals;
+
+    if (G_SETTINGS_FILEPATH.empty()) {
+        return;
+    }
+
+    PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);
+
+    if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
+        SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
+    }
 }
 
 void RenderSharedProfileManager()

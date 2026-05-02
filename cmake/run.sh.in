@@ -1,6 +1,48 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 APP_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export LD_LIBRARY_PATH="$APP_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+build_env_args() {
+  local name
+  ENV_ARGS=()
+  for name in \
+    DISPLAY \
+    XAUTHORITY \
+    WAYLAND_DISPLAY \
+    XDG_RUNTIME_DIR \
+    DBUS_SESSION_BUS_ADDRESS \
+    XDG_CONFIG_HOME \
+    HOME \
+    LD_LIBRARY_PATH \
+    DEBUG \
+    SMU_DEBUG \
+    SUDO_UID \
+    SUDO_GID \
+    SUDO_USER; do
+    if [[ -n "${!name-}" ]]; then
+      ENV_ARGS+=("$name=${!name}")
+    fi
+  done
+}
+
+if [[ $(id -u) -ne 0 ]]; then
+  export SUDO_UID="${SUDO_UID:-$(id -u)}"
+  export SUDO_GID="${SUDO_GID:-$(id -g)}"
+  export SUDO_USER="${SUDO_USER:-$(id -un)}"
+  build_env_args
+
+  if command -v pkexec >/dev/null 2>&1; then
+    exec pkexec /usr/bin/env "${ENV_ARGS[@]}" "$APP_DIR/suspend" "$@"
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    exec sudo -E --preserve-env=DISPLAY,XAUTHORITY,WAYLAND_DISPLAY,XDG_RUNTIME_DIR,DBUS_SESSION_BUS_ADDRESS,XDG_CONFIG_HOME,HOME,LD_LIBRARY_PATH,DEBUG,SMU_DEBUG,SUDO_UID,SUDO_GID,SUDO_USER "$APP_DIR/suspend" "$@"
+  fi
+
+  echo "Native Linux input requires root. Launch with sudo -E ./suspend" >&2
+  exit 1
+fi
+
 exec "$APP_DIR/suspend" "$@"

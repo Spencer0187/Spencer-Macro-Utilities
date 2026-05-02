@@ -33,7 +33,6 @@ void ApplyWindowIcon(SDL_Window* window)
 #if defined(__linux__)
     const std::filesystem::path iconPath = FindRuntimeAsset("smu_icon.bmp");
     if (iconPath.empty()) {
-        LogWarning("SMU window icon asset was not found; continuing without a custom SDL window icon.");
         return;
     }
 
@@ -44,7 +43,6 @@ void ApplyWindowIcon(SDL_Window* window)
     }
 
     if (!SDL_SetWindowIcon(window, icon)) {
-        LogWarning(std::string("Failed to apply SMU window icon: ") + SDL_GetError());
     }
     SDL_DestroySurface(icon);
 #else
@@ -214,6 +212,8 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         }
         std::this_thread::sleep_until(nextFrameTime);
     }
+
+    ShutdownSharedProfiles();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
