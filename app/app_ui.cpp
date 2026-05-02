@@ -140,7 +140,6 @@ void StartUpdateCheck(bool force)
         if (!status.checkSucceeded) {
             LogWarning("Update check failed: " + status.message);
         } else if (status.updateAvailable) {
-            LogInfo("Update available: " + status.localVersion + " -> " + status.latestVersion);
         }
         {
             std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
