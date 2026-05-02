@@ -12,7 +12,10 @@ set(SMU_VISUAL_STUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/visual studio")
 set(SMU_IMGUI_DIR "${SMU_VISUAL_STUDIO_DIR}/imgui-files")
 set(SMU_RESOURCE_DIR "${SMU_VISUAL_STUDIO_DIR}/Resource Files")
 set(SMU_WINDIVERT_DIR "${SMU_VISUAL_STUDIO_DIR}/windivert-files")
+set(SMU_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
+set(SMU_APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/app")
+set(SMU_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
 
 option(SMU_USE_SDL_UI "Build the app GUI on SDL3 instead of the legacy Win32/WGL window backend." ON)
 
@@ -26,6 +29,7 @@ if(WIN32)
         "${SMU_IMGUI_DIR}/imgui_impl_opengl3.cpp"
         "${SMU_IMGUI_DIR}/imgui_tables.cpp"
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
+        "${SMU_APP_DIR}/main_windows.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/macroframework.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/macros.cpp"
         "${SMU_VISUAL_STUDIO_DIR}/network_manager.cpp"
@@ -66,6 +70,7 @@ if(WIN32)
         "SMU_USE_SDL_UI=$<BOOL:${SMU_USE_SDL_UI}>"
         "$<$<CONFIG:Debug>:_DEBUG>"
         "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>"
+        SMU_USE_PLATFORM_ENTRYPOINT=1
     )
 
     set_property(TARGET suspend PROPERTY
@@ -119,8 +124,28 @@ if(WIN32)
         xinput
     )
 elseif(UNIX AND NOT APPLE)
+    find_package(OpenGL REQUIRED)
     find_package(Threads REQUIRED)
     find_package(X11 QUIET)
+
+    set(SMU_VENDORED_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL")
+    if(EXISTS "${SMU_VENDORED_SDL3_DIR}/CMakeLists.txt")
+        message(STATUS "Using vendored SDL3 from ${SMU_VENDORED_SDL3_DIR}")
+
+        set(SDL_SHARED ON CACHE BOOL "Build a shared version of the library" FORCE)
+        set(SDL_STATIC OFF CACHE BOOL "Build a static version of the library" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build the SDL3_test library" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "Build the test directory" FORCE)
+        set(SDL_EXAMPLES OFF CACHE BOOL "Build the examples directory" FORCE)
+        set(SDL_INSTALL OFF CACHE BOOL "Enable installation of SDL3" FORCE)
+        set(SDL_INSTALL_DOCS OFF CACHE BOOL "Install docs for SDL3" FORCE)
+        set(SDL_INSTALL_TESTS OFF CACHE BOOL "Install test-cases" FORCE)
+        set(SDL_UNINSTALL OFF CACHE BOOL "Enable uninstallation of SDL3" FORCE)
+
+        add_subdirectory("${SMU_VENDORED_SDL3_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl3-build" EXCLUDE_FROM_ALL)
+    else()
+        find_package(SDL3 REQUIRED CONFIG)
+    endif()
 
     set(SMU_LINUX_PLATFORM_SOURCES
         "${SMU_PLATFORM_DIR}/input_backend.cpp"
@@ -153,10 +178,45 @@ elseif(UNIX AND NOT APPLE)
         message(WARNING "X11 development files were not found; Linux foreground detection will compile as unsupported.")
     endif()
 
-    add_custom_target(suspend
-        COMMAND "${CMAKE_COMMAND}" -E echo
-                "Linux scaffold only: native platform backends compile in smu_platform_linux; Win32-heavy app entry point is still split separately."
-        DEPENDS smu_platform_linux
+    set(SMU_LINUX_APP_SOURCES
+        "${SMU_IMGUI_DIR}/imgui.cpp"
+        "${SMU_IMGUI_DIR}/imgui_demo.cpp"
+        "${SMU_IMGUI_DIR}/imgui_draw.cpp"
+        "${SMU_IMGUI_DIR}/imgui_impl_opengl3.cpp"
+        "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
+        "${SMU_IMGUI_DIR}/imgui_tables.cpp"
+        "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
+        "${SMU_APP_DIR}/app_context.cpp"
+        "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/app_ui.cpp"
+        "${SMU_APP_DIR}/input_actions.cpp"
+        "${SMU_APP_DIR}/main_linux.cpp"
+        "${SMU_CORE_DIR}/app_state.cpp"
+        "${SMU_CORE_DIR}/macro_state.cpp"
+    )
+
+    add_executable(suspend ${SMU_LINUX_APP_SOURCES})
+
+    target_include_directories(suspend PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${SMU_APP_DIR}"
+        "${SMU_CORE_DIR}"
+        "${SMU_IMGUI_DIR}"
+    )
+
+    if(TARGET SDL3::SDL3)
+        set(SMU_SDL3_TARGET SDL3::SDL3)
+    elseif(TARGET SDL3::SDL3-shared)
+        set(SMU_SDL3_TARGET SDL3::SDL3-shared)
+    else()
+        message(FATAL_ERROR "SDL3 package was found, but no usable SDL3 imported target is available.")
+    endif()
+
+    target_link_libraries(suspend PRIVATE
+        smu_platform_linux
+        ${SMU_SDL3_TARGET}
+        OpenGL::GL
+        Threads::Threads
     )
 
     # The existing Wine helper remains intentionally unwired into the native

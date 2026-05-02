@@ -16,6 +16,7 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
+#include "../../core/key_codes.h"
 #include "../windivert-files/windivert.h"
 #include "imgui-files/imgui.h"
 
@@ -56,26 +57,26 @@ namespace Globals {
     inline std::atomic<bool> g_isVk_BunnyhopHeldDown{ false };
 
     // Bitmasks for key combinations (High bits of 32-bit int)
-    constexpr unsigned int HOTKEY_MASK_SHIFT = 0x10000;
-    constexpr unsigned int HOTKEY_MASK_CTRL = 0x20000;
-    constexpr unsigned int HOTKEY_MASK_ALT = 0x40000;
-    constexpr unsigned int HOTKEY_MASK_WIN = 0x80000;
-    constexpr unsigned int HOTKEY_KEY_MASK = 0xFFFF;
+    constexpr unsigned int HOTKEY_MASK_SHIFT = smu::core::HOTKEY_MASK_SHIFT;
+    constexpr unsigned int HOTKEY_MASK_CTRL = smu::core::HOTKEY_MASK_CTRL;
+    constexpr unsigned int HOTKEY_MASK_ALT = smu::core::HOTKEY_MASK_ALT;
+    constexpr unsigned int HOTKEY_MASK_WIN = smu::core::HOTKEY_MASK_WIN;
+    constexpr unsigned int HOTKEY_KEY_MASK = smu::core::HOTKEY_KEY_MASK;
 
     // --- Keybind Variables (Virtual Keys) ---
-    inline unsigned int vk_f5 = VK_F5;
-    inline unsigned int vk_f6 = VK_F6;
-    inline unsigned int vk_f8 = VK_F8;
-    inline unsigned int vk_mbutton = VK_MBUTTON;
-    inline unsigned int vk_xbutton1 = VK_XBUTTON1;
-    inline unsigned int vk_xbutton2 = VK_XBUTTON2;
-    inline unsigned int vk_spamkey = VK_LBUTTON;
-    inline unsigned int vk_clipkey = VK_F3;
-    inline unsigned int vk_wallkey = VK_F1;
-    inline unsigned int vk_laughkey = VK_F7;
-    inline unsigned int vk_shiftkey = VK_SHIFT;
-    inline unsigned int vk_enterkey = VK_RETURN;
-    inline unsigned int vk_floorbouncekey = VK_F4;
+    inline unsigned int vk_f5 = smu::core::SMU_VK_F5;
+    inline unsigned int vk_f6 = smu::core::SMU_VK_F6;
+    inline unsigned int vk_f8 = smu::core::SMU_VK_F8;
+    inline unsigned int vk_mbutton = smu::core::SMU_VK_MBUTTON;
+    inline unsigned int vk_xbutton1 = smu::core::SMU_VK_XBUTTON1;
+    inline unsigned int vk_xbutton2 = smu::core::SMU_VK_XBUTTON2;
+    inline unsigned int vk_spamkey = smu::core::SMU_VK_LBUTTON;
+    inline unsigned int vk_clipkey = smu::core::SMU_VK_F3;
+    inline unsigned int vk_wallkey = smu::core::SMU_VK_F1;
+    inline unsigned int vk_laughkey = smu::core::SMU_VK_F7;
+    inline unsigned int vk_shiftkey = smu::core::SMU_VK_SHIFT;
+    inline unsigned int vk_enterkey = smu::core::SMU_VK_RETURN;
+    inline unsigned int vk_floorbouncekey = smu::core::SMU_VK_F4;
     
     // API-initialized keys
     inline unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF;
@@ -88,9 +89,9 @@ namespace Globals {
     inline unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
-    inline unsigned int vk_autohhjkey1 = VK_SPACE;  // First auto HHJ key (default: Spacebar)
+    inline unsigned int vk_autohhjkey1 = smu::core::SMU_VK_SPACE;  // First auto HHJ key (default: Spacebar)
     inline unsigned int vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;  // Second auto HHJ key (default: W)
-    inline unsigned int vk_wallhopjumpkey = VK_SPACE;
+    inline unsigned int vk_wallhopjumpkey = smu::core::SMU_VK_SPACE;
 
     // --- Main Toggles & Switches ---
     inline bool g_isLinuxWine = false;
@@ -459,8 +460,8 @@ namespace Globals {
         bool wallhopcamfix      = false;
         bool disable_outside_roblox = false;
         bool section_enabled    = true;
-        unsigned int vk_trigger = VK_XBUTTON2;
-        unsigned int vk_jumpkey = VK_SPACE;
+        unsigned int vk_trigger = smu::core::SMU_VK_XBUTTON2;
+        unsigned int vk_jumpkey = smu::core::SMU_VK_SPACE;
         // Runtime
         std::atomic<bool> thread_active{false};
         bool should_exit = false;
@@ -503,7 +504,7 @@ namespace Globals {
     struct SpamkeyInstance {
         // Config
         unsigned int vk_trigger = 0xDB;   // VK_OEM_4 ('[') on US layout; synced from vk_leftbracket at startup
-        unsigned int vk_spamkey = VK_LBUTTON;
+        unsigned int vk_spamkey = smu::core::SMU_VK_LBUTTON;
         float spam_delay        = 20.0f;
         int   real_delay        = 1000;
         char  SpamDelay[256];

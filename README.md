@@ -79,25 +79,22 @@ cmake --build --preset windows-msvc-debug
 Use `windows-msvc-release` instead of `windows-msvc-debug` for a release build.
 
 ### Linux Native Backend:
-The native Linux port currently builds the platform backend library target. The full GUI executable is still being split away from Win32-specific app code, so the `suspend` target is a scaffold on Linux.
+The Linux build now produces the native `suspend` executable. SDL3 is built from the vendored source tree in `third_party/SDL`, so you do not need a system `libsdl3-dev` package.
 
 Install dependencies on Ubuntu/Debian:
 ```bash
-sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libx11-dev
+sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev
 ```
 
 Configure and build:
 ```bash
-cmake --preset linux-debug
-cmake --build --preset linux-debug
+cmake --preset linux-release && cmake --build --preset linux-release
 ```
 
 Useful direct target build:
 ```bash
-cmake --build out/build/linux-debug --target smu_platform_linux
+cmake --build out/build/linux-release --target suspend
 ```
-
-Use `linux-release` instead of `linux-debug` for a release build.
 
 Runtime notes for the native Linux backend:
 - Input injection uses `/dev/uinput`.

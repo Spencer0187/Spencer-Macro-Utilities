@@ -4098,7 +4098,11 @@ static void UpdateSMCThread() {
 
 // START OF CODE THREAD
 
+#if defined(SMU_USE_PLATFORM_ENTRYPOINT) && SMU_USE_PLATFORM_ENTRYPOINT
+int WINAPI SMU_RunWindowsLegacyApp(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+#else
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+#endif
 {
     DisablePowerThrottling();
 

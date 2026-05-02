@@ -1,0 +1,72 @@
+#include "app_main.h"
+#include "app_context.h"
+
+#include "../core/app_state.h"
+#include "../core/macro_state.h"
+#include "../platform/input_backend.h"
+#include "../platform/linux/input_evdev_uinput.h"
+#include "../platform/linux/process_proc_cgroup.h"
+#include "../platform/logging.h"
+#include "../platform/network_backend.h"
+#include "../platform/process_backend.h"
+
+#include <cstdio>
+#include <memory>
+#include <string>
+
+int main(int argc, char** argv)
+{
+    (void)argc;
+    (void)argv;
+
+    smu::log::SetFileLoggingEnabled(true);
+    LogInfo("Starting Spencer Macro Utilities native Linux app.");
+
+    smu::core::InitializeMacroSections(false);
+    std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
+
+    smu::app::AppContext context = smu::app::CreateAppContext();
+
+    std::shared_ptr<smu::platform::InputBackend> inputBackend = smu::platform::linux::CreateEvdevUinputInputBackend();
+    smu::platform::SetInputBackend(inputBackend);
+    context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
+    if (!context.inputBackendAvailable && !context.inputBackendError.empty()) {
+        LogWarning(context.inputBackendError);
+    }
+
+    std::shared_ptr<smu::platform::ProcessBackend> processBackend = smu::platform::linux::CreateProcCgroupProcessBackend();
+    smu::platform::SetProcessBackend(processBackend);
+    context.processBackendAvailable = processBackend->init(&context.processBackendError);
+    if (!context.processBackendAvailable && !context.processBackendError.empty()) {
+        LogWarning(context.processBackendError);
+    }
+
+    smu::platform::SetNetworkLagBackend(nullptr);
+    if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
+        context.networkBackendAvailable = networkBackend->isAvailable();
+        context.networkBackendError = networkBackend->unsupportedReason();
+        LogWarning(context.networkBackendError);
+    }
+
+    for (const std::string& warning : context.capabilities.warnings) {
+        LogWarning(warning);
+    }
+    for (const std::string& error : context.capabilities.criticalErrors) {
+        LogCritical(error);
+    }
+
+    const int result = smu::app::RunSharedApp(context);
+
+    if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
+        networkBackend->shutdown();
+    }
+    if (processBackend) {
+        processBackend->shutdown();
+    }
+    if (inputBackend) {
+        inputBackend->shutdown();
+    }
+
+    LogInfo("Spencer Macro Utilities native Linux app stopped.");
+    return result;
+}
