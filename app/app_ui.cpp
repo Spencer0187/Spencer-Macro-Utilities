@@ -3,6 +3,7 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
+#include "../core/key_codes.h"
 #include "../platform/input_backend.h"
 #include "../platform/logging.h"
 #include "../platform/network_backend.h"
@@ -22,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -535,6 +537,26 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::Separator();
         ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
         ImGui::Separator();
+
+#if defined(__linux__)
+        if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
+            auto backend = smu::platform::GetInputBackend();
+            const auto pressedKey = backend ? backend->getCurrentPressedKey() : std::optional<smu::platform::PlatformKeyCode>{};
+            const std::string pressedName = pressedKey ? backend->formatKeyName(*pressedKey) : "None";
+            ImGui::Text("Input backend: %s", context.inputBackendAvailable ? "initialized" : "unavailable");
+            ImGui::Text("Process backend: %s", context.processBackendAvailable ? "initialized" : "unavailable");
+            ImGui::Text("Last physical key: %s", pressedName.c_str());
+            if (ImGui::Button("Test input injection: press Space")) {
+                if (backend && context.inputBackendAvailable) {
+                    backend->pressKey(smu::core::SMU_VK_SPACE);
+                    LogInfo("Linux debug input injection test dispatched Space through uinput.");
+                } else {
+                    LogWarning("Linux debug input injection test failed: input backend is unavailable.");
+                }
+            }
+        }
+        ImGui::Separator();
+#endif
 
         if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
             InitializeSections();

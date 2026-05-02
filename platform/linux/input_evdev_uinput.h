@@ -33,6 +33,9 @@ public:
     std::string formatKeyName(PlatformKeyCode key) const override;
 
 private:
+    std::optional<int> evdevForVirtualKey(PlatformKeyCode key) const;
+    std::optional<int> evdevForScanCode(PlatformKeyCode scanCode) const;
+    void logMappingDiagnostics() const;
     void readerThread(std::string devicePath);
     void emit(int type, int code, int value);
     void emitSyn();

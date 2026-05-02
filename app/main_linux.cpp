@@ -1,5 +1,6 @@
 #include "app_main.h"
 #include "app_context.h"
+#include "macro_runtime.h"
 
 #include "../core/app_state.h"
 #include "../core/macro_state.h"
@@ -39,6 +40,8 @@ int main(int argc, char** argv)
     context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
     if (!context.inputBackendAvailable && !context.inputBackendError.empty()) {
         LogWarning(context.inputBackendError);
+    } else if (context.inputBackendAvailable) {
+        LogInfo("Linux input backend initialized.");
     }
 
     std::shared_ptr<smu::platform::ProcessBackend> processBackend = smu::platform::linux::CreateProcCgroupProcessBackend();
@@ -46,6 +49,8 @@ int main(int argc, char** argv)
     context.processBackendAvailable = processBackend->init(&context.processBackendError);
     if (!context.processBackendAvailable && !context.processBackendError.empty()) {
         LogWarning(context.processBackendError);
+    } else if (context.processBackendAvailable) {
+        LogInfo("Linux process backend initialized.");
     }
 
     smu::platform::SetNetworkLagBackend(nullptr);
@@ -62,7 +67,16 @@ int main(int argc, char** argv)
         LogCritical(error);
     }
 
+    if (Globals::presskey_instances.empty()) Globals::presskey_instances.emplace_back();
+    if (Globals::wallhop_instances.empty()) Globals::wallhop_instances.emplace_back();
+    if (Globals::spamkey_instances.empty()) Globals::spamkey_instances.emplace_back();
+
+    smu::app::MacroRuntime macroRuntime;
+    macroRuntime.start();
+
     const int result = smu::app::RunSharedApp(context);
+
+    macroRuntime.stop();
 
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         networkBackend->shutdown();

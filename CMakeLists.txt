@@ -18,6 +18,8 @@ set(SMU_APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/app")
 set(SMU_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
 
 option(SMU_USE_SDL_UI "Build the app GUI on SDL3 instead of the legacy Win32/WGL window backend." ON)
+option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable output folder." ON)
+option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
 
 if(WIN32)
     enable_language(RC)
@@ -43,6 +45,7 @@ if(WIN32)
         set(SMU_WINDOWS_SOURCES
             ${SMU_WINDOWS_COMMON_SOURCES}
             "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
+            "${SMU_APP_DIR}/app_assets.cpp"
             "${SMU_APP_DIR}/app_context.cpp"
             "${SMU_APP_DIR}/app_main.cpp"
             "${SMU_APP_DIR}/app_profile_bridge.cpp"
@@ -151,8 +154,13 @@ elseif(UNIX AND NOT APPLE)
     if(EXISTS "${SMU_VENDORED_SDL3_DIR}/CMakeLists.txt")
         message(STATUS "Using vendored SDL3 from ${SMU_VENDORED_SDL3_DIR}")
 
-        set(SDL_SHARED ON CACHE BOOL "Build a shared version of the library" FORCE)
-        set(SDL_STATIC OFF CACHE BOOL "Build a static version of the library" FORCE)
+        if(SMU_LINK_SDL3_STATIC)
+            set(SDL_SHARED OFF CACHE BOOL "Build a shared version of the library" FORCE)
+            set(SDL_STATIC ON CACHE BOOL "Build a static version of the library" FORCE)
+        else()
+            set(SDL_SHARED ON CACHE BOOL "Build a shared version of the library" FORCE)
+            set(SDL_STATIC OFF CACHE BOOL "Build a static version of the library" FORCE)
+        endif()
         set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build the SDL3_test library" FORCE)
         set(SDL_TESTS OFF CACHE BOOL "Build the test directory" FORCE)
         set(SDL_EXAMPLES OFF CACHE BOOL "Build the examples directory" FORCE)
@@ -205,8 +213,10 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
         "${SMU_IMGUI_DIR}/imgui_tables.cpp"
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
+        "${SMU_APP_DIR}/app_assets.cpp"
         "${SMU_APP_DIR}/app_context.cpp"
         "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/app_profile_bridge.cpp"
         "${SMU_APP_DIR}/app_theme_bridge.cpp"
         "${SMU_APP_DIR}/app_ui.cpp"
@@ -228,9 +238,22 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_IMGUI_DIR}"
     )
 
-    target_compile_definitions(suspend PRIVATE SMU_PORTABLE_GLOBALS=1)
+    target_compile_definitions(suspend PRIVATE
+        SMU_PORTABLE_GLOBALS=1
+        "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\""
+    )
 
-    if(TARGET SDL3::SDL3)
+    if(SMU_LINK_SDL3_STATIC)
+        if(TARGET SDL3::SDL3-static)
+            set(SMU_SDL3_TARGET SDL3::SDL3-static)
+        elseif(TARGET SDL3-static)
+            set(SMU_SDL3_TARGET SDL3-static)
+        elseif(TARGET SDL3::SDL3)
+            set(SMU_SDL3_TARGET SDL3::SDL3)
+        else()
+            message(FATAL_ERROR "SMU_LINK_SDL3_STATIC is enabled, but no usable SDL3 static target is available.")
+        endif()
+    elseif(TARGET SDL3::SDL3)
         set(SMU_SDL3_TARGET SDL3::SDL3)
     elseif(TARGET SDL3::SDL3-shared)
         set(SMU_SDL3_TARGET SDL3::SDL3-shared)
@@ -244,6 +267,68 @@ elseif(UNIX AND NOT APPLE)
         OpenGL::GL
         Threads::Threads
     )
+
+    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+        set_target_properties(suspend PROPERTIES
+            BUILD_RPATH "$ORIGIN/lib"
+            INSTALL_RPATH "$ORIGIN/lib"
+        )
+    endif()
+
+    set(SMU_LINUX_FONT_ASSET "${SMU_RESOURCE_DIR}/LSANS.TTF")
+    set(SMU_LINUX_ICON_ASSET "${SMU_RESOURCE_DIR}/smu_icon.bmp")
+
+    add_custom_command(TARGET suspend POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/smu_icon.bmp"
+        COMMENT "Copying Linux runtime assets next to suspend"
+    )
+
+    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+        add_custom_command(TARGET suspend POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/lib"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:suspend>/lib/"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:suspend>/lib/"
+            COMMENT "Bundling SDL3 shared library next to suspend"
+        )
+    endif()
+
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/run.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" @ONLY)
+
+    install(TARGETS suspend RUNTIME DESTINATION ".")
+    install(FILES "${SMU_LINUX_FONT_ASSET}" DESTINATION "assets" RENAME "LSANS.TTF")
+    install(FILES "${SMU_LINUX_ICON_ASSET}" DESTINATION "assets" RENAME "smu_icon.bmp")
+    install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" DESTINATION ".")
+    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+        install(FILES
+            "$<TARGET_FILE:${SMU_SDL3_TARGET}>"
+            "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>"
+            DESTINATION "lib"
+        )
+    endif()
+
+    set(SMU_LINUX_PACKAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/SpencerMacroUtilities")
+    add_custom_target(package-linux-dir
+        COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SMU_LINUX_PACKAGE_DIR}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/assets"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:suspend>" "${SMU_LINUX_PACKAGE_DIR}/suspend"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" "${SMU_LINUX_PACKAGE_DIR}/run.sh"
+        COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/suspend"
+        DEPENDS suspend
+        COMMENT "Creating portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}"
+    )
+
+    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+        add_custom_command(TARGET package-linux-dir POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/lib"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/"
+        )
+    endif()
 
     # The existing Wine helper remains intentionally unwired into the native
     # Linux backend target while the Win32-heavy app entry point is split:

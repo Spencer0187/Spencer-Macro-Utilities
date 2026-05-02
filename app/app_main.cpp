@@ -1,5 +1,6 @@
 #include "app_main.h"
 
+#include "app_assets.h"
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "app_ui.h"
@@ -16,6 +17,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <string>
 #include <thread>
 
@@ -23,6 +25,30 @@
 
 namespace smu::app {
 namespace {
+
+void ApplyWindowIcon(SDL_Window* window)
+{
+#if defined(__linux__)
+    const std::filesystem::path iconPath = FindRuntimeAsset("smu_icon.bmp");
+    if (iconPath.empty()) {
+        LogWarning("SMU window icon asset was not found; continuing without a custom SDL window icon.");
+        return;
+    }
+
+    SDL_Surface* icon = SDL_LoadBMP(iconPath.string().c_str());
+    if (!icon) {
+        LogWarning(std::string("Failed to load SMU window icon from ") + iconPath.string() + ": " + SDL_GetError());
+        return;
+    }
+
+    if (!SDL_SetWindowIcon(window, icon)) {
+        LogWarning(std::string("Failed to apply SMU window icon: ") + SDL_GetError());
+    }
+    SDL_DestroySurface(icon);
+#else
+    (void)window;
+#endif
+}
 
 void UpdateWindowMetrics(SDL_Window* window)
 {
@@ -84,6 +110,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     }
 
     SDL_SetWindowMinimumSize(window, 1147, 780);
+    ApplyWindowIcon(window);
     if (state.windowPosX != 0 || state.windowPosY != 0) {
         SDL_SetWindowPosition(window, state.windowPosX, state.windowPosY);
     }

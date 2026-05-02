@@ -140,13 +140,33 @@ bool DeviceHasRel(int fd, std::initializer_list<int> rels)
     return false;
 }
 
+std::string DeviceName(int fd)
+{
+    char name[256] = {};
+    if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
+        return {};
+    }
+    return name;
+}
+
+bool IsOwnVirtualDevice(int fd)
+{
+    return DeviceName(fd) == "SMU Native Linux Input";
+}
+
 bool LooksLikeKeyboard(int fd)
 {
+    if (IsOwnVirtualDevice(fd)) {
+        return false;
+    }
     return DeviceHasKeys(fd, {KEY_A, KEY_SPACE, KEY_ENTER, KEY_ESC});
 }
 
 bool LooksLikeMouse(int fd)
 {
+    if (IsOwnVirtualDevice(fd)) {
+        return false;
+    }
     return DeviceHasRel(fd, {REL_X, REL_Y}) && DeviceHasKeys(fd, {BTN_LEFT, BTN_RIGHT, BTN_MIDDLE});
 }
 
@@ -288,6 +308,10 @@ bool AppendInteractiveDetection(std::set<std::string>& devicePaths, std::string*
         if (fd < 0) {
             continue;
         }
+        if (IsOwnVirtualDevice(fd)) {
+            close(fd);
+            continue;
+        }
 
         epoll_event event {};
         event.events = EPOLLIN;
@@ -413,6 +437,8 @@ bool EvdevUinputInputBackend::init(std::string* errorMessage)
     }
 
     initialized_.store(true, std::memory_order_release);
+    smu::log::LogInfo("Linux input backend initialized with " + std::to_string(devicePaths_.size()) + " event device(s).");
+    logMappingDiagnostics();
     return true;
 }
 
@@ -453,11 +479,9 @@ bool EvdevUinputInputBackend::isKeyPressed(PlatformKeyCode key) const
 
 void EvdevUinputInputBackend::holdKey(PlatformKeyCode key, bool)
 {
-    auto evdev = ScanToEvdev(key);
+    auto evdev = evdevForVirtualKey(key);
     if (!evdev) {
-        evdev = VkToEvdev(key);
-    }
-    if (!evdev) {
+        smu::log::LogWarning("Linux input backend cannot inject unmapped virtual key " + KeyNameFallback(key) + ".");
         return;
     }
 
@@ -467,11 +491,9 @@ void EvdevUinputInputBackend::holdKey(PlatformKeyCode key, bool)
 
 void EvdevUinputInputBackend::releaseKey(PlatformKeyCode key, bool)
 {
-    auto evdev = ScanToEvdev(key);
+    auto evdev = evdevForVirtualKey(key);
     if (!evdev) {
-        evdev = VkToEvdev(key);
-    }
-    if (!evdev) {
+        smu::log::LogWarning("Linux input backend cannot release unmapped virtual key " + KeyNameFallback(key) + ".");
         return;
     }
 
@@ -555,6 +577,37 @@ std::optional<PlatformKeyCode> EvdevUinputInputBackend::getCurrentPressedKey() c
 std::string EvdevUinputInputBackend::formatKeyName(PlatformKeyCode key) const
 {
     return KeyNameFallback(key);
+}
+
+std::optional<int> EvdevUinputInputBackend::evdevForVirtualKey(PlatformKeyCode key) const
+{
+    return VkToEvdev(key);
+}
+
+std::optional<int> EvdevUinputInputBackend::evdevForScanCode(PlatformKeyCode scanCode) const
+{
+    return ScanToEvdev(scanCode);
+}
+
+void EvdevUinputInputBackend::logMappingDiagnostics() const
+{
+    const std::initializer_list<PlatformKeyCode> keys = {
+        kVkSpace,
+        kVkMButton,
+        'X',
+        kVkF1 + 4,
+        kVkLShift,
+        kVkControl,
+        kVkMenu,
+    };
+
+    for (PlatformKeyCode key : keys) {
+        if (auto evdev = evdevForVirtualKey(key)) {
+            smu::log::LogInfo("Linux input mapping: " + KeyNameFallback(key) + " -> evdev " + std::to_string(*evdev) + ".");
+        } else {
+            smu::log::LogWarning("Linux input mapping missing for " + KeyNameFallback(key) + ".");
+        }
+    }
 }
 
 void EvdevUinputInputBackend::readerThread(std::string devicePath)
