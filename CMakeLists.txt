@@ -216,6 +216,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_assets.cpp"
         "${SMU_APP_DIR}/app_context.cpp"
         "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/askpass.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/app_profile_bridge.cpp"
         "${SMU_APP_DIR}/app_theme_bridge.cpp"
