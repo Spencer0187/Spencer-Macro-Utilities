@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 int main(int argc, char** argv)
 {
@@ -27,6 +28,31 @@ int main(int argc, char** argv)
 
     smu::log::SetFileLoggingEnabled(true);
     LogInfo("Starting Spencer Macro Utilities native Linux app.");
+
+    bool isRoot = (geteuid() == 0);
+    if (!isRoot) {
+        char full_path[512];
+        if (realpath(argv[0], full_path) == nullptr) {
+            LogCritical("Failed to resolve full application path.");
+            return 1;
+        }
+        char cmd[1024];
+        std::snprintf(cmd, sizeof(cmd),
+            "zenity --password --title='Authentication Required' --text='Please enter your password to run as root:'"
+            " | "
+            "su -c '%s' > /dev/null 2>&1"
+            "&", full_path);
+        LogInfo(cmd);
+        int ret = system(cmd);
+        if (ret != 0) {
+            LogCritical("Root authentication failed; exiting.");
+            exit(1);
+            return 1;
+        } else {
+            exit(0);
+            return 0;
+        }
+    }
 
     smu::core::InitializeMacroSections(false);
     std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
