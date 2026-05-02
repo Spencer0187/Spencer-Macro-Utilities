@@ -1,0 +1,54 @@
+name: Build Linux AppImage
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Build Executable
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make
+      
+      - name: Create AppImage framework 
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/32x32/apps
+
+          cp build/suspend AppDir/usr/bin/
+          cp AppImage/AppRun AppDir/
+          cp AppImage/SMU.desktop AppDir/
+          cp AppImage/SMU.png AppDir/
+          
+          cp AppImage/SMU.desktop AppDir/usr/share/applications/
+          cp AppImage/SMU.png AppDir/usr/share/icons/hicolor/32x32/apps/
+
+          chmod +x AppDir/AppRun
+      - name: Download appimagetool
+        run: |
+          RELEASE=$(gh api https://api.github.com/repos/AppImage/appimagetool/releases/latest)
+          URL=$(echo $RELEASE | jq -r '.assets[] | select(.name == "appimagetool-x86_64.AppImage") | .browser_download_url')
+          wget -O appimagetool.AppImage $URL
+          chmod +x appimagetool.AppImage
+      
+      - name: Build AppImage
+        run: |
+          ./appimagetool.AppImage AppDir
+          
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v3
+        with:
+          name: suspend-appimage
+          path: "*.AppImage"
