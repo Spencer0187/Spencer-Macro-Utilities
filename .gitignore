@@ -391,6 +391,7 @@ FodyWeavers.xsd
 # Build Artifacts from CMake
 build/*
 out/*
+build_diag.log
 
 # Local History for Visual Studio Code
 .history/
@@ -405,4 +406,5 @@ out/*
 # JetBrains Rider
 *.sln.iml
 
+# Compiled executable
 visual studio/x64/Release/suspend.exe
