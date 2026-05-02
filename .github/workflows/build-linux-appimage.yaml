@@ -9,6 +9,12 @@ jobs:
     permissions:
       contents: write
     steps:
+
+      - name: Install dependencies
+        run: |
+            sudo apt update
+            sudo apt install -y libgl1-mesa-dev libglu1-mesa-dev
+
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
@@ -48,7 +54,7 @@ jobs:
           ./appimagetool.AppImage AppDir
           
       - name: Upload AppImage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: suspend-appimage
           path: "*.AppImage"
