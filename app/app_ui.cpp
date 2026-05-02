@@ -553,19 +553,19 @@ void RenderLinuxInputSetup(AppContext& context)
         ImGui::PopTextWrapPos();
         ImGui::Separator();
 
-        if (ImGui::Button("Install permissions", ImVec2(180.0f, 0.0f))) {
+        if (ImGui::Button("Install permissions")) {
             if (context.installLinuxPermissionsGraphical) {
                 context.installLinuxPermissionsGraphical();
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Open terminal installer", ImVec2(210.0f, 0.0f))) {
+        if (ImGui::Button("Open terminal installer")) {
             if (context.installLinuxPermissionsTerminal) {
                 context.installLinuxPermissionsTerminal();
             }
         }
 
-        if (ImGui::Button("Copy manual sudo command", ImVec2(210.0f, 0.0f))) {
+        if (ImGui::Button("Copy manual sudo command")) {
             if (!context.linuxInputSudoCommand.empty() && SDL_SetClipboardText(context.linuxInputSudoCommand.c_str())) {
                 context.linuxInputSetupActionMessage = "Copied: " + context.linuxInputSudoCommand;
             } else {
@@ -573,7 +573,7 @@ void RenderLinuxInputSetup(AppContext& context)
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button("Open setup docs", ImVec2(150.0f, 0.0f))) {
+        if (ImGui::Button("Open setup docs")) {
             if (context.openExternalUrl) {
                 const std::string docsUrl = FileUrlFromPath(context.linuxInputSetupDocsPath);
                 if (!docsUrl.empty()) {
@@ -582,7 +582,7 @@ void RenderLinuxInputSetup(AppContext& context)
             }
         }
 
-        if (ImGui::Button("Retry permission check", ImVec2(180.0f, 0.0f))) {
+        if (ImGui::Button("Retry permission check")) {
             if (context.refreshLinuxInputPermissions) {
                 context.refreshLinuxInputPermissions();
             }

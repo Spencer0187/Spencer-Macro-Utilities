@@ -315,6 +315,23 @@ int main(int argc, char** argv)
         InitializeLinuxInputBackend(context, inputBackend);
     };
     context.installLinuxPermissionsGraphical = [&context, &inputBackend]() {
+        std::error_code installerEc;
+        const bool installerMissing = context.linuxInputInstallerPath.empty() ||
+            !std::filesystem::exists(context.linuxInputInstallerPath, installerEc) ||
+            installerEc;
+        if (installerMissing) {
+            if (context.linuxInputInstallerPath.empty()) {
+                context.linuxInputSetupActionMessage =
+                    "Linux permission installer script path is empty. The package may be missing the scripts folder.";
+            } else {
+                context.linuxInputSetupActionMessage =
+                    "Linux permission installer script was not found at " + context.linuxInputInstallerPath +
+                    ". The package may be missing the scripts folder.";
+            }
+            LogWarning(context.linuxInputSetupActionMessage);
+            return;
+        }
+
         const int exitCode = smu::app::RunPermissionInstallerWithGraphicalPkexec(context.linuxInputInstallerPath);
         if (exitCode == 0) {
             context.linuxInputSetupActionMessage =

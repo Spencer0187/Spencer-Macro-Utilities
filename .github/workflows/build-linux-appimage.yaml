@@ -35,6 +35,20 @@ jobs:
       - name: Create AppImage framework 
         run: |
           cmake --install build --prefix AppDir/usr/bin
+          mkdir -p AppDir/scripts
+          mkdir -p AppDir/usr/bin/scripts
+          mkdir -p AppDir/usr/share/doc/spencer-macro-utilities
+          mkdir -p AppDir/usr/share/spencer-macro-utilities/scripts
+          cp scripts/install_linux_permissions.sh AppDir/scripts/install_linux_permissions.sh
+          cp scripts/install_linux_permissions.sh AppDir/usr/bin/scripts/install_linux_permissions.sh
+          cp scripts/install_linux_permissions.sh AppDir/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
+          chmod 755 \
+            AppDir/scripts/install_linux_permissions.sh \
+            AppDir/usr/bin/scripts/install_linux_permissions.sh \
+            AppDir/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
+          cp LINUX_SETUP.md AppDir/LINUX_SETUP.md
+          cp LINUX_SETUP.md AppDir/usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
+          cp LINUX_SETUP.md AppDir/usr/share/spencer-macro-utilities/LINUX_SETUP.md
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/32x32/apps
 

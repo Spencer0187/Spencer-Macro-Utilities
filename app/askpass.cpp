@@ -439,11 +439,6 @@ std::string BuildPolkitFailureMessage(const std::string& sudoCommand)
         "Graphical authentication did not start, or permission was denied. "
         "Your desktop may not be running a graphical polkit agent. "
         "Try the terminal installer";
-    if (!sudoCommand.empty()) {
-        message += ", or run this manually: " + sudoCommand;
-    } else {
-        message += ", or run the installer manually with sudo.";
-    }
     return message;
 }
 
