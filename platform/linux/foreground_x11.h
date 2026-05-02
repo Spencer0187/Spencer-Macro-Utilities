@@ -8,7 +8,8 @@
 
 namespace smu::platform::linux {
 
-bool IsX11ForegroundDetectionAvailable();
+bool IsX11ForegroundDetectionAvailable(std::string* errorMessage = nullptr);
+bool DisableX11ForegroundDetection(const std::string& reason);
 std::optional<PlatformPid> GetX11ForegroundProcess(std::string* errorMessage = nullptr);
 bool IsX11ForegroundProcess(const std::vector<PlatformPid>& targetPids, std::string* errorMessage = nullptr);
 

@@ -369,7 +369,9 @@ bool ProcCgroupProcessBackend::isForegroundProcess(PlatformPid pid) const
     std::string error;
     const bool foreground = IsX11ForegroundProcess(candidates, &error);
     if (!foreground && !error.empty()) {
-        smu::log::LogWarning("Linux foreground detection: " + error);
+        if (DisableX11ForegroundDetection(error)) {
+            smu::log::LogWarning("Linux foreground detection disabled: " + error);
+        }
     }
     return foreground;
 }
