@@ -162,10 +162,10 @@ void MacroRuntime::controllerLoop()
     }
 }
 
-void MacroRuntime::refreshTargetProcesses()
+void MacroRuntime::refreshTargetProcesses(bool force)
 {
     const auto now = std::chrono::steady_clock::now();
-    if (now < nextProcessRefresh_) {
+    if (!force && now < nextProcessRefresh_) {
         return;
     }
     nextProcessRefresh_ = now + 1s;
@@ -186,6 +186,7 @@ void MacroRuntime::refreshTargetProcesses()
 
     targetPIDs.assign(pids.begin(), pids.end());
     processFound = !targetPIDs.empty();
+    nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
 }
 
 bool MacroRuntime::foregroundAllows(bool disableOutsideRoblox)
@@ -194,21 +195,34 @@ bool MacroRuntime::foregroundAllows(bool disableOutsideRoblox)
         return true;
     }
 
+    const auto now = std::chrono::steady_clock::now();
+    if (now < nextForegroundCheck_) {
+        return cachedForegroundAllowed_;
+    }
+
     const smu::platform::PlatformCapabilities capabilities = smu::platform::GetPlatformCapabilities();
     if (!capabilities.canDetectForegroundProcess) {
+        cachedForegroundAllowed_ = true;
+        nextForegroundCheck_ = now + 25ms;
         return true;
     }
 
     auto backend = smu::platform::GetProcessBackend();
     if (!backend) {
+        cachedForegroundAllowed_ = false;
+        nextForegroundCheck_ = now + 25ms;
         return false;
     }
 
     for (unsigned int pid : targetPIDs) {
         if (backend->isForegroundProcess(pid)) {
+            cachedForegroundAllowed_ = true;
+            nextForegroundCheck_ = now + 25ms;
             return true;
         }
     }
+    cachedForegroundAllowed_ = false;
+    nextForegroundCheck_ = now + 25ms;
     return false;
 }
 
@@ -855,7 +869,7 @@ void MacroRuntime::setTargetSuspended(bool suspended)
     }
 
     if (suspended) {
-        refreshTargetProcesses();
+        refreshTargetProcesses(true);
         if (targetPIDs.empty()) {
             return;
         }
@@ -881,7 +895,7 @@ void MacroRuntime::setTargetSuspended(bool suspended)
 
 std::vector<unsigned int> MacroRuntime::currentTargetPids()
 {
-    refreshTargetProcesses();
+    refreshTargetProcesses(true);
     return targetPIDs;
 }
 

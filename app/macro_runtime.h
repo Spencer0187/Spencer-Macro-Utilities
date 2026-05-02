@@ -23,7 +23,7 @@ public:
 
 private:
     void controllerLoop();
-    void refreshTargetProcesses();
+    void refreshTargetProcesses(bool force = false);
     bool foregroundAllows(bool disableOutsideRoblox);
     bool isHotkeyPressed(unsigned int combinedKey) const;
     void processFreezeMacro(bool foregroundAllowed);
@@ -62,7 +62,9 @@ private:
     std::vector<bool> spamKeyWasPressed_;
     std::vector<unsigned int> frozenPids_;
     std::chrono::steady_clock::time_point nextProcessRefresh_{};
+    std::chrono::steady_clock::time_point nextForegroundCheck_{};
     std::chrono::steady_clock::time_point freezeStartTime_{};
+    bool cachedForegroundAllowed_ = true;
     bool freezeSuspended_ = false;
     bool freezeWasPressed_ = false;
     bool desyncWasPressed_ = false;
