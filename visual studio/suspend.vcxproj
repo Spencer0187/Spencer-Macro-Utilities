@@ -200,6 +200,7 @@
     <ClCompile Include="network_manager.cpp" />
     <ClCompile Include="overlay.cpp" />
     <ClCompile Include="profile_manager.cpp" />
+    <ClCompile Include="..\app\askpass.cpp" />
     <ClCompile Include="..\platform\input_backend.cpp" />
     <ClCompile Include="..\platform\logging.cpp" />
     <ClCompile Include="..\platform\network_backend.cpp" />
@@ -232,6 +233,7 @@
     <ClInclude Include="Resource Files\miniz.h" />
     <ClInclude Include="Resource Files\network_manager.h" />
     <ClInclude Include="Resource Files\overlay.h" />
+    <ClInclude Include="..\app\askpass.h" />
     <ClInclude Include="..\platform\input_backend.h" />
     <ClInclude Include="..\platform\logging.h" />
     <ClInclude Include="..\platform\network_backend.h" />
