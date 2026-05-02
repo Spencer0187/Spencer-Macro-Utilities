@@ -1,6 +1,7 @@
 #include "app_main.h"
 #include "app_context.h"
 #include "macro_runtime.h"
+#include "askpass.h"
 
 #include "../core/app_state.h"
 #include "../core/macro_state.h"
@@ -19,6 +20,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <unistd.h>
 
 int main(int argc, char** argv)
 {
@@ -27,6 +29,33 @@ int main(int argc, char** argv)
 
     smu::log::SetFileLoggingEnabled(true);
     LogInfo("Starting Spencer Macro Utilities native Linux app.");
+
+    bool isRoot = (geteuid() == 0);
+    if (!isRoot) {
+        std::string password = smu::app::AskPassword(
+            "Authentication Required",
+            "Please enter your password to allow SMC to access input devices.");
+
+        if (password.empty()) {
+            LogCritical("Root authentication cancelled or failed; exiting.");
+            return 1;
+        }
+
+        char full_path[512];
+        if (realpath(argv[0], full_path) == nullptr) {
+            LogCritical("Failed to resolve full application path.");
+            return 1;
+        }
+
+        char cmd[1024];
+        std::snprintf(cmd, sizeof(cmd),
+            "echo '%s' | su -c '%s' > /dev/null 2>&1 &",
+            password.c_str(), full_path);
+
+        std::string().swap(password); // clear from std::string memory
+        int ret = system(cmd);
+        return (ret != 0) ? 1 : 0;
+    }
 
     smu::core::InitializeMacroSections(false);
     std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
