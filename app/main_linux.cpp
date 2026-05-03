@@ -290,7 +290,7 @@ void InitializeLinuxInputBackend(
 
 int main(int argc, char** argv)
 {
-    smu::log::SetFileLoggingEnabled(true);
+    smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
     LogInfo("Starting Spencer Macro Utilities native Linux app.");
     LogLinuxStartupDiagnostics();
     (void)argc;

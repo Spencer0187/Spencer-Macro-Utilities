@@ -21,7 +21,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     (void)lpCmdLine;
     (void)nCmdShow;
 
-    smu::log::SetFileLoggingEnabled(true);
+    smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
     LogInfo("Starting Spencer Macro Utilities native Windows app.");
 
     smu::platform::windows::InitializeWindowsPlatformBackends();

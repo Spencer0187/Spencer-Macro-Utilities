@@ -772,7 +772,13 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
     return currentkey;
 }
 
-void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection, float humanWidth = 170.0f, float hexWidth = 130.0f)
+void DrawKeyBindControl(
+    const char* id,
+    unsigned int& key,
+    int currentSection,
+    float humanWidth = 170.0f,
+    float hexWidth = 130.0f,
+    bool wrapKeyBindingLabel = false)
 {
     ImGui::PushID(id);
     BindingState& state = g_bindingStates[&key];
@@ -788,7 +794,10 @@ void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection, f
     GetKeyNameFromHex(key, state.keyBufferHuman, sizeof(state.keyBufferHuman));
     ImGui::InputText("##KeyHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
 
-    ImGui::SameLine();
+    if (wrapKeyBindingLabel) {
+    } else {
+        ImGui::SameLine();
+    }
     ImGui::TextWrapped("Key Binding");
 
     ImGui::SameLine();
@@ -796,7 +805,7 @@ void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection, f
     ImGui::InputText("##KeyHex", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
 
     ImGui::SameLine();
-    ImGui::TextWrapped("(Hexadecimal)");
+    ImGui::TextWrapped("(Hex)");
     ImGui::PopID();
 }
 
@@ -1121,8 +1130,6 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         g_hasStoredSettingsWindowPos = true;
         ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
 
-        RenderUpdaterPanel();
-
         ImGui::TextUnformatted("Your Current Windows Display Scale Value (10-500%):");
         ImGui::SetNextItemWidth(150);
         if (ImGui::InputInt("##DisplayScale", &display_scale)) {
@@ -1133,14 +1140,14 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::Separator();
 
         ImGui::TextWrapped("Custom Shiftlock Key:");
-        DrawKeyBindControl("ShiftKey", vk_shiftkey, selected_section, 150.0f, 50.0f);
+        DrawKeyBindControl("ShiftKey", vk_shiftkey, selected_section, 150.0f, 50.0f, true);
         ImGui::Separator();
 
         ImGui::Checkbox("Force-Set Chat Open Key to \"/\" (Most Stable)", &chatoverride);
         ImGui::Separator();
 
         ImGui::TextWrapped("Custom Chat Key (Must disable Force-Set):");
-        DrawKeyBindControl("ChatKey", vk_chatkey, selected_section, 150.0f, 50.0f);
+        DrawKeyBindControl("ChatKey", vk_chatkey, selected_section, 150.0f, 50.0f, true);
         ImGui::Separator();
 
         ImGui::Checkbox("##Oldpaste", &useoldpaste);
@@ -1159,7 +1166,7 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::Separator();
 
         ImGui::TextWrapped("Custom Anti-AFK Key (That the macro uses):");
-        DrawKeyBindControl("AfkKey", vk_afkkey, selected_section, 150.0f, 50.0f);
+        DrawKeyBindControl("AfkKey", vk_afkkey, selected_section, 150.0f, 50.0f, true);
         ImGui::Separator();
 
         ImGui::AlignTextToFramePadding();
@@ -1177,26 +1184,6 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::Separator();
         ImGui::Checkbox("Double-Press AFK keybind during Anti-AFK", &doublepressafkkey);
         ImGui::Separator();
-
-#if defined(__linux__)
-        if (ImGui::CollapsingHeader("Debug", ImGuiTreeNodeFlags_DefaultOpen)) {
-            auto backend = smu::platform::GetInputBackend();
-            const auto pressedKey = backend ? backend->getCurrentPressedKey() : std::optional<smu::platform::PlatformKeyCode>{};
-            const std::string pressedName = pressedKey ? backend->formatKeyName(*pressedKey) : "None";
-            ImGui::Text("Input backend: %s", context.inputBackendAvailable ? "initialized" : "unavailable");
-            ImGui::Text("Process backend: %s", context.processBackendAvailable ? "initialized" : "unavailable");
-            ImGui::Text("Last physical key: %s", pressedName.c_str());
-            if (ImGui::Button("Test input injection: press Space")) {
-                if (backend && context.inputBackendAvailable) {
-                    backend->pressKey(smu::core::SMU_VK_SPACE);
-                    LogInfo("Linux debug input injection test dispatched Space through uinput.");
-                } else {
-                    LogWarning("Linux debug input injection test failed: input backend is unavailable.");
-                }
-            }
-        }
-        ImGui::Separator();
-#endif
 
         if (ImGui::Checkbox("Remove Side-Bar Macro Descriptions", &shortdescriptions)) {
             InitializeSections();
@@ -1832,7 +1819,8 @@ void RenderSelectedSection(AppContext& context)
         }
         ImGui::AlignTextToFramePadding();
         ImGui::TextWrapped("Key to Press After Message/Emote paste:");
-        DrawKeyBindControl("EnterKey", vk_enterkey, selected_section, 150.0f, 50.0f);
+        ImGui::SameLine();
+        DrawKeyBindControl("EnterKey", vk_enterkey, selected_section, 170.0f, 130.0f, true);
         ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
         ImGui::Separator();
         ImGui::TextWrapped("IMPORTANT: This glitch has been patched by Roblox. This is currently deprecated. You may get a COM offset manually by equipping an item without doing any animations, but it will be very small.");
@@ -1855,7 +1843,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextWrapped("Key to Press:");
             ImGui::SameLine();
-            DrawKeyBindControl(("PressKey" + sid).c_str(), inst.vk_presskey, selected_section);
+            DrawKeyBindControl(("PressKey" + sid).c_str(), inst.vk_presskey, selected_section, 170.0f, 130.0f, true);
             ImGui::Text("Length of Second Button Press (ms):");
             ImGui::SameLine();
             ImGui::SetNextItemWidth(80);
@@ -1981,6 +1969,7 @@ void RenderSelectedSection(AppContext& context)
     }
 
     if (selected_section == 9) {
+        ImGui::Separator();
         ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
@@ -2033,7 +2022,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextWrapped("Key to Press:");
             ImGui::SameLine();
-            DrawKeyBindControl(("SpamKey" + sid).c_str(), inst.vk_spamkey, selected_section);
+            DrawKeyBindControl(("SpamKey" + sid).c_str(), inst.vk_spamkey, selected_section, 170.0f, 130.0f, true);
             ImGui::TextWrapped("Spam Delay (Milliseconds):");
             ImGui::SameLine();
             ImGui::SetNextItemWidth(120.0f);

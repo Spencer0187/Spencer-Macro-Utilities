@@ -15,6 +15,14 @@
 #endif
 
 namespace smu::log {
+
+bool IsDebugLoggingEnabled()
+{
+    const char* debug = std::getenv("DEBUG");
+    const char* smuDebug = std::getenv("SMU_DEBUG");
+    return (debug && std::string(debug) == "1") || (smuDebug && std::string(smuDebug) == "1");
+}
+
 namespace {
 
 constexpr std::size_t kMaxLogEntries = 512;
@@ -41,9 +49,7 @@ bool ShouldLogToConsole()
 #if defined(_DEBUG)
     return true;
 #else
-    const char* debug = std::getenv("DEBUG");
-    const char* smuDebug = std::getenv("SMU_DEBUG");
-    return (debug && std::string(debug) == "1") || (smuDebug && std::string(smuDebug) == "1");
+    return IsDebugLoggingEnabled();
 #endif
 }
 
@@ -108,7 +114,7 @@ void WriteEntry(LogLevel level, const std::string& rawMessage)
             g_criticalNotifications.push_back(entry);
         }
 
-        if (g_fileLoggingEnabled) {
+        if (g_fileLoggingEnabled && IsDebugLoggingEnabled()) {
             std::ofstream file("SMC.log", std::ios::app);
             if (file) {
                 file << formatted << '\n';
@@ -173,7 +179,7 @@ std::vector<LogEntry> DrainWarningNotifications()
 void SetFileLoggingEnabled(bool enabled)
 {
     std::lock_guard<std::mutex> lock(g_logMutex);
-    g_fileLoggingEnabled = enabled;
+    g_fileLoggingEnabled = enabled && IsDebugLoggingEnabled();
 }
 
 } // namespace smu::log

@@ -30,6 +30,7 @@ void LogCritical(const std::string& message);
 std::vector<LogEntry> GetLogSnapshot();
 std::vector<LogEntry> DrainCriticalNotifications();
 std::vector<LogEntry> DrainWarningNotifications();
+bool IsDebugLoggingEnabled();
 void SetFileLoggingEnabled(bool enabled);
 
 } // namespace smu::log

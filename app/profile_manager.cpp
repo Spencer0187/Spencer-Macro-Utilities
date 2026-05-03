@@ -477,20 +477,12 @@ static JsonFileResult ReadJsonFile(const std::string& filepath) {
 	return result;
 }
 
-// Write JSON to file. Creates a .bak backup of the previous version.
+// Write JSON to file, replacing the previous version in place.
 static bool WriteJsonFile(const std::string& filepath, const json& data) {
 	const fs::path settingsPath(filepath);
 	if (!EnsureParentDirectoryExists(settingsPath)) {
 		LogCritical("Failed to save settings to " + filepath + ": parent directory is unavailable.");
 		return false;
-	}
-
-	// Create backup of existing file before overwriting
-	if (PathExists(settingsPath)) {
-		const fs::path backupPath = settingsPath.string() + ".bak";
-		if (CopySettingsFile(settingsPath, backupPath)) {
-			AdjustSettingsFileOwnershipAndPermissions(backupPath);
-		}
 	}
 
 	errno = 0;
