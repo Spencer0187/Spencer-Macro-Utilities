@@ -12,6 +12,7 @@
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
 #include "../platform/windows/windows_backends.h"
+#include "../platform/windows/lagswitch_overlay.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -55,6 +56,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         networkBackend->shutdown();
     }
+#if defined(_WIN32)
+    smu::platform::windows::CleanupLagswitchOverlay();
+#endif
     if (auto processBackend = smu::platform::GetProcessBackend()) {
         processBackend->shutdown();
     }

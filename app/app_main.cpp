@@ -7,6 +7,7 @@
 #include "app_theme_bridge.h"
 #include "app_ui.h"
 #include "../core/app_state.h"
+#include "../core/legacy_globals.h"
 
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -33,6 +34,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <dwmapi.h>
+#include "../platform/windows/lagswitch_overlay.h"
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
@@ -230,17 +232,28 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
     while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
         SDL_Event event;
+        bool quitRequested = false;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
                 state.done.store(true, std::memory_order_release);
                 state.running.store(false, std::memory_order_release);
+                Globals::done.store(true, std::memory_order_release);
+                Globals::running.store(false, std::memory_order_release);
+#if defined(_WIN32)
+                // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
+                smu::platform::windows::CleanupLagswitchOverlay();
+#endif
+                quitRequested = true;
             }
             if (event.type == SDL_EVENT_WINDOW_RESIZED ||
                 event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
                 event.type == SDL_EVENT_WINDOW_MOVED) {
                 UpdateWindowMetrics(window);
             }
+        }
+        if (quitRequested) {
+            break;
         }
 
         ImGui_ImplOpenGL3_NewFrame();
