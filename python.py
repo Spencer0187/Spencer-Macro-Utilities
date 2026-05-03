@@ -4,16 +4,13 @@ import re
 import sys
 
 
-ROOT_FILES = {
-    "globals": Path("core/legacy_globals.h"),
-    "ui": Path("app/app_ui.cpp"),
-    "runtime": Path("app/macro_runtime.cpp"),
-}
+FOREGROUND = Path("platform/linux/foreground_x11.cpp")
+APP_UI = Path("app/app_ui.cpp")
+MACRO_RUNTIME = Path("app/macro_runtime.cpp")
 
 
 def backup(path: Path, original: str) -> None:
-    bak = path.with_suffix(path.suffix + ".pre_keybind_final.bak")
-    bak.write_text(original, encoding="utf-8")
+    path.with_suffix(path.suffix + ".pre_x11_immediate_fallback.bak").write_text(original, encoding="utf-8")
 
 
 def find_function_bounds(text: str, signature_start: str) -> tuple[int, int]:
@@ -28,10 +25,9 @@ def find_function_bounds(text: str, signature_start: str) -> tuple[int, int]:
     depth = 0
     i = brace
     while i < len(text):
-        ch = text[i]
-        if ch == "{":
+        if text[i] == "{":
             depth += 1
-        elif ch == "}":
+        elif text[i] == "}":
             depth -= 1
             if depth == 0:
                 return start, i + 1
@@ -45,426 +41,280 @@ def replace_function(text: str, signature_start: str, replacement: str) -> str:
     return text[:start] + replacement + text[end:]
 
 
-def patch_globals(path: Path) -> bool:
-    text = path.read_text(encoding="utf-8")
-    original = text
+def patch_foreground_x11() -> bool:
+    path = FOREGROUND
+    original = path.read_text(encoding="utf-8")
+    text = original
 
-    # Normalize notbinding to atomic<bool>.
     text = text.replace(
-        "    inline bool notbinding = true;\n",
-        "    inline std::atomic<bool> notbinding{ true };\n",
+        "constexpr int kX11ForegroundFailureDisableThreshold = 5;",
+        "constexpr int kX11ForegroundFailureDisableThreshold = 1;",
     )
 
-    if "inline std::atomic<bool> notbinding{ true };" not in text:
-        raise RuntimeError("Could not find Globals::notbinding declaration.")
+    new_available = r'''bool IsX11ForegroundDetectionAvailable(std::string* errorMessage)
+{
+#if defined(__linux__) && defined(SMU_HAS_X11) && SMU_HAS_X11
+    if (errorMessage) {
+        errorMessage->clear();
+    }
 
-    # Remove possible duplicate suppress/capture lines from previous attempts.
-    text = re.sub(
-        r"    inline std::atomic<bool> g_keybindCaptureActive\{ false \};\n",
-        "",
-        text,
-    )
-    text = re.sub(
-        r"    inline std::atomic<bool> g_suppressHotkeysUntilRelease\{ false \};\n",
-        "",
-        text,
-    )
+    int state = g_x11ForegroundDetectionState.load(std::memory_order_acquire);
+    if (state == 1) {
+        return true;
+    }
+    if (state == 0) {
+        if (errorMessage) {
+            std::lock_guard<std::mutex> lock(g_x11ForegroundDetectionMutex);
+            *errorMessage = g_x11ForegroundDetectionError;
+        }
+        return false;
+    }
 
-    # Add the final flags immediately after notbinding.
-    text = text.replace(
-        "    inline std::atomic<bool> notbinding{ true };\n",
-        "    inline std::atomic<bool> notbinding{ true };\n"
-        "    inline std::atomic<bool> g_keybindCaptureActive{ false };\n"
-        "    inline std::atomic<bool> g_suppressHotkeysUntilRelease{ false };\n",
+    std::lock_guard<std::mutex> lock(g_x11ForegroundDetectionMutex);
+    state = g_x11ForegroundDetectionState.load(std::memory_order_acquire);
+    if (state == 1) {
+        return true;
+    }
+    if (state == 0) {
+        if (errorMessage) {
+            *errorMessage = g_x11ForegroundDetectionError;
+        }
+        return false;
+    }
+
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        const std::string message = "XOpenDisplay failed; X11 foreground process detection is unavailable.";
+        g_x11ForegroundDetectionError = message;
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+        return false;
+    }
+
+    const Window root = DefaultRootWindow(display);
+    const Atom activeWindowAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", True);
+    const Atom wmPidAtom = XInternAtom(display, "_NET_WM_PID", True);
+
+    if (activeWindowAtom == None || wmPidAtom == None) {
+        XCloseDisplay(display);
+
+        const std::string message = "X11 window manager does not expose _NET_ACTIVE_WINDOW or _NET_WM_PID.";
+        g_x11ForegroundDetectionError = message;
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+        return false;
+    }
+
+    Atom actualType = None;
+    int actualFormat = 0;
+    unsigned long itemCount = 0;
+    unsigned long bytesAfter = 0;
+    unsigned char* property = nullptr;
+
+    const int status = XGetWindowProperty(
+        display,
+        root,
+        activeWindowAtom,
+        0,
         1,
-    )
+        False,
+        XA_WINDOW,
+        &actualType,
+        &actualFormat,
+        &itemCount,
+        &bytesAfter,
+        &property);
 
-    if text != original:
-        backup(path, original)
-        path.write_text(text, encoding="utf-8")
-        return True
-
-    return False
-
-
-def patch_app_ui(path: Path) -> bool:
-    text = path.read_text(encoding="utf-8")
-    original = text
-
-    # Add per-control pre-capture release state.
-    if "bool waitingForReleaseBeforeCapture = false;" not in text:
-        text = text.replace(
-            "    bool firstRun = true;\n"
-            "    std::array<bool, 258> keyWasPressed{};\n",
-            "    bool firstRun = true;\n"
-            "    bool waitingForReleaseBeforeCapture = false;\n"
-            "    std::array<bool, 258> keyWasPressed{};\n",
-            1,
-        )
-
-    # Add final helper functions. Do not reuse names from previous patch attempts.
-    helper_marker = "bool AnyPhysicalKeyOrMouseButtonPressedForBinding()"
-    if helper_marker not in text:
-        insert_after = (
-            "std::unordered_map<unsigned int*, BindingState> g_bindingStates;\n"
-            "bool g_hasStoredSettingsWindowPos = false;\n"
-            "ImVec2 g_storedSettingsWindowPos{};\n"
-        )
-
-        helpers = (
-            "std::unordered_map<unsigned int*, BindingState> g_bindingStates;\n"
-            "bool g_hasStoredSettingsWindowPos = false;\n"
-            "ImVec2 g_storedSettingsWindowPos{};\n\n"
-            "bool AnyPhysicalKeyOrMouseButtonPressedForBinding()\n"
-            "{\n"
-            "    for (int key = 1; key <= 0xFF; ++key) {\n"
-            "        if (IsKeyPressed(static_cast<smu::core::KeyCode>(key))) {\n"
-            "            return true;\n"
-            "        }\n"
-            "    }\n"
-            "    return false;\n"
-            "}\n\n"
-            "void StartKeybindCapture(BindingState& state)\n"
-            "{\n"
-            "    state.bindingMode = true;\n"
-            "    state.notBinding = false;\n"
-            "    state.waitingForReleaseBeforeCapture = true;\n"
-            "    state.firstRun = false;\n"
-            "    state.pendingModifierKey = 0;\n"
-            "    state.pendingModifierCombo = 0;\n"
-            "    state.keyWasPressed.fill(false);\n"
-            "    state.rebindTime = std::chrono::steady_clock::now();\n"
-            "    state.buttonText = \"Release Keys...\";\n\n"
-            "    g_keybindCaptureActive.store(true, std::memory_order_release);\n"
-            "    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);\n"
-            "    notbinding.store(false, std::memory_order_release);\n"
-            "}\n\n"
-            "void FinishKeybindCapture()\n"
-            "{\n"
-            "    g_keybindCaptureActive.store(false, std::memory_order_release);\n"
-            "    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);\n"
-            "    notbinding.store(false, std::memory_order_release);\n"
-            "}\n\n"
-            "void RefreshFinishedKeybindSuppression()\n"
-            "{\n"
-            "    if (g_keybindCaptureActive.load(std::memory_order_acquire) ||\n"
-            "        !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {\n"
-            "        return;\n"
-            "    }\n\n"
-            "    if (AnyPhysicalKeyOrMouseButtonPressedForBinding()) {\n"
-            "        notbinding.store(false, std::memory_order_release);\n"
-            "        return;\n"
-            "    }\n\n"
-            "    g_suppressHotkeysUntilRelease.store(false, std::memory_order_release);\n"
-            "    notbinding.store(true, std::memory_order_release);\n"
-            "}\n"
-        )
-
-        if insert_after not in text:
-            raise RuntimeError("Could not find app_ui.cpp binding globals insertion point.")
-
-        text = text.replace(insert_after, helpers, 1)
-
-    new_bind_key_mode = r'''unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int currentSection)
-{
-    BindingState& state = g_bindingStates[keyVar];
-    RefreshFinishedKeybindSuppression();
-
-    if (state.bindingMode) {
-        g_keybindCaptureActive.store(true, std::memory_order_release);
-        notbinding.store(false, std::memory_order_release);
-        state.rebindTime = std::chrono::steady_clock::now();
-
-        if (state.waitingForReleaseBeforeCapture) {
-            state.buttonText = "Release Keys...";
-            CopyString(state.keyBuffer, sizeof(state.keyBuffer), "Release keys...");
-            CopyString(state.keyBufferHuman, sizeof(state.keyBufferHuman), "Release keys...");
-
-            if (AnyPhysicalKeyOrMouseButtonPressedForBinding()) {
-                return currentkey;
-            }
-
-            state.waitingForReleaseBeforeCapture = false;
-            state.firstRun = false;
-            state.pendingModifierKey = 0;
-            state.pendingModifierCombo = 0;
-            state.keyWasPressed.fill(false);
-            state.buttonText = "Press a Key...";
+    if (status != Success || !property || itemCount == 0) {
+        if (property) {
+            XFree(property);
         }
+        XCloseDisplay(display);
 
-        const unsigned int currentModifiers = CurrentModifierMask();
-        if (currentModifiers == 0) {
-            CopyString(state.keyBuffer, sizeof(state.keyBuffer), "Waiting...");
-            CopyString(state.keyBufferHuman, sizeof(state.keyBufferHuman), "Waiting...");
-        } else {
-            char previewHex[64] = {};
-            FormatHexKeyString(currentModifiers, previewHex, sizeof(previewHex));
-            std::string hexStr(previewHex);
-            const std::string suffix = " + 0x0";
-            if (const auto pos = hexStr.find(suffix); pos != std::string::npos) {
-                hexStr = hexStr.substr(0, pos) + " + ...";
-            }
-
-            std::string previewHuman;
-            if (currentModifiers & HOTKEY_MASK_WIN) previewHuman += "Win + ";
-            if (currentModifiers & HOTKEY_MASK_CTRL) previewHuman += "Ctrl + ";
-            if (currentModifiers & HOTKEY_MASK_ALT) previewHuman += "Alt + ";
-            if (currentModifiers & HOTKEY_MASK_SHIFT) previewHuman += "Shift + ";
-            previewHuman += "...";
-
-            CopyString(state.keyBuffer, sizeof(state.keyBuffer), hexStr);
-            CopyString(state.keyBufferHuman, sizeof(state.keyBufferHuman), previewHuman);
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "could not be read from the X11 root window.";
+        g_x11ForegroundDetectionError = message;
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+        if (errorMessage) {
+            *errorMessage = message;
         }
-
-        auto backend = smu::platform::GetInputBackend();
-        if (!backend) {
-            return currentkey;
-        }
-
-        for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
-            const bool currentlyPressed = IsKeyPressed(static_cast<smu::core::KeyCode>(key));
-            const bool wasPressed = state.keyWasPressed[key];
-            state.keyWasPressed[key] = currentlyPressed;
-
-            if (!currentlyPressed || wasPressed) {
-                continue;
-            }
-
-            if (smu::core::IsModifierKey(key)) {
-                state.pendingModifierKey = static_cast<unsigned int>(key);
-                state.pendingModifierCombo = currentModifiers;
-                continue;
-            }
-
-            const unsigned int finalCombo =
-                NormalizeBoundHotkey((static_cast<unsigned int>(key) & HOTKEY_KEY_MASK) | currentModifiers);
-
-            state.bindingMode = false;
-            state.waitingForReleaseBeforeCapture = false;
-            state.firstRun = true;
-            state.pendingModifierKey = 0;
-            state.pendingModifierCombo = 0;
-
-            GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-            FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
-            state.buttonText = "Click to Bind Key";
-
-            FinishKeybindCapture();
-            return finalCombo;
-        }
-
-        if (state.pendingModifierKey != 0 &&
-            !IsKeyPressed(static_cast<smu::core::KeyCode>(state.pendingModifierKey)) &&
-            currentModifiers == 0) {
-            const unsigned int finalCombo = NormalizeBoundHotkey(
-                (state.pendingModifierKey & HOTKEY_KEY_MASK) | state.pendingModifierCombo);
-
-            state.bindingMode = false;
-            state.waitingForReleaseBeforeCapture = false;
-            state.firstRun = true;
-            state.pendingModifierKey = 0;
-            state.pendingModifierCombo = 0;
-
-            GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-            FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
-            state.buttonText = "Click to Bind Key";
-
-            FinishKeybindCapture();
-            return finalCombo;
-        }
-
-        return currentkey;
-    }
-
-    state.firstRun = true;
-    if (currentSection != state.lastSelectedSection || currentSection == -1) {
-        FormatHexKeyString(currentkey, state.keyBuffer, sizeof(state.keyBuffer));
-        GetKeyNameFromHex(currentkey, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-        if (currentSection != -1) {
-            state.lastSelectedSection = currentSection;
-        }
-    }
-
-    state.buttonText = "Click to Bind Key";
-    auto currentTime = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsedtime = currentTime - state.rebindTime;
-    if (!g_keybindCaptureActive.load(std::memory_order_acquire) &&
-        !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
-        elapsedtime.count() >= 0.3) {
-        state.notBinding = true;
-        notbinding.store(true, std::memory_order_release);
-    }
-
-    return currentkey;
-}'''
-
-    text = replace_function(
-        text,
-        "unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int currentSection)",
-        new_bind_key_mode,
-    )
-
-    new_draw_keybind = r'''void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection, float humanWidth = 170.0f, float hexWidth = 130.0f)
-{
-    ImGui::PushID(id);
-    BindingState& state = g_bindingStates[&key];
-
-    if (ImGui::Button(state.buttonText.c_str())) {
-        StartKeybindCapture(state);
-    }
-
-    ImGui::SameLine();
-    key = BindKeyMode(&key, key, currentSection);
-
-    ImGui::SetNextItemWidth(humanWidth);
-    GetKeyNameFromHex(key, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-    ImGui::InputText("##KeyHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
-
-    ImGui::SameLine();
-    ImGui::TextWrapped("Key Binding");
-
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(hexWidth);
-    ImGui::InputText("##KeyHex", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
-
-    ImGui::SameLine();
-    ImGui::TextWrapped("(Hexadecimal)");
-    ImGui::PopID();
-}'''
-
-    text = replace_function(
-        text,
-        "void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection",
-        new_draw_keybind,
-    )
-
-    if text != original:
-        backup(path, original)
-        path.write_text(text, encoding="utf-8")
-        return True
-
-    return False
-
-
-def patch_macro_runtime(path: Path) -> bool:
-    text = path.read_text(encoding="utf-8")
-    original = text
-
-    helper_marker = "bool AnyInputPressedForHotkeySuppression()"
-    if helper_marker not in text:
-        insert_after = '''bool ShouldKeepRunning()
-{
-    return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
-}
-'''
-        helper = insert_after + r'''
-bool AnyInputPressedForHotkeySuppression()
-{
-    auto input = smu::platform::GetInputBackend();
-    if (!input) {
         return false;
     }
 
-    for (unsigned int key = 1; key <= 0xFF; ++key) {
-        if (input->isKeyPressed(key)) {
-            return true;
-        }
+    Window activeWindow = 0;
+    if (actualFormat == 32) {
+        activeWindow = static_cast<Window>(reinterpret_cast<unsigned long*>(property)[0]);
+    } else {
+        std::memcpy(&activeWindow, property, std::min(sizeof(activeWindow), static_cast<std::size_t>(actualFormat / 8)));
     }
 
+    XFree(property);
+    XCloseDisplay(display);
+
+    if (activeWindow == 0) {
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "is empty. This X11 window manager/session is not exposing a usable active-window property.";
+
+        g_x11ForegroundDetectionError = message;
+        g_x11EmptyActiveWindowFailures.store(0, std::memory_order_release);
+        g_x11MissingPidFailures.store(0, std::memory_order_release);
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+        return false;
+    }
+
+    g_x11EmptyActiveWindowFailures.store(0, std::memory_order_release);
+    g_x11MissingPidFailures.store(0, std::memory_order_release);
+    g_x11ForegroundDetectionState.store(1, std::memory_order_release);
+    return true;
+#else
+    if (errorMessage) {
+        *errorMessage = "X11 support was not available at build time; foreground process detection is unsupported.";
+    }
     return false;
-}
-'''
-        if insert_after not in text:
-            raise RuntimeError("Could not find macro_runtime.cpp ShouldKeepRunning insertion point.")
-        text = text.replace(insert_after, helper, 1)
-
-    gate_marker = "g_keybindCaptureActive.load(std::memory_order_acquire)"
-    if gate_marker not in text[text.find("void MacroRuntime::controllerLoop()"):text.find("void MacroRuntime::refreshTargetProcesses")]:
-        old = '''        refreshTargetProcesses();
-
-        if (!macrotoggled || !notbinding) {
-'''
-        alt = '''        refreshTargetProcesses();
-
-        if (!macrotoggled || !notbinding.load(std::memory_order_acquire)) {
-'''
-        new = '''        refreshTargetProcesses();
-
-        if (g_keybindCaptureActive.load(std::memory_order_acquire)) {
-            if (freezeSuspended_) {
-                setTargetSuspended(false);
-            }
-            std::this_thread::sleep_for(5ms);
-            continue;
-        }
-
-        if (g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
-            if (AnyInputPressedForHotkeySuppression()) {
-                if (freezeSuspended_) {
-                    setTargetSuspended(false);
-                }
-                std::this_thread::sleep_for(5ms);
-                continue;
-            }
-
-            g_suppressHotkeysUntilRelease.store(false, std::memory_order_release);
-            notbinding.store(true, std::memory_order_release);
-        }
-
-        if (!macrotoggled || !notbinding.load(std::memory_order_acquire)) {
-'''
-        if old in text:
-            text = text.replace(old, new, 1)
-        elif alt in text:
-            text = text.replace(alt, new, 1)
-        else:
-            raise RuntimeError("Could not find controllerLoop refresh/notbinding gate.")
-
-    # Normalize remaining notbinding checks in runtime.
-    text = text.replace(
-        "if (!macrotoggled || !notbinding) {",
-        "if (!macrotoggled || !notbinding.load(std::memory_order_acquire)) {",
-    )
-    text = text.replace(
-        "const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding;",
-        "const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding.load(std::memory_order_acquire);",
-    )
-    text = text.replace(
-        "                   macrotoggled &&\n"
-        "                   notbinding &&\n",
-        "                   macrotoggled &&\n"
-        "                   notbinding.load(std::memory_order_acquire) &&\n",
-    )
-
-    new_is_hotkey_pressed = r'''bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const
-{
-    auto input = smu::platform::GetInputBackend();
-    if (!input) {
-        return false;
-    }
-
-    if (g_keybindCaptureActive.load(std::memory_order_acquire) ||
-        g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
-        return false;
-    }
-
-    const unsigned int key = combinedKey & HOTKEY_KEY_MASK;
-    if (key == 0 || key == smu::core::SMU_VK_MOUSE_WHEEL_UP || key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
-        return false;
-    }
-
-    if ((combinedKey & HOTKEY_MASK_WIN) && !IsModifierPressed(*input, VK_LWIN)) return false;
-    if ((combinedKey & HOTKEY_MASK_CTRL) && !IsModifierPressed(*input, VK_CONTROL)) return false;
-    if ((combinedKey & HOTKEY_MASK_ALT) && !IsModifierPressed(*input, VK_MENU)) return false;
-    if ((combinedKey & HOTKEY_MASK_SHIFT) && !IsModifierPressed(*input, VK_SHIFT)) return false;
-    return IsModifierPressed(*input, key);
+#endif
 }'''
 
     text = replace_function(
         text,
-        "bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const",
-        new_is_hotkey_pressed,
+        "bool IsX11ForegroundDetectionAvailable(std::string* errorMessage)",
+        new_available,
     )
+
+    start, end = find_function_bounds(text, "std::optional<PlatformPid> GetX11ForegroundProcess")
+    fn = text[start:end]
+
+    old_active_zero = re.compile(
+        r'''    if \(activeWindow == 0\) \{\n'''
+        r'''        closeDisplay\(\);\n\n'''
+        r'''        const int failures = g_x11EmptyActiveWindowFailures\.fetch_add\(1, std::memory_order_acq_rel\) \+ 1;\n'''
+        r'''        if \(failures >= kX11ForegroundFailureDisableThreshold\) \{\n'''
+        r'''            const std::string message =\n'''
+        r'''                "X11 foreground process detection failed repeatedly because _NET_ACTIVE_WINDOW "\n'''
+        r'''                "was empty\. The current X11 window manager/session is not exposing a usable "\n'''
+        r'''                "active-window property\.";\n\n'''
+        r'''            DisableX11ForegroundDetection\(message\);\n'''
+        r'''            if \(errorMessage\) \{\n'''
+        r'''                \*errorMessage = message;\n'''
+        r'''            \}\n'''
+        r'''        \}\n\n'''
+        r'''        return std::nullopt;\n'''
+        r'''    \}\n''',
+        re.MULTILINE,
+    )
+
+    new_active_zero = r'''    if (activeWindow == 0) {
+        closeDisplay();
+
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "is empty. This X11 window manager/session is not exposing a usable active-window property.";
+
+        DisableX11ForegroundDetection(message);
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+
+        return std::nullopt;
+    }
+'''
+
+    fn2, count = old_active_zero.subn(new_active_zero, fn, count=1)
+    if count == 0 and "This X11 window manager/session is not exposing a usable active-window property." not in fn:
+        raise RuntimeError("Could not replace GetX11ForegroundProcess activeWindow == 0 block.")
+
+    text = text[:start] + fn2 + text[end:]
+
+    if text != original:
+        backup(path, original)
+        path.write_text(text, encoding="utf-8")
+        return True
+
+    return False
+
+
+def patch_app_ui_refresh() -> bool:
+    path = APP_UI
+    original = path.read_text(encoding="utf-8")
+    text = original
+
+    if "RefreshPlatformCapabilitiesForUi" not in text:
+        insertion_point = "UpdateUiState g_updateUiState;\n"
+        helper = r'''
+void RefreshPlatformCapabilitiesForUi(AppContext& context)
+{
+    static double nextCapabilityRefreshTime = 0.0;
+    const double now = ImGui::GetTime();
+    if (now < nextCapabilityRefreshTime) {
+        return;
+    }
+
+    nextCapabilityRefreshTime = now + 0.25;
+
+    const bool wasFallbackActive = IsForegroundDetectionFallbackActive(context);
+    context.capabilities = smu::platform::GetPlatformCapabilities();
+
+    if (!wasFallbackActive && IsForegroundDetectionFallbackActive(context)) {
+        context.foregroundFallbackWarningShown = false;
+        MaybeWarnForegroundDetectionFallback(context);
+    }
+}
+'''
+        if insertion_point not in text:
+            raise RuntimeError("Could not find app_ui.cpp UpdateUiState insertion point.")
+
+        text = text.replace(insertion_point, insertion_point + helper, 1)
+
+    signature = "void RenderAppUi(AppContext& context)"
+    start, end = find_function_bounds(text, signature)
+    fn = text[start:end]
+
+    if "RefreshPlatformCapabilitiesForUi(context);" not in fn:
+        brace = fn.find("{")
+        fn = fn[:brace + 1] + "\n    RefreshPlatformCapabilitiesForUi(context);\n" + fn[brace + 1:]
+        text = text[:start] + fn + text[end:]
+
+    if text != original:
+        backup(path, original)
+        path.write_text(text, encoding="utf-8")
+        return True
+
+    return False
+
+
+def patch_macro_runtime_cache_reset() -> bool:
+    path = MACRO_RUNTIME
+    original = path.read_text(encoding="utf-8")
+    text = original
+
+    old = r'''    targetPIDs.assign(pids.begin(), pids.end());
+    processFound = !targetPIDs.empty();
+    nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
+'''
+
+    new = r'''    const bool pidsChanged =
+        targetPIDs.size() != pids.size() ||
+        !std::equal(targetPIDs.begin(), targetPIDs.end(), pids.begin());
+
+    targetPIDs.assign(pids.begin(), pids.end());
+    processFound = !targetPIDs.empty();
+
+    if (pidsChanged) {
+        nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
+    }
+'''
+
+    if old in text:
+        text = text.replace(old, new, 1)
 
     if text != original:
         backup(path, original)
@@ -475,25 +325,25 @@ bool AnyInputPressedForHotkeySuppression()
 
 
 def main() -> int:
-    for path in ROOT_FILES.values():
+    for path in (FOREGROUND, APP_UI, MACRO_RUNTIME):
         if not path.exists():
             print(f"error: missing {path}. Run this from the repository root.", file=sys.stderr)
             return 1
 
     try:
         changed = []
-        if patch_globals(ROOT_FILES["globals"]):
-            changed.append(str(ROOT_FILES["globals"]))
-        if patch_app_ui(ROOT_FILES["ui"]):
-            changed.append(str(ROOT_FILES["ui"]))
-        if patch_macro_runtime(ROOT_FILES["runtime"]):
-            changed.append(str(ROOT_FILES["runtime"]))
+        if patch_foreground_x11():
+            changed.append(str(FOREGROUND))
+        if patch_app_ui_refresh():
+            changed.append(str(APP_UI))
+        if patch_macro_runtime_cache_reset():
+            changed.append(str(MACRO_RUNTIME))
 
         if changed:
             print("Patched:")
-            for path in changed:
-                print(f"  - {path}")
-            print("Backups created as *.pre_keybind_final.bak")
+            for item in changed:
+                print(f"  - {item}")
+            print("Backups created as *.pre_x11_immediate_fallback.bak")
         else:
             print("No changes made. Files already appear patched.")
 

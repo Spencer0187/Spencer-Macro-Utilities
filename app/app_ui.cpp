@@ -169,6 +169,25 @@ struct UpdateUiState {
 
 UpdateUiState g_updateUiState;
 
+void RefreshPlatformCapabilitiesForUi(AppContext& context)
+{
+    static double nextCapabilityRefreshTime = 0.0;
+    const double now = ImGui::GetTime();
+    if (now < nextCapabilityRefreshTime) {
+        return;
+    }
+
+    nextCapabilityRefreshTime = now + 0.25;
+
+    const bool wasFallbackActive = IsForegroundDetectionFallbackActive(context);
+    context.capabilities = smu::platform::GetPlatformCapabilities();
+
+    if (!wasFallbackActive && IsForegroundDetectionFallbackActive(context)) {
+        context.foregroundFallbackWarningShown = false;
+        MaybeWarnForegroundDetectionFallback(context);
+    }
+}
+
 void InitializeSections()
 {
     sections.clear();
@@ -2235,6 +2254,8 @@ void RenderForegroundDependentCheckbox(AppContext& context, const char* label, c
 
 void RenderAppUi(AppContext& context)
 {
+    RefreshPlatformCapabilitiesForUi(context);
+
     MaybeWarnForegroundDetectionFallback(context);
     if (sections.empty()) {
         InitializeSections();
