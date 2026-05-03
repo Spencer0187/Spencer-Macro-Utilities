@@ -24,6 +24,8 @@ void InitializeSharedProfiles()
 
     G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
     LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
+    // Snapshot compile-time defaults as the read-only (default) profile (must come before loading any user profile)
+    SaveDefaultProfile(G_SETTINGS_FILEPATH);
     if (!TryLoadLastActiveProfile(G_SETTINGS_FILEPATH) && G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
         G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
         LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.");
