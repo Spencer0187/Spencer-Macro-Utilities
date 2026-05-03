@@ -931,7 +931,7 @@ void RenderSettingsMenu(AppContext& context, bool* open)
     ImGui::End();
 }
 
-void ResetFloatingUiWindowState()
+void ResetFloatingUiWindowStateInternal()
 {
     g_hasStoredSettingsWindowPos = false;
     g_storedSettingsWindowPos = ImVec2();
@@ -1965,6 +1965,11 @@ void RenderSelectedSection(AppContext& context)
 }
 
 } // namespace
+
+void ResetFloatingUiWindowState()
+{
+    ResetFloatingUiWindowStateInternal();
+}
 
 void RenderPlatformCriticalNotifications()
 {
