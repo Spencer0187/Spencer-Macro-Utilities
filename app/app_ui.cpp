@@ -11,9 +11,11 @@
 #include "../platform/updater/updater.h"
 
 #include "../core/legacy_globals.h"
+#include "../core/app_state.h"
 
 #if defined(_WIN32)
 #include "../platform/windows/admin_elevation.h"
+#include "../platform/windows/lagswitch_overlay.h"
 #endif
 
 #include "imgui.h"
@@ -723,11 +725,16 @@ void RenderAdministratorRequiredPopup()
     }
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    // Keep this centered even if the popup is reopened across frames.
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    // Avoid a one-frame full-height stretch by constraining size before the first Begin.
+    ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 0.0f), ImVec2(720.0f, 1000.0f));
 
     if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
         ImGui::TextWrapped("WinDivert features require Administrator privileges.");
-        ImGui::TextWrapped("This process will extract the Windows driver files and relaunch the app elevated.");
+        ImGui::TextWrapped("This process involves:");
+        ImGui::BulletText("Extracting SMCWinDivert.dll and WinDivert64.sys to the current folder.");
+        ImGui::BulletText("Restarting this application as Administrator.");
         ImGui::Separator();
 
         ImGui::Checkbox("Do not show this again", &DontShowAdminWarning);
@@ -739,6 +746,9 @@ void RenderAdministratorRequiredPopup()
             if (smu::platform::windows::RestartAsAdmin()) {
                 done.store(true, std::memory_order_release);
                 running.store(false, std::memory_order_release);
+                auto& appState = smu::core::GetAppState();
+                appState.done.store(true, std::memory_order_release);
+                appState.running.store(false, std::memory_order_release);
             }
         }
         ImGui::SetItemDefaultFocus();
@@ -1962,10 +1972,30 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Checkbox("Hide When Not Actively Lagswitching", &overlay_hide_inactive);
         int screenW = static_cast<int>(ImGui::GetIO().DisplaySize.x);
         int screenH = static_cast<int>(ImGui::GetIO().DisplaySize.y);
+#if defined(_WIN32)
+        // Use the full Windows virtual desktop (all monitors) instead of the SDL window size.
+        const int virtualMinX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        const int virtualMinY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        const int virtualW = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        const int virtualH = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        screenW = std::max(1, virtualW);
+        screenH = std::max(1, virtualH);
+        if (overlay_x == -1) overlay_x = virtualMinX + static_cast<int>(virtualW * 0.8f);
+        // Allow negative coordinates for multi-monitor layouts where the virtual origin is not (0,0).
+        const int sliderMinX = virtualMinX;
+        const int sliderMaxX = virtualMinX + virtualW;
+        const int sliderMinY = virtualMinY;
+        const int sliderMaxY = virtualMinY + virtualH;
+#else
         if (overlay_x == -1) overlay_x = static_cast<int>(screenW * 0.8f);
+        const int sliderMinX = 0;
+        const int sliderMaxX = screenW;
+        const int sliderMinY = 0;
+        const int sliderMaxY = screenH;
+#endif
         ImGui::PushItemWidth(500);
-        ImGui::SliderInt("Overlay X", &overlay_x, 0, screenW);
-        ImGui::SliderInt("Overlay Y", &overlay_y, 0, screenH);
+        ImGui::SliderInt("Overlay X", &overlay_x, sliderMinX, sliderMaxX);
+        ImGui::SliderInt("Overlay Y", &overlay_y, sliderMinY, sliderMaxY);
         ImGui::SliderInt("Text Size", &overlay_size, 10, 100);
         ImGui::Checkbox("Add Background", &overlay_use_bg);
         if (!overlay_use_bg) ImGui::BeginDisabled();
@@ -1996,6 +2026,9 @@ void RenderSelectedSection(AppContext& context)
                             if (smu::platform::windows::RestartAsAdmin()) {
                                 done.store(true, std::memory_order_release);
                                 running.store(false, std::memory_order_release);
+                                auto& appState = smu::core::GetAppState();
+                                appState.done.store(true, std::memory_order_release);
+                                appState.running.store(false, std::memory_order_release);
                             }
                         } else {
                             bShowAdminPopup = true;
@@ -2163,6 +2196,10 @@ void RenderAppUi(AppContext& context)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
     ImGui::Begin("Main SMU Window", nullptr, windowFlags);
     ImGui::PopStyleVar();
+
+#if defined(_WIN32)
+    smu::platform::windows::UpdateLagswitchOverlay();
+#endif
 
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();

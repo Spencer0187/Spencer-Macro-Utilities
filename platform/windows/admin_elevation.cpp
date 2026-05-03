@@ -7,6 +7,8 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include <string>
+
 namespace smu::platform::windows {
 namespace {
 

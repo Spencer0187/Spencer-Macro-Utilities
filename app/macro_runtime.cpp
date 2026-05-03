@@ -9,6 +9,7 @@
 #include "../platform/process_backend.h"
 #include "../platform/text_input_backend.h"
 
+#include "../core/app_state.h"
 #include "../core/legacy_globals.h"
 
 #if defined(_WIN32)
@@ -840,6 +841,9 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
                     if (smu::platform::windows::RestartAsAdmin()) {
                         done.store(true, std::memory_order_release);
                         running.store(false, std::memory_order_release);
+                        auto& appState = smu::core::GetAppState();
+                        appState.done.store(true, std::memory_order_release);
+                        appState.running.store(false, std::memory_order_release);
                     }
                 } else {
                     bShowAdminPopup = true;

@@ -21,6 +21,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <thread>
+#include <vector>
 
 using namespace Globals;
 
@@ -119,16 +120,42 @@ static const wchar_t* GetWinDivertErrorDescription(DWORD errorCode) {
     }
 }
 
-bool TryLoadWinDivert() {
+std::string WideToUtf8(const wchar_t* value)
+{
+    if (!value) {
+        return {};
+    }
+
+    const int needed = WideCharToMultiByte(CP_UTF8, 0, value, -1, nullptr, 0, nullptr, nullptr);
+    if (needed <= 1) {
+        return {};
+    }
+
+    std::string out(static_cast<std::size_t>(needed - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, value, -1, out.data(), needed, nullptr, nullptr);
+    return out;
+}
+
+bool TryLoadWinDivert(std::string* errorMessage, DWORD* win32ErrorCode) {
 	wchar_t buffer[256] = {0};
 	// Check if file exists before attempting extraction or loading
 	if (bDependenciesLoaded) return true; 
 
     // 1. Extract SYS (Resource ID from previous code)
-    if (!ExtractResource(IDR_SMC_WINDIVERT_SYS1, "SMC_WINDIVERT_SYS", SYS_NAME)) MessageBoxW(NULL, buffer, L"WinDivert SYS Placement Error", MB_ICONERROR | MB_OK);
+    if (!ExtractResource(IDR_SMC_WINDIVERT_SYS1, "SMC_WINDIVERT_SYS", SYS_NAME)) {
+        if (errorMessage) {
+            *errorMessage = "Failed to extract WinDivert driver (.sys) into the working directory.";
+        }
+        return false;
+    }
     
     // 2. Extract DLL
-    if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", DLL_NAME)) MessageBoxW(NULL, buffer, L"SMCWinDivert DLL Placement Error", MB_ICONERROR | MB_OK);
+    if (!ExtractResource(IDR_SMC_WINDIVERT_DLL1, "SMC_WINDIVERT_DLL", DLL_NAME)) {
+        if (errorMessage) {
+            *errorMessage = "Failed to extract SMCWinDivert.dll into the working directory.";
+        }
+        return false;
+    }
 
     // For some godforsaken reason, running sc QUERY on WinDivert updates its status from "Stopped" to "Non Existent", which fixes all of our problems.
     quiet_system("sc query WinDivert >nul 2>&1");
@@ -136,12 +163,14 @@ bool TryLoadWinDivert() {
     // 3. Load Library
     HMODULE hWinDivertDll = LoadLibraryA("SMCWinDivert.dll");
     if (!hWinDivertDll) {
-        DWORD err = GetLastError();
-        wchar_t msg[1024];
-        const wchar_t* desc = GetWinDivertErrorDescription(err);  // Reuse for common cases
-        wsprintfW(msg, L"Failed to load SMCWinDivert.dll\n\n"
-                       L"LoadLibrary error code: %lu\n\nDescription:\n%s", err, desc);
-        MessageBoxW(NULL, msg, L"WinDivert Load Error", MB_ICONERROR | MB_OK);
+        const DWORD err = GetLastError();
+        if (win32ErrorCode) {
+            *win32ErrorCode = err;
+        }
+        if (errorMessage) {
+            const std::string desc = WideToUtf8(GetWinDivertErrorDescription(err));
+            *errorMessage = "Failed to load SMCWinDivert.dll (LoadLibrary error " + std::to_string(err) + "). " + desc;
+        }
         return false;
     }
 
@@ -184,24 +213,24 @@ bool TryLoadWinDivert() {
     }
 
     if (!allLoaded) {
-        wsprintfW(buffer, L"Failed to resolve required WinDivert function(s):\n\n%s", missingFuncs);
-        MessageBoxW(NULL, buffer, L"WinDivert Symbol Resolution Error", MB_ICONERROR | MB_OK);
+        if (errorMessage) {
+            // missingFuncs is wide; keep the message short and actionable.
+            *errorMessage = "Failed to resolve required WinDivert exports from SMCWinDivert.dll.";
+        }
         FreeLibrary(hWinDivertDll);
         return false;
     }
 
 	HANDLE testHandle = pWinDivertOpen("false", WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF);
     if (testHandle == INVALID_HANDLE_VALUE) {
-        DWORD err = GetLastError();
-        const wchar_t* desc = GetWinDivertErrorDescription(err);
-
-        wchar_t msg[1024];
-        wsprintfW(msg, L"WinDivert DLL loaded successfully, but driver failed to open.\n\n"
-                       L"WinDivertOpen error code: %lu\n\n"
-                       L"Description:\n%s", err, desc);
-
-        MessageBoxW(NULL, msg, L"WinDivert Driver Error", MB_ICONERROR | MB_OK);
-
+        const DWORD err = GetLastError();
+        if (win32ErrorCode) {
+            *win32ErrorCode = err;
+        }
+        if (errorMessage) {
+            const std::string desc = WideToUtf8(GetWinDivertErrorDescription(err));
+            *errorMessage = "WinDivertOpen failed (error " + std::to_string(err) + "). " + desc;
+        }
         FreeLibrary(hWinDivertDll);
         return false;
     }
@@ -592,9 +621,12 @@ public:
             return true;
         }
 
-        if (!TryLoadWinDivert()) {
-            if (errorMessage) {
-                *errorMessage = "Failed to load or initialize WinDivert.";
+        DWORD win32Error = 0;
+        if (!TryLoadWinDivert(errorMessage, &win32Error)) {
+            if (win32Error == ERROR_ACCESS_DENIED && errorMessage) {
+                // Access denied is expected when not elevated. The caller is responsible
+                // for offering an elevation prompt instead of showing a generic critical dialog.
+                errorMessage->clear();
             }
             return false;
         }
