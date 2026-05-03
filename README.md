@@ -14,7 +14,6 @@ No, it's a macro, it doesn't communicate with Roblox memory in any way.
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 - Windows Installation: Run the executable "suspend" file.
 - Linux Native Installation: Run the native `suspend` build. If the setup screen appears, run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot.
-- Linux Wine Installation: The older Wine path remains available for compatibility, but the native build does not require Zenity or a root GUI session.
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
@@ -60,23 +59,17 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
 ## Debugging Instructions
   (To show printed messages)
   - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
-  - Linux: Run using `DEBUG=1 wine suspend.exe`.  
+  - Linux: Run using `DEBUG=1 ./suspend`.
 
 ## Compilation
 
-### Windows Method #1:
-- Run the .sln file in any Version of Visual Studio 2022 or newer and compile it.
-
-### Windows Method #2:
-- Open the project folder in Visual Studio Code and run the `Build Release` task with [MSBuild 2022 Tools for Desktop C++](https://aka.ms/vs/17/release/vs_buildtools.exe) installed.
-
 ### Windows CMake:
-```powershell
-cmake --preset windows-msvc-debug
-cmake --build --preset windows-msvc-debug
-```
+Open the repository folder directly in Visual Studio 2022 as a CMake project, or use VS Code with CMake Tools. The legacy `.sln`/`.vcxproj` files were removed intentionally.
 
-Use `windows-msvc-release` instead of `windows-msvc-debug` for a release build.
+```powershell
+cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
+cmake --build build/windows --config Release --target suspend
+```
 
 ### Linux Native Backend:
 The Linux build now produces the native `suspend` executable. SDL3 is built from the vendored source tree in `third_party/SDL`, so you do not need a system `libsdl3-dev` package.
@@ -88,12 +81,13 @@ sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config 
 
 Configure and build:
 ```bash
-cmake --preset linux-release && cmake --build --preset linux-release
+cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
+cmake --build build/linux --target suspend
 ```
 
 Build a portable folder:
 ```bash
-scripts/package_linux.sh
+cmake --build build/linux --target package-linux-dir
 ```
 
 This creates `build/linux-package/SpencerMacroUtilities/` with `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`. Copy the whole folder to a compatible Linux system and launch it with `./run.sh`. The app starts unprivileged; if native input permissions are missing, it shows setup options inside the UI.
@@ -107,9 +101,6 @@ Runtime notes for the native Linux backend:
 - X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`.
 - Wayland foreground process detection is intentionally unsupported.
 - Linux network lagswitch support is not part of the native backend target.
-
-### Linux Wine Helper:
-The existing Wine path still uses the separate Linux helper source in `visual studio/Resource Files/Suspend_Input_Helper_Source`. Compile that helper with `g++` when updating the Wine compatibility helper binary.
 
 ---
 

@@ -1,7 +1,7 @@
 #include "input_evdev_uinput.h"
 
 #include "../logging.h"
-#include "../../visual studio/Resource Files/keymapping.h"
+#include "../../core/keymapping.h"
 
 #include <algorithm>
 #include <cerrno>

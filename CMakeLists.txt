@@ -8,32 +8,50 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(SMU_VISUAL_STUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/visual studio")
-set(SMU_IMGUI_DIR "${SMU_VISUAL_STUDIO_DIR}/imgui-files")
-set(SMU_RESOURCE_DIR "${SMU_VISUAL_STUDIO_DIR}/Resource Files")
-set(SMU_WINDIVERT_DIR "${SMU_VISUAL_STUDIO_DIR}/windivert-files")
-set(SMU_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
-set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
-set(SMU_UPDATER_DIR "${SMU_PLATFORM_DIR}/updater")
 set(SMU_APP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/app")
 set(SMU_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
+set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
+set(SMU_PLATFORM_WINDOWS_DIR "${SMU_PLATFORM_DIR}/windows")
+set(SMU_PLATFORM_LINUX_DIR "${SMU_PLATFORM_DIR}/linux")
+set(SMU_UPDATER_DIR "${SMU_PLATFORM_DIR}/updater")
+set(SMU_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+set(SMU_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
+set(SMU_WINDOWS_RESOURCES_DIR "${SMU_RESOURCES_DIR}/windows")
+set(SMU_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
+set(SMU_IMGUI_DIR "${SMU_THIRD_PARTY_DIR}/imgui")
+set(SMU_MINIZ_DIR "${SMU_THIRD_PARTY_DIR}/miniz")
+set(SMU_WINDIVERT_DIR "${SMU_THIRD_PARTY_DIR}/windivert")
+set(SMU_JSON_DIR "${SMU_THIRD_PARTY_DIR}/json")
+set(SMU_WINDOWS_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL3-windows")
 
-option(SMU_USE_SDL_UI "Build the app GUI on SDL3 instead of the legacy Win32/WGL window backend." ON)
 option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable output folder." ON)
 option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
 
 if(WIN32)
     enable_language(RC)
 
-    set(SMU_WINDOWS_COMMON_SOURCES
+    set(SMU_WINDOWS_SOURCES
         "${SMU_IMGUI_DIR}/imgui.cpp"
         "${SMU_IMGUI_DIR}/imgui_demo.cpp"
         "${SMU_IMGUI_DIR}/imgui_draw.cpp"
         "${SMU_IMGUI_DIR}/imgui_impl_opengl3.cpp"
+        "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
         "${SMU_IMGUI_DIR}/imgui_tables.cpp"
         "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
+        "${SMU_APP_DIR}/app_assets.cpp"
+        "${SMU_APP_DIR}/app_context.cpp"
+        "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/app_profile_bridge.cpp"
+        "${SMU_APP_DIR}/app_theme_bridge.cpp"
+        "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/askpass.cpp"
+        "${SMU_APP_DIR}/input_actions.cpp"
+        "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/main_windows.cpp"
+        "${SMU_APP_DIR}/profile_manager.cpp"
+        "${SMU_APP_DIR}/theme_manager.cpp"
+        "${SMU_CORE_DIR}/app_state.cpp"
+        "${SMU_CORE_DIR}/macro_state.cpp"
         "${SMU_PLATFORM_DIR}/input_backend.cpp"
         "${SMU_PLATFORM_DIR}/logging.cpp"
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
@@ -41,66 +59,38 @@ if(WIN32)
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
         "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/suspend1.rc"
+        "${SMU_UPDATER_DIR}/updater.cpp"
+        "${SMU_UPDATER_DIR}/windows_updater.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/input_sendinput.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/network_windivert.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/process_win32.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/windows_backends.cpp"
+        "${SMU_MINIZ_DIR}/miniz.c"
+        "${SMU_WINDOWS_RESOURCES_DIR}/suspend.rc"
     )
-
-    if(SMU_USE_SDL_UI)
-        set(SMU_WINDOWS_SOURCES
-            ${SMU_WINDOWS_COMMON_SOURCES}
-            "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
-            "${SMU_APP_DIR}/app_assets.cpp"
-            "${SMU_APP_DIR}/app_context.cpp"
-            "${SMU_APP_DIR}/app_main.cpp"
-            "${SMU_APP_DIR}/macro_runtime.cpp"
-            "${SMU_APP_DIR}/app_profile_bridge.cpp"
-            "${SMU_APP_DIR}/app_theme_bridge.cpp"
-            "${SMU_APP_DIR}/app_ui.cpp"
-            "${SMU_APP_DIR}/input_actions.cpp"
-            "${SMU_CORE_DIR}/app_state.cpp"
-            "${SMU_CORE_DIR}/macro_state.cpp"
-            "${SMU_UPDATER_DIR}/updater.cpp"
-            "${SMU_UPDATER_DIR}/windows_updater.cpp"
-            "${SMU_RESOURCE_DIR}/miniz.c"
-            "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
-        )
-    else()
-        set(SMU_WINDOWS_SOURCES
-            ${SMU_WINDOWS_COMMON_SOURCES}
-            "${SMU_VISUAL_STUDIO_DIR}/macroframework.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/macros.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/network_manager.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/overlay.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
-            "${SMU_RESOURCE_DIR}/miniz.c"
-            "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
-            "${SMU_VISUAL_STUDIO_DIR}/wine_compatibility_layer.cpp"
-        )
-        list(APPEND SMU_WINDOWS_SOURCES "${SMU_IMGUI_DIR}/imgui_impl_win32.cpp")
-    endif()
 
     add_executable(suspend WIN32 ${SMU_WINDOWS_SOURCES})
 
     target_include_directories(suspend PRIVATE
-        "${SMU_VISUAL_STUDIO_DIR}"
-        "${SMU_IMGUI_DIR}"
-        "${SMU_RESOURCE_DIR}"
-        "${SMU_RESOURCE_DIR}/SDL3/include"
-        "${SMU_WINDIVERT_DIR}"
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
+        "${SMU_PLATFORM_DIR}"
+        "${SMU_PLATFORM_WINDOWS_DIR}"
+        "${SMU_IMGUI_DIR}"
+        "${SMU_MINIZ_DIR}"
+        "${SMU_WINDIVERT_DIR}"
+        "${SMU_JSON_DIR}"
+        "${SMU_WINDOWS_RESOURCES_DIR}"
+        "${SMU_WINDOWS_SDL3_DIR}/include"
     )
 
     target_compile_definitions(suspend PRIVATE
         UNICODE
         _UNICODE
         _CONSOLE
-        "SMU_USE_SDL_UI=$<BOOL:${SMU_USE_SDL_UI}>"
         "$<$<CONFIG:Debug>:_DEBUG>"
         "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>"
         SMU_USE_PLATFORM_ENTRYPOINT=1
-        "$<$<BOOL:${SMU_USE_SDL_UI}>:SMU_PORTABLE_GLOBALS=1>"
     )
 
     set_property(TARGET suspend PROPERTY
@@ -124,13 +114,11 @@ if(WIN32)
         )
     endif()
 
-    if(SMU_USE_SDL_UI)
-        set(SMU_SDL3_STATIC_LIB "${SMU_RESOURCE_DIR}/SDL3/lib/SDL3-static.lib")
-        if(EXISTS "${SMU_SDL3_STATIC_LIB}")
-            target_link_libraries(suspend PRIVATE "${SMU_SDL3_STATIC_LIB}")
-        else()
-            message(WARNING "SDL3 static library was not found: ${SMU_SDL3_STATIC_LIB}")
-        endif()
+    set(SMU_SDL3_STATIC_LIB "${SMU_WINDOWS_SDL3_DIR}/lib/SDL3-static.lib")
+    if(EXISTS "${SMU_SDL3_STATIC_LIB}")
+        target_link_libraries(suspend PRIVATE "${SMU_SDL3_STATIC_LIB}")
+    else()
+        message(WARNING "SDL3 static library was not found: ${SMU_SDL3_STATIC_LIB}")
     endif()
 
     target_link_libraries(suspend PRIVATE
@@ -190,19 +178,20 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
         "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
-        "${SMU_PLATFORM_DIR}/linux/display_server.cpp"
-        "${SMU_PLATFORM_DIR}/linux/foreground_x11.cpp"
-        "${SMU_PLATFORM_DIR}/linux/input_evdev_uinput.cpp"
-        "${SMU_PLATFORM_DIR}/linux/input_permissions.cpp"
-        "${SMU_PLATFORM_DIR}/linux/process_proc_cgroup.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/display_server.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/foreground_x11.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/input_evdev_uinput.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/input_permissions.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/process_proc_cgroup.cpp"
     )
 
     add_library(smu_platform_linux STATIC ${SMU_LINUX_PLATFORM_SOURCES})
 
     target_include_directories(smu_platform_linux PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}"
         "${SMU_PLATFORM_DIR}"
-        "${SMU_RESOURCE_DIR}"
+        "${SMU_IMGUI_DIR}"
+        "${SMU_MINIZ_DIR}"
+        "${SMU_JSON_DIR}"
     )
 
     target_link_libraries(smu_platform_linux PRIVATE Threads::Threads)
@@ -227,19 +216,19 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_context.cpp"
         "${SMU_APP_DIR}/askpass.cpp"
         "${SMU_APP_DIR}/app_main.cpp"
-        "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/app_profile_bridge.cpp"
         "${SMU_APP_DIR}/app_theme_bridge.cpp"
         "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
+        "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
+        "${SMU_APP_DIR}/profile_manager.cpp"
+        "${SMU_APP_DIR}/theme_manager.cpp"
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
         "${SMU_UPDATER_DIR}/updater.cpp"
         "${SMU_UPDATER_DIR}/linux_updater.cpp"
-        "${SMU_RESOURCE_DIR}/miniz.c"
-        "${SMU_VISUAL_STUDIO_DIR}/profile_manager.cpp"
-        "${SMU_VISUAL_STUDIO_DIR}/theme_manager.cpp"
+        "${SMU_MINIZ_DIR}/miniz.c"
     )
 
     add_executable(suspend ${SMU_LINUX_APP_SOURCES})
@@ -247,9 +236,9 @@ elseif(UNIX AND NOT APPLE)
     target_include_directories(suspend PRIVATE
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
-        "${SMU_VISUAL_STUDIO_DIR}"
-        "${SMU_RESOURCE_DIR}"
         "${SMU_IMGUI_DIR}"
+        "${SMU_MINIZ_DIR}"
+        "${SMU_JSON_DIR}"
     )
 
     target_compile_definitions(suspend PRIVATE
@@ -289,8 +278,8 @@ elseif(UNIX AND NOT APPLE)
         )
     endif()
 
-    set(SMU_LINUX_FONT_ASSET "${SMU_RESOURCE_DIR}/LSANS.TTF")
-    set(SMU_LINUX_ICON_ASSET "${SMU_RESOURCE_DIR}/smu_icon.bmp")
+    set(SMU_LINUX_FONT_ASSET "${SMU_ASSETS_DIR}/LSANS.TTF")
+    set(SMU_LINUX_ICON_ASSET "${SMU_ASSETS_DIR}/smu_icon.bmp")
 
     add_custom_command(TARGET suspend POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
@@ -352,10 +341,6 @@ elseif(UNIX AND NOT APPLE)
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/"
         )
     endif()
-
-    # The existing Wine helper remains intentionally unwired into the native
-    # Linux backend target while the Win32-heavy app entry point is split:
-    # "${SMU_RESOURCE_DIR}/Suspend_Input_Helper_Source/linux_helper.cpp"
 else()
     message(FATAL_ERROR "Unsupported platform for the suspend target.")
 endif()

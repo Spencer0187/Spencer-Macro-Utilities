@@ -6,7 +6,7 @@
 #ifndef SMU_PORTABLE_GLOBALS
 #define SMU_PORTABLE_GLOBALS
 #endif
-#include "Resource Files/theme_manager.h"
+#include "theme_manager.h"
 
 #include "imgui.h"
 
@@ -39,7 +39,7 @@ std::filesystem::path FindLinuxFontPath()
 
 #if defined(SMU_SOURCE_ROOT)
     const std::filesystem::path sourceTreeFont =
-        std::filesystem::path(SMU_SOURCE_ROOT) / "visual studio" / "Resource Files" / "LSANS.TTF";
+        std::filesystem::path(SMU_SOURCE_ROOT) / "assets" / "LSANS.TTF";
     if (std::filesystem::exists(sourceTreeFont)) {
         return sourceTreeFont;
     }
@@ -52,10 +52,10 @@ std::filesystem::path FindLinuxFontPath()
 std::filesystem::path FindLegacyFontPath()
 {
     const std::array<std::filesystem::path, 5> candidates = {
-        std::filesystem::path("visual studio/Resource Files/LSANS.TTF"),
-        std::filesystem::path("../visual studio/Resource Files/LSANS.TTF"),
-        std::filesystem::path("../../visual studio/Resource Files/LSANS.TTF"),
-        std::filesystem::path("Resource Files/LSANS.TTF"),
+        std::filesystem::path("assets/LSANS.TTF"),
+        std::filesystem::path("../assets/LSANS.TTF"),
+        std::filesystem::path("../../assets/LSANS.TTF"),
+        std::filesystem::path("./assets/LSANS.TTF"),
         std::filesystem::path("LSANS.TTF"),
     };
 

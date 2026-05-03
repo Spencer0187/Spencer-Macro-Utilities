@@ -1,0 +1,684 @@
+#pragma once
+#include <atomic>
+#include <vector>
+#include <string>
+#include <unordered_map>
+#include <chrono>
+#include <shared_mutex>
+#include <mutex>
+#include <set>
+#include <filesystem>
+#include <cctype>
+#include <cstring>
+#include <deque>
+#include <thread>
+#include <cstdint>
+#include <stdexcept>
+
+#define _CRT_SECURE_NO_WARNINGS
+
+#include "key_codes.h"
+#include "imgui.h"
+
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+#include <windows.h>
+#include "windivert.h"
+#else
+using HWND = void*;
+using HANDLE = void*;
+using DWORD = std::uint32_t;
+using BOOL = int;
+using INT16 = std::int16_t;
+using UINT = unsigned int;
+using UINT8 = std::uint8_t;
+using UINT64 = std::uint64_t;
+using PVOID = void*;
+using COLORREF = std::uint32_t;
+struct WINDIVERT_ADDRESS {};
+struct WINDIVERT_IPHDR {};
+struct WINDIVERT_IPV6HDR {};
+struct WINDIVERT_ICMPHDR {};
+struct WINDIVERT_ICMPV6HDR {};
+struct WINDIVERT_TCPHDR {};
+struct WINDIVERT_UDPHDR {};
+using PWINDIVERT_IPHDR = WINDIVERT_IPHDR*;
+using PWINDIVERT_IPV6HDR = WINDIVERT_IPV6HDR*;
+using PWINDIVERT_ICMPHDR = WINDIVERT_ICMPHDR*;
+using PWINDIVERT_ICMPV6HDR = WINDIVERT_ICMPV6HDR*;
+using PWINDIVERT_TCPHDR = WINDIVERT_TCPHDR*;
+using PWINDIVERT_UDPHDR = WINDIVERT_UDPHDR*;
+using WINDIVERT_LAYER = int;
+inline HANDLE const INVALID_HANDLE_VALUE = reinterpret_cast<HANDLE>(static_cast<std::intptr_t>(-1));
+inline constexpr int SM_CXSCREEN = 0;
+inline constexpr int SM_CYSCREEN = 1;
+inline constexpr int MAPVK_VSC_TO_VK = 1;
+inline int GetSystemMetrics(int index) { return index == SM_CXSCREEN ? 1280 : 800; }
+inline unsigned int VkKeyScanEx(char ch, void*) { return static_cast<unsigned int>(static_cast<unsigned char>(ch)); }
+inline void* GetKeyboardLayout(int) { return nullptr; }
+inline unsigned int MapVirtualKey(unsigned int code, unsigned int) { return code; }
+
+#ifndef _TRUNCATE
+#define _TRUNCATE static_cast<size_t>(-1)
+#endif
+
+inline int strncpy_s(char* destination, size_t destination_size, const char* source, size_t count)
+{
+    if (!destination || destination_size == 0) {
+        return 1;
+    }
+    if (!source) {
+        destination[0] = '\0';
+        return 0;
+    }
+    const size_t source_length = std::strlen(source);
+    const size_t copy_length = count == _TRUNCATE ? std::min(source_length, destination_size - 1) : std::min(count, destination_size - 1);
+    std::memcpy(destination, source, copy_length);
+    destination[copy_length] = '\0';
+    return source_length > copy_length ? 1 : 0;
+}
+
+#define VK_LBUTTON smu::core::SMU_VK_LBUTTON
+#define VK_RBUTTON smu::core::SMU_VK_RBUTTON
+#define VK_CANCEL smu::core::SMU_VK_CANCEL
+#define VK_MBUTTON smu::core::SMU_VK_MBUTTON
+#define VK_XBUTTON1 smu::core::SMU_VK_XBUTTON1
+#define VK_XBUTTON2 smu::core::SMU_VK_XBUTTON2
+#define VK_BACK smu::core::SMU_VK_BACK
+#define VK_TAB smu::core::SMU_VK_TAB
+#define VK_CLEAR 0x0C
+#define VK_RETURN smu::core::SMU_VK_RETURN
+#define VK_SHIFT smu::core::SMU_VK_SHIFT
+#define VK_CONTROL smu::core::SMU_VK_CONTROL
+#define VK_MENU smu::core::SMU_VK_MENU
+#define VK_PAUSE smu::core::SMU_VK_PAUSE
+#define VK_CAPITAL smu::core::SMU_VK_CAPITAL
+#define VK_ESCAPE smu::core::SMU_VK_ESCAPE
+#define VK_SPACE smu::core::SMU_VK_SPACE
+#define VK_PRIOR smu::core::SMU_VK_PRIOR
+#define VK_NEXT smu::core::SMU_VK_NEXT
+#define VK_END smu::core::SMU_VK_END
+#define VK_HOME smu::core::SMU_VK_HOME
+#define VK_LEFT smu::core::SMU_VK_LEFT
+#define VK_UP smu::core::SMU_VK_UP
+#define VK_RIGHT smu::core::SMU_VK_RIGHT
+#define VK_DOWN smu::core::SMU_VK_DOWN
+#define VK_SELECT 0x29
+#define VK_PRINT 0x2A
+#define VK_EXECUTE 0x2B
+#define VK_SNAPSHOT smu::core::SMU_VK_SNAPSHOT
+#define VK_INSERT smu::core::SMU_VK_INSERT
+#define VK_DELETE smu::core::SMU_VK_DELETE
+#define VK_HELP 0x2F
+#define VK_LWIN smu::core::SMU_VK_LWIN
+#define VK_RWIN smu::core::SMU_VK_RWIN
+#define VK_NUMPAD0 smu::core::SMU_VK_NUMPAD0
+#define VK_NUMPAD1 (smu::core::SMU_VK_NUMPAD0 + 1)
+#define VK_NUMPAD2 (smu::core::SMU_VK_NUMPAD0 + 2)
+#define VK_NUMPAD3 (smu::core::SMU_VK_NUMPAD0 + 3)
+#define VK_NUMPAD4 (smu::core::SMU_VK_NUMPAD0 + 4)
+#define VK_NUMPAD5 (smu::core::SMU_VK_NUMPAD0 + 5)
+#define VK_NUMPAD6 (smu::core::SMU_VK_NUMPAD0 + 6)
+#define VK_NUMPAD7 (smu::core::SMU_VK_NUMPAD0 + 7)
+#define VK_NUMPAD8 (smu::core::SMU_VK_NUMPAD0 + 8)
+#define VK_NUMPAD9 (smu::core::SMU_VK_NUMPAD0 + 9)
+#define VK_W smu::core::SMU_VK_W
+#define VK_MULTIPLY 0x6A
+#define VK_ADD 0x6B
+#define VK_SEPARATOR 0x6C
+#define VK_SUBTRACT 0x6D
+#define VK_DECIMAL 0x6E
+#define VK_DIVIDE 0x6F
+#define VK_LSHIFT smu::core::SMU_VK_LSHIFT
+#define VK_RSHIFT smu::core::SMU_VK_RSHIFT
+#define VK_LCONTROL smu::core::SMU_VK_LCONTROL
+#define VK_RCONTROL smu::core::SMU_VK_RCONTROL
+#define VK_LMENU smu::core::SMU_VK_LMENU
+#define VK_RMENU smu::core::SMU_VK_RMENU
+#define VK_OEM_PLUS smu::core::SMU_VK_OEM_PLUS
+#define VK_OEM_COMMA smu::core::SMU_VK_OEM_COMMA
+#define VK_OEM_MINUS smu::core::SMU_VK_OEM_MINUS
+#define VK_OEM_PERIOD smu::core::SMU_VK_OEM_PERIOD
+#define VK_OEM_2 smu::core::SMU_VK_OEM_2
+#define VK_OEM_3 smu::core::SMU_VK_OEM_3
+#define VK_OEM_4 smu::core::SMU_VK_OEM_4
+#define VK_OEM_5 smu::core::SMU_VK_OEM_5
+#define VK_OEM_6 smu::core::SMU_VK_OEM_6
+#define VK_OEM_7 smu::core::SMU_VK_OEM_7
+#define VK_OEM_8 0xDF
+#endif
+
+namespace Globals {
+    // CURRENT VERSION NUMBER OF PROGRAM
+    inline std::string localVersion = "3.2.1";
+
+    // --- Application & Window State ---
+    inline HWND hwnd = NULL;
+    inline std::atomic<bool> running = true;
+    inline std::atomic<bool> done = false;
+    inline std::atomic<unsigned int> RobloxFPS = 120;
+    inline std::vector<DWORD> targetPIDs;
+    inline std::vector<HANDLE> hProcess;
+    inline int screen_width = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CXSCREEN)) / 1.5);
+    inline int screen_height = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CYSCREEN)) / 1.5 + 10);
+    inline int raw_window_width = 0;
+    inline int raw_window_height = 0;
+    inline int WindowPosX = 0;
+    inline int WindowPosY = 0;
+    inline float windowOpacityPercent = 100.0f;
+    inline bool processFound = false;
+    inline bool UserOutdated = false;
+    inline bool ontoptoggle = false;
+
+    // --- Macro Atomic Flags ---
+    inline std::atomic<bool> isdesyncloop{ false };
+    inline std::atomic<bool> isspeed{ false };
+    inline std::atomic<bool> isHHJ{ false };
+    inline std::atomic<bool> isspamloop{ false };
+    inline std::atomic<bool> isitemloop{ false };
+    inline std::atomic<bool> iswallwalkloop{ false };
+    inline std::atomic<bool> isbhoploop{ false };
+    inline std::atomic<bool> isafk{ false };
+    inline std::atomic<bool> iswallhopthread{ false };
+    inline std::atomic<bool> ispresskeythread{ false };
+    inline std::atomic<bool> isfloorbouncethread{ false };
+    inline std::atomic<bool> g_isVk_BunnyhopHeldDown{ false };
+
+    // Bitmasks for key combinations (High bits of 32-bit int)
+    constexpr unsigned int HOTKEY_MASK_SHIFT = smu::core::HOTKEY_MASK_SHIFT;
+    constexpr unsigned int HOTKEY_MASK_CTRL = smu::core::HOTKEY_MASK_CTRL;
+    constexpr unsigned int HOTKEY_MASK_ALT = smu::core::HOTKEY_MASK_ALT;
+    constexpr unsigned int HOTKEY_MASK_WIN = smu::core::HOTKEY_MASK_WIN;
+    constexpr unsigned int HOTKEY_KEY_MASK = smu::core::HOTKEY_KEY_MASK;
+
+    // --- Keybind Variables (Virtual Keys) ---
+    inline unsigned int vk_f5 = smu::core::SMU_VK_F5;
+    inline unsigned int vk_f6 = smu::core::SMU_VK_F6;
+    inline unsigned int vk_f8 = smu::core::SMU_VK_F8;
+    inline unsigned int vk_mbutton = smu::core::SMU_VK_MBUTTON;
+    inline unsigned int vk_xbutton1 = smu::core::SMU_VK_XBUTTON1;
+    inline unsigned int vk_xbutton2 = smu::core::SMU_VK_XBUTTON2;
+    inline unsigned int vk_spamkey = smu::core::SMU_VK_LBUTTON;
+    inline unsigned int vk_clipkey = smu::core::SMU_VK_F3;
+    inline unsigned int vk_wallkey = smu::core::SMU_VK_F1;
+    inline unsigned int vk_laughkey = smu::core::SMU_VK_F7;
+    inline unsigned int vk_shiftkey = smu::core::SMU_VK_SHIFT;
+    inline unsigned int vk_enterkey = smu::core::SMU_VK_RETURN;
+    inline unsigned int vk_floorbouncekey = smu::core::SMU_VK_F4;
+    
+    // API-initialized keys
+    inline unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
+    inline unsigned int vk_bunnyhopkey = MapVirtualKey(0x39, MAPVK_VSC_TO_VK);
+    inline unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_autohhjkey1 = smu::core::SMU_VK_SPACE;  // First auto HHJ key (default: Spacebar)
+    inline unsigned int vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;  // Second auto HHJ key (default: W)
+    inline unsigned int vk_wallhopjumpkey = smu::core::SMU_VK_SPACE;
+
+    // --- Main Toggles & Switches ---
+    inline bool g_isLinuxWine = false;
+    inline bool notbinding = true;
+    inline bool macrotoggled = true;
+    inline bool shiftswitch = false;
+    inline bool unequiptoggle = false;
+    inline bool camfixtoggle = false;
+    inline bool wallhopswitch = false;
+    inline bool wallwalktoggleside = false;
+    inline bool wallhopcamfix = false;
+    inline bool chatoverride = true;
+    inline bool toggle_jump = true;
+    inline bool toggle_flick = true;
+    inline bool fasthhj = false;
+    inline bool globalzoomin = false;
+    inline bool globalzoominreverse = false;
+    inline bool wallesslhjswitch = false;
+    inline bool autotoggle = false;
+    inline bool isspeedswitch = false;
+    inline bool isfreezeswitch = false;
+    inline bool freezeoutsideroblox = true;
+    inline bool iswallwalkswitch = false;
+    inline bool isspamswitch = false;
+    inline bool isitemclipswitch = false;
+    inline bool antiafktoggle = true;
+    inline bool bouncesidetoggle = false;
+    inline bool bouncerealignsideways = true;
+    inline bool bounceautohold = true;
+    inline bool laughmoveswitch = false;
+    inline bool takeallprocessids = false;
+    inline bool bunnyhoptoggled = false;
+    inline bool bunnyhopsmart = true;
+    inline bool presskeyinroblox = false;
+    inline bool unequipinroblox = false;
+    inline bool shortdescriptions = false;
+    inline bool useoldpaste = true;
+    inline bool doublepressafkkey = true;
+    inline bool floorbouncehhj = false;
+    inline bool showadvancedhhjbounce = false;
+    inline bool showadvancedhhj = false;
+    inline bool showautomatichhj = false;
+    inline bool HHJFreezeDelayApply = false;
+    inline bool DontShowAdminWarning = false;
+    inline bool show_lag_overlay = false;
+    inline bool overlay_hide_inactive = false;
+    inline bool overlay_use_bg = false;
+    inline bool show_theme_menu = false;
+
+    // --- Numeric Settings ---
+    inline int wallhop_dx = 300;
+    inline int wallhop_dy = -300;
+    inline int wallhop_vertical = 0;
+    inline int speed_strengthx = 959;
+    inline int speed_strengthy = -959;
+    inline int wallwalk_strengthx = 94;
+    inline int wallwalk_strengthy = -94;
+    inline int speedoffsetx = 0;
+    inline int speedoffsety = 0;
+    inline int speed_slot = 3;
+    inline int desync_slot = 5;
+    inline int clip_slot = 7;
+    inline int clip_delay = 30;
+    inline int BunnyHopDelay = 10;
+    inline int RobloxWallWalkValueDelay = 72720;
+    inline float spam_delay = 20.0f;
+    inline float maxfreezetime = 9.00f;
+    inline float PreviousSensValue = -1.0f;
+    inline float PreviousWallWalkSide = 0;
+    inline float PreviousWallWalkValue = 0.5f;
+    inline int maxfreezeoverride = 50;
+    inline int real_delay = 1000;
+    inline int RobloxPixelValue = 716;
+    inline int RobloxWallWalkValue = -94;
+    inline int WallhopDelay = 17;
+    inline int WallhopBonusDelay = 0;
+    inline int AntiAFKTime = 15;
+    inline int display_scale = 100;
+    inline int PressKeyDelay = 16;
+    inline int PressKeyBonusDelay = 0;
+    inline int PasteDelay = 1;
+    inline int HHJLength = 243;
+    inline int HHJFreezeDelayOverride = 500;
+    inline int HHJDelay1 = 9;
+    inline int HHJDelay2 = 17;
+    inline int HHJDelay3 = 16;
+    inline int AutoHHJKey1Time = 550;           // First key hold time (ms)
+    inline int AutoHHJKey2Time = 68;            // Second key hold time (ms)
+    inline int FloorBounceDelay1 = 5;
+    inline int FloorBounceDelay2 = 8;
+    inline int FloorBounceDelay3 = 100;
+
+    // --- Overlay Ints ---
+    inline int overlay_x = -1;
+    inline int overlay_y = 50;
+    inline int overlay_size = 20;
+    inline float overlay_bg_r = 60.0f/255;
+    inline float overlay_bg_g = 90.0f/255;
+    inline float overlay_bg_b = 160.0f/255;
+
+    // --- Buffers & Strings ---
+    inline char settingsBuffer[256] = "RobloxPlayerBeta.exe";
+    inline char ItemDesyncSlot[256] = "5";
+    inline char ItemSpeedSlot[256] = "3";
+    inline char ItemClipSlot[256] = "7";
+    inline char ItemClipDelay[256] = "34";
+    inline char BunnyHopDelayChar[256] = "10";
+    inline char WallhopPixels[256] = "300";
+    inline char WallhopVerticalChar[256] = "0";
+    inline char WallhopDelayChar[256] = "19";
+    inline char WallhopBonusDelayChar[256] = "0";
+    inline char WallhopDegrees[256] = "150";
+    inline char SpamDelay[256] = "20";
+    inline char RobloxSensValue[256] = "0.5";
+    inline char RobloxPixelValueChar[256] = "716";
+    inline char RobloxWallWalkValueChar[256] = "-94";
+    inline char RobloxWallWalkValueDelayChar[256] = "72720";
+    inline char CustomTextChar[8192] = "";
+    inline char RobloxFPSChar[256] = "60";
+    inline char AntiAFKTimeChar[256] = "15";
+    inline char PressKeyDelayChar[256] = "16";
+    inline char PressKeyBonusDelayChar[256] = "0";
+    inline char PasteDelayChar[256] = "1";
+    inline char HHJLengthChar[16] = "243";
+    inline char HHJFreezeDelayOverrideChar[16] = "500";
+    inline char HHJDelay1Char[16] = "9";
+    inline char HHJDelay2Char[16] = "17";
+    inline char HHJDelay3Char[16] = "16";
+    inline char AutoHHJKey1TimeChar[16] = "550";
+    inline char AutoHHJKey2TimeChar[16] = "68";
+    inline char FloorBounceDelay1Char[16] = "5";
+    inline char FloorBounceDelay2Char[16] = "8";
+    inline char FloorBounceDelay3Char[16] = "100";
+    inline std::string text = "/e dance2";
+
+    // Trim leading and trailing whitespace in-place for C-style strings
+    inline void TrimWhitespace(char* s) {
+        if (!s) return;
+        // Trim leading
+        char* start = s;
+        while (*start && std::isspace(static_cast<unsigned char>(*start))) start++;
+        if (start != s) {
+            std::memmove(s, start, std::strlen(start) + 1);
+        }
+        // Trim trailing
+        size_t len = std::strlen(s);
+        if (len == 0) return;
+        char* end = s + len - 1;
+        while (end >= s && std::isspace(static_cast<unsigned char>(*end))) {
+            *end = '\0';
+            --end;
+        }
+    }
+
+    // --- Section Management ---
+    inline constexpr int section_amounts = 16;
+    inline int section_order[16] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
+    inline bool section_toggles[16] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false, false, false};
+    inline bool disable_outside_roblox[16] = {true, true, false, true, true, true, false, false, true, true, true, false, true, true, true, false};
+    inline int selected_section = -1;
+    inline int dragged_section = -1;
+    inline int selected_dropdown = 0;
+
+    // --- Profile Management Constants ---
+    inline std::string G_SETTINGS_FILEPATH = "SMCSettings.json";
+    inline std::string G_CURRENTLY_LOADED_PROFILE_NAME = "";
+    inline const std::string METADATA_KEY = "_metadata";
+    inline const std::string LAST_ACTIVE_PROFILE_KEY = "last_active_profile";
+
+    // WinDivert DLL and SYS name declarations
+    inline const std::string DLL_NAME = "SMCWinDivert.dll";
+    inline const std::string SYS_NAME = "WinDivert64.sys";
+
+    // getSettingsFileName() removed — replaced by ResolveSettingsFilePath() in profile_manager.cpp
+
+    // Run admin system command without flashing CMD Window, Required for WinDivert
+    inline int quiet_system(const std::string& cmd) {
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+        // Convert command to wide string (for CreateProcessW)
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, cmd.c_str(), -1, nullptr, 0);
+        std::wstring wcmd(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, cmd.c_str(), -1, &wcmd[0], size_needed);
+
+        // Build full command line: cmd.exe /C command
+        std::wstring full_cmd = L"cmd.exe /C " + wcmd;
+
+        STARTUPINFOW si = { sizeof(si) };
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        PROCESS_INFORMATION pi = { 0 };
+
+        BOOL success = CreateProcessW(
+            nullptr,                  // No module name (use command line)
+            &full_cmd[0],             // Command line (modifiable)
+            nullptr,                  // Process handle not inheritable
+            nullptr,                  // Thread handle not inheritable
+            FALSE,                    // No handle inheritance
+            CREATE_NO_WINDOW,         // Creation flags (key: no console window)
+            nullptr,                  // Use parent's environment
+            nullptr,                  // Use parent's starting directory
+            &si,                      // Pointer to STARTUPINFO
+            &pi                       // Pointer to PROCESS_INFORMATION
+        );
+
+        if (!success) {
+            throw std::runtime_error("CreateProcess failed");
+        }
+
+        // Wait for the command to complete
+        WaitForSingleObject(pi.hProcess, INFINITE);
+
+        // Get exit code
+        DWORD exit_code;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+
+        // Clean up handles
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+
+        return static_cast<int>(exit_code);
+#else
+        (void)cmd;
+        return -1;
+#endif
+    }
+
+    // --- Lookup Tables ---
+    inline const std::unordered_map<int, std::string> vkToString = {
+        {VK_LBUTTON, "VK_LBUTTON"}, {VK_RBUTTON, "VK_RBUTTON"}, {VK_CANCEL, "VK_CANCEL"},
+        {VK_MBUTTON, "VK_MBUTTON"}, {VK_XBUTTON1, "VK_XBUTTON1"}, {VK_XBUTTON2, "VK_XBUTTON2"},
+        {VK_BACK, "VK_BACK"}, {VK_TAB, "VK_TAB"}, {VK_CLEAR, "VK_CLEAR"}, {VK_RETURN, "VK_RETURN"},
+        {VK_SHIFT, "VK_SHIFT"}, {VK_CONTROL, "VK_CONTROL"}, {VK_MENU, "VK_MENU"}, {VK_PAUSE, "VK_PAUSE"},
+        {VK_CAPITAL, "VK_CAPITAL"}, {VK_ESCAPE, "VK_ESCAPE"}, {VK_SPACE, "VK_SPACE"}, {VK_PRIOR, "VK_PRIOR"},
+        {VK_NEXT, "VK_NEXT"}, {VK_END, "VK_END"}, {VK_HOME, "VK_HOME"}, {VK_LEFT, "VK_LEFT"},
+        {VK_UP, "VK_UP"}, {VK_RIGHT, "VK_RIGHT"}, {VK_DOWN, "VK_DOWN"}, {VK_SELECT, "VK_SELECT"},
+        {VK_PRINT, "VK_PRINT"}, {VK_EXECUTE, "VK_EXECUTE"}, {VK_SNAPSHOT, "VK_SNAPSHOT"},
+        {VK_INSERT, "VK_INSERT"}, {VK_DELETE, "VK_DELETE"}, {VK_HELP, "VK_HELP"}, {VK_LWIN, "VK_LWIN"},
+        {VK_RWIN, "VK_RWIN"}, {VK_NUMPAD0, "VK_NUMPAD0"}, {VK_NUMPAD1, "VK_NUMPAD1"},
+        {VK_NUMPAD2, "VK_NUMPAD2"}, {VK_NUMPAD3, "VK_NUMPAD3"}, {VK_NUMPAD4, "VK_NUMPAD4"},
+        {VK_NUMPAD5, "VK_NUMPAD5"}, {VK_NUMPAD6, "VK_NUMPAD6"}, {VK_NUMPAD7, "VK_NUMPAD7"},
+        {VK_NUMPAD8, "VK_NUMPAD8"}, {VK_NUMPAD9, "VK_NUMPAD9"}, {VK_MULTIPLY, "VK_MULTIPLY"},
+        {VK_ADD, "VK_ADD"}, {VK_SEPARATOR, "VK_SEPARATOR"}, {VK_SUBTRACT, "VK_SUBTRACT"},
+        {VK_DECIMAL, "VK_DECIMAL"}, {VK_DIVIDE, "VK_DIVIDE"}, {VK_LSHIFT, "VK_LSHIFT"},
+        {VK_RSHIFT, "VK_RSHIFT"}, {VK_LCONTROL, "VK_LCONTROL"}, {VK_RCONTROL, "VK_RCONTROL"},
+        {VK_LMENU, "VK_LMENU"}, {VK_RMENU, "VK_RMENU"}, {VK_OEM_PLUS, "VK_OEM_PLUS"},
+        {VK_OEM_COMMA, "VK_OEM_COMMA"}, {VK_OEM_MINUS, "VK_OEM_MINUS"}, {VK_OEM_PERIOD, "VK_OEM_PERIOD"},
+        {VK_OEM_2, "VK_OEM_2"}, {VK_OEM_3, "VK_OEM_3"}, {VK_OEM_4, "VK_OEM_4"}, {VK_OEM_5, "VK_OEM_5"},
+        {VK_OEM_6, "VK_OEM_6"}, {VK_OEM_7, "VK_OEM_7"}, {VK_OEM_8, "VK_OEM_8"}, {0x0, "RESTART PC"},
+        {256, "M_WHEEL_UP"}, {257, "M_WHEEL_DOWN"}
+    };
+
+    inline const std::unordered_map<int, unsigned int*> section_to_key = {
+        {0, &vk_mbutton}, {1, &vk_f5}, {2, &vk_xbutton1}, {3, &vk_xkey},
+        {4, &vk_f8}, {5, &vk_zkey}, {6, &vk_xbutton2}, {7, &vk_f6},
+        {8, &vk_clipkey}, {9, &vk_laughkey}, {10, &vk_wallkey}, {11, &vk_leftbracket},
+        {12, &vk_bouncekey}, {13, &vk_bunnyhopkey}, {14, &vk_floorbouncekey}, {15, &vk_lagswitchkey}
+    };
+
+    // Theme manager variables
+
+    struct Theme {
+        std::string name;
+        ImVec4 bg_dark;
+        ImVec4 bg_medium;
+        ImVec4 bg_light;
+        ImVec4 accent_primary;
+        ImVec4 accent_secondary;
+        ImVec4 text_primary;
+        ImVec4 text_secondary;
+        ImVec4 success_color;
+        ImVec4 warning_color;
+        ImVec4 error_color;
+        ImVec4 border_color;
+        ImVec4 disabled_color;
+        float window_rounding;
+        float frame_rounding;
+        float button_rounding;
+    };
+
+    // --- Theme State ---
+    inline int current_theme_index = 0;
+    inline bool theme_modified = false;
+    
+    // We define these empty here, they are populated in theme_manager.cpp
+    inline std::vector<Theme> themes; 
+    inline Theme custom_theme;
+    
+    // Helper to get the active theme easily in the main loop
+    inline Theme& GetCurrentTheme() {
+        if (current_theme_index < 0 || current_theme_index >= themes.size()) {
+            return custom_theme;
+        }
+        return themes[current_theme_index];
+    }
+
+    // Windivert variable storage
+    inline bool islagswitchswitch = true;
+    inline bool lagswitchoutbound = true;
+    inline bool lagswitchinbound = true;
+    inline bool lagswitchtargetroblox = true;
+    inline bool lagswitchlaginbound = true;
+    inline bool lagswitchlagoutbound = true;
+    inline bool lagswitchlag = false;
+    inline bool lagswitchusetcp = false;
+    inline bool prevent_disconnect = true;
+    inline bool bShowAdminPopup = false;
+    inline bool lagswitch_autounblock = false;
+    inline float lagswitch_max_duration = 9.00f;
+    inline int lagswitchlagdelay = 0;
+    inline int lagswitch_unblock_ms = 50;
+    inline bool bWinDivertEnabled = false;
+    inline bool bDependenciesLoaded = false;
+
+    inline std::string g_current_windivert_filter = "true";
+
+    inline std::atomic<bool> g_windivert_running(false);
+    inline std::atomic<bool> g_windivert_blocking(false);
+    inline std::atomic<bool> g_log_thread_running(false);
+    inline std::atomic<bool> g_ip_list_updated(false);
+    inline auto lagswitch_start_time = std::chrono::steady_clock::now();
+
+    inline const std::string ROBLOX_RANGE_FILTER = "((ip.SrcAddr >= 128.116.0.0 and ip.SrcAddr <= 128.116.255.255) or (ip.DstAddr >= 128.116.0.0 and ip.DstAddr <= 128.116.255.255))";
+
+    inline std::set<std::string> g_roblox_dynamic_ips;
+    inline std::shared_mutex g_ip_mutex;
+
+    inline HANDLE hWindivert = INVALID_HANDLE_VALUE;
+    inline std::mutex g_windivert_handle_mutex;
+
+    // --- WinDivert Function Pointers ---
+    typedef HANDLE (*tWinDivertOpen)(const char *filter, WINDIVERT_LAYER layer, INT16 priority, UINT64 flags);
+    typedef BOOL (*tWinDivertRecv)(HANDLE handle, PVOID pPacket, UINT packetLen, UINT *pRecvLen, WINDIVERT_ADDRESS *pAddr);
+    typedef BOOL (*tWinDivertSend)(HANDLE handle, const PVOID pPacket, UINT packetLen, UINT *pSendLen, const WINDIVERT_ADDRESS *pAddr);
+    typedef BOOL (*tWinDivertClose)(HANDLE handle);
+    typedef BOOL (*tWinDivertHelperParsePacket)(
+	    const void *pPacket, UINT packetLen, PWINDIVERT_IPHDR *ppIpHdr,
+	    PWINDIVERT_IPV6HDR *ppIpv6Hdr, UINT8 *pProtocol, PWINDIVERT_ICMPHDR *ppIcmpHdr,
+	    PWINDIVERT_ICMPV6HDR *ppIcmpv6Hdr, PWINDIVERT_TCPHDR *ppTcpHdr, PWINDIVERT_UDPHDR *ppUdpHdr,
+	    PVOID *ppData, UINT *pDataLen, PVOID *ppNext, UINT *pNextLen);
+    typedef UINT64 (*tWinDivertHelperCalcChecksums)(void* pPacket, UINT packetLen, WINDIVERT_ADDRESS* pAddr, UINT64 flags);
+
+    // DLL mapping pointers
+    inline tWinDivertOpen pWinDivertOpen = nullptr;
+    inline tWinDivertRecv pWinDivertRecv = nullptr;
+    inline tWinDivertSend pWinDivertSend = nullptr;
+    inline tWinDivertClose pWinDivertClose = nullptr;
+    inline tWinDivertHelperParsePacket pWinDivertHelperParsePacket = nullptr;
+    inline tWinDivertHelperCalcChecksums pWinDivertHelperCalcChecksums = nullptr;
+
+    // =========================================================================
+    //  Per-instance structs for dynamically duplicatable macros
+    //  Copy constructor is deleted: use std::deque and emplace_back() only.
+    // =========================================================================
+
+    struct WallhopInstance {
+        // Config
+        int wallhop_dx          = 300;
+        int wallhop_dy          = -300;
+        int wallhop_vertical    = 0;
+        int WallhopDelay        = 17;
+        int WallhopBonusDelay   = 0;
+        char WallhopPixels[256];
+        char WallhopVerticalChar[256];
+        char WallhopDelayChar[256];
+        char WallhopBonusDelayChar[256];
+        char WallhopDegrees[256];
+        bool wallhopswitch      = false;
+        bool toggle_jump        = true;
+        bool toggle_flick       = true;
+        bool wallhopcamfix      = false;
+        bool disable_outside_roblox = false;
+        bool section_enabled    = true;
+        unsigned int vk_trigger = smu::core::SMU_VK_XBUTTON2;
+        unsigned int vk_jumpkey = smu::core::SMU_VK_SPACE;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        WallhopInstance() {
+            strncpy_s(WallhopPixels,         sizeof(WallhopPixels),         "300", _TRUNCATE);
+            strncpy_s(WallhopVerticalChar,    sizeof(WallhopVerticalChar),    "0",   _TRUNCATE);
+            strncpy_s(WallhopDelayChar,      sizeof(WallhopDelayChar),      "19",  _TRUNCATE);
+            strncpy_s(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), "0",   _TRUNCATE);
+            strncpy_s(WallhopDegrees,        sizeof(WallhopDegrees),        "150", _TRUNCATE);
+        }
+        WallhopInstance(const WallhopInstance&)            = delete;
+        WallhopInstance& operator=(const WallhopInstance&) = delete;
+    };
+
+    struct PresskeyInstance {
+        // Config
+        unsigned int vk_trigger  = 0x5A;  // 'Z'
+        unsigned int vk_presskey = 0x44;  // 'D'
+        int PressKeyDelay        = 16;
+        int PressKeyBonusDelay   = 0;
+        char PressKeyDelayChar[256];
+        char PressKeyBonusDelayChar[256];
+        bool presskeyinroblox  = false;
+        bool section_enabled   = true;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        PresskeyInstance() {
+            strncpy_s(PressKeyDelayChar,      sizeof(PressKeyDelayChar),      "16", _TRUNCATE);
+            strncpy_s(PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), "0",  _TRUNCATE);
+        }
+        PresskeyInstance(const PresskeyInstance&)            = delete;
+        PresskeyInstance& operator=(const PresskeyInstance&) = delete;
+    };
+
+    struct SpamkeyInstance {
+        // Config
+        unsigned int vk_trigger = 0xDB;   // VK_OEM_4 ('[') on US layout; synced from vk_leftbracket at startup
+        unsigned int vk_spamkey = smu::core::SMU_VK_LBUTTON;
+        float spam_delay        = 20.0f;
+        int   real_delay        = 1000;
+        char  SpamDelay[256];
+        bool  isspamswitch    = false;
+        bool  disable_outside_roblox = false;
+        bool  section_enabled = false;
+        // Runtime
+        std::atomic<bool> thread_active{false};
+        bool should_exit = false;
+        bool isRunning   = false;
+
+        SpamkeyInstance() {
+            strncpy_s(SpamDelay, sizeof(SpamDelay), "20", _TRUNCATE);
+        }
+        SpamkeyInstance(const SpamkeyInstance&)            = delete;
+        SpamkeyInstance& operator=(const SpamkeyInstance&) = delete;
+    };
+
+    // Instance deques — use emplace_back() to add elements; never copy/move
+    inline std::deque<WallhopInstance>  wallhop_instances;
+    inline std::deque<PresskeyInstance> presskey_instances;
+    inline std::deque<SpamkeyInstance>  spamkey_instances;
+
+    // Threads for instances — emplace_back(func, &inst) to launch
+    inline std::deque<std::thread> wallhop_threads;
+    inline std::deque<std::thread> presskey_threads;
+    inline std::deque<std::thread> spamkey_threads;
+
+    // Which instance is shown in the right panel
+    inline int selected_wallhop_instance  = 0;
+    inline int selected_presskey_instance = 0;
+    inline int selected_spamkey_instance  = 0;
+
+    // Request flags: set by GUI thread, consumed by main hotkey loop
+    inline std::atomic<bool> request_new_wallhop_instance{false};
+    inline std::atomic<bool> request_new_presskey_instance{false};
+    inline std::atomic<bool> request_new_spamkey_instance{false};
+    inline std::atomic<int> request_remove_wallhop_instance_index{-1};
+    inline std::atomic<int> request_remove_presskey_instance_index{-1};
+    inline std::atomic<int> request_remove_spamkey_instance_index{-1};
+
+    // Set by DeserializeProfileData after populating extra instances in the deques;
+    // the main loop detects this flag and starts threads for the newly added slots.
+    inline std::atomic<bool> g_extra_instances_loaded{false};
+}

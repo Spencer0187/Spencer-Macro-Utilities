@@ -1,6 +1,6 @@
 #include "updater.h"
 
-#include "Resource Files/json.hpp"
+#include "json.hpp"
 #include "miniz.h"
 
 #include <algorithm>
