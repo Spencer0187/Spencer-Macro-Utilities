@@ -6,10 +6,13 @@
 #include <cerrno>
 #include <cctype>
 #include <cstring>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <system_error>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
@@ -225,48 +228,219 @@ bool DownloadUrlToMemory(const std::string& url, std::vector<char>& data, std::s
     return !data.empty();
 }
 
+
 int ScoreAssetForCurrentPlatform(const ReleaseAsset& asset)
 {
     const std::string name = Lower(asset.name);
-    if (Contains(name, "windows") || Contains(name, "win64") || Contains(name, "win32") || EndsWith(name, ".exe")) {
+
+    // Linux auto-apply is AppImage-only. Do not select tarballs or ZIPs here.
+    if (!EndsWith(name, ".appimage")) {
         return 0;
     }
 
-    const bool hasLinuxMarker =
-        Contains(name, "linux") ||
-        Contains(name, "appimage") ||
-        Contains(name, "x86_64") ||
-        Contains(name, "amd64");
-    const bool packageLooksLinux =
-        EndsWith(name, ".appimage") ||
-        EndsWith(name, ".tar.gz") ||
-        EndsWith(name, ".tgz") ||
-        (EndsWith(name, ".zip") && hasLinuxMarker);
-    if (!packageLooksLinux) {
+#if defined(__x86_64__) || defined(__amd64__)
+    if (Contains(name, "aarch64") || Contains(name, "arm64")) {
         return 0;
     }
+#elif defined(__aarch64__)
+    if (Contains(name, "x86_64") || Contains(name, "amd64")) {
+        return 0;
+    }
+#endif
 
-    int score = 0;
-    if (Contains(name, "linux")) score += 50;
-    if (Contains(name, "x86_64") || Contains(name, "amd64")) score += 10;
-    if (EndsWith(name, ".appimage")) score += 40;
-    if (EndsWith(name, ".tar.gz") || EndsWith(name, ".tgz")) score += 25;
-    if (EndsWith(name, ".zip")) score += 10;
-    if (Contains(name, "spencer") || Contains(name, "macro") || Contains(name, "suspend")) score += 8;
-    return score;
+    // Return a flat score so SelectUpdateAsset() keeps the first matching AppImage.
+    return 100;
 }
+
 
 bool PlatformAutoApplySupported()
 {
-    return false;
+    const char* appImagePath = std::getenv("APPIMAGE");
+    if (!appImagePath || !*appImagePath) {
+        return false;
+    }
+
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::path(appImagePath), ec) && !ec;
 }
 
-bool ApplyUpdateFromAsset(const ReleaseAsset&, const std::string&, const std::string&, std::string* errorMessage)
+
+bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const std::string&, std::string* errorMessage)
 {
-    if (errorMessage) {
-        *errorMessage = "Update check is available on Linux, but auto-apply is not implemented until Linux release packaging is finalized.";
+    const std::string assetName = Lower(asset.name);
+    if (!EndsWith(assetName, ".appimage")) {
+        if (errorMessage) {
+            *errorMessage = "Linux auto-update only supports AppImage release assets.";
+        }
+        return false;
     }
-    return false;
+
+    const char* appImageEnv = std::getenv("APPIMAGE");
+    if (!appImageEnv || !*appImageEnv) {
+        if (errorMessage) {
+            *errorMessage = "Linux auto-update requires running SMU from an AppImage. APPIMAGE is not set.";
+        }
+        return false;
+    }
+
+    std::error_code ec;
+    const std::filesystem::path currentAppImage = std::filesystem::absolute(std::filesystem::path(appImageEnv), ec);
+    if (ec || currentAppImage.empty()) {
+        if (errorMessage) {
+            *errorMessage = "Could not resolve the current AppImage path.";
+        }
+        return false;
+    }
+
+    if (!std::filesystem::exists(currentAppImage, ec) || ec) {
+        if (errorMessage) {
+            *errorMessage = "Current AppImage path does not exist: " + currentAppImage.string();
+        }
+        return false;
+    }
+
+    const std::filesystem::path appImageDir = currentAppImage.parent_path();
+    if (appImageDir.empty() || access(appImageDir.c_str(), W_OK) != 0) {
+        if (errorMessage) {
+            *errorMessage = "Cannot update AppImage because its folder is not writable: " + appImageDir.string();
+        }
+        return false;
+    }
+
+    const std::filesystem::path tempAppImage =
+        appImageDir / ("." + currentAppImage.filename().string() + ".update-" + std::to_string(getpid()) + ".tmp");
+
+    std::filesystem::remove(tempAppImage, ec);
+
+    if (!DownloadUrlToFile(asset.downloadUrl, tempAppImage, errorMessage)) {
+        std::filesystem::remove(tempAppImage, ec);
+        return false;
+    }
+
+    if (!std::filesystem::exists(tempAppImage, ec) || ec || std::filesystem::file_size(tempAppImage, ec) == 0 || ec) {
+        std::filesystem::remove(tempAppImage, ec);
+        if (errorMessage) {
+            *errorMessage = "Downloaded AppImage was missing or empty.";
+        }
+        return false;
+    }
+
+    if (chmod(tempAppImage.c_str(), 0755) != 0) {
+        std::filesystem::remove(tempAppImage, ec);
+        if (errorMessage) {
+            *errorMessage = std::string("Failed to make downloaded AppImage executable: ") + std::strerror(errno);
+        }
+        return false;
+    }
+
+    char scriptTemplate[] = "/tmp/smu-appimage-updater-XXXXXX";
+    const int scriptFd = mkstemp(scriptTemplate);
+    if (scriptFd < 0) {
+        std::filesystem::remove(tempAppImage, ec);
+        if (errorMessage) {
+            *errorMessage = std::string("Failed to create updater script: ") + std::strerror(errno);
+        }
+        return false;
+    }
+    close(scriptFd);
+
+    const std::filesystem::path scriptPath(scriptTemplate);
+    {
+        std::ofstream script(scriptPath, std::ios::binary | std::ios::trunc);
+        if (!script) {
+            std::filesystem::remove(tempAppImage, ec);
+            std::filesystem::remove(scriptPath, ec);
+            if (errorMessage) {
+                *errorMessage = "Failed to open updater script for writing.";
+            }
+            return false;
+        }
+
+        script <<
+            "#!/bin/sh\n"
+            "set -u\n"
+            "\n"
+            "OLD_APPIMAGE=\"$1\"\n"
+            "NEW_APPIMAGE=\"$2\"\n"
+            "OLD_PID=\"$3\"\n"
+            "LOG_FILE=\"${TMPDIR:-/tmp}/smu-appimage-updater.log\"\n"
+            "\n"
+            "echo \"SMU AppImage updater started\" > \"$LOG_FILE\"\n"
+            "echo \"Old AppImage: $OLD_APPIMAGE\" >> \"$LOG_FILE\"\n"
+            "echo \"New AppImage: $NEW_APPIMAGE\" >> \"$LOG_FILE\"\n"
+            "echo \"Old PID: $OLD_PID\" >> \"$LOG_FILE\"\n"
+            "\n"
+            "i=0\n"
+            "while kill -0 \"$OLD_PID\" 2>/dev/null; do\n"
+            "    i=$((i + 1))\n"
+            "    if [ \"$i\" -gt 100 ]; then\n"
+            "        echo \"Timed out waiting for old SMU process to exit\" >> \"$LOG_FILE\"\n"
+            "        exit 1\n"
+            "    fi\n"
+            "    sleep 0.1\n"
+            "done\n"
+            "\n"
+            "sleep 0.5\n"
+            "\n"
+            "chmod 755 \"$NEW_APPIMAGE\" 2>> \"$LOG_FILE\" || exit 1\n"
+            "\n"
+            "i=0\n"
+            "while true; do\n"
+            "    if mv -f -- \"$NEW_APPIMAGE\" \"$OLD_APPIMAGE\" 2>> \"$LOG_FILE\"; then\n"
+            "        break\n"
+            "    fi\n"
+            "\n"
+            "    i=$((i + 1))\n"
+            "    if [ \"$i\" -gt 40 ]; then\n"
+            "        echo \"Failed to replace old AppImage\" >> \"$LOG_FILE\"\n"
+            "        exit 1\n"
+            "    fi\n"
+            "\n"
+            "    sleep 0.25\n"
+            "done\n"
+            "\n"
+            "nohup \"$OLD_APPIMAGE\" >/dev/null 2>&1 &\n"
+            "rm -f -- \"$0\"\n"
+            "exit 0\n";
+    }
+
+    if (chmod(scriptPath.c_str(), 0700) != 0) {
+        std::filesystem::remove(tempAppImage, ec);
+        std::filesystem::remove(scriptPath, ec);
+        if (errorMessage) {
+            *errorMessage = std::string("Failed to make updater script executable: ") + std::strerror(errno);
+        }
+        return false;
+    }
+
+    const pid_t child = fork();
+    if (child < 0) {
+        std::filesystem::remove(tempAppImage, ec);
+        std::filesystem::remove(scriptPath, ec);
+        if (errorMessage) {
+            *errorMessage = std::string("Failed to launch updater script: ") + std::strerror(errno);
+        }
+        return false;
+    }
+
+    if (child == 0) {
+        setsid();
+
+        const std::string oldPid = std::to_string(getppid());
+        execl(
+            "/bin/sh",
+            "sh",
+            scriptPath.c_str(),
+            currentAppImage.c_str(),
+            tempAppImage.c_str(),
+            oldPid.c_str(),
+            static_cast<char*>(nullptr));
+
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+
+    std::exit(0);
+    return true;
 }
 
 } // namespace smu::updater::detail

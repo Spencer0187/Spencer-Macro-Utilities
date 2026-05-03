@@ -669,7 +669,7 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
 
     runWorker([] {
         HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(17ms);
+        std::this_thread::sleep_for(30ms);
         ReleaseKeyBinded(vk_chatkey);
         std::this_thread::sleep_for(50ms);
         smu::platform::pasteText("/e laugh", std::max(0, PasteDelay));
