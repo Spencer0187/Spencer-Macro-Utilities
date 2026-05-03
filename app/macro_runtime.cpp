@@ -573,15 +573,15 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
     const std::string emoteText = text;
     runWorker([customText, emoteText] {
         HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(30ms);
+        std::this_thread::sleep_for(35ms);
         ReleaseKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(17ms);
+        std::this_thread::sleep_for(50ms);
 
         const bool custom = !customText.empty();
         smu::platform::pasteText(custom ? customText : emoteText, std::max(0, PasteDelay));
         std::this_thread::sleep_for(25ms);
         HoldKeyBinded(vk_enterkey);
-        std::this_thread::sleep_for(35ms);
+        std::this_thread::sleep_for(80ms);
         ReleaseKeyBinded(vk_enterkey);
 
         if (custom) {
@@ -669,11 +669,11 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
 
     runWorker([] {
         HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(30ms);
+        std::this_thread::sleep_for(35ms);
         ReleaseKeyBinded(vk_chatkey);
         std::this_thread::sleep_for(50ms);
         smu::platform::pasteText("/e laugh", std::max(0, PasteDelay));
-        std::this_thread::sleep_for(50ms);
+        std::this_thread::sleep_for(80ms);
         HoldKeyBinded(vk_enterkey);
         std::this_thread::sleep_for(35ms);
         ReleaseKeyBinded(vk_enterkey);
