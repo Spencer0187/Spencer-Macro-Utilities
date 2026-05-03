@@ -36,6 +36,7 @@ public:
 
     bool checkDeadline() const;
     void sleepWithDeadline(int ms);
+    void scheduleCoroutineSleep(lua_State* thread, int ms);
     void setFreeze(bool enabled);
     void setLagSwitch(bool enabled);
 
@@ -43,10 +44,16 @@ private:
     bool callProtected(int argCount, const char* context);
     void beginTimedCall();
     void endTimedCall();
+    bool drainSleepingCoroutines();
 
     lua_State* L_ = nullptr;
     ImportedScriptRecord* owner_ = nullptr;
     std::chrono::steady_clock::time_point deadline_{};
+    struct SleepingCoroutine {
+        lua_State* thread = nullptr;
+        std::chrono::steady_clock::time_point wakeTime{};
+    };
+    std::vector<SleepingCoroutine> sleepingCoroutines_;
     std::vector<smu::platform::PlatformPid> frozenPids_;
 };
 

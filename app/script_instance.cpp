@@ -140,7 +140,25 @@ bool ScriptInstance::callOnExecute()
         return false;
     }
 
-    return callProtected(0, "run onExecute");
+    beginTimedCall();
+    const int status = lua_pcall(L_, 0, 0, 0);
+    if (status != LUA_OK) {
+        endTimedCall();
+        const char* message = lua_tostring(L_, -1);
+        owner_->lastError = message ? message : "Lua call failed.";
+        lua_pop(L_, 1);
+        LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastError);
+        return false;
+    }
+
+    if (!drainSleepingCoroutines()) {
+        endTimedCall();
+        return false;
+    }
+
+    endTimedCall();
+    owner_->lastError.clear();
+    return true;
 }
 
 void ScriptInstance::cleanup()
@@ -170,6 +188,87 @@ void ScriptInstance::sleepWithDeadline(int ms)
         std::this_thread::sleep_for(std::chrono::milliseconds(chunk));
         remaining -= chunk;
     }
+}
+
+void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, int ms)
+{
+    const auto wakeTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(std::max(0, ms));
+    for (auto& coroutine : sleepingCoroutines_) {
+        if (coroutine.thread == thread) {
+            coroutine.wakeTime = wakeTime;
+            return;
+        }
+    }
+
+    sleepingCoroutines_.push_back(SleepingCoroutine{thread, wakeTime});
+}
+
+bool ScriptInstance::drainSleepingCoroutines()
+{
+    while (!sleepingCoroutines_.empty()) {
+        const auto now = std::chrono::steady_clock::now();
+        auto nextWake = sleepingCoroutines_.front().wakeTime;
+        for (const auto& coroutine : sleepingCoroutines_) {
+            nextWake = std::min(nextWake, coroutine.wakeTime);
+        }
+
+        const auto deadline = deadline_;
+        const auto sleepUntil = deadline == std::chrono::steady_clock::time_point{}
+            ? nextWake
+            : std::min(nextWake, deadline);
+        if (sleepUntil > now) {
+            std::this_thread::sleep_until(sleepUntil);
+        }
+
+        if (!checkDeadline()) {
+            owner_->lastError = "script execution timed out";
+            LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastError);
+            return false;
+        }
+
+        const auto resumeTime = std::chrono::steady_clock::now();
+        for (auto it = sleepingCoroutines_.begin(); it != sleepingCoroutines_.end();) {
+            if (it->wakeTime > resumeTime) {
+                ++it;
+                continue;
+            }
+
+            lua_State* thread = it->thread;
+            if (!thread) {
+                it = sleepingCoroutines_.erase(it);
+                continue;
+            }
+
+            if (lua_status(thread) != LUA_YIELD) {
+                it = sleepingCoroutines_.erase(it);
+                continue;
+            }
+
+            lua_sethook(thread, TimeoutHook, LUA_MASKCOUNT, 10000);
+            int resultCount = 0;
+            const int status = lua_resume(thread, L_, 0, &resultCount);
+            lua_sethook(thread, nullptr, 0, 0);
+
+            if (status == LUA_OK) {
+                it = sleepingCoroutines_.erase(it);
+                continue;
+            }
+
+            if (status == LUA_YIELD) {
+                ++it;
+                continue;
+            }
+
+            const char* message = lua_tostring(thread, -1);
+            owner_->lastError = message ? message : "Lua coroutine failed.";
+            lua_pop(thread, 1);
+            LogWarning(std::string("Imported script failed during coroutine sleep resume: ") + owner_->lastError);
+            sleepingCoroutines_.clear();
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void ScriptInstance::setFreeze(bool enabled)

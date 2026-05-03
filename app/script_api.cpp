@@ -56,6 +56,10 @@ int LuaSleep(lua_State* L)
 {
     ScriptInstance& instance = RequireInstance(L);
     const int ms = static_cast<int>(luaL_checkinteger(L, 1));
+    if (lua_isyieldable(L)) {
+        instance.scheduleCoroutineSleep(L, ms);
+        return lua_yield(L, 0);
+    }
     instance.sleepWithDeadline(ms);
     return 0;
 }
