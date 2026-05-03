@@ -22,10 +22,57 @@ set(SMU_IMGUI_DIR "${SMU_THIRD_PARTY_DIR}/imgui")
 set(SMU_MINIZ_DIR "${SMU_THIRD_PARTY_DIR}/miniz")
 set(SMU_WINDIVERT_DIR "${SMU_THIRD_PARTY_DIR}/windivert")
 set(SMU_JSON_DIR "${SMU_THIRD_PARTY_DIR}/json")
+set(SMU_LUA_DIR "${SMU_THIRD_PARTY_DIR}/lua")
+set(SMU_IMGUIFILEDIALOG_DIR "${SMU_THIRD_PARTY_DIR}/ImGuiFileDialog")
 set(SMU_WINDOWS_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL3-windows")
 
 option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable output folder." ON)
 option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
+
+add_library(lua_static STATIC
+    "${SMU_LUA_DIR}/src/lapi.c"
+    "${SMU_LUA_DIR}/src/lauxlib.c"
+    "${SMU_LUA_DIR}/src/lbaselib.c"
+    "${SMU_LUA_DIR}/src/lcode.c"
+    "${SMU_LUA_DIR}/src/lcorolib.c"
+    "${SMU_LUA_DIR}/src/lctype.c"
+    "${SMU_LUA_DIR}/src/ldblib.c"
+    "${SMU_LUA_DIR}/src/ldebug.c"
+    "${SMU_LUA_DIR}/src/ldo.c"
+    "${SMU_LUA_DIR}/src/ldump.c"
+    "${SMU_LUA_DIR}/src/lfunc.c"
+    "${SMU_LUA_DIR}/src/lgc.c"
+    "${SMU_LUA_DIR}/src/linit.c"
+    "${SMU_LUA_DIR}/src/liolib.c"
+    "${SMU_LUA_DIR}/src/llex.c"
+    "${SMU_LUA_DIR}/src/lmathlib.c"
+    "${SMU_LUA_DIR}/src/lmem.c"
+    "${SMU_LUA_DIR}/src/loadlib.c"
+    "${SMU_LUA_DIR}/src/lobject.c"
+    "${SMU_LUA_DIR}/src/lopcodes.c"
+    "${SMU_LUA_DIR}/src/loslib.c"
+    "${SMU_LUA_DIR}/src/lparser.c"
+    "${SMU_LUA_DIR}/src/lstate.c"
+    "${SMU_LUA_DIR}/src/lstring.c"
+    "${SMU_LUA_DIR}/src/lstrlib.c"
+    "${SMU_LUA_DIR}/src/ltable.c"
+    "${SMU_LUA_DIR}/src/ltablib.c"
+    "${SMU_LUA_DIR}/src/ltm.c"
+    "${SMU_LUA_DIR}/src/lundump.c"
+    "${SMU_LUA_DIR}/src/lutf8lib.c"
+    "${SMU_LUA_DIR}/src/lvm.c"
+    "${SMU_LUA_DIR}/src/lzio.c"
+)
+
+target_include_directories(lua_static PUBLIC "${SMU_LUA_DIR}/include")
+
+if(UNIX AND NOT APPLE)
+    target_link_libraries(lua_static PUBLIC m ${CMAKE_DL_LIBS})
+endif()
+
+set_property(TARGET lua_static PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
+)
 
 if(WIN32)
     enable_language(RC)
@@ -49,9 +96,14 @@ if(WIN32)
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/main_windows.cpp"
         "${SMU_APP_DIR}/profile_manager.cpp"
+        "${SMU_APP_DIR}/script_api.cpp"
+        "${SMU_APP_DIR}/script_instance.cpp"
+        "${SMU_APP_DIR}/script_manager.cpp"
+        "${SMU_APP_DIR}/script_metadata.cpp"
         "${SMU_APP_DIR}/theme_manager.cpp"
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
+        "${SMU_PLATFORM_DIR}/file_dialog.cpp"
         "${SMU_PLATFORM_DIR}/input_backend.cpp"
         "${SMU_PLATFORM_DIR}/logging.cpp"
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
@@ -63,10 +115,12 @@ if(WIN32)
         "${SMU_UPDATER_DIR}/windows_updater.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/input_sendinput.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/admin_elevation.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/file_dialog_win32.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/lagswitch_overlay.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/network_windivert.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/process_win32.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/windows_backends.cpp"
+        "${SMU_IMGUIFILEDIALOG_DIR}/ImGuiFileDialog.cpp"
         "${SMU_MINIZ_DIR}/miniz.c"
         "${SMU_WINDOWS_RESOURCES_DIR}/suspend.rc"
     )
@@ -79,6 +133,7 @@ if(WIN32)
         "${SMU_PLATFORM_DIR}"
         "${SMU_PLATFORM_WINDOWS_DIR}"
         "${SMU_IMGUI_DIR}"
+        "${SMU_IMGUIFILEDIALOG_DIR}"
         "${SMU_MINIZ_DIR}"
         "${SMU_WINDIVERT_DIR}"
         "${SMU_JSON_DIR}"
@@ -124,8 +179,10 @@ if(WIN32)
     endif()
 
     target_link_libraries(suspend PRIVATE
+        lua_static
         opengl32
         user32
+        comdlg32
         gdi32
         shell32
         ole32
@@ -225,11 +282,18 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
         "${SMU_APP_DIR}/profile_manager.cpp"
+        "${SMU_APP_DIR}/script_api.cpp"
+        "${SMU_APP_DIR}/script_instance.cpp"
+        "${SMU_APP_DIR}/script_manager.cpp"
+        "${SMU_APP_DIR}/script_metadata.cpp"
         "${SMU_APP_DIR}/theme_manager.cpp"
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
+        "${SMU_PLATFORM_DIR}/file_dialog.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/file_dialog_linux.cpp"
         "${SMU_UPDATER_DIR}/updater.cpp"
         "${SMU_UPDATER_DIR}/linux_updater.cpp"
+        "${SMU_IMGUIFILEDIALOG_DIR}/ImGuiFileDialog.cpp"
         "${SMU_MINIZ_DIR}/miniz.c"
     )
 
@@ -239,6 +303,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
         "${SMU_IMGUI_DIR}"
+        "${SMU_IMGUIFILEDIALOG_DIR}"
         "${SMU_MINIZ_DIR}"
         "${SMU_JSON_DIR}"
     )
@@ -267,6 +332,7 @@ elseif(UNIX AND NOT APPLE)
     endif()
 
     target_link_libraries(suspend PRIVATE
+        lua_static
         smu_platform_linux
         ${SMU_SDL3_TARGET}
         OpenGL::GL

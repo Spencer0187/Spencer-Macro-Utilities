@@ -1,5 +1,6 @@
 ﻿#define NOMINMAX
 #include "profile_manager.h"
+#include "script_manager.h"
 #include "../core/legacy_globals.h"
 #include "../platform/logging.h"
 #include "imgui.h"
@@ -768,6 +769,8 @@ static json SerializeProfileData() {
 		data["extra_spamkey_instances"] = skArr;
 	}
 
+	data["imported_scripts"] = smu::app::ScriptManager::Get().serialize();
+
 	return data;
 }
 
@@ -1014,6 +1017,12 @@ static void DeserializeProfileData(const json& settings) {
 		}
 		if (extra_loaded) {
 			g_extra_instances_loaded.store(true, std::memory_order_release);
+		}
+
+		if (settings.contains("imported_scripts")) {
+			smu::app::ScriptManager::Get().deserialize(settings["imported_scripts"]);
+		} else {
+			smu::app::ScriptManager::Get().clear();
 		}
 	} catch (const json::exception& e) {
 		LogWarning(std::string("Error deserializing profile data: ") + e.what());

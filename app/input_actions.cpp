@@ -26,6 +26,13 @@ void ReleaseKey(core::KeyCode key, bool extended)
     }
 }
 
+void PressKey(core::KeyCode key, int delayMs)
+{
+    if (auto backend = platform::GetInputBackend()) {
+        backend->pressKey(key, delayMs);
+    }
+}
+
 void HoldKeyBinded(core::KeyCode combinedKey)
 {
     if (auto backend = platform::GetInputBackend()) {

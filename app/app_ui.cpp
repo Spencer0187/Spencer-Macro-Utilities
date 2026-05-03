@@ -3,6 +3,8 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
+#include "script_manager.h"
+#include "../platform/file_dialog.h"
 #include "../core/key_codes.h"
 #include "../platform/input_backend.h"
 #include "../platform/logging.h"
@@ -19,6 +21,7 @@
 #endif
 
 #include "imgui.h"
+#include "ImGuiFileDialog.h"
 #include <SDL3/SDL_clipboard.h>
 
 #include <algorithm>
@@ -98,6 +101,11 @@ struct BindingState {
 std::unordered_map<unsigned int*, BindingState> g_bindingStates;
 bool g_hasStoredSettingsWindowPos = false;
 ImVec2 g_storedSettingsWindowPos{};
+int g_selected_imported_script = -1;
+std::optional<std::filesystem::path> g_pending_import_path;
+bool g_open_import_trust_modal = false;
+bool g_script_file_dialog_open = false;
+std::string g_import_error;
 
 bool AnyPhysicalKeyOrMouseButtonPressedForBinding()
 {
@@ -809,6 +817,127 @@ void DrawKeyBindControl(
     ImGui::PopID();
 }
 
+void BeginModalInputCapture()
+{
+    g_keybindCaptureActive.store(true, std::memory_order_release);
+    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);
+    notbinding.store(false, std::memory_order_release);
+}
+
+void EndModalInputCapture()
+{
+    g_keybindCaptureActive.store(false, std::memory_order_release);
+    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);
+    notbinding.store(false, std::memory_order_release);
+}
+
+void QueueScriptImportTrustModal(const std::filesystem::path& path)
+{
+    g_pending_import_path = path;
+    g_open_import_trust_modal = true;
+    g_import_error.clear();
+}
+
+void OpenScriptFileDialogFallback()
+{
+    BeginModalInputCapture();
+    g_script_file_dialog_open = true;
+    IGFD::FileDialogConfig config;
+    config.path = ".";
+    ImGuiFileDialog::Instance()->OpenDialog(
+        "SMUImportScriptFileDialog",
+        "Import SMU Script",
+        ".smus,.hss,.lua",
+        config);
+}
+
+void StartImportedScriptImportFlow()
+{
+    smu::platform::FileDialogOptions options;
+    options.title = "Import SMU Script";
+    options.extensions = {".smus", ".hss", ".lua"};
+
+    BeginModalInputCapture();
+    const smu::platform::FileDialogResult result = smu::platform::OpenNativeFileDialog(options);
+    EndModalInputCapture();
+
+    if (result.type == smu::platform::FileDialogResultType::Selected) {
+        QueueScriptImportTrustModal(result.path);
+    } else if (result.type == smu::platform::FileDialogResultType::Unavailable) {
+        OpenScriptFileDialogFallback();
+    } else if (result.type == smu::platform::FileDialogResultType::Error) {
+        g_import_error = result.error.empty() ? "File picker failed." : result.error;
+    }
+}
+
+void RenderScriptFileDialogFallback()
+{
+    if (!g_script_file_dialog_open) {
+        return;
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("SMUImportScriptFileDialog")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            QueueScriptImportTrustModal(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+
+        ImGuiFileDialog::Instance()->Close();
+        g_script_file_dialog_open = false;
+        EndModalInputCapture();
+    }
+}
+
+void RenderImportTrustModal()
+{
+    if (g_open_import_trust_modal) {
+        ImGui::OpenPopup("Import Script?");
+        g_open_import_trust_modal = false;
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("Import Script?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("Imported scripts can control keyboard and mouse input and interact with Roblox-related SMU features. Only import scripts from people you trust.");
+        ImGui::Spacing();
+        if (g_pending_import_path) {
+            ImGui::TextWrapped("File: %s", g_pending_import_path->string().c_str());
+        }
+        ImGui::Separator();
+
+        if (ImGui::Button("Import", ImVec2(90.0f, 0.0f))) {
+            if (g_pending_import_path) {
+                const std::size_t beforeCount = ScriptManager::Get().count();
+                const bool ok = ScriptManager::Get().importScript(*g_pending_import_path);
+                const std::size_t afterCount = ScriptManager::Get().count();
+                if (afterCount > beforeCount) {
+                    g_selected_imported_script = static_cast<int>(afterCount - 1);
+                    selected_section = -1;
+                    ImportedScriptRecord* record = ScriptManager::Get().get(afterCount - 1);
+                    if (!ok && record && !record->lastError.empty()) {
+                        g_import_error = record->lastError;
+                    } else {
+                        g_import_error.clear();
+                    }
+                } else if (!ok) {
+                    g_import_error = "Script could not be imported. It may already be imported or use an unsupported extension.";
+                }
+            }
+            g_pending_import_path.reset();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(90.0f, 0.0f))) {
+            g_pending_import_path.reset();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
 smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
 {
     smu::platform::LagSwitchConfig config;
@@ -1416,6 +1545,7 @@ void RenderSectionSidebar(float leftPanelWidth)
         const float scrollAdjustment = ImGui::GetScrollMaxY() == 0 ? 7.0f : 18.0f;
         if (ImGui::Button("", ImVec2(buttonWidth - scrollAdjustment, buttonHeight))) {
             selected_section = i;
+            g_selected_imported_script = -1;
             if (i == 5) selected_presskey_instance = 0;
             else if (i == 6) selected_wallhop_instance = 0;
             else if (i == 11) selected_spamkey_instance = 0;
@@ -1476,6 +1606,7 @@ void RenderSectionSidebar(float leftPanelWidth)
                 std::string subLabel = BuildMultiInstanceName(i, static_cast<int>(j) + 1);
                 if (ImGui::Button(subLabel.c_str(), ImVec2(subBtnW, 0))) {
                     selected_section = i;
+                    g_selected_imported_script = -1;
                     selInst = static_cast<int>(j);
                 }
                 ImGui::PopStyleColor(3);
@@ -1500,6 +1631,72 @@ void RenderSectionSidebar(float leftPanelWidth)
 
         ImGui::Separator();
     }
+}
+
+void RenderImportedScriptsSidebar(float leftPanelWidth)
+{
+    ScriptManager& manager = ScriptManager::Get();
+    Globals::Theme& theme = GetCurrentTheme();
+    const float buttonWidth = leftPanelWidth - ImGui::GetStyle().FramePadding.x * 2;
+    const float scrollAdjustment = ImGui::GetScrollMaxY() == 0 ? 7.0f : 18.0f;
+    const float itemWidth = buttonWidth - scrollAdjustment;
+
+    ImGui::Spacing();
+    ImGui::TextWrapped("Imported Scripts");
+    if (ImGui::Button("+ Import Script", ImVec2(itemWidth, 0.0f))) {
+        StartImportedScriptImportFlow();
+    }
+
+    for (std::size_t index = 0; index < manager.count(); ++index) {
+        ImportedScriptRecord* script = manager.get(index);
+        if (!script) {
+            continue;
+        }
+
+        const bool selected = g_selected_imported_script == static_cast<int>(index);
+        const bool attention = script->missing || (!script->loaded && !script->lastError.empty());
+        const bool active = script->enabled && script->loaded && !script->missing;
+
+        ImGui::PushID(static_cast<int>(index));
+        if (attention) {
+            ImGui::PushStyleColor(ImGuiCol_Button, selected ? Brighten(theme.error_color, 1.3f) : theme.error_color);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.error_color, 1.4f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Brighten(theme.error_color, 0.9f));
+        } else if (active) {
+            ImGui::PushStyleColor(ImGuiCol_Button, selected ? Brighten(theme.accent_primary, 1.4f) : theme.accent_primary);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.accent_primary, 1.3f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Brighten(theme.accent_primary, 0.8f));
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Button, selected ? Brighten(theme.disabled_color, 1.6f) : theme.disabled_color);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(theme.disabled_color, 1.3f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, Brighten(theme.disabled_color, 1.1f));
+        }
+
+        std::string label = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
+        if (script->running) {
+            label += " (Running)";
+        } else if (script->missing) {
+            label += " (Missing)";
+        } else if (!script->loaded) {
+            label += " (Error)";
+        }
+
+        if (ImGui::Button(label.c_str(), ImVec2(itemWidth, 0.0f))) {
+            g_selected_imported_script = static_cast<int>(index);
+            selected_section = -1;
+        }
+
+        ImGui::PopStyleColor(3);
+        ImGui::PopID();
+    }
+
+    if (!g_import_error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, theme.error_color);
+        ImGui::TextWrapped("%s", g_import_error.c_str());
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::Separator();
 }
 
 void RenderRemoveInstanceButton(const std::string& id, int sectionIndex, size_t instanceCount, int selectedInstance, std::atomic<int>& removeRequest)
@@ -1561,8 +1758,115 @@ void RenderRemoveInstanceButton(const std::string& id, int sectionIndex, size_t 
     }
 }
 
+void RenderSelectedImportedScript(AppContext& context)
+{
+    ScriptManager& manager = ScriptManager::Get();
+    if (g_selected_imported_script < 0 || g_selected_imported_script >= static_cast<int>(manager.count())) {
+        ImGui::TextWrapped("Select a section to see its settings.");
+        return;
+    }
+
+    ImportedScriptRecord* script = manager.get(static_cast<std::size_t>(g_selected_imported_script));
+    if (!script) {
+        ImGui::TextWrapped("Select a section to see its settings.");
+        return;
+    }
+
+    const std::string title = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
+    ImGui::TextWrapped("Settings for %s", title.c_str());
+    ImGui::Separator();
+    ImGui::NewLine();
+
+    if (!script->metadata.description.empty()) {
+        ImGui::TextWrapped("%s", script->metadata.description.c_str());
+        ImGui::Spacing();
+    }
+    if (!script->metadata.author.empty()) {
+        ImGui::TextWrapped("Author: %s", script->metadata.author.c_str());
+    }
+    if (!script->metadata.version.empty()) {
+        ImGui::TextWrapped("Version: %s", script->metadata.version.c_str());
+    }
+    ImGui::TextWrapped("File: %s", script->path.string().c_str());
+
+    const char* status = "Loaded";
+    ImVec4 statusColor = GetCurrentTheme().success_color;
+    if (script->running) {
+        status = "Running";
+        statusColor = GetCurrentTheme().accent_primary;
+    } else if (script->missing) {
+        status = "Missing";
+        statusColor = GetCurrentTheme().error_color;
+    } else if (!script->loaded) {
+        status = "Error";
+        statusColor = GetCurrentTheme().error_color;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, statusColor);
+    ImGui::TextWrapped("Status: %s", status);
+    ImGui::PopStyleColor();
+    if (!script->lastError.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
+        ImGui::TextWrapped("%s", script->lastError.c_str());
+        ImGui::PopStyleColor();
+    }
+
+    ImGui::Separator();
+    ImGui::TextWrapped("Keybind:");
+    ImGui::SameLine();
+    DrawKeyBindControl(("ImportedScriptKey" + std::to_string(g_selected_imported_script)).c_str(), script->hotkey, -1);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, script->enabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
+    ImGui::TextWrapped("Enable This Script:");
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::Checkbox(("##ImportedScriptEnabled" + std::to_string(g_selected_imported_script)).c_str(), &script->enabled);
+
+    ImGui::SameLine();
+    RenderForegroundDependentCheckbox(
+        context,
+        "Disable outside of Roblox:",
+        ("##ImportedScriptDisableOutside" + std::to_string(g_selected_imported_script)).c_str(),
+        &script->disableOutsideRoblox);
+
+    const bool actionsDisabled = script->running;
+    if (actionsDisabled) {
+        ImGui::BeginDisabled();
+    }
+
+    if (ImGui::Button("Execute Now")) {
+        const std::size_t index = static_cast<std::size_t>(g_selected_imported_script);
+        std::thread([index] {
+            ScriptManager::Get().executeScript(index);
+        }).detach();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reload")) {
+        manager.reloadScript(static_cast<std::size_t>(g_selected_imported_script));
+    }
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Button, GetCurrentTheme().error_color);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Brighten(GetCurrentTheme().error_color, 1.2f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, Brighten(GetCurrentTheme().error_color, 0.8f));
+    if (ImGui::Button("Remove")) {
+        if (manager.removeScript(static_cast<std::size_t>(g_selected_imported_script))) {
+            g_selected_imported_script = -1;
+        }
+    }
+    ImGui::PopStyleColor(3);
+
+    if (actionsDisabled) {
+        ImGui::EndDisabled();
+    }
+}
+
 void RenderSelectedSection(AppContext& context)
 {
+    if (g_selected_imported_script >= 0) {
+        RenderSelectedImportedScript(context);
+        return;
+    }
+
     if (selected_section < 0 || selected_section >= static_cast<int>(sections.size())) {
         ImGui::TextWrapped("Select a section to see its settings.");
         return;
@@ -2427,6 +2731,8 @@ void RenderAppUi(AppContext& context)
     RenderLinuxInputSetup(context);
     RenderUpdateConfirmationModal();
     RenderAdministratorRequiredPopup();
+    RenderScriptFileDialogFallback();
+    RenderImportTrustModal();
 
     float settingsPanelHeight = 140.0f;
     ImGui::BeginChild("GlobalSettings", ImVec2(displaySize.x - 16, settingsPanelHeight), true);
@@ -2436,6 +2742,7 @@ void RenderAppUi(AppContext& context)
     float leftPanelWidth = ImGui::GetWindowSize().x * 0.3f - 23;
     ImGui::BeginChild("LeftScrollSection", ImVec2(leftPanelWidth, ImGui::GetWindowSize().y - settingsPanelHeight - 20), true);
     RenderSectionSidebar(leftPanelWidth);
+    RenderImportedScriptsSidebar(leftPanelWidth);
     ImGui::EndChild();
 
     ImGui::SameLine();

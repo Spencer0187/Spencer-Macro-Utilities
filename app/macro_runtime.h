@@ -45,6 +45,7 @@ private:
     void processBunnyhopMacro(bool foregroundAllowed);
     void processFloorBounceMacro(bool foregroundAllowed);
     void processLagSwitchMacro(bool foregroundAllowed);
+    void processImportedScripts();
     void setTargetSuspended(bool suspended);
     std::vector<unsigned int> currentTargetPids();
     void setPidsSuspended(const std::vector<unsigned int>& pids, bool suspended);
@@ -62,6 +63,7 @@ private:
     std::vector<bool> pressKeyWasPressed_;
     std::vector<bool> wallhopWasPressed_;
     std::vector<bool> spamKeyWasPressed_;
+    std::vector<bool> importedScriptWasPressed_;
     std::vector<unsigned int> frozenPids_;
     std::chrono::steady_clock::time_point nextProcessRefresh_{};
     std::chrono::steady_clock::time_point nextForegroundCheck_{};
