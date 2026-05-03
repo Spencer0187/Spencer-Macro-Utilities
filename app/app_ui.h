@@ -8,5 +8,6 @@ void RenderAppUi(AppContext& context);
 void RenderPlatformCriticalNotifications();
 void RenderPlatformWarningNotifications();
 void RenderForegroundDependentCheckbox(AppContext& context, const char* label, const char* id, bool* value);
+void ResetFloatingUiWindowState();
 
 } // namespace smu::app

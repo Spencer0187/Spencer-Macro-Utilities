@@ -85,10 +85,15 @@ struct BindingState {
     char keyBufferHuman[64] = "None";
     std::string buttonText = "Click to Bind Key";
     bool firstRun = true;
+    std::array<bool, 258> keyWasPressed{};
+    unsigned int pendingModifierKey = 0;
+    unsigned int pendingModifierCombo = 0;
     int lastSelectedSection = -1;
 };
 
 std::unordered_map<unsigned int*, BindingState> g_bindingStates;
+bool g_hasStoredSettingsWindowPos = false;
+ImVec2 g_storedSettingsWindowPos{};
 
 struct InstanceRemoveConfirmState {
     int stage = 0;
@@ -364,6 +369,63 @@ unsigned int CurrentModifierMask()
     return currentModifiers;
 }
 
+unsigned int NormalizeBoundHotkey(unsigned int combinedKey)
+{
+    unsigned int key = combinedKey & HOTKEY_KEY_MASK;
+    unsigned int modifiers = combinedKey & ~HOTKEY_KEY_MASK;
+
+    switch (key) {
+    case VK_SHIFT:
+    case VK_LSHIFT:
+    case VK_RSHIFT:
+        key = VK_SHIFT;
+        modifiers &= ~HOTKEY_MASK_SHIFT;
+        break;
+    case VK_CONTROL:
+    case VK_LCONTROL:
+    case VK_RCONTROL:
+        key = VK_CONTROL;
+        modifiers &= ~HOTKEY_MASK_CTRL;
+        break;
+    case VK_MENU:
+    case VK_LMENU:
+    case VK_RMENU:
+        key = VK_MENU;
+        modifiers &= ~HOTKEY_MASK_ALT;
+        break;
+    case VK_LWIN:
+    case VK_RWIN:
+        modifiers &= ~HOTKEY_MASK_WIN;
+        break;
+    default:
+        break;
+    }
+
+    return (key & HOTKEY_KEY_MASK) | modifiers;
+}
+
+ImVec2 ClampWindowPosToMainViewport(const ImVec2& position, const ImVec2& size)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImVec2 minPos = viewport->Pos;
+    const ImVec2 maxPos(
+        viewport->Pos.x + std::max(0.0f, viewport->Size.x - size.x),
+        viewport->Pos.y + std::max(0.0f, viewport->Size.y - size.y));
+
+    return ImVec2(
+        std::clamp(position.x, minPos.x, maxPos.x),
+        std::clamp(position.y, minPos.y, maxPos.y));
+}
+
+void ClampCurrentWindowToMainViewport()
+{
+    const ImVec2 currentPos = ImGui::GetWindowPos();
+    const ImVec2 clampedPos = ClampWindowPosToMainViewport(currentPos, ImGui::GetWindowSize());
+    if (clampedPos.x != currentPos.x || clampedPos.y != currentPos.y) {
+        ImGui::SetWindowPos(clampedPos, ImGuiCond_Always);
+    }
+}
+
 unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int currentSection)
 {
     BindingState& state = g_bindingStates[keyVar];
@@ -372,6 +434,15 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
         notbinding = false;
         state.rebindTime = std::chrono::steady_clock::now();
         state.buttonText = "Press a Key...";
+
+        if (state.firstRun) {
+            for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
+                state.keyWasPressed[key] = IsKeyPressed(key);
+            }
+            state.pendingModifierKey = 0;
+            state.pendingModifierCombo = 0;
+            state.firstRun = false;
+        }
 
         const unsigned int currentModifiers = CurrentModifierMask();
         if (currentModifiers == 0) {
@@ -400,19 +471,49 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
             return currentkey;
         }
 
-        const auto pressedKey = backend->getCurrentPressedKey();
-        if (!pressedKey || smu::core::IsModifierKey(*pressedKey)) {
-            return currentkey;
+        for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
+            const bool currentlyPressed = IsKeyPressed(key);
+            const bool wasPressed = state.keyWasPressed[key];
+            state.keyWasPressed[key] = currentlyPressed;
+
+            if (!currentlyPressed || wasPressed) {
+                continue;
+            }
+
+            if (smu::core::IsModifierKey(key)) {
+                state.pendingModifierKey = static_cast<unsigned int>(key);
+                state.pendingModifierCombo = currentModifiers;
+                continue;
+            }
+
+            const unsigned int finalCombo =
+                NormalizeBoundHotkey((static_cast<unsigned int>(key) & HOTKEY_KEY_MASK) | currentModifiers);
+            state.bindingMode = false;
+            state.firstRun = true;
+            GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
+            FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
+            state.buttonText = "Click to Bind Key";
+            notbinding = true;
+            return finalCombo;
         }
 
-        const unsigned int finalCombo = (*pressedKey & HOTKEY_KEY_MASK) | currentModifiers;
-        state.bindingMode = false;
-        state.firstRun = true;
-        GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
-        FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
-        state.buttonText = "Click to Bind Key";
-        notbinding = true;
-        return finalCombo;
+        if (state.pendingModifierKey != 0 &&
+            !IsKeyPressed(state.pendingModifierKey) &&
+            currentModifiers == 0) {
+            const unsigned int finalCombo = NormalizeBoundHotkey(
+                (state.pendingModifierKey & HOTKEY_KEY_MASK) | state.pendingModifierCombo);
+            state.bindingMode = false;
+            state.firstRun = true;
+            state.pendingModifierKey = 0;
+            state.pendingModifierCombo = 0;
+            GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
+            FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
+            state.buttonText = "Click to Bind Key";
+            notbinding = true;
+            return finalCombo;
+        }
+
+        return currentkey;
     }
 
     state.firstRun = true;
@@ -712,6 +813,7 @@ void RenderUpdaterPanel()
 void RenderSettingsMenu(AppContext& context, bool* open)
 {
     if (!*open) {
+        g_hasStoredSettingsWindowPos = false;
         return;
     }
 
@@ -720,10 +822,14 @@ void RenderSettingsMenu(AppContext& context, bool* open)
     float childHeight = mainWindowSize.y * 0.5f;
     ImVec2 childPos((mainWindowSize.x * 0.4f), (mainWindowSize.y - childHeight - 90) * 0.5f);
 
-    ImGui::SetNextWindowPos(childPos, ImGuiCond_Once);
+    const ImVec2 requestedPos = g_hasStoredSettingsWindowPos ? g_storedSettingsWindowPos : childPos;
+    ImGui::SetNextWindowPos(ClampWindowPosToMainViewport(requestedPos, ImVec2(childWidth, childHeight)), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(childWidth, childHeight), ImGuiCond_Always);
 
     if (ImGui::Begin("Settings Menu", open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse)) {
+        ClampCurrentWindowToMainViewport();
+        g_storedSettingsWindowPos = ClampWindowPosToMainViewport(ImGui::GetWindowPos(), ImGui::GetWindowSize());
+        g_hasStoredSettingsWindowPos = true;
         ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
 
         RenderUpdaterPanel();
@@ -823,6 +929,12 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::EndChild();
     }
     ImGui::End();
+}
+
+void ResetFloatingUiWindowState()
+{
+    g_hasStoredSettingsWindowPos = false;
+    g_storedSettingsWindowPos = ImVec2();
 }
 
 void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
