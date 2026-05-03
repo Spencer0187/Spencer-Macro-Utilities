@@ -50,6 +50,22 @@ bool ShouldKeepRunning()
     return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
 }
 
+bool AnyInputPressedForHotkeySuppression()
+{
+    auto input = smu::platform::GetInputBackend();
+    if (!input) {
+        return false;
+    }
+
+    for (unsigned int key = 1; key <= 0xFF; ++key) {
+        if (input->isKeyPressed(key)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 unsigned int InventorySlotKey(int slot)
 {
     return static_cast<unsigned int>(std::clamp(slot, 0, 9) + smu::core::SMU_VK_0);
@@ -128,7 +144,28 @@ void MacroRuntime::controllerLoop()
     while (running_.load(std::memory_order_acquire) && ShouldKeepRunning()) {
         refreshTargetProcesses();
 
-        if (!macrotoggled || !notbinding) {
+        if (g_keybindCaptureActive.load(std::memory_order_acquire)) {
+            if (freezeSuspended_) {
+                setTargetSuspended(false);
+            }
+            std::this_thread::sleep_for(5ms);
+            continue;
+        }
+
+        if (g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
+            if (AnyInputPressedForHotkeySuppression()) {
+                if (freezeSuspended_) {
+                    setTargetSuspended(false);
+                }
+                std::this_thread::sleep_for(5ms);
+                continue;
+            }
+
+            g_suppressHotkeysUntilRelease.store(false, std::memory_order_release);
+            notbinding.store(true, std::memory_order_release);
+        }
+
+        if (!macrotoggled || !notbinding.load(std::memory_order_acquire)) {
             if (freezeSuspended_) {
                 setTargetSuspended(false);
             }
@@ -232,6 +269,11 @@ bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const
 {
     auto input = smu::platform::GetInputBackend();
     if (!input) {
+        return false;
+    }
+
+    if (g_keybindCaptureActive.load(std::memory_order_acquire) ||
+        g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
         return false;
     }
 
@@ -684,7 +726,7 @@ void MacroRuntime::processSpamKeyMacros()
                    ShouldKeepRunning() &&
                    inst.thread_active.load(std::memory_order_acquire) &&
                    macrotoggled &&
-                   notbinding &&
+                   notbinding.load(std::memory_order_acquire) &&
                    inst.section_enabled) {
                 const int delay = std::max(1, inst.real_delay);
                 HoldKeyBinded(inst.vk_spamkey);
@@ -746,7 +788,7 @@ void MacroRuntime::processLedgeBounceMacro(bool foregroundAllowed)
 
 void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
 {
-    const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding;
+    const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding.load(std::memory_order_acquire);
     if (isHotkeyPressed(vk_chatkey)) {
         bunnyhopChatLocked_ = true;
     }

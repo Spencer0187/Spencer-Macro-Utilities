@@ -233,7 +233,9 @@ namespace Globals {
 
     // --- Main Toggles & Switches ---
     inline bool g_isLinuxWine = false;
-    inline bool notbinding = true;
+    inline std::atomic<bool> notbinding{ true };
+    inline std::atomic<bool> g_keybindCaptureActive{ false };
+    inline std::atomic<bool> g_suppressHotkeysUntilRelease{ false };
     inline bool macrotoggled = true;
     inline bool shiftswitch = false;
     inline bool unequiptoggle = false;
