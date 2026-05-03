@@ -9,6 +9,7 @@
 #include "../platform/text_input_backend.h"
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 
 extern "C" {
@@ -50,6 +51,17 @@ int LuaLog(lua_State* L)
     const char* message = luaL_checkstring(L, 1);
     LogInfo(std::string("[script] ") + (message ? message : ""));
     return 0;
+}
+
+int LuaNowMicros(lua_State* L)
+{
+    using clock = std::chrono::steady_clock;
+
+    const auto now = clock::now().time_since_epoch();
+    const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now).count();
+
+    lua_pushinteger(L, static_cast<lua_Integer>(micros));
+    return 1;
 }
 
 int LuaSleep(lua_State* L)
@@ -160,6 +172,7 @@ void Register(lua_State* L, const char* name, lua_CFunction function)
 void RegisterScriptApi(lua_State* L)
 {
     Register(L, "log", LuaLog);
+    Register(L, "nowMicros", LuaNowMicros);
     Register(L, "sleep", LuaSleep);
     Register(L, "pressKey", LuaPressKey);
     Register(L, "holdKey", LuaHoldKey);
