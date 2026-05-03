@@ -88,6 +88,7 @@ struct BindingState {
     char keyBufferHuman[64] = "None";
     std::string buttonText = "Click to Bind Key";
     bool firstRun = true;
+    bool waitingForReleaseBeforeCapture = false;
     std::array<bool, 258> keyWasPressed{};
     unsigned int pendingModifierKey = 0;
     unsigned int pendingModifierCombo = 0;
@@ -97,6 +98,56 @@ struct BindingState {
 std::unordered_map<unsigned int*, BindingState> g_bindingStates;
 bool g_hasStoredSettingsWindowPos = false;
 ImVec2 g_storedSettingsWindowPos{};
+
+bool AnyPhysicalKeyOrMouseButtonPressedForBinding()
+{
+    for (int key = 1; key <= 0xFF; ++key) {
+        if (IsKeyPressed(static_cast<smu::core::KeyCode>(key))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void StartKeybindCapture(BindingState& state)
+{
+    state.bindingMode = true;
+    state.notBinding = false;
+    state.waitingForReleaseBeforeCapture = true;
+    state.firstRun = false;
+    state.pendingModifierKey = 0;
+    state.pendingModifierCombo = 0;
+    state.keyWasPressed.fill(false);
+    state.rebindTime = std::chrono::steady_clock::now();
+    state.buttonText = "Release Keys...";
+
+    g_keybindCaptureActive.store(true, std::memory_order_release);
+    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);
+    notbinding.store(false, std::memory_order_release);
+}
+
+void FinishKeybindCapture()
+{
+    g_keybindCaptureActive.store(false, std::memory_order_release);
+    g_suppressHotkeysUntilRelease.store(true, std::memory_order_release);
+    notbinding.store(false, std::memory_order_release);
+}
+
+void RefreshFinishedKeybindSuppression()
+{
+    if (g_keybindCaptureActive.load(std::memory_order_acquire) ||
+        !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    if (AnyPhysicalKeyOrMouseButtonPressedForBinding()) {
+        notbinding.store(false, std::memory_order_release);
+        return;
+    }
+
+    g_suppressHotkeysUntilRelease.store(false, std::memory_order_release);
+    notbinding.store(true, std::memory_order_release);
+}
 
 struct InstanceRemoveConfirmState {
     int stage = 0;
@@ -439,19 +490,28 @@ void ClampCurrentWindowToMainViewport()
 unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int currentSection)
 {
     BindingState& state = g_bindingStates[keyVar];
+    RefreshFinishedKeybindSuppression();
 
     if (state.bindingMode) {
-        notbinding = false;
+        g_keybindCaptureActive.store(true, std::memory_order_release);
+        notbinding.store(false, std::memory_order_release);
         state.rebindTime = std::chrono::steady_clock::now();
-        state.buttonText = "Press a Key...";
 
-        if (state.firstRun) {
-            for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
-                state.keyWasPressed[key] = IsKeyPressed(key);
+        if (state.waitingForReleaseBeforeCapture) {
+            state.buttonText = "Release Keys...";
+            CopyString(state.keyBuffer, sizeof(state.keyBuffer), "Release keys...");
+            CopyString(state.keyBufferHuman, sizeof(state.keyBufferHuman), "Release keys...");
+
+            if (AnyPhysicalKeyOrMouseButtonPressedForBinding()) {
+                return currentkey;
             }
+
+            state.waitingForReleaseBeforeCapture = false;
+            state.firstRun = false;
             state.pendingModifierKey = 0;
             state.pendingModifierCombo = 0;
-            state.firstRun = false;
+            state.keyWasPressed.fill(false);
+            state.buttonText = "Press a Key...";
         }
 
         const unsigned int currentModifiers = CurrentModifierMask();
@@ -466,12 +526,14 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
             if (const auto pos = hexStr.find(suffix); pos != std::string::npos) {
                 hexStr = hexStr.substr(0, pos) + " + ...";
             }
+
             std::string previewHuman;
             if (currentModifiers & HOTKEY_MASK_WIN) previewHuman += "Win + ";
             if (currentModifiers & HOTKEY_MASK_CTRL) previewHuman += "Ctrl + ";
             if (currentModifiers & HOTKEY_MASK_ALT) previewHuman += "Alt + ";
             if (currentModifiers & HOTKEY_MASK_SHIFT) previewHuman += "Shift + ";
             previewHuman += "...";
+
             CopyString(state.keyBuffer, sizeof(state.keyBuffer), hexStr);
             CopyString(state.keyBufferHuman, sizeof(state.keyBufferHuman), previewHuman);
         }
@@ -482,7 +544,7 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
         }
 
         for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
-            const bool currentlyPressed = IsKeyPressed(key);
+            const bool currentlyPressed = IsKeyPressed(static_cast<smu::core::KeyCode>(key));
             const bool wasPressed = state.keyWasPressed[key];
             state.keyWasPressed[key] = currentlyPressed;
 
@@ -498,28 +560,38 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
 
             const unsigned int finalCombo =
                 NormalizeBoundHotkey((static_cast<unsigned int>(key) & HOTKEY_KEY_MASK) | currentModifiers);
+
             state.bindingMode = false;
+            state.waitingForReleaseBeforeCapture = false;
             state.firstRun = true;
+            state.pendingModifierKey = 0;
+            state.pendingModifierCombo = 0;
+
             GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
             FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
             state.buttonText = "Click to Bind Key";
-            notbinding = true;
+
+            FinishKeybindCapture();
             return finalCombo;
         }
 
         if (state.pendingModifierKey != 0 &&
-            !IsKeyPressed(state.pendingModifierKey) &&
+            !IsKeyPressed(static_cast<smu::core::KeyCode>(state.pendingModifierKey)) &&
             currentModifiers == 0) {
             const unsigned int finalCombo = NormalizeBoundHotkey(
                 (state.pendingModifierKey & HOTKEY_KEY_MASK) | state.pendingModifierCombo);
+
             state.bindingMode = false;
+            state.waitingForReleaseBeforeCapture = false;
             state.firstRun = true;
             state.pendingModifierKey = 0;
             state.pendingModifierCombo = 0;
+
             GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
             FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
             state.buttonText = "Click to Bind Key";
-            notbinding = true;
+
+            FinishKeybindCapture();
             return finalCombo;
         }
 
@@ -538,10 +610,13 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
     state.buttonText = "Click to Bind Key";
     auto currentTime = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsedtime = currentTime - state.rebindTime;
-    if (elapsedtime.count() >= 0.3) {
+    if (!g_keybindCaptureActive.load(std::memory_order_acquire) &&
+        !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
+        elapsedtime.count() >= 0.3) {
         state.notBinding = true;
-        notbinding = true;
+        notbinding.store(true, std::memory_order_release);
     }
+
     return currentkey;
 }
 
@@ -549,21 +624,25 @@ void DrawKeyBindControl(const char* id, unsigned int& key, int currentSection, f
 {
     ImGui::PushID(id);
     BindingState& state = g_bindingStates[&key];
+
     if (ImGui::Button(state.buttonText.c_str())) {
-        state.bindingMode = true;
-        state.notBinding = false;
-        state.buttonText = "Press a Key...";
+        StartKeybindCapture(state);
     }
+
     ImGui::SameLine();
     key = BindKeyMode(&key, key, currentSection);
+
     ImGui::SetNextItemWidth(humanWidth);
     GetKeyNameFromHex(key, state.keyBufferHuman, sizeof(state.keyBufferHuman));
     ImGui::InputText("##KeyHuman", state.keyBufferHuman, sizeof(state.keyBufferHuman), ImGuiInputTextFlags_ReadOnly);
+
     ImGui::SameLine();
     ImGui::TextWrapped("Key Binding");
+
     ImGui::SameLine();
     ImGui::SetNextItemWidth(hexWidth);
     ImGui::InputText("##KeyHex", state.keyBuffer, sizeof(state.keyBuffer), ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_CharsHexadecimal | ImGuiInputTextFlags_ReadOnly);
+
     ImGui::SameLine();
     ImGui::TextWrapped("(Hexadecimal)");
     ImGui::PopID();
