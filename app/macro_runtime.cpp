@@ -45,6 +45,16 @@ bool IsModifierPressed(const smu::platform::InputBackend& input, unsigned int ke
     }
 }
 
+
+bool AreHotkeyModifiersPressed(const smu::platform::InputBackend& input, unsigned int combinedKey)
+{
+    if ((combinedKey & HOTKEY_MASK_WIN) && !IsModifierPressed(input, VK_LWIN)) return false;
+    if ((combinedKey & HOTKEY_MASK_CTRL) && !IsModifierPressed(input, VK_CONTROL)) return false;
+    if ((combinedKey & HOTKEY_MASK_ALT) && !IsModifierPressed(input, VK_MENU)) return false;
+    if ((combinedKey & HOTKEY_MASK_SHIFT) && !IsModifierPressed(input, VK_SHIFT)) return false;
+    return true;
+}
+
 bool ShouldKeepRunning()
 {
     return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
@@ -120,6 +130,10 @@ void MacroRuntime::stop()
     if (!running_.compare_exchange_strong(expected, false, std::memory_order_acq_rel)) {
         return;
     }
+
+    isbhoploop.store(false, std::memory_order_release);
+    g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
+    bunnyhopWorkerActive_.store(false, std::memory_order_release);
 
     if (controllerThread_.joinable()) {
         controllerThread_.join();
@@ -793,9 +807,74 @@ void MacroRuntime::processLedgeBounceMacro(bool foregroundAllowed)
     });
 }
 
+
+bool MacroRuntime::isBunnyhopPhysicallyHeld() const
+{
+    auto input = smu::platform::GetInputBackend();
+    if (!input) {
+        return false;
+    }
+
+    const unsigned int key = vk_bunnyhopkey & HOTKEY_KEY_MASK;
+    if (key == 0 ||
+        key == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
+        key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+        return false;
+    }
+
+    if (!AreHotkeyModifiersPressed(*input, vk_bunnyhopkey)) {
+        return false;
+    }
+
+    // Mouse buttons do not pass through the Windows low-level keyboard hook.
+    // For mouse-triggered bhop binds, keep using the backend's physical state.
+    if (key >= VK_LBUTTON && key <= VK_XBUTTON2) {
+        return IsModifierPressed(*input, key);
+    }
+
+    // Keyboard-triggered bhop must use a physical-key latch, not the raw
+    // backend state. The macro injects the same key it uses as its trigger.
+    // If we read the normal key state on Windows, our injected key-up event
+    // cancels the user's held Space/key and the loop stops after one hop.
+    //
+    // On Linux, this latch is updated from real evdev devices only; the SMU
+    // uinput virtual device is explicitly excluded by the Linux backend.
+    return g_isVk_BunnyhopHeldDown.load(std::memory_order_acquire);
+}
+
+void MacroRuntime::runBunnyhopWorker()
+{
+    while (running_.load(std::memory_order_acquire) &&
+           ShouldKeepRunning() &&
+           isbhoploop.load(std::memory_order_acquire) &&
+           macrotoggled &&
+           notbinding.load(std::memory_order_acquire) &&
+           section_toggles[13]) {
+        const unsigned int outputKey = vk_bunnyhopkey;
+        const int halfDelay = std::max(1, BunnyHopDelay / 2);
+
+        HoldKeyBinded(outputKey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
+
+        if (!running_.load(std::memory_order_acquire) ||
+            !ShouldKeepRunning() ||
+            !isbhoploop.load(std::memory_order_acquire)) {
+            ReleaseKeyBinded(outputKey);
+            break;
+        }
+
+        ReleaseKeyBinded(outputKey);
+        std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
+    }
+
+    isbhoploop.store(false, std::memory_order_release);
+    bunnyhopWorkerActive_.store(false, std::memory_order_release);
+}
+
 void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
 {
     const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding.load(std::memory_order_acquire);
+
     if (isHotkeyPressed(vk_chatkey)) {
         bunnyhopChatLocked_ = true;
     }
@@ -803,9 +882,10 @@ void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
         bunnyhopChatLocked_ = false;
     }
 
-    const bool held = isHotkeyPressed(vk_bunnyhopkey);
+    const bool held = isBunnyhopPhysicallyHeld();
     const bool shouldHop = canProcess && held && (!bunnyhopsmart || !bunnyhopChatLocked_);
     isbhoploop.store(shouldHop, std::memory_order_release);
+
     if (!shouldHop) {
         bunnyhopRunning_ = false;
         return;
@@ -816,11 +896,12 @@ void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
         bunnyhopRunning_ = true;
     }
 
-    const int halfDelay = std::max(1, BunnyHopDelay / 2);
-    HoldKeyBinded(vk_bunnyhopkey);
-    std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
-    ReleaseKeyBinded(vk_bunnyhopkey);
-    std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
+    bool expected = false;
+    if (bunnyhopWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        runWorker([this] {
+            runBunnyhopWorker();
+        });
+    }
 }
 
 void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)

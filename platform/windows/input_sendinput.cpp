@@ -3,11 +3,13 @@
 #if defined(_WIN32)
 
 #include "../../core/legacy_globals.h"
+#include "../logging.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +28,13 @@ std::mutex g_guiInjectedInputBudgetMutex;
 auto g_guiInjectedInputBudgetResetTime = std::chrono::steady_clock::now();
 int g_guiInjectedInputBudgetRemaining = 50;
 
+
+std::thread g_bunnyhopPhysicalKeyHookThread;
+std::atomic<bool> g_bunnyhopPhysicalKeyHookRunning{false};
+std::atomic<bool> g_bunnyhopPhysicalKeyHookReady{false};
+std::atomic<DWORD> g_bunnyhopPhysicalKeyHookThreadId{0};
+HHOOK g_bunnyhopPhysicalKeyHook = nullptr;
+
 void TagInjectedInput(INPUT& input)
 {
     if (input.type == INPUT_MOUSE) {
@@ -33,6 +42,124 @@ void TagInjectedInput(INPUT& input)
     } else if (input.type == INPUT_KEYBOARD) {
         input.ki.dwExtraInfo = kInjectedInputTag;
     }
+}
+
+
+bool IsInjectedKeyboardEvent(const KBDLLHOOKSTRUCT& event)
+{
+    return (event.flags & LLKHF_INJECTED) != 0 ||
+           (event.flags & LLKHF_LOWER_IL_INJECTED) != 0 ||
+           event.dwExtraInfo == kInjectedInputTag;
+}
+
+void UpdateBunnyhopPhysicalKeyState(WPARAM wParam, const KBDLLHOOKSTRUCT& event)
+{
+    const unsigned int configuredKey = vk_bunnyhopkey & HOTKEY_KEY_MASK;
+    if (configuredKey == 0 ||
+        configuredKey == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
+        configuredKey == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+        return;
+    }
+
+    if (event.vkCode != configuredKey) {
+        return;
+    }
+
+    if (IsInjectedKeyboardEvent(event)) {
+        return;
+    }
+
+    if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+        g_isVk_BunnyhopHeldDown.store(true, std::memory_order_release);
+    } else if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) {
+        g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
+    }
+}
+
+LRESULT CALLBACK BunnyhopPhysicalKeyHookProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION && lParam) {
+        const auto* event = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
+        UpdateBunnyhopPhysicalKeyState(wParam, *event);
+    }
+
+    return CallNextHookEx(g_bunnyhopPhysicalKeyHook, nCode, wParam, lParam);
+}
+
+void StartBunnyhopPhysicalKeyHook()
+{
+    bool expected = false;
+    if (!g_bunnyhopPhysicalKeyHookRunning.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    g_bunnyhopPhysicalKeyHookReady.store(false, std::memory_order_release);
+    g_bunnyhopPhysicalKeyHookThreadId.store(0, std::memory_order_release);
+    g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
+
+    g_bunnyhopPhysicalKeyHookThread = std::thread([] {
+        g_bunnyhopPhysicalKeyHookThreadId.store(GetCurrentThreadId(), std::memory_order_release);
+
+        MSG msg {};
+        PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
+
+        g_bunnyhopPhysicalKeyHook = SetWindowsHookExW(
+            WH_KEYBOARD_LL,
+            BunnyhopPhysicalKeyHookProc,
+            GetModuleHandleW(nullptr),
+            0);
+
+        if (!g_bunnyhopPhysicalKeyHook) {
+            LogWarning("Windows input backend failed to install Smart Bunnyhop physical-key hook. Bunnyhop may stop after one injected key press.");
+        }
+
+        g_bunnyhopPhysicalKeyHookReady.store(true, std::memory_order_release);
+
+        while (g_bunnyhopPhysicalKeyHookRunning.load(std::memory_order_acquire)) {
+            const BOOL result = GetMessageW(&msg, nullptr, 0, 0);
+            if (result <= 0) {
+                break;
+            }
+
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+
+        if (g_bunnyhopPhysicalKeyHook) {
+            UnhookWindowsHookEx(g_bunnyhopPhysicalKeyHook);
+            g_bunnyhopPhysicalKeyHook = nullptr;
+        }
+
+        g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
+        g_bunnyhopPhysicalKeyHookThreadId.store(0, std::memory_order_release);
+        g_bunnyhopPhysicalKeyHookReady.store(false, std::memory_order_release);
+    });
+
+    for (int i = 0; i < 250; ++i) {
+        if (g_bunnyhopPhysicalKeyHookReady.load(std::memory_order_acquire)) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
+void StopBunnyhopPhysicalKeyHook()
+{
+    bool expected = true;
+    if (!g_bunnyhopPhysicalKeyHookRunning.compare_exchange_strong(expected, false, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    const DWORD threadId = g_bunnyhopPhysicalKeyHookThreadId.load(std::memory_order_acquire);
+    if (threadId != 0) {
+        PostThreadMessageW(threadId, WM_QUIT, 0, 0);
+    }
+
+    if (g_bunnyhopPhysicalKeyHookThread.joinable()) {
+        g_bunnyhopPhysicalKeyHookThread.join();
+    }
+
+    g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
 }
 
 bool IsGuiWindowForegroundForBudget()
@@ -263,10 +390,14 @@ public:
         if (errorMessage) {
             errorMessage->clear();
         }
+        StartBunnyhopPhysicalKeyHook();
         return true;
     }
 
-    void shutdown() override {}
+    void shutdown() override
+    {
+        StopBunnyhopPhysicalKeyHook();
+    }
 
     bool isKeyPressed(PlatformKeyCode key) const override
     {
