@@ -1,0 +1,12 @@
+-- @name: Toggle Freeze
+-- @desc: Toggles Roblox freeze briefly
+-- @author: Spencer
+-- @version: 1.0
+-- @keybind: F7
+
+function onExecute()
+    freeze(true)
+    sleep(500)
+    freeze(false)
+    log("Freeze pulse complete")
+end

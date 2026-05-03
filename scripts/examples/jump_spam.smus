@@ -1,0 +1,14 @@
+-- @name: Jump Spam
+-- @desc: Presses Space ten times
+-- @author: Spencer
+-- @version: 1.0
+-- @keybind: F6
+
+function onExecute()
+    for i = 1, 10 do
+        pressKey("Space", 35)
+        sleep(35)
+    end
+
+    log("Jump spam complete")
+end

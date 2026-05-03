@@ -67,7 +67,23 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+    "name": "windows-msvc-relwithdebinfo",
+    "displayName": "Windows MSVC RelWithDebInfo",
+    "description": "Release-like Windows build with debug symbols.",
+    "generator": "Visual Studio 17 2022",
+    "architecture": "x64",
+    "binaryDir": "${sourceDir}/out/build/${presetName}",
+    "condition": {
+      "type": "equals",
+      "lhs": "${hostSystemName}",
+      "rhs": "Windows"
+    },
+    "cacheVariables": {
+      "CMAKE_CONFIGURATION_TYPES": "RelWithDebInfo"
     }
+  }
   ],
   "buildPresets": [
     {
@@ -87,6 +103,11 @@
     {
       "name": "linux-release",
       "configurePreset": "linux-release"
+    },
+    {
+      "name": "windows-msvc-relwithdebinfo",
+      "configurePreset": "windows-msvc-relwithdebinfo",
+      "configuration": "RelWithDebInfo"
     }
   ]
 }

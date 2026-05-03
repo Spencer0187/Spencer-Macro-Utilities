@@ -1,6 +1,7 @@
 #include "macro_runtime.h"
 
 #include "input_actions.h"
+#include "script_manager.h"
 #include "../core/key_codes.h"
 #include "../platform/input_backend.h"
 #include "../platform/logging.h"
@@ -206,6 +207,7 @@ void MacroRuntime::controllerLoop()
         processBunnyhopMacro(foregroundAllows(disable_outside_roblox[13]));
         processFloorBounceMacro(foregroundAllows(disable_outside_roblox[14]));
         processLagSwitchMacro(foregroundAllows(disable_outside_roblox[15]));
+        processImportedScripts();
 
         std::this_thread::sleep_for(2ms);
     }
@@ -1023,6 +1025,42 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
         if (elapsed >= lagswitch_max_duration) {
             backend->setBlockingActive(false);
         }
+    }
+}
+
+void MacroRuntime::processImportedScripts()
+{
+    ScriptManager& manager = ScriptManager::Get();
+    if (importedScriptWasPressed_.size() != manager.count()) {
+        importedScriptWasPressed_.assign(manager.count(), false);
+    }
+
+    for (std::size_t index = 0; index < manager.count(); ++index) {
+        ImportedScriptRecord* script = manager.get(index);
+        if (!script) {
+            continue;
+        }
+
+        if (!script->enabled || !script->loaded || script->missing || script->hotkey == 0 || script->running) {
+            importedScriptWasPressed_[index] = false;
+            continue;
+        }
+
+        if (script->disableOutsideRoblox && !foregroundAllows(true)) {
+            importedScriptWasPressed_[index] = false;
+            continue;
+        }
+
+        const bool pressed = isHotkeyPressed(script->hotkey);
+        const bool edge = pressed && !importedScriptWasPressed_[index];
+        importedScriptWasPressed_[index] = pressed;
+        if (!edge) {
+            continue;
+        }
+
+        runWorker([index] {
+            ScriptManager::Get().executeScript(index);
+        });
     }
 }
 

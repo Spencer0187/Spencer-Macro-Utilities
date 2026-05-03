@@ -225,6 +225,75 @@ bool IsKeyPressedNative(WORD vkKey)
     return (::GetAsyncKeyState(vkKey) & 0x8000) != 0;
 }
 
+bool IsMouseButtonVirtualKey(WORD vk)
+{
+    return vk >= VK_LBUTTON && vk <= VK_XBUTTON2;
+}
+
+bool IsExtendedVirtualKey(WORD vk)
+{
+    switch (vk) {
+    case VK_RCONTROL:
+    case VK_RMENU:
+    case VK_INSERT:
+    case VK_DELETE:
+    case VK_HOME:
+    case VK_END:
+    case VK_PRIOR:
+    case VK_NEXT:
+    case VK_LEFT:
+    case VK_UP:
+    case VK_RIGHT:
+    case VK_DOWN:
+    case VK_NUMLOCK:
+        return true;
+    default:
+        return false;
+    }
+}
+
+WORD ScanCodeForVirtualKey(WORD vk)
+{
+    switch (vk) {
+    case VK_SHIFT:
+    case VK_LSHIFT:
+        return 0x2A;
+    case VK_RSHIFT:
+        return 0x36;
+    case VK_CONTROL:
+    case VK_LCONTROL:
+    case VK_RCONTROL:
+        return 0x1D;
+    case VK_MENU:
+    case VK_LMENU:
+    case VK_RMENU:
+        return 0x38;
+    default:
+        return static_cast<WORD>(MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
+    }
+}
+
+void SendMouseButtonVirtualKey(WORD vk, bool down)
+{
+    INPUT input = {};
+    input.type = INPUT_MOUSE;
+    if (vk == VK_LBUTTON) {
+        input.mi.dwFlags = down ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_LEFTUP;
+    } else if (vk == VK_RBUTTON) {
+        input.mi.dwFlags = down ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_RIGHTUP;
+    } else if (vk == VK_MBUTTON) {
+        input.mi.dwFlags = down ? MOUSEEVENTF_MIDDLEDOWN : MOUSEEVENTF_MIDDLEUP;
+    } else if (vk == VK_XBUTTON1) {
+        input.mi.dwFlags = down ? MOUSEEVENTF_XDOWN : MOUSEEVENTF_XUP;
+        input.mi.mouseData = XBUTTON1;
+    } else if (vk == VK_XBUTTON2) {
+        input.mi.dwFlags = down ? MOUSEEVENTF_XDOWN : MOUSEEVENTF_XUP;
+        input.mi.mouseData = XBUTTON2;
+    }
+    TagInjectedInput(input);
+    DispatchTaggedInputs(&input, 1);
+}
+
 void HoldKeyNative(WORD scanCode, bool extended)
 {
     INPUT input = {};
@@ -238,6 +307,20 @@ void HoldKeyNative(WORD scanCode, bool extended)
     DispatchTaggedInputs(&input, 1);
 }
 
+void HoldVirtualKeyNative(WORD vk, bool extended)
+{
+    if (IsMouseButtonVirtualKey(vk)) {
+        SendMouseButtonVirtualKey(vk, true);
+        return;
+    }
+
+    const WORD scanCode = ScanCodeForVirtualKey(vk);
+    if (scanCode == 0) {
+        return;
+    }
+    HoldKeyNative(scanCode, extended || IsExtendedVirtualKey(vk));
+}
+
 void ReleaseKeyNative(WORD scanCode, bool extended)
 {
     INPUT input = {};
@@ -249,6 +332,20 @@ void ReleaseKeyNative(WORD scanCode, bool extended)
     }
     TagInjectedInput(input);
     DispatchTaggedInputs(&input, 1);
+}
+
+void ReleaseVirtualKeyNative(WORD vk, bool extended)
+{
+    if (IsMouseButtonVirtualKey(vk)) {
+        SendMouseButtonVirtualKey(vk, false);
+        return;
+    }
+
+    const WORD scanCode = ScanCodeForVirtualKey(vk);
+    if (scanCode == 0) {
+        return;
+    }
+    ReleaseKeyNative(scanCode, extended || IsExtendedVirtualKey(vk));
 }
 
 void SendMouseWheel(int delta)
@@ -406,12 +503,12 @@ public:
 
     void holdKey(PlatformKeyCode key, bool extended = false) override
     {
-        HoldKeyNative(static_cast<WORD>(key), extended);
+        HoldVirtualKeyNative(static_cast<WORD>(key), extended);
     }
 
     void releaseKey(PlatformKeyCode key, bool extended = false) override
     {
-        ReleaseKeyNative(static_cast<WORD>(key), extended);
+        ReleaseVirtualKeyNative(static_cast<WORD>(key), extended);
     }
 
     void pressKey(PlatformKeyCode key, int delayMs = 50) override
