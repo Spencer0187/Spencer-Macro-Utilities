@@ -37,12 +37,6 @@ void InitializeSharedProfiles()
     state.windowPosY = WindowPosY;
     state.windowOpacityPercent = windowOpacityPercent;
     state.alwaysOnTop = ontoptoggle;
-    state.macroToggled = macrotoggled;
-    state.notBinding = notbinding;
-    state.shortDescriptions = shortdescriptions;
-    state.showThemeMenu = show_theme_menu;
-    state.antiAfkToggle = antiafktoggle;
-    state.camFixToggle = camfixtoggle;
 }
 
 void ShutdownSharedProfiles()
@@ -60,14 +54,6 @@ void ShutdownSharedProfiles()
     raw_window_height = state.rawWindowHeight;
     WindowPosX = state.windowPosX;
     WindowPosY = state.windowPosY;
-    windowOpacityPercent = state.windowOpacityPercent;
-    ontoptoggle = state.alwaysOnTop;
-    macrotoggled = state.macroToggled;
-    notbinding = state.notBinding;
-    shortdescriptions = state.shortDescriptions;
-    show_theme_menu = state.showThemeMenu;
-    antiafktoggle = state.antiAfkToggle;
-    camfixtoggle = state.camFixToggle;
 
     PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);
 

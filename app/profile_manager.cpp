@@ -1223,6 +1223,10 @@ bool SaveSettings(const std::string& filepath, const std::string& profile_name) 
 		return false;
 	}
 
+	LogInfo(std::string("Saving antiafktoggle=") + (antiafktoggle ? "true" : "false"));
+	LogInfo(std::string("Saving camfixtoggle=") + (camfixtoggle ? "true" : "false"));
+	LogInfo("Saving RobloxFPS=" + std::to_string(RobloxFPS.load(std::memory_order_relaxed)));
+
 	json profile_data = SerializeProfileData();
 
 	// Read existing file to preserve other profiles, or start fresh

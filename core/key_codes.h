@@ -110,6 +110,7 @@ inline constexpr KeyCode SMU_VK_OEM_4 = 0xDB;
 inline constexpr KeyCode SMU_VK_OEM_5 = 0xDC;
 inline constexpr KeyCode SMU_VK_OEM_6 = 0xDD;
 inline constexpr KeyCode SMU_VK_OEM_7 = 0xDE;
+inline constexpr KeyCode SMU_VK_OEM_8 = 0xDF;
 
 inline constexpr KeyCode SMU_VK_MOUSE_WHEEL_UP = 256;
 inline constexpr KeyCode SMU_VK_MOUSE_WHEEL_DOWN = 257;
@@ -179,6 +180,7 @@ inline std::string_view KeyCodeName(KeyCode key)
     case SMU_VK_OEM_5: return "\\";
     case SMU_VK_OEM_6: return "]";
     case SMU_VK_OEM_7: return "'";
+    case SMU_VK_OEM_8: return "VK_OEM_8";
     case SMU_VK_MOUSE_WHEEL_UP: return "Mouse Wheel Up";
     case SMU_VK_MOUSE_WHEEL_DOWN: return "Mouse Wheel Down";
     default: return {};

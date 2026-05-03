@@ -62,6 +62,7 @@ if(WIN32)
         "${SMU_UPDATER_DIR}/updater.cpp"
         "${SMU_UPDATER_DIR}/windows_updater.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/input_sendinput.cpp"
+        "${SMU_PLATFORM_WINDOWS_DIR}/admin_elevation.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/network_windivert.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/process_win32.cpp"
         "${SMU_PLATFORM_WINDOWS_DIR}/windows_backends.cpp"

@@ -16,6 +16,9 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_opengl.h>
+#if defined(_WIN32)
+#include <SDL3/SDL_properties.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -24,6 +27,16 @@
 #include <thread>
 
 #include "../platform/logging.h"
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <dwmapi.h>
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+#endif
 
 namespace smu::app {
 namespace {
@@ -79,6 +92,35 @@ void UpdateWindowMetrics(SDL_Window* window)
     }
 }
 
+#if defined(_WIN32)
+void ApplyDarkTitleBar(SDL_Window* window)
+{
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    if (!props) {
+        LogWarning("SDL window properties were unavailable; skipping native dark title bar setup.");
+        return;
+    }
+
+    HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+    if (!hwnd) {
+        LogWarning("SDL window HWND was unavailable; skipping native dark title bar setup.");
+        return;
+    }
+
+    const BOOL darkModeEnabled = TRUE;
+    HRESULT darkModeResult = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkModeEnabled, sizeof(darkModeEnabled));
+    if (FAILED(darkModeResult)) {
+        LogWarning("Failed to apply immersive dark mode to the native title bar.");
+    }
+
+    const COLORREF captionColor = RGB(0, 0, 0);
+    HRESULT captionResult = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
+    if (FAILED(captionResult)) {
+        LogWarning("Failed to apply native title bar caption color.");
+    }
+}
+#endif
+
 } // namespace
 
 int RunSharedApp(AppContext& context, const AppMainConfig& config)
@@ -121,6 +163,9 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     if (state.windowPosX != 0 || state.windowPosY != 0) {
         SDL_SetWindowPosition(window, state.windowPosX, state.windowPosY);
     }
+#if defined(_WIN32)
+    ApplyDarkTitleBar(window);
+#endif
 
     SDL_GLContext glContext = SDL_GL_CreateContext(window);
     if (!glContext) {
