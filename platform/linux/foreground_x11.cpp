@@ -15,7 +15,7 @@ namespace smu::platform::linux {
 namespace {
 
 #if defined(__linux__) && defined(SMU_HAS_X11) && SMU_HAS_X11
-constexpr int kX11ForegroundFailureDisableThreshold = 5;
+constexpr int kX11ForegroundFailureDisableThreshold = 1;
 
 std::atomic<int> g_x11ForegroundDetectionState{-1};
 std::atomic<int> g_x11EmptyActiveWindowFailures{0};
@@ -68,11 +68,13 @@ bool IsX11ForegroundDetectionAvailable(std::string* errorMessage)
         return false;
     }
 
+    const Window root = DefaultRootWindow(display);
     const Atom activeWindowAtom = XInternAtom(display, "_NET_ACTIVE_WINDOW", True);
     const Atom wmPidAtom = XInternAtom(display, "_NET_WM_PID", True);
-    XCloseDisplay(display);
 
     if (activeWindowAtom == None || wmPidAtom == None) {
+        XCloseDisplay(display);
+
         const std::string message = "X11 window manager does not expose _NET_ACTIVE_WINDOW or _NET_WM_PID.";
         g_x11ForegroundDetectionError = message;
         g_x11ForegroundDetectionState.store(0, std::memory_order_release);
@@ -82,6 +84,71 @@ bool IsX11ForegroundDetectionAvailable(std::string* errorMessage)
         return false;
     }
 
+    Atom actualType = None;
+    int actualFormat = 0;
+    unsigned long itemCount = 0;
+    unsigned long bytesAfter = 0;
+    unsigned char* property = nullptr;
+
+    const int status = XGetWindowProperty(
+        display,
+        root,
+        activeWindowAtom,
+        0,
+        1,
+        False,
+        XA_WINDOW,
+        &actualType,
+        &actualFormat,
+        &itemCount,
+        &bytesAfter,
+        &property);
+
+    if (status != Success || !property || itemCount == 0) {
+        if (property) {
+            XFree(property);
+        }
+        XCloseDisplay(display);
+
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "could not be read from the X11 root window.";
+        g_x11ForegroundDetectionError = message;
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+        return false;
+    }
+
+    Window activeWindow = 0;
+    if (actualFormat == 32) {
+        activeWindow = static_cast<Window>(reinterpret_cast<unsigned long*>(property)[0]);
+    } else {
+        std::memcpy(&activeWindow, property, std::min(sizeof(activeWindow), static_cast<std::size_t>(actualFormat / 8)));
+    }
+
+    XFree(property);
+    XCloseDisplay(display);
+
+    if (activeWindow == 0) {
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "is empty. This X11 window manager/session is not exposing a usable active-window property.";
+
+        g_x11ForegroundDetectionError = message;
+        g_x11EmptyActiveWindowFailures.store(0, std::memory_order_release);
+        g_x11MissingPidFailures.store(0, std::memory_order_release);
+        g_x11ForegroundDetectionState.store(0, std::memory_order_release);
+
+        if (errorMessage) {
+            *errorMessage = message;
+        }
+        return false;
+    }
+
+    g_x11EmptyActiveWindowFailures.store(0, std::memory_order_release);
+    g_x11MissingPidFailures.store(0, std::memory_order_release);
     g_x11ForegroundDetectionState.store(1, std::memory_order_release);
     return true;
 #else
@@ -195,17 +262,13 @@ std::optional<PlatformPid> GetX11ForegroundProcess(std::string* errorMessage)
     if (activeWindow == 0) {
         closeDisplay();
 
-        const int failures = g_x11EmptyActiveWindowFailures.fetch_add(1, std::memory_order_acq_rel) + 1;
-        if (failures >= kX11ForegroundFailureDisableThreshold) {
-            const std::string message =
-                "X11 foreground process detection failed repeatedly because _NET_ACTIVE_WINDOW "
-                "was empty. The current X11 window manager/session is not exposing a usable "
-                "active-window property.";
+        const std::string message =
+            "X11 foreground process detection is unavailable because _NET_ACTIVE_WINDOW "
+            "is empty. This X11 window manager/session is not exposing a usable active-window property.";
 
-            DisableX11ForegroundDetection(message);
-            if (errorMessage) {
-                *errorMessage = message;
-            }
+        DisableX11ForegroundDetection(message);
+        if (errorMessage) {
+            *errorMessage = message;
         }
 
         return std::nullopt;

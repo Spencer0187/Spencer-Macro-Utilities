@@ -223,9 +223,16 @@ void MacroRuntime::refreshTargetProcesses(bool force)
         pids.push_back(*pid);
     }
 
+    const bool pidsChanged =
+        targetPIDs.size() != pids.size() ||
+        !std::equal(targetPIDs.begin(), targetPIDs.end(), pids.begin());
+
     targetPIDs.assign(pids.begin(), pids.end());
     processFound = !targetPIDs.empty();
-    nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
+
+    if (pidsChanged) {
+        nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
+    }
 }
 
 bool MacroRuntime::foregroundAllows(bool disableOutsideRoblox)
