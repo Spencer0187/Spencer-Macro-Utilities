@@ -1,4 +1,4 @@
-name: Sign Release and Build Linux Artifacts
+name: Sign and Build Release
 
 on:
   workflow_dispatch:

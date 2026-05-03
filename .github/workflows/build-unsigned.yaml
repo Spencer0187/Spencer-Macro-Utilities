@@ -1,4 +1,4 @@
-name: Build Windows and Linux Artifacts
+name: Build Unsigned Windows and Linux
 
 on:
   workflow_dispatch:
