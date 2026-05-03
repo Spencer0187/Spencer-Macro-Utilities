@@ -26,6 +26,10 @@
 
 #include "imgui-files/imgui.h"
 #include "imgui-files/imgui_impl_opengl3.h"
+
+// Allow SDL_Window* declarations even if SDL headers are excluded by build flags.
+struct SDL_Window;
+
 #if SMU_USE_SDL_UI
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL.h>
@@ -614,6 +618,13 @@ static void UpdateWindowMetrics(SDL_Window* window, HWND nativeWindow)
 				screen_height = windowHeight;
 			}
 		}
+
+		int windowPosX = 0;
+		int windowPosY = 0;
+		if (SDL_GetWindowPosition(window, &windowPosX, &windowPosY)) {
+			WindowPosX = windowPosX;
+			WindowPosY = windowPosY;
+		}
 	}
 
 	if (nativeWindow) {
@@ -623,6 +634,22 @@ static void UpdateWindowMetrics(SDL_Window* window, HWND nativeWindow)
 		raw_window_height = raw_screen_rect.bottom - raw_screen_rect.top;
 	}
 }
+
+static ImVec2 ClampWindowPosToMainViewport(const ImVec2& position, const ImVec2& size)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImVec2 min_pos = viewport->Pos;
+    const ImVec2 max_pos(
+        viewport->Pos.x + std::max(0.0f, viewport->Size.x - size.x),
+        viewport->Pos.y + std::max(0.0f, viewport->Size.y - size.y));
+
+    return ImVec2(
+        std::clamp(position.x, min_pos.x, max_pos.x),
+        std::clamp(position.y, min_pos.y, max_pos.y));
+}
+
+static bool g_has_stored_settings_window_pos = false;
+static ImVec2 g_stored_settings_window_pos;
 
 static bool SetGuiWindowTopmost(SDL_Window* window, HWND nativeWindow, bool enabled)
 {
@@ -1405,6 +1432,9 @@ static void RunGUI() {
 
 	G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
 
+	// Keep a handle around for shutdown-time persistence (position/size).
+	SDL_Window* sdlWindow = nullptr;
+
 	// Setup Linux Compatibility Layer if Needed
 	InitLinuxCompatLayer();
 
@@ -1454,7 +1484,7 @@ static void RunGUI() {
 	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-	SDL_Window* sdlWindow = SDL_CreateWindow("Spencer Macro Client", screen_width, screen_height,
+	sdlWindow = SDL_CreateWindow("Spencer Macro Client", screen_width, screen_height,
 		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
 	if (!sdlWindow) {
 		LogCritical(std::string("Failed SDL window creation: ") + SDL_GetError());
@@ -2089,13 +2119,21 @@ static void RunGUI() {
 				);
 
 				// Set the next window's position and size
-				ImGui::SetNextWindowPos(child_pos, ImGuiCond_Once);
+				const ImVec2 requested_pos = g_has_stored_settings_window_pos ? g_stored_settings_window_pos : child_pos;
+				ImGui::SetNextWindowPos(ClampWindowPosToMainViewport(requested_pos, ImVec2(child_width, child_height)), ImGuiCond_Appearing);
 				ImGui::SetNextWindowSize(ImVec2(child_width, child_height), ImGuiCond_Always);
 
 				// Begin the child window (non-draggable)
 				ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
 				if (ImGui::Begin("Settings Menu", &show_settings_menu, window_flags)) {
+					const ImVec2 current_pos = ImGui::GetWindowPos();
+					const ImVec2 clamped_pos = ClampWindowPosToMainViewport(current_pos, ImGui::GetWindowSize());
+					if (clamped_pos.x != current_pos.x || clamped_pos.y != current_pos.y) {
+						ImGui::SetWindowPos(clamped_pos, ImGuiCond_Always);
+					}
+					g_stored_settings_window_pos = clamped_pos;
+					g_has_stored_settings_window_pos = true;
 					// Begin a scrollable child region for the settings list
 					ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
 
@@ -2284,6 +2322,10 @@ static void RunGUI() {
 				}
 
 				ImGui::End();
+			}
+			else {
+				g_has_stored_settings_window_pos = false;
+				g_stored_settings_window_pos = ImVec2();
 			}
 
 			ImGui::SameLine(ImGui::GetWindowWidth() - 257);
@@ -4989,28 +5031,35 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
 }
 
-	// Save Window Positions and Size before closing
-	RECT windowrect;
-	if (hwnd && IsWindow(hwnd) && GetWindowRect(hwnd, &windowrect)) {
-		if (windowrect.left < 0) {
-			WindowPosX = 0;
-		} else {
-			WindowPosX = windowrect.left;
+#if !SMU_USE_SDL_UI
+		// Save window position before closing (SDL keeps these updated).
+		if (hwnd && IsWindow(hwnd)) {
+			RECT windowrect{};
+			if (GetWindowRect(hwnd, &windowrect)) {
+				WindowPosX = windowrect.left;
+				WindowPosY = windowrect.top;
+			}
 		}
-
-		if (windowrect.top < 0) {
-			WindowPosY = 0;
-		} else {
-			WindowPosY = windowrect.top;
+#endif
+#if SMU_USE_SDL_UI
+	// Persist the client area size (not the decorated window rect) to avoid window growth on relaunch.
+	// Avoid depending on the SDL_Window* here (it may not be in scope in all build configurations).
+	if (hwnd && IsWindow(hwnd)) {
+		RECT client_rect{};
+		if (GetClientRect(hwnd, &client_rect)) {
+			screen_width = client_rect.right - client_rect.left;
+			screen_height = client_rect.bottom - client_rect.top;
 		}
-
+	}
+	UpdateWindowMetrics(nullptr, hwnd);
+#else
+	if (hwnd && IsWindow(hwnd)) {
 		RECT screen_rect;
-
 		GetWindowRect(hwnd, &screen_rect);
-
 		screen_width = screen_rect.right - screen_rect.left;
 		screen_height = screen_rect.bottom - screen_rect.top;
 	}
+#endif
 
 	// Auto-promote (default) edits to a named profile if settings were changed
 	PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);

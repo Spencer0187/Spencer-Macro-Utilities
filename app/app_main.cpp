@@ -70,6 +70,13 @@ void UpdateWindowMetrics(SDL_Window* window)
 
     state.rawWindowWidth = state.screenWidth;
     state.rawWindowHeight = state.screenHeight;
+
+    int windowPosX = 0;
+    int windowPosY = 0;
+    if (SDL_GetWindowPosition(window, &windowPosX, &windowPosY)) {
+        state.windowPosX = windowPosX;
+        state.windowPosY = windowPosY;
+    }
 }
 
 } // namespace
@@ -213,7 +220,9 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         std::this_thread::sleep_until(nextFrameTime);
     }
 
+    UpdateWindowMetrics(window);
     ShutdownSharedProfiles();
+    ResetFloatingUiWindowState();
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();

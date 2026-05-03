@@ -1,6 +1,7 @@
 ﻿#define NOMINMAX
 #include "Resource Files/theme_manager.h"
 #include "Resource Files/globals.h"
+#include <algorithm>
 #include <iostream>
 
 using namespace Globals;
@@ -57,6 +58,22 @@ static std::vector<Theme> defaultthemes = {
      ImVec4(0.70f, 0.60f, 0.80f, 1.0f), ImVec4(0.40f, 0.80f, 0.60f, 1.0f),
      ImVec4(1.0f, 0.60f, 0.40f, 1.0f), ImVec4(0.90f, 0.30f, 0.50f, 1.0f),
 	 ImVec4(0.25f, 0.15f, 0.30f, 1.0f), ImVec4(0.35f, 0.40f, 0.0f, 1.0f), 8.0f, 4.0f, 4.0f}};
+
+static ImVec2 ClampWindowPosToMainViewport(const ImVec2& position, const ImVec2& size)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImVec2 min_pos = viewport->Pos;
+    const ImVec2 max_pos(
+        viewport->Pos.x + std::max(0.0f, viewport->Size.x - size.x),
+        viewport->Pos.y + std::max(0.0f, viewport->Size.y - size.y));
+
+    return ImVec2(
+        std::clamp(position.x, min_pos.x, max_pos.x),
+        std::clamp(position.y, min_pos.y, max_pos.y));
+}
+
+static bool g_has_stored_theme_editor_pos = false;
+static ImVec2 g_stored_theme_editor_pos;
 
 void ThemeManager::Initialize() {
     // Populate the global themes vector
@@ -140,7 +157,11 @@ void ThemeManager::ApplyTheme() {
 }
 
 void ThemeManager::RenderThemeMenu(bool* p_open) {
-    if (!*p_open) return;
+    if (!*p_open) {
+        g_has_stored_theme_editor_pos = false;
+        g_stored_theme_editor_pos = ImVec2();
+        return;
+    }
 
     ImVec2 main_window_size = ImGui::GetIO().DisplaySize;
     float child_width = main_window_size.x * 0.5f;
@@ -151,12 +172,20 @@ void ThemeManager::RenderThemeMenu(bool* p_open) {
         (main_window_size.y - child_height - 90)
     );
 
-    ImGui::SetNextWindowPos(child_pos, ImGuiCond_Once);
+    const ImVec2 requested_pos = g_has_stored_theme_editor_pos ? g_stored_theme_editor_pos : child_pos;
+    ImGui::SetNextWindowPos(ClampWindowPosToMainViewport(requested_pos, ImVec2(child_width, child_height)), ImGuiCond_Appearing);
     ImGui::SetNextWindowSize(ImVec2(child_width, child_height), ImGuiCond_Always);
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
 
     if (ImGui::Begin("Theme Editor", p_open, window_flags)) {
+        const ImVec2 current_pos = ImGui::GetWindowPos();
+        const ImVec2 clamped_pos = ClampWindowPosToMainViewport(current_pos, ImGui::GetWindowSize());
+        if (clamped_pos.x != current_pos.x || clamped_pos.y != current_pos.y) {
+            ImGui::SetWindowPos(clamped_pos, ImGuiCond_Always);
+        }
+        g_stored_theme_editor_pos = clamped_pos;
+        g_has_stored_theme_editor_pos = true;
         
         // Theme selector
         ImGui::TextColored(Globals::GetCurrentTheme().text_primary, "SELECT THEME");

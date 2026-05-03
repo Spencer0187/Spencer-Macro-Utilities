@@ -5176,6 +5176,24 @@ void ImGui::StopMouseMovingWindow()
     g.MovingWindow = NULL;
 }
 
+static bool ShouldClampDraggedWindowToMainViewport(const ImGuiWindow* window)
+{
+    return window != NULL && (strcmp(window->Name, "Settings Menu") == 0 || strcmp(window->Name, "Theme Editor") == 0);
+}
+
+static ImVec2 ClampDraggedWindowPosToMainViewport(const ImGuiWindow* window, const ImVec2& pos)
+{
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const ImVec2 min_pos = viewport->Pos;
+    const ImVec2 max_pos(
+        viewport->Pos.x + ImMax(0.0f, viewport->Size.x - window->Size.x),
+        viewport->Pos.y + ImMax(0.0f, viewport->Size.y - window->Size.y));
+
+    return ImVec2(
+        ImClamp(pos.x, min_pos.x, max_pos.x),
+        ImClamp(pos.y, min_pos.y, max_pos.y));
+}
+
 // Handle mouse moving window
 // Note: moving window with the navigation keys (Square + d-pad / Ctrl+Tab + Arrows) are processed in NavUpdateWindowing()
 // FIXME: We don't have strong guarantee that g.MovingWindow stay synced with g.ActiveId == g.MovingWindow->MoveId.
@@ -5194,6 +5212,8 @@ void ImGui::UpdateMouseMovingWindowNewFrame()
         if (g.IO.MouseDown[0] && IsMousePosValid(&g.IO.MousePos))
         {
             ImVec2 pos = g.IO.MousePos - g.ActiveIdClickOffset;
+            if (ShouldClampDraggedWindowToMainViewport(moving_window))
+                pos = ClampDraggedWindowPosToMainViewport(moving_window, pos);
             SetWindowPos(moving_window, pos, ImGuiCond_Always);
             FocusWindow(g.MovingWindow);
         }
