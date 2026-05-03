@@ -881,7 +881,7 @@ void RenderSettingsMenu(AppContext& context, bool* open)
     ImVec2 childPos((mainWindowSize.x * 0.4f), (mainWindowSize.y - childHeight - 90) * 0.5f);
 
     const ImVec2 requestedPos = g_hasStoredSettingsWindowPos ? g_storedSettingsWindowPos : childPos;
-    ImGui::SetNextWindowPos(ClampWindowPosToMainViewport(requestedPos, ImVec2(childWidth, childHeight)), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ClampWindowPosToMainViewport(requestedPos, ImVec2(childWidth, childHeight)), ImGuiCond_Appearing);
     ImGui::SetNextWindowSize(ImVec2(childWidth, childHeight), ImGuiCond_Always);
 
     if (ImGui::Begin("Settings Menu", open, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse)) {
