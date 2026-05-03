@@ -5861,7 +5861,19 @@ bool ImGui::ColorEdit4(const char* label, float col[4], ImGuiColorEditFlags flag
                 // Store current color and open a picker
                 g.ColorPickerRef = col_v4;
                 OpenPopup("picker");
-                SetNextWindowPos(g.LastItemData.Rect.GetBL() + ImVec2(0.0f, style.ItemSpacing.y));
+                // Position the picker below the color button, but clamp to the main viewport
+                ImVec2 picker_pos = g.LastItemData.Rect.GetBL() + ImVec2(0.0f, style.ItemSpacing.y);
+                if (ImGuiViewport* vp = ImGui::GetMainViewport()) {
+                    const ImVec2 min_pos = vp->Pos;
+                    const ImVec2 max_pos = ImVec2(vp->Pos.x + vp->Size.x, vp->Pos.y + vp->Size.y);
+                    if (picker_pos.x < min_pos.x) picker_pos.x = min_pos.x;
+                    if (picker_pos.y < min_pos.y) picker_pos.y = min_pos.y;
+                    const float margin = 48.0f; // keep a small margin so picker isn't flush to edge
+                    if (picker_pos.x > max_pos.x - margin) picker_pos.x = max_pos.x - margin;
+                    if (picker_pos.y > max_pos.y - margin) picker_pos.y = max_pos.y - margin;
+                }
+                // Use Appearing so the user can drag the picker without it being overridden every frame
+                SetNextWindowPos(picker_pos, ImGuiCond_Appearing);
             }
         }
         if (!(flags & ImGuiColorEditFlags_NoOptions))
@@ -5872,6 +5884,20 @@ bool ImGui::ColorEdit4(const char* label, float col[4], ImGuiColorEditFlags flag
             if (g.CurrentWindow->BeginCount == 1)
             {
                 picker_active_window = g.CurrentWindow;
+                // Clamp popup to main viewport so it cannot be dragged off-screen
+                ImVec2 cur_pos = ImGui::GetWindowPos();
+                ImVec2 win_size = ImGui::GetWindowSize();
+                if (const ImGuiViewport* vp = ImGui::GetMainViewport()) {
+                    const ImVec2 min_pos = vp->Pos;
+                    const ImVec2 max_pos = ImVec2(vp->Pos.x + ImMax(0.0f, vp->Size.x - win_size.x), vp->Pos.y + ImMax(0.0f, vp->Size.y - win_size.y));
+                    ImVec2 clamped_pos = ImVec2(
+                        cur_pos.x < min_pos.x ? min_pos.x : (cur_pos.x > max_pos.x ? max_pos.x : cur_pos.x),
+                        cur_pos.y < min_pos.y ? min_pos.y : (cur_pos.y > max_pos.y ? max_pos.y : cur_pos.y)
+                    );
+                    if (clamped_pos.x != cur_pos.x || clamped_pos.y != cur_pos.y) {
+                        ImGui::SetWindowPos(clamped_pos, ImGuiCond_Always);
+                    }
+                }
                 if (label != label_display_end)
                 {
                     TextEx(label, label_display_end);
