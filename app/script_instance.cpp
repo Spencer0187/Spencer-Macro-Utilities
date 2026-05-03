@@ -161,6 +161,7 @@ bool ScriptInstance::checkDeadline() const
 void ScriptInstance::sleepWithDeadline(int ms)
 {
     int remaining = std::max(0, ms);
+    deadline_ += std::chrono::milliseconds(remaining);
     while (remaining > 0) {
         if (!checkDeadline()) {
             luaL_error(L_, "script execution timed out");
