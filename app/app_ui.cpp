@@ -10,9 +10,6 @@
 #include "../platform/process_backend.h"
 #include "../platform/updater/updater.h"
 
-#ifndef SMU_PORTABLE_GLOBALS
-#define SMU_PORTABLE_GLOBALS
-#endif
 #include "../core/legacy_globals.h"
 
 #include "imgui.h"
@@ -1464,7 +1461,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Spacing();
             ImGui::TextWrapped("Second Key Press:");
             ImGui::Indent();
-            if (ImGui::Button("R##AutoHHJKey2Reset", ImVec2(25, 0))) vk_autohhjkey2 = VK_W;
+            if (ImGui::Button("R##AutoHHJKey2Reset", ImVec2(25, 0))) vk_autohhjkey2 = smu::core::SMU_VK_W;
             ImGui::SameLine();
             DrawKeyBindControl("AutoHHJKey2", vk_autohhjkey2, selected_section, 150.0f, 50.0f);
             if (ImGui::Button("R##AutoHHJKey2Time", ImVec2(25, 0))) {

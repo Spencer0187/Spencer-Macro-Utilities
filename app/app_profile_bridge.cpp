@@ -1,8 +1,5 @@
 #include "app_profile_bridge.h"
 
-#ifndef SMU_PORTABLE_GLOBALS
-#define SMU_PORTABLE_GLOBALS
-#endif
 #include "../core/legacy_globals.h"
 #include "profile_manager.h"
 #include "../core/app_state.h"

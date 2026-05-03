@@ -801,11 +801,26 @@ static void DeserializeProfileData(const json& settings) {
 
 		// Load char arrays
 		for (const auto& [key, cfg] : char_arrays) {
-			if (cfg.first && settings.contains(key) && settings[key].is_string()) {
-				std::string str_val = settings[key].get<std::string>();
-				strncpy_s(cfg.first, cfg.second, str_val.c_str(), cfg.second - 1);
-				cfg.first[cfg.second - 1] = '\0';
+			if (!cfg.first || cfg.second == 0) {
+				LogWarning("Skipping char buffer load for key '" + key + "' because destination pointer or size is invalid.");
+				continue;
 			}
+
+			LogInfo("Loading char buffer: " + key + " size=" + std::to_string(cfg.second));
+
+			const auto setting_it = settings.find(key);
+			if (setting_it == settings.end() || !setting_it->is_string()) {
+				continue;
+			}
+
+			const std::string str_val = setting_it->get<std::string>();
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+			strncpy_s(cfg.first, cfg.second, str_val.c_str(), _TRUNCATE);
+#else
+			const size_t copy_len = std::min(str_val.size(), cfg.second - 1);
+			std::memcpy(cfg.first, str_val.data(), copy_len);
+			cfg.first[copy_len] = '\0';
+#endif
 		}
 
 		// Section toggles

@@ -536,8 +536,6 @@ void WindivertWorkerThread() {
     }
 }
 
-namespace {
-
 smu::platform::LagSwitchConfig LagSwitchConfigFromGlobals()
 {
     smu::platform::LagSwitchConfig config;
