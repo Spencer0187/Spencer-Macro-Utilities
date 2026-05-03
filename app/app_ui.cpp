@@ -1832,7 +1832,6 @@ void RenderSelectedSection(AppContext& context)
         }
         ImGui::AlignTextToFramePadding();
         ImGui::TextWrapped("Key to Press After Message/Emote paste:");
-        ImGui::SameLine();
         DrawKeyBindControl("EnterKey", vk_enterkey, selected_section, 150.0f, 50.0f);
         ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
         ImGui::Separator();
