@@ -164,6 +164,8 @@ struct UpdateUiState {
     bool checkedOnce = false;
     bool checking = false;
     bool applying = false;
+    bool updateConfirmOpen = false;
+    bool updatePromptDismissed = false;
     std::string actionMessage;
 };
 
@@ -201,12 +203,16 @@ void ResetInstanceRemoveConfirmState()
     g_instance_remove_confirm_state = {};
 }
 
+
 void StartUpdateCheck(bool force)
 {
     {
         std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
         if (g_updateUiState.checking || g_updateUiState.applying || (g_updateUiState.checkedOnce && !force)) {
             return;
+        }
+        if (force) {
+            g_updateUiState.updatePromptDismissed = false;
         }
         g_updateUiState.checking = true;
         g_updateUiState.actionMessage = "Checking for updates...";
@@ -217,19 +223,31 @@ void StartUpdateCheck(bool force)
         smu::updater::UpdaterStatus status = smu::updater::CheckForUpdate(version);
         if (!status.checkSucceeded) {
             LogWarning("Update check failed: " + status.message);
-        } else if (status.updateAvailable) {
         }
+
+        const bool shouldOpenUpdatePrompt =
+            status.checkSucceeded &&
+            status.updateAvailable &&
+            status.autoApplySupported &&
+            status.selectedAsset.has_value() &&
+            status.latestRelease.has_value();
+
         {
             std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
             g_updateUiState.status = std::move(status);
             g_updateUiState.checkedOnce = true;
             g_updateUiState.checking = false;
             g_updateUiState.actionMessage = g_updateUiState.status.message;
+
+            if (shouldOpenUpdatePrompt && !g_updateUiState.updatePromptDismissed) {
+                g_updateUiState.updateConfirmOpen = true;
+            }
         }
     }).detach();
 }
 
-void StartApplyUpdate()
+
+void StartApplyUpdateConfirmed()
 {
     smu::updater::ReleaseInfo release;
     {
@@ -257,6 +275,121 @@ void StartApplyUpdate()
             LogWarning(error.empty() ? "Update failed." : error);
         }
     }).detach();
+}
+
+void StartApplyUpdate()
+{
+    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+
+    if (g_updateUiState.checking || g_updateUiState.applying) {
+        return;
+    }
+
+    if (!g_updateUiState.status.latestRelease || !g_updateUiState.status.updateAvailable) {
+        g_updateUiState.actionMessage = g_updateUiState.status.message.empty()
+            ? "No update is available."
+            : g_updateUiState.status.message;
+        return;
+    }
+
+    if (!g_updateUiState.status.autoApplySupported) {
+        g_updateUiState.actionMessage =
+            "An update is available, but automatic installation is not supported in this launch mode.";
+        return;
+    }
+
+    if (!g_updateUiState.status.selectedAsset) {
+        g_updateUiState.actionMessage =
+            "An update is available, but no matching package asset was found for this platform.";
+        return;
+    }
+
+    g_updateUiState.updateConfirmOpen = true;
+}
+
+void RenderUpdateConfirmationModal()
+{
+    smu::updater::UpdaterStatus statusSnapshot;
+    bool shouldOpen = false;
+    bool isApplying = false;
+
+    {
+        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+        shouldOpen = g_updateUiState.updateConfirmOpen;
+        isApplying = g_updateUiState.applying;
+        statusSnapshot = g_updateUiState.status;
+    }
+
+    if (shouldOpen) {
+        ImGui::OpenPopup("Update Available");
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal("Update Available", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        const std::string latestVersion = statusSnapshot.latestVersion.empty()
+            ? "unknown"
+            : statusSnapshot.latestVersion;
+        const std::string localVersionText = statusSnapshot.localVersion.empty()
+            ? localVersion
+            : statusSnapshot.localVersion;
+        const std::string assetName = statusSnapshot.selectedAsset
+            ? statusSnapshot.selectedAsset->name
+            : "No matching asset";
+
+        ImGui::TextWrapped("A new version of Spencer Macro Utilities is available.");
+        ImGui::Spacing();
+        ImGui::Text("Current version: %s", localVersionText.c_str());
+        ImGui::Text("Latest version: %s", latestVersion.c_str());
+        ImGui::Text("Package: %s", assetName.c_str());
+        ImGui::Spacing();
+        ImGui::TextWrapped("Do you want to download and install this update now?");
+        ImGui::Separator();
+
+        if (isApplying) {
+            ImGui::TextUnformatted("Downloading update...");
+        } else {
+            if (ImGui::Button("Yes", ImVec2(90.0f, 0.0f))) {
+                {
+                    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+                    g_updateUiState.updateConfirmOpen = false;
+                    g_updateUiState.updatePromptDismissed = true;
+                }
+                ImGui::CloseCurrentPopup();
+                StartApplyUpdateConfirmed();
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("No", ImVec2(90.0f, 0.0f))) {
+                {
+                    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+                    g_updateUiState.updateConfirmOpen = false;
+                    g_updateUiState.updatePromptDismissed = true;
+                    g_updateUiState.actionMessage = "Update skipped.";
+                }
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Cancel", ImVec2(90.0f, 0.0f))) {
+                {
+                    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+                    g_updateUiState.updateConfirmOpen = false;
+                    g_updateUiState.updatePromptDismissed = true;
+                    g_updateUiState.actionMessage = "Update cancelled.";
+                }
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SetItemDefaultFocus();
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 ImVec4 Brighten(ImVec4 col, float factor)
@@ -2304,6 +2437,7 @@ void RenderAppUi(AppContext& context)
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();
     RenderLinuxInputSetup(context);
+    RenderUpdateConfirmationModal();
     RenderAdministratorRequiredPopup();
 
     float settingsPanelHeight = 140.0f;
