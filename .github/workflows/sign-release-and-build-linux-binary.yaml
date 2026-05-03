@@ -1,4 +1,4 @@
-name: Sign Release and Build Linux Binary
+name: Sign Release and Build Linux Artifacts
 
 on:
   workflow_dispatch:
@@ -11,34 +11,27 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
 
-      - name: Check for changes
-        id: check_diff
-        run: |
-          # check if there are any changes in the helper since the last commit
-          if git diff --quiet HEAD^ HEAD -- "visual studio/Resource Files/Suspend_Input_Helper_Source/linux_helper.cpp"; then
-            echo "no_change=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "no_change=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Build linux binary
-        if: steps.check_diff.outputs.no_change == 'false'
+      - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
-          g++ -o ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary ./visual\ studio/Resource\ Files/Suspend_Input_Helper_Source/linux_helper.cpp -O3 -std=c++11
+          sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev
 
-      - name: Upload linux binary
-        if: steps.check_diff.outputs.no_change == 'false'
+      - name: Configure Linux build
+        run: cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Linux app and package folder
+        run: |
+          cmake --build build/linux --target suspend
+          cmake --build build/linux --target package-linux-dir
+
+      - name: Upload Linux package
         uses: actions/upload-artifact@v4
         with:
-          path: visual\ studio/Resource\ Files/Suspend_Input_Helper_Linux_Binary
-          name: Suspend_Input_Helper_Linux_Binary
+          name: SpencerMacroUtilities-linux
+          path: build/linux/SpencerMacroUtilities
   sign:
-    needs: build-linux # Ensure linux build completes first
+    needs: build-linux
     runs-on: windows-latest
     
     permissions:
@@ -54,25 +47,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v1.1
+      - name: Configure Windows build
+        run: cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
 
-      - name: Build project
-        run: msbuild "visual studio\suspend.sln" /p:Configuration=Release /p:Platform=x64 `
-          /p:WholeProgramOptimization=false `
-          /p:Optimization=FullOptimization `
-          /p:IntrinsicFunctions=true `
-          /p:FramePointerOmission=true `
-          /p:FiberSafeOptimizations=true `
-          /p:RuntimeLibrary=MultiThreaded `
-          /p:OptimizeReferences=true `
-          /p:EnableCOMDATFolding=true
+      - name: Build Windows app
+        run: cmake --build build/windows --config Release --target suspend
 
       - name: Upload unsigned ZIP for signing
         id: upload-artifact-step
         uses: actions/upload-artifact@v4
         with:
-          path: visual studio\x64\Release\suspend.exe
+          path: build/windows/Release/suspend.exe
 
       - name: Submit signing request to SignPath and upload to signed
         uses: signpath/github-action-submit-signing-request@v1.1

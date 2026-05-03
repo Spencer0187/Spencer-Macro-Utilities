@@ -17,12 +17,12 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "../../core/key_codes.h"
-#include "imgui-files/imgui.h"
+#include "key_codes.h"
+#include "imgui.h"
 
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
 #include <windows.h>
-#include "../windivert-files/windivert.h"
+#include "windivert.h"
 #else
 using HWND = void*;
 using HANDLE = void*;

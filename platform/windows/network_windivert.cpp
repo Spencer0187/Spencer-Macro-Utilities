@@ -1,8 +1,11 @@
-﻿/* --- START OF FILE network_manager.cpp --- */
+#include "network_windivert.h"
 
-#include "Resource Files/network_manager.h"
+#if defined(_WIN32)
+
+#include "../../core/legacy_globals.h"
+#include "logzz.hpp"
 #include "resource.h"
-#include "../platform/network_backend.h"
+
 #include <mutex>
 #include <iostream>
 #include <fstream>
@@ -19,13 +22,11 @@
 #include <chrono>
 #include <thread>
 
-// Include windivert
-#include "windivert-files/windivert.h"
-
-#include "Resource Files/globals.h"
 using namespace Globals;
 
-// Tracks if the current connection is RCC (RakNet) or UDMUX
+namespace smu::platform::windows {
+namespace {
+
 std::atomic<bool> g_is_using_rcc = false;
 
 // DELAY / LAG SYSTEM DEFINITIONS
@@ -119,10 +120,6 @@ static const wchar_t* GetWinDivertErrorDescription(DWORD errorCode) {
 }
 
 bool TryLoadWinDivert() {
-	if (g_isLinuxWine) {
-		return false;
-	}
-
 	wchar_t buffer[256] = {0};
 	// Check if file exists before attempting extraction or loading
 	if (bDependenciesLoaded) return true; 
@@ -577,6 +574,7 @@ void ApplyLagSwitchConfigToGlobals(const smu::platform::LagSwitchConfig& config)
     lagswitch_autounblock = config.autoUnblock;
     lagswitch_max_duration = config.maxDurationSeconds;
     lagswitch_unblock_ms = config.unblockDurationMs;
+    g_log_thread_running.store(config.targetRobloxOnly, std::memory_order_relaxed);
 }
 
 class WinDivertNetworkLagBackend final : public smu::platform::NetworkLagBackend {
@@ -605,8 +603,12 @@ public:
 
         bWinDivertEnabled = true;
         g_windivert_running.store(true, std::memory_order_relaxed);
+        g_log_thread_running.store(lagswitchtargetroblox, std::memory_order_relaxed);
         if (!workerThread_.joinable()) {
             workerThread_ = std::thread(WindivertWorkerThread);
+        }
+        if (!logScannerThread_.joinable()) {
+            logScannerThread_ = std::thread(RobloxLogScannerThread);
         }
         return true;
     }
@@ -620,10 +622,14 @@ public:
         bWinDivertEnabled = false;
         g_windivert_running.store(false, std::memory_order_relaxed);
         g_windivert_blocking.store(false, std::memory_order_relaxed);
+        g_log_thread_running.store(false, std::memory_order_relaxed);
         SafeCloseWinDivert();
 
         if (workerThread_.joinable()) {
             workerThread_.join();
+        }
+        if (logScannerThread_.joinable()) {
+            logScannerThread_.join();
         }
     }
 
@@ -666,6 +672,7 @@ public:
 
 private:
     std::thread workerThread_;
+    std::thread logScannerThread_;
 };
 
 } // namespace
@@ -674,3 +681,7 @@ std::shared_ptr<smu::platform::NetworkLagBackend> CreateWinDivertNetworkLagBacke
 {
     return std::make_shared<WinDivertNetworkLagBackend>();
 }
+
+} // namespace smu::platform::windows
+
+#endif

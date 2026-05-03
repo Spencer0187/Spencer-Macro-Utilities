@@ -1,6 +1,6 @@
 ﻿#define NOMINMAX
-#include "Resource Files/theme_manager.h"
-#include "Resource Files/globals.h"
+#include "theme_manager.h"
+#include "../core/legacy_globals.h"
 #include <algorithm>
 #include <iostream>
 

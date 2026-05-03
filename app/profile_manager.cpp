@@ -1,9 +1,9 @@
 ﻿#define NOMINMAX
-#include "Resource Files/globals.h"
-#include "Resource Files/profile_manager.h"
+#include "profile_manager.h"
+#include "../core/legacy_globals.h"
 #include "../platform/logging.h"
-#include "imgui-files/imgui.h"
-#include "Resource Files/json.hpp"
+#include "imgui.h"
+#include "json.hpp"
 #include <array>
 #include <cerrno>
 #include <cstdlib>

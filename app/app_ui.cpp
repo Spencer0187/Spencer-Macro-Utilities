@@ -13,7 +13,7 @@
 #ifndef SMU_PORTABLE_GLOBALS
 #define SMU_PORTABLE_GLOBALS
 #endif
-#include "Resource Files/globals.h"
+#include "../core/legacy_globals.h"
 
 #include "imgui.h"
 #include <SDL3/SDL_clipboard.h>

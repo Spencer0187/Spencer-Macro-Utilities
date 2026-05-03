@@ -4,13 +4,14 @@
 #define NOMINMAX
 #include <windows.h>
 
-#if SMU_USE_SDL_UI
-
 #include "app_context.h"
 #include "app_main.h"
 #include "macro_runtime.h"
 #include "../platform/logging.h"
-#include "Resource Files/wine_compatibility_layer.h"
+#include "../platform/input_backend.h"
+#include "../platform/network_backend.h"
+#include "../platform/process_backend.h"
+#include "../platform/windows/windows_backends.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -20,27 +21,52 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     (void)nCmdShow;
 
     smu::log::SetFileLoggingEnabled(true);
-    LogInfo("Starting Spencer Macro Utilities SDL3 Windows app.");
-    InitLinuxCompatLayer();
+    LogInfo("Starting Spencer Macro Utilities native Windows app.");
+
+    smu::platform::windows::InitializeWindowsPlatformBackends();
+
     smu::app::AppContext context = smu::app::CreateAppContext();
+
+    if (auto inputBackend = smu::platform::GetInputBackend()) {
+        context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
+        if (!context.inputBackendAvailable && !context.inputBackendError.empty()) {
+            LogWarning(context.inputBackendError);
+        }
+    }
+
+    if (auto processBackend = smu::platform::GetProcessBackend()) {
+        context.processBackendAvailable = processBackend->init(&context.processBackendError);
+        if (!context.processBackendAvailable && !context.processBackendError.empty()) {
+            LogWarning(context.processBackendError);
+        }
+    }
+
+    if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
+        context.networkBackendAvailable = networkBackend->init(&context.networkBackendError);
+        if (!context.networkBackendAvailable && !context.networkBackendError.empty()) {
+            LogWarning(context.networkBackendError);
+        }
+    }
+
     smu::app::MacroRuntime macroRuntime;
     macroRuntime.start();
+
     const int result = smu::app::RunSharedApp(context);
+
     macroRuntime.stop();
-    ShutdownLinuxCompatLayer();
-    LogInfo("Spencer Macro Utilities SDL3 Windows app stopped.");
+
+    if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
+        networkBackend->shutdown();
+    }
+    if (auto processBackend = smu::platform::GetProcessBackend()) {
+        processBackend->shutdown();
+    }
+    if (auto inputBackend = smu::platform::GetInputBackend()) {
+        inputBackend->shutdown();
+    }
+
+    LogInfo("Spencer Macro Utilities native Windows app stopped.");
     return result;
 }
-
-#else
-
-int WINAPI SMU_RunWindowsLegacyApp(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow);
-
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
-{
-    return SMU_RunWindowsLegacyApp(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
-}
-
-#endif
 
 #endif

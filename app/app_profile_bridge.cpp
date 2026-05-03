@@ -3,8 +3,8 @@
 #ifndef SMU_PORTABLE_GLOBALS
 #define SMU_PORTABLE_GLOBALS
 #endif
-#include "Resource Files/globals.h"
-#include "Resource Files/profile_manager.h"
+#include "../core/legacy_globals.h"
+#include "profile_manager.h"
 #include "../core/app_state.h"
 #include "../platform/logging.h"
 

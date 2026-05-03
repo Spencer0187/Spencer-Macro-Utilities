@@ -287,7 +287,7 @@ CODE
      // TODO: Fill optional fields of the io structure later.
      // TODO: Load TTF/OTF fonts if you don't want to use the default font.
 
-     // Initialize helper Platform and Renderer backends (here we are using imgui_impl_win32.cpp and imgui_impl_dx11.cpp)
+     // Initialize helper Platform and Renderer backends (for example, a platform backend plus a renderer backend)
      ImGui_ImplWin32_Init(hwnd);
      ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
@@ -690,7 +690,7 @@ IMPLEMENTING SUPPORT for ImGuiBackendFlags_RendererHasTextures:
  - 2022/09/20 (1.89)   - ImGuiKey is now a typed enum, allowing ImGuiKey_XXX symbols to be named in debuggers.
                          this will require uses of legacy backend-dependent indices to be casted, e.g.
                             - with imgui_impl_glfw:  IsKeyPressed(GLFW_KEY_A) -> IsKeyPressed((ImGuiKey)GLFW_KEY_A);
-                            - with imgui_impl_win32: IsKeyPressed('A')        -> IsKeyPressed((ImGuiKey)'A')
+                            - with a Win32 backend:  IsKeyPressed('A')        -> IsKeyPressed((ImGuiKey)'A')
                             - etc. However if you are upgrading code you might well use the better, backend-agnostic IsKeyPressed(ImGuiKey_A) now!
  - 2022/09/12 (1.89) - removed the bizarre legacy default argument for 'TreePush(const void* ptr = NULL)', always pass a pointer value explicitly. NULL/nullptr is ok but require cast, e.g. TreePush((void*)nullptr);
  - 2022/09/05 (1.89) - commented out redirecting functions/enums names that were marked obsolete in 1.77 and 1.78 (June 2020):

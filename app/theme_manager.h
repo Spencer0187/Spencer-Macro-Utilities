@@ -1,6 +1,6 @@
 #pragma once
-#include "globals.h"
-#include "imgui-files/imgui.h"
+#include "../core/legacy_globals.h"
+#include "imgui.h"
 #include <vector>
 #include <string>
 
