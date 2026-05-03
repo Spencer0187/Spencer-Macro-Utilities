@@ -159,8 +159,81 @@ bool WriteTemporaryScriptFile(const std::string& path, const std::string& conten
     return true;
 }
 
-std::string CreateTemporaryTerminalInstallerScript(const std::string& installerPath, std::string* errorMessage)
+std::string CreateTemporaryInstallerCopy(const std::string& installerPath, std::string* errorMessage)
 {
+    if (!PathExists(installerPath)) {
+        if (errorMessage) {
+            *errorMessage = "Linux permission installer script was not found at " + installerPath + ".";
+        }
+        return {};
+    }
+
+    const std::filesystem::path baseDir = "/tmp";
+    const std::string templatePath = (baseDir / "smu-linux-permission-installer-copy-XXXXXX").string();
+
+    std::vector<char> tempPath(templatePath.begin(), templatePath.end());
+    tempPath.push_back('\0');
+
+    const int fd = mkstemp(tempPath.data());
+    if (fd < 0) {
+        if (errorMessage) {
+            *errorMessage = std::string("Could not create a temporary installer copy: ") + std::strerror(errno);
+        }
+        return {};
+    }
+    close(fd);
+
+    const std::string copyPath(tempPath.data());
+
+    std::ifstream source(installerPath, std::ios::in | std::ios::binary);
+    if (!source) {
+        if (errorMessage) {
+            *errorMessage = "Could not open bundled installer script at " + installerPath + ".";
+        }
+        std::remove(copyPath.c_str());
+        return {};
+    }
+
+    std::ofstream destination(copyPath, std::ios::out | std::ios::trunc | std::ios::binary);
+    if (!destination) {
+        if (errorMessage) {
+            *errorMessage = "Could not open temporary installer copy at " + copyPath + ".";
+        }
+        std::remove(copyPath.c_str());
+        return {};
+    }
+
+    destination << source.rdbuf();
+    destination.close();
+
+    if (!destination) {
+        if (errorMessage) {
+            *errorMessage = "Could not finish writing temporary installer copy at " + copyPath + ".";
+        }
+        std::remove(copyPath.c_str());
+        return {};
+    }
+
+    if (chmod(copyPath.c_str(), 0700) != 0) {
+        if (errorMessage) {
+            *errorMessage = std::string("Could not mark temporary installer copy executable: ") + std::strerror(errno);
+        }
+        std::remove(copyPath.c_str());
+        return {};
+    }
+
+    return copyPath;
+}
+
+std::string CreateTemporaryTerminalInstallerScript(const std::string& installerCopyPath, std::string* errorMessage)
+{
+    if (!PathExists(installerCopyPath)) {
+        if (errorMessage) {
+            *errorMessage = "Temporary installer copy was not found at " + installerCopyPath + ".";
+        }
+        return {};
+    }
+
     const char* runtimeDir = std::getenv("XDG_RUNTIME_DIR");
     std::filesystem::path baseDir =
         (runtimeDir && runtimeDir[0] != '\0') ? std::filesystem::path(runtimeDir) : std::filesystem::path("/tmp");
@@ -170,14 +243,14 @@ std::string CreateTemporaryTerminalInstallerScript(const std::string& installerP
         baseDir = "/tmp";
     }
 
-    const std::string templatePath = (baseDir / "smu-linux-permission-installer-XXXXXX").string();
+    const std::string templatePath = (baseDir / "smu-linux-permission-terminal-XXXXXX").string();
     std::vector<char> tempPath(templatePath.begin(), templatePath.end());
     tempPath.push_back('\0');
 
     const int fd = mkstemp(tempPath.data());
     if (fd < 0) {
         if (errorMessage) {
-            *errorMessage = std::string("Could not create a temporary installer script: ") + std::strerror(errno);
+            *errorMessage = std::string("Could not create a temporary installer launcher: ") + std::strerror(errno);
         }
         return {};
     }
@@ -186,13 +259,14 @@ std::string CreateTemporaryTerminalInstallerScript(const std::string& installerP
     const std::string scriptPath(tempPath.data());
     std::string contents;
     contents += "#!/usr/bin/env bash\n";
+    contents += "INSTALLER_COPY=" + ShellQuote(installerCopyPath) + "\n";
     contents += "cleanup() {\n";
-    contents += "  rm -f -- \"$0\"\n";
+    contents += "  rm -f -- \"$0\" \"$INSTALLER_COPY\"\n";
     contents += "}\n";
     contents += "trap cleanup EXIT\n";
     contents += "echo \"Spencer Macro Utilities needs permission to access Linux input devices.\"\n";
     contents += "echo\n";
-    contents += "sudo " + ShellQuote(installerPath) + "\n";
+    contents += "sudo /bin/bash \"$INSTALLER_COPY\"\n";
     contents += "status=$?\n";
     contents += "echo\n";
     contents += "if [[ \"$status\" -eq 0 ]]; then\n";
@@ -206,6 +280,7 @@ std::string CreateTemporaryTerminalInstallerScript(const std::string& installerP
     contents += "exit \"$status\"\n";
 
     if (!WriteTemporaryScriptFile(scriptPath, contents, errorMessage)) {
+        std::remove(installerCopyPath.c_str());
         return {};
     }
 
@@ -336,9 +411,17 @@ int RunPermissionInstallerWithGraphicalPkexec(const std::string& scriptPath)
         return static_cast<int>(PermissionInstallerResult::NotFound);
     }
 
+    std::string tempInstallerError;
+    const std::string tempInstallerPath = CreateTemporaryInstallerCopy(scriptPath, &tempInstallerError);
+    if (tempInstallerPath.empty()) {
+        LogWarning("Failed to stage Linux permission installer for pkexec. " + tempInstallerError);
+        return static_cast<int>(PermissionInstallerResult::Failed);
+    }
+
     const pid_t pid = fork();
     if (pid < 0) {
         LogWarning(std::string("Failed to fork pkexec installer: ") + std::strerror(errno));
+        std::remove(tempInstallerPath.c_str());
         return static_cast<int>(PermissionInstallerResult::Failed);
     }
 
@@ -347,7 +430,8 @@ int RunPermissionInstallerWithGraphicalPkexec(const std::string& scriptPath)
             "pkexec",
             "pkexec",
             "--disable-internal-agent",
-            scriptPath.c_str(),
+            "/bin/bash",
+            tempInstallerPath.c_str(),
             static_cast<char*>(nullptr));
         _exit(errno == ENOENT
             ? static_cast<int>(PermissionInstallerResult::NotFound)
@@ -357,8 +441,11 @@ int RunPermissionInstallerWithGraphicalPkexec(const std::string& scriptPath)
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
         LogWarning(std::string("Failed waiting for pkexec installer: ") + std::strerror(errno));
+        std::remove(tempInstallerPath.c_str());
         return static_cast<int>(PermissionInstallerResult::Failed);
     }
+
+    std::remove(tempInstallerPath.c_str());
 
     if (WIFEXITED(status)) {
         return WEXITSTATUS(status);
@@ -376,9 +463,19 @@ bool LaunchPermissionInstallerInTerminal(const std::string& scriptPath, std::str
         return false;
     }
 
+    std::string tempInstallerError;
+    const std::string tempInstallerPath = CreateTemporaryInstallerCopy(scriptPath, &tempInstallerError);
+    if (tempInstallerPath.empty()) {
+        if (errorMessage) {
+            *errorMessage = tempInstallerError;
+        }
+        return false;
+    }
+
     std::string tempScriptError;
-    const std::string tempScriptPath = CreateTemporaryTerminalInstallerScript(scriptPath, &tempScriptError);
+    const std::string tempScriptPath = CreateTemporaryTerminalInstallerScript(tempInstallerPath, &tempScriptError);
     if (tempScriptPath.empty()) {
+        std::remove(tempInstallerPath.c_str());
         if (errorMessage) {
             *errorMessage = tempScriptError;
         }
@@ -401,6 +498,7 @@ bool LaunchPermissionInstallerInTerminal(const std::string& scriptPath, std::str
     }
 
     std::remove(tempScriptPath.c_str());
+    std::remove(tempInstallerPath.c_str());
 
     if (errorMessage) {
         if (!sawTerminalCandidate) {
