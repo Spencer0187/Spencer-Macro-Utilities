@@ -31,6 +31,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -44,6 +45,46 @@ namespace smu::app {
 namespace {
 
 using namespace Globals;
+
+std::string SanitizePathForDisplay(const std::filesystem::path& path)
+{
+    std::string fullPath = path.string();
+
+#if defined(_WIN32)
+    char* buffer = nullptr;
+    size_t size = 0;
+    if (_dupenv_s(&buffer, &size, "USERNAME") != 0 || !buffer || size == 0) {
+        return fullPath;
+    }
+    std::string username = buffer;
+    free(buffer);
+    
+    // Replace "C:\Users\<actual_username>" with "C:\Users\%USERNAME%"
+    std::string userPrefix = "C:\\Users\\" + username;
+    std::string sanitizedPrefix = "C:\\Users\\%USERNAME%";
+    
+    if (fullPath.size() >= userPrefix.size()) {
+        if (fullPath.substr(0, userPrefix.size()) == userPrefix) {
+            return sanitizedPrefix + fullPath.substr(userPrefix.size());
+        }
+    }
+#else
+    const char* homeDir = std::getenv("HOME");
+    if (!homeDir) {
+        return fullPath;
+    }
+    
+    // Replace the home directory path with $HOME
+    std::string homeDirStr = homeDir;
+    if (fullPath.size() >= homeDirStr.size()) {
+        if (fullPath.substr(0, homeDirStr.size()) == homeDirStr) {
+            return "$HOME" + fullPath.substr(homeDirStr.size());
+        }
+    }
+#endif
+
+    return fullPath;
+}
 
 const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
 
@@ -1787,7 +1828,7 @@ void RenderSelectedImportedScript(AppContext& context)
     if (!script->metadata.version.empty()) {
         ImGui::TextWrapped("Version: %s", script->metadata.version.c_str());
     }
-    ImGui::TextWrapped("File: %s", script->path.string().c_str());
+    ImGui::TextWrapped("File: %s", SanitizePathForDisplay(script->path).c_str());
 
     const char* status = "Loaded";
     ImVec4 statusColor = GetCurrentTheme().success_color;
