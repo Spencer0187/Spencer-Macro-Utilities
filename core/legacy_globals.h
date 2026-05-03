@@ -64,9 +64,118 @@ inline constexpr int SM_CXSCREEN = 0;
 inline constexpr int SM_CYSCREEN = 1;
 inline constexpr int MAPVK_VSC_TO_VK = 1;
 inline int GetSystemMetrics(int index) { return index == SM_CXSCREEN ? 1280 : 800; }
-inline unsigned int VkKeyScanEx(char ch, void*) { return static_cast<unsigned int>(static_cast<unsigned char>(ch)); }
+inline unsigned int VkKeyScanEx(char ch, void*)
+{
+    const unsigned char value = static_cast<unsigned char>(ch);
+    if (value >= 'a' && value <= 'z') {
+        return static_cast<unsigned int>(value - 'a' + 'A');
+    }
+    if ((value >= 'A' && value <= 'Z') || (value >= '0' && value <= '9')) {
+        return static_cast<unsigned int>(value);
+    }
+
+    switch (value) {
+    case ' ': return smu::core::SMU_VK_SPACE;
+    case ';': return smu::core::SMU_VK_OEM_1;
+    case '=': return smu::core::SMU_VK_OEM_PLUS;
+    case ',': return smu::core::SMU_VK_OEM_COMMA;
+    case '-': return smu::core::SMU_VK_OEM_MINUS;
+    case '.': return smu::core::SMU_VK_OEM_PERIOD;
+    case '/': return smu::core::SMU_VK_OEM_2;
+    case '`': return smu::core::SMU_VK_OEM_3;
+    case '[': return smu::core::SMU_VK_OEM_4;
+    case '\\': return smu::core::SMU_VK_OEM_5;
+    case ']': return smu::core::SMU_VK_OEM_6;
+    case '\'': return smu::core::SMU_VK_OEM_7;
+    default: return smu::core::SMU_VK_NONE;
+    }
+}
+
 inline void* GetKeyboardLayout(int) { return nullptr; }
-inline unsigned int MapVirtualKey(unsigned int code, unsigned int) { return code; }
+
+inline unsigned int MapVirtualKey(unsigned int code, unsigned int mapType)
+{
+    if (mapType != MAPVK_VSC_TO_VK) {
+        return code;
+    }
+
+    // Windows set-1 scan code -> SMU logical VK code.
+    // This is only the portable compatibility shim used by native non-Windows builds.
+    switch (code) {
+    case 0x01: return smu::core::SMU_VK_ESCAPE;
+    case 0x02: return smu::core::SMU_VK_1;
+    case 0x03: return smu::core::SMU_VK_2;
+    case 0x04: return smu::core::SMU_VK_3;
+    case 0x05: return smu::core::SMU_VK_4;
+    case 0x06: return smu::core::SMU_VK_5;
+    case 0x07: return smu::core::SMU_VK_6;
+    case 0x08: return smu::core::SMU_VK_7;
+    case 0x09: return smu::core::SMU_VK_8;
+    case 0x0A: return smu::core::SMU_VK_9;
+    case 0x0B: return smu::core::SMU_VK_0;
+    case 0x0C: return smu::core::SMU_VK_OEM_MINUS;
+    case 0x0D: return smu::core::SMU_VK_OEM_PLUS;
+    case 0x0E: return smu::core::SMU_VK_BACK;
+    case 0x0F: return smu::core::SMU_VK_TAB;
+    case 0x10: return smu::core::SMU_VK_Q;
+    case 0x11: return smu::core::SMU_VK_W;
+    case 0x12: return smu::core::SMU_VK_E;
+    case 0x13: return smu::core::SMU_VK_R;
+    case 0x14: return smu::core::SMU_VK_T;
+    case 0x15: return smu::core::SMU_VK_Y;
+    case 0x16: return smu::core::SMU_VK_U;
+    case 0x17: return smu::core::SMU_VK_I;
+    case 0x18: return smu::core::SMU_VK_O;
+    case 0x19: return smu::core::SMU_VK_P;
+    case 0x1A: return smu::core::SMU_VK_OEM_4;
+    case 0x1B: return smu::core::SMU_VK_OEM_6;
+    case 0x1C: return smu::core::SMU_VK_RETURN;
+    case 0x1D: return smu::core::SMU_VK_CONTROL;
+    case 0x1E: return smu::core::SMU_VK_A;
+    case 0x1F: return smu::core::SMU_VK_S;
+    case 0x20: return smu::core::SMU_VK_D;
+    case 0x21: return smu::core::SMU_VK_F;
+    case 0x22: return smu::core::SMU_VK_G;
+    case 0x23: return smu::core::SMU_VK_H;
+    case 0x24: return smu::core::SMU_VK_J;
+    case 0x25: return smu::core::SMU_VK_K;
+    case 0x26: return smu::core::SMU_VK_L;
+    case 0x27: return smu::core::SMU_VK_OEM_1;
+    case 0x28: return smu::core::SMU_VK_OEM_7;
+    case 0x29: return smu::core::SMU_VK_OEM_3;
+    case 0x2A: return smu::core::SMU_VK_SHIFT;
+    case 0x2B: return smu::core::SMU_VK_OEM_5;
+    case 0x2C: return smu::core::SMU_VK_Z;
+    case 0x2D: return smu::core::SMU_VK_X;
+    case 0x2E: return smu::core::SMU_VK_C;
+    case 0x2F: return smu::core::SMU_VK_V;
+    case 0x30: return smu::core::SMU_VK_B;
+    case 0x31: return smu::core::SMU_VK_N;
+    case 0x32: return smu::core::SMU_VK_M;
+    case 0x33: return smu::core::SMU_VK_OEM_COMMA;
+    case 0x34: return smu::core::SMU_VK_OEM_PERIOD;
+    case 0x35: return smu::core::SMU_VK_OEM_2;
+    case 0x36: return smu::core::SMU_VK_SHIFT;
+    case 0x38: return smu::core::SMU_VK_MENU;
+    case 0x39: return smu::core::SMU_VK_SPACE;
+    case 0x3A: return smu::core::SMU_VK_CAPITAL;
+    case 0x3B: return smu::core::SMU_VK_F1;
+    case 0x3C: return smu::core::SMU_VK_F2;
+    case 0x3D: return smu::core::SMU_VK_F3;
+    case 0x3E: return smu::core::SMU_VK_F4;
+    case 0x3F: return smu::core::SMU_VK_F5;
+    case 0x40: return smu::core::SMU_VK_F6;
+    case 0x41: return smu::core::SMU_VK_F7;
+    case 0x42: return smu::core::SMU_VK_F8;
+    case 0x43: return smu::core::SMU_VK_F9;
+    case 0x44: return smu::core::SMU_VK_F10;
+    case 0x45: return smu::core::SMU_VK_NUMLOCK;
+    case 0x46: return smu::core::SMU_VK_SCROLL;
+    case 0x57: return smu::core::SMU_VK_F11;
+    case 0x58: return smu::core::SMU_VK_F12;
+    default: return code;
+    }
+}
 
 #ifndef _TRUNCATE
 #define _TRUNCATE static_cast<size_t>(-1)
@@ -216,17 +325,17 @@ namespace Globals {
     inline unsigned int vk_enterkey = smu::core::SMU_VK_RETURN;
     inline unsigned int vk_floorbouncekey = smu::core::SMU_VK_F4;
     
-    // API-initialized keys
+    // Default keybinds using SMU logical virtual-key codes
     inline unsigned int vk_zkey = VkKeyScanEx('Z', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_dkey = VkKeyScanEx('D', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_xkey = VkKeyScanEx('X', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_wkey = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;
     inline unsigned int vk_bouncekey = VkKeyScanEx('C', GetKeyboardLayout(0)) & 0xFF;
-    inline unsigned int vk_leftbracket = MapVirtualKey(0x1A, MAPVK_VSC_TO_VK);
-    inline unsigned int vk_bunnyhopkey = MapVirtualKey(0x39, MAPVK_VSC_TO_VK);
-    inline unsigned int vk_chatkey = VkKeyScanEx('/', GetKeyboardLayout(0)) & 0xFF;
-    inline unsigned int vk_afkkey = VkKeyScanEx('\\', GetKeyboardLayout(0)) & 0xFF;
-    inline unsigned int vk_lagswitchkey = VkKeyScanEx('=', GetKeyboardLayout(0)) & 0xFF;
+    inline unsigned int vk_leftbracket = smu::core::SMU_VK_OEM_4;
+    inline unsigned int vk_bunnyhopkey = smu::core::SMU_VK_SPACE;
+    inline unsigned int vk_chatkey = smu::core::SMU_VK_OEM_2;
+    inline unsigned int vk_afkkey = smu::core::SMU_VK_OEM_5;
+    inline unsigned int vk_lagswitchkey = smu::core::SMU_VK_OEM_PLUS;
     inline unsigned int vk_autohhjkey1 = smu::core::SMU_VK_SPACE;  // First auto HHJ key (default: Spacebar)
     inline unsigned int vk_autohhjkey2 = VkKeyScanEx('W', GetKeyboardLayout(0)) & 0xFF;  // Second auto HHJ key (default: W)
     inline unsigned int vk_wallhopjumpkey = smu::core::SMU_VK_SPACE;
