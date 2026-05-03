@@ -3,9 +3,6 @@
 #include "app_assets.h"
 #include "../platform/logging.h"
 
-#ifndef SMU_PORTABLE_GLOBALS
-#define SMU_PORTABLE_GLOBALS
-#endif
 #include "theme_manager.h"
 
 #include "imgui.h"

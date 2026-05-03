@@ -18,9 +18,20 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "key_codes.h"
+#include "../platform/platform_types.h"
 #include "imgui.h"
 
+#if defined(_WIN32) && defined(SMU_PORTABLE_GLOBALS)
+#error "SMU_PORTABLE_GLOBALS must not be defined for Windows builds."
+#endif
+
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include "windivert.h"
 #else
@@ -156,7 +167,7 @@ namespace Globals {
     inline std::atomic<bool> running = true;
     inline std::atomic<bool> done = false;
     inline std::atomic<unsigned int> RobloxFPS = 120;
-    inline std::vector<DWORD> targetPIDs;
+    inline std::vector<smu::platform::PlatformPid> targetPIDs;
     inline std::vector<HANDLE> hProcess;
     inline int screen_width = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CXSCREEN)) / 1.5);
     inline int screen_height = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CYSCREEN)) / 1.5 + 10);

@@ -9,9 +9,6 @@
 #include "../platform/process_backend.h"
 #include "../platform/text_input_backend.h"
 
-#ifndef SMU_PORTABLE_GLOBALS
-#define SMU_PORTABLE_GLOBALS
-#endif
 #include "../core/legacy_globals.h"
 
 #include <algorithm>
