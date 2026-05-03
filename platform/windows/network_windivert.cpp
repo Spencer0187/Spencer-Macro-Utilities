@@ -633,7 +633,7 @@ public:
 
     bool isAvailable() const override
     {
-        return bWinDivertEnabled;
+        return true;
     }
 
     bool isBlockingActive() const override

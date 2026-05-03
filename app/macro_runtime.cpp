@@ -11,6 +11,10 @@
 
 #include "../core/legacy_globals.h"
 
+#if defined(_WIN32)
+#include "../platform/windows/admin_elevation.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -806,12 +810,49 @@ void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)
 void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 {
     auto backend = smu::platform::GetNetworkLagBackend();
-    if (!backend || !backend->isAvailable()) {
+    if (!backend) {
         return;
     }
 
+    const bool pressed = isHotkeyPressed(vk_lagswitchkey);
+    if (!foregroundAllowed || !section_toggles[15]) {
+        backend->setBlockingActive(false);
+        lagSwitchWasPressed_ = false;
+        return;
+    }
+
+    bool shouldInitializeBackend = false;
+    if (islagswitchswitch) {
+        shouldInitializeBackend = pressed && !lagSwitchWasPressed_ && !backend->isBlockingActive();
+    } else {
+        shouldInitializeBackend = pressed;
+    }
+
+    if (shouldInitializeBackend && !bWinDivertEnabled) {
+        std::string backendError;
+        if (!backend->init(&backendError)) {
+            if (!backendError.empty()) {
+                LogWarning(backendError);
+            }
+#if defined(_WIN32)
+            if (!smu::platform::windows::IsRunAsAdmin()) {
+                if (DontShowAdminWarning) {
+                    if (smu::platform::windows::RestartAsAdmin()) {
+                        done.store(true, std::memory_order_release);
+                        running.store(false, std::memory_order_release);
+                    }
+                } else {
+                    bShowAdminPopup = true;
+                }
+            }
+#endif
+            lagSwitchWasPressed_ = pressed;
+            return;
+        }
+    }
+
     smu::platform::LagSwitchConfig config = backend->config();
-    config.enabled = true;
+    config.enabled = bWinDivertEnabled;
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
     config.fakeLagEnabled = lagswitchlag;
@@ -827,13 +868,6 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
     config.unblockDurationMs = lagswitch_unblock_ms;
     backend->setConfig(config);
 
-    if (!foregroundAllowed || !section_toggles[15]) {
-        backend->setBlockingActive(false);
-        lagSwitchWasPressed_ = false;
-        return;
-    }
-
-    const bool pressed = isHotkeyPressed(vk_lagswitchkey);
     if (islagswitchswitch) {
         if (pressed && !lagSwitchWasPressed_) {
             const bool nextActive = !backend->isBlockingActive();

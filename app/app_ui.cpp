@@ -12,6 +12,10 @@
 
 #include "../core/legacy_globals.h"
 
+#if defined(_WIN32)
+#include "../platform/windows/admin_elevation.h"
+#endif
+
 #include "imgui.h"
 #include <SDL3/SDL_clipboard.h>
 
@@ -345,8 +349,15 @@ void GetKeyNameFromHex(unsigned int combinedKeyCode, char* buffer, size_t buffer
     if (combinedKeyCode & HOTKEY_MASK_SHIFT) prefix += "Shift + ";
 
     std::string keyName;
+    const std::string_view coreName = smu::core::KeyCodeName(vk);
+    if (!coreName.empty()) {
+        keyName = std::string(coreName);
+    }
     if (auto backend = smu::platform::GetInputBackend()) {
-        keyName = backend->formatKeyName(vk);
+        const std::string backendName = backend->formatKeyName(vk);
+        if (!backendName.empty()) {
+            keyName = backendName;
+        }
     }
     if (keyName.empty()) {
         const auto it = vkToString.find(vk);
@@ -701,6 +712,46 @@ void RenderLinuxInputSetup(AppContext& context)
     }
 #else
     (void)context;
+#endif
+}
+
+void RenderAdministratorRequiredPopup()
+{
+#if defined(_WIN32)
+    if (bShowAdminPopup) {
+        ImGui::OpenPopup("Administrator Required");
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+    if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("WinDivert features require Administrator privileges.");
+        ImGui::TextWrapped("This process will extract the Windows driver files and relaunch the app elevated.");
+        ImGui::Separator();
+
+        ImGui::Checkbox("Do not show this again", &DontShowAdminWarning);
+
+        ImGui::Separator();
+        if (ImGui::Button("Restart as Admin", ImVec2(180, 0))) {
+            ImGui::CloseCurrentPopup();
+            bShowAdminPopup = false;
+            if (smu::platform::windows::RestartAsAdmin()) {
+                done.store(true, std::memory_order_release);
+                running.store(false, std::memory_order_release);
+            }
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+            bShowAdminPopup = false;
+        }
+
+        ImGui::EndPopup();
+    }
+#else
+    (void)0;
 #endif
 }
 
@@ -1935,8 +1986,22 @@ void RenderSelectedSection(AppContext& context)
         if (ImGui::Button(bWinDivertEnabled ? "Disable WinDivert" : "Enable WinDivert")) {
             if (!bWinDivertEnabled) {
                 std::string backendError;
-                if (!InitializeLagSwitchBackend(&backendError) && !backendError.empty()) {
-                    LogCritical(backendError);
+                if (!InitializeLagSwitchBackend(&backendError)) {
+                    if (!backendError.empty()) {
+                        LogCritical(backendError);
+                    }
+#if defined(_WIN32)
+                    if (!smu::platform::windows::IsRunAsAdmin()) {
+                        if (DontShowAdminWarning) {
+                            if (smu::platform::windows::RestartAsAdmin()) {
+                                done.store(true, std::memory_order_release);
+                                running.store(false, std::memory_order_release);
+                            }
+                        } else {
+                            bShowAdminPopup = true;
+                        }
+                    }
+#endif
                 }
             } else {
                 ShutdownLagSwitchBackend();
@@ -2102,6 +2167,7 @@ void RenderAppUi(AppContext& context)
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();
     RenderLinuxInputSetup(context);
+    RenderAdministratorRequiredPopup();
 
     float settingsPanelHeight = 140.0f;
     ImGui::BeginChild("GlobalSettings", ImVec2(displaySize.x - 16, settingsPanelHeight), true);

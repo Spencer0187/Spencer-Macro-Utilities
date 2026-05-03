@@ -42,10 +42,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     }
 
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
-        context.networkBackendAvailable = networkBackend->init(&context.networkBackendError);
-        if (!context.networkBackendAvailable && !context.networkBackendError.empty()) {
-            LogWarning(context.networkBackendError);
-        }
+        context.networkBackendAvailable = true;
     }
 
     smu::app::MacroRuntime macroRuntime;

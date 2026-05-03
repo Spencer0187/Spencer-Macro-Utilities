@@ -10,6 +10,12 @@
 #include <array>
 #include <filesystem>
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace smu::app {
 namespace {
 
@@ -90,9 +96,37 @@ void SetupSharedFontsAndStyle(ImGuiIO& io)
 
 #if defined(__linux__)
     const std::filesystem::path fontPath = FindLinuxFontPath();
+#elif defined(_WIN32)
+    HMODULE moduleHandle = GetModuleHandleW(nullptr);
+    HRSRC fontResource = FindResourceW(moduleHandle, L"LSANS_TTF", RT_RCDATA);
+    if (fontResource) {
+        HGLOBAL loadedResource = LoadResource(moduleHandle, fontResource);
+        if (loadedResource) {
+            const DWORD resourceSize = SizeofResource(moduleHandle, fontResource);
+            void* resourceData = LockResource(loadedResource);
+            if (resourceData && resourceSize > 0) {
+                cfg.FontDataOwnedByAtlas = false;
+                if (!io.Fonts->AddFontFromMemoryTTF(resourceData, static_cast<int>(resourceSize), 20.0f, &cfg)) {
+                    LogWarning("LSANS_TTF resource was found but ImGui could not load it; falling back to ImGui default font.");
+                    io.Fonts->AddFontDefault();
+                }
+            } else {
+                LogWarning("LSANS_TTF resource data was invalid; falling back to ImGui default font.");
+                io.Fonts->AddFontDefault();
+            }
+        } else {
+            LogWarning("LSANS_TTF resource could not be loaded; falling back to ImGui default font.");
+            io.Fonts->AddFontDefault();
+        }
+    } else {
+        LogWarning("LSANS_TTF resource was not found; falling back to ImGui default font.");
+        io.Fonts->AddFontDefault();
+    }
 #else
     const std::filesystem::path fontPath = FindLegacyFontPath();
 #endif
+
+#if !defined(_WIN32)
     if (!fontPath.empty()) {
         if (!io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 20.0f, &cfg)) {
             LogWarning("LSANS.TTF was found at " + fontPath.string() + " but ImGui could not load it; falling back to ImGui default font.");
@@ -102,6 +136,7 @@ void SetupSharedFontsAndStyle(ImGuiIO& io)
         LogWarning("LSANS.TTF font was not found; falling back to ImGui default font.");
         io.Fonts->AddFontDefault();
     }
+#endif
 
     ImGui::StyleColorsDark();
 }

@@ -322,6 +322,11 @@ public:
 
     std::string formatKeyName(PlatformKeyCode key) const override
     {
+        const std::string_view coreName = smu::core::KeyCodeName(key);
+        if (!coreName.empty()) {
+            return std::string(coreName);
+        }
+
         auto it = vkToString.find(static_cast<int>(key));
         if (it != vkToString.end()) {
             return it->second;
