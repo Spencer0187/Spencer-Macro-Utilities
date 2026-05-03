@@ -160,7 +160,7 @@ inline int strncpy_s(char* destination, size_t destination_size, const char* sou
 
 namespace Globals {
     // CURRENT VERSION NUMBER OF PROGRAM
-    inline std::string localVersion = "3.2.0";
+    inline std::string localVersion = "3.2.1";
 
     // --- Application & Window State ---
     inline HWND hwnd = NULL;

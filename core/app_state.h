@@ -10,7 +10,7 @@ struct AppState {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> robloxFps{120};
 
-    std::string localVersion = "3.2.0";
+    std::string localVersion = "3.2.1";
 
     int screenWidth = 1280;
     int screenHeight = 800;

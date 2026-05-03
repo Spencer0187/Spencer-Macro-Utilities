@@ -573,7 +573,7 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
     const std::string emoteText = text;
     runWorker([customText, emoteText] {
         HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(17ms);
+        std::this_thread::sleep_for(30ms);
         ReleaseKeyBinded(vk_chatkey);
         std::this_thread::sleep_for(17ms);
 
