@@ -26,6 +26,8 @@ private:
     void refreshTargetProcesses(bool force = false);
     bool foregroundAllows(bool disableOutsideRoblox);
     bool isHotkeyPressed(unsigned int combinedKey) const;
+    bool isBunnyhopPhysicallyHeld() const;
+    void runBunnyhopWorker();
     void processFreezeMacro(bool foregroundAllowed);
     void processItemDesyncMacro(bool foregroundAllowed);
     void processPressKeyMacros(bool foregroundAllowed);
@@ -81,6 +83,7 @@ private:
     std::chrono::steady_clock::time_point lagSwitchStartTime_{};
     bool bunnyhopRunning_ = false;
     bool bunnyhopChatLocked_ = false;
+    std::atomic<bool> bunnyhopWorkerActive_{false};
 };
 
 } // namespace smu::app

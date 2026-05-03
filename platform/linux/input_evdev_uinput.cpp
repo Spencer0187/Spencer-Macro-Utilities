@@ -2,6 +2,7 @@
 
 #include "../logging.h"
 #include "../../core/keymapping.h"
+#include "../../core/legacy_globals.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -457,6 +458,7 @@ void EvdevUinputInputBackend::shutdown()
     for (auto& state : keyStates_) {
         state.store(false, std::memory_order_relaxed);
     }
+    Globals::g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
     initialized_.store(false, std::memory_order_release);
 }
 
@@ -661,6 +663,11 @@ void EvdevUinputInputBackend::setKeyStateFromEvdev(unsigned int evdevCode, bool 
     const PlatformKeyCode vk = EvdevToVk(evdevCode);
     if (vk < keyStates_.size()) {
         keyStates_[vk].store(pressed, std::memory_order_release);
+    }
+
+    const PlatformKeyCode bunnyhopKey = Globals::vk_bunnyhopkey & Globals::HOTKEY_KEY_MASK;
+    if (vk == bunnyhopKey) {
+        Globals::g_isVk_BunnyhopHeldDown.store(pressed, std::memory_order_release);
     }
 }
 
