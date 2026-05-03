@@ -1469,7 +1469,13 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     }
     ImGui::SetCursorScreenPos(ImVec2(tooltipCursorPos.x + textSizeCalc.x, tooltipCursorPos.y));
     ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
+#if defined(__linux__)
+    ImGui::BeginDisabled(true);
+#endif
     ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
+#if defined(__linux__)
+    ImGui::EndDisabled();
+#endif
 
     ImGui::SameLine(ImGui::GetWindowWidth() - 130);
     ImGui::Text("%s", ("VERSION " + localVersion).c_str());
