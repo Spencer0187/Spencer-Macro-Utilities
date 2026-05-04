@@ -1,5 +1,8 @@
 #pragma once
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 
@@ -12,6 +15,9 @@ void LoadSettings(std::string filepath, std::string profile_name);
 bool TryLoadLastActiveProfile(std::string filepath);
 bool SaveDefaultProfile(const std::string& filepath);
 std::string PromoteDefaultProfileIfDirty(const std::string& filepath);
+
+using SavedSettingValue = std::variant<bool, std::int64_t, double, std::string>;
+std::optional<SavedSettingValue> TryGetSavedSettingValue(const std::string& name);
 
 // --- Profile Manipulation ---
 std::vector<std::string> GetProfileNames(const std::string& filepath);

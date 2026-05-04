@@ -2,6 +2,8 @@
 
 #include "script_metadata.h"
 
+#include "json.hpp"
+
 #include <deque>
 #include <filesystem>
 #include <memory>
@@ -10,6 +12,12 @@
 #include "json.hpp"
 
 namespace smu::app {
+
+inline constexpr unsigned int kScriptUnboundHotkey = 0x10000000u;
+inline bool IsScriptHotkeyBound(unsigned int hotkey)
+{
+    return (hotkey & smu::core::HOTKEY_KEY_MASK) != 0;
+}
 
 class ScriptInstance;
 
@@ -23,6 +31,7 @@ struct ImportedScriptRecord {
     bool missing = false;
     bool running = false;
     std::string lastError;
+    nlohmann::json uiState = nlohmann::json::object();
     std::unique_ptr<ScriptInstance> instance;
 };
 

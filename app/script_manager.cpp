@@ -15,6 +15,14 @@ std::string PathForJson(const std::filesystem::path& path)
     return path.string();
 }
 
+unsigned int NormalizeScriptHotkey(unsigned int hotkey)
+{
+    if (!IsScriptHotkeyBound(hotkey)) {
+        return kScriptUnboundHotkey;
+    }
+    return hotkey;
+}
+
 } // namespace
 
 ScriptManager& ScriptManager::Get()
@@ -27,6 +35,7 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
 {
     ImportedScriptRecord record;
     record.path = NormalizePath(path);
+    record.hotkey = kScriptUnboundHotkey;
     record.enabled = false;
     record.disableOutsideRoblox = true;
 
@@ -46,7 +55,9 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
     }
 
     if (auto hotkey = ParseScriptHotkeyMetadata(stored.path)) {
-        stored.hotkey = *hotkey;
+        stored.hotkey = NormalizeScriptHotkey(*hotkey);
+    } else {
+        stored.hotkey = kScriptUnboundHotkey;
     }
     return true;
 }
@@ -55,7 +66,7 @@ bool ScriptManager::importScriptFromSave(const std::filesystem::path& path, unsi
 {
     ImportedScriptRecord record;
     record.path = NormalizePath(path);
-    record.hotkey = hotkey;
+    record.hotkey = NormalizeScriptHotkey(hotkey);
     record.enabled = enabled;
     record.disableOutsideRoblox = disableOutsideRoblox;
 
@@ -212,6 +223,7 @@ nlohmann::json ScriptManager::serialize() const
         item["hotkey"] = script.hotkey;
         item["enabled"] = script.enabled;
         item["disable_outside_roblox"] = script.disableOutsideRoblox;
+        item["ui_state"] = script.uiState;
         array.push_back(std::move(item));
     }
     return array;
@@ -236,16 +248,25 @@ void ScriptManager::deserialize(const nlohmann::json& value)
             const int value = item["hotkey"].get<int>();
             hotkey = value > 0 ? static_cast<unsigned int>(value) : 0;
         }
-        if ((hotkey & smu::core::HOTKEY_KEY_MASK) == 0) {
-            hotkey = 0;
-        }
+        hotkey = NormalizeScriptHotkey(hotkey);
         const bool enabled = item.contains("enabled") && item["enabled"].is_boolean()
             ? item["enabled"].get<bool>()
             : false;
         const bool disableOutside = item.contains("disable_outside_roblox") && item["disable_outside_roblox"].is_boolean()
             ? item["disable_outside_roblox"].get<bool>()
             : true;
-        importScriptFromSave(item["path"].get<std::string>(), hotkey, enabled, disableOutside);
+        const bool imported = importScriptFromSave(item["path"].get<std::string>(), hotkey, enabled, disableOutside);
+        if (!imported) {
+            continue;
+        }
+
+        ImportedScriptRecord* record = scripts_.empty() ? nullptr : &scripts_.back();
+        if (record && item.contains("ui_state") && item["ui_state"].is_object()) {
+            record->uiState = item["ui_state"];
+            if (record->instance) {
+                record->instance->syncSettingsTable();
+            }
+        }
     }
 }
 
