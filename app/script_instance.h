@@ -5,6 +5,7 @@
 #include <chrono>
 #include <filesystem>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 extern "C" {
@@ -27,6 +28,8 @@ public:
     bool loadFile(const std::filesystem::path& path);
     bool hasFunction(const char* name) const;
     bool callOnExecute();
+    bool callOnSettings(bool renderMode);
+    void syncSettingsTable();
     void cleanup();
 
     ImportedScriptRecord& owner() { return *owner_; }
@@ -39,6 +42,10 @@ public:
     void scheduleCoroutineSleep(lua_State* thread, int ms);
     void setFreeze(bool enabled);
     void setLagSwitch(bool enabled);
+    void setSettingsRenderMode(bool enabled) { settingsRenderMode_ = enabled; }
+    bool isSettingsRenderMode() const { return settingsRenderMode_; }
+    bool tryGetTransientUiValue(const std::string& key, std::string& out) const;
+    void setTransientUiValue(const std::string& key, std::string value);
 
 private:
     bool callProtected(int argCount, const char* context);
@@ -55,6 +62,8 @@ private:
     };
     std::vector<SleepingCoroutine> sleepingCoroutines_;
     std::vector<smu::platform::PlatformPid> frozenPids_;
+    std::unordered_map<std::string, std::string> transientUi_;
+    bool settingsRenderMode_ = false;
 };
 
 ScriptInstance* GetScriptInstance(lua_State* L);

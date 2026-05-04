@@ -16,6 +16,7 @@
 #include <system_error>
 #include <variant>
 #include <unordered_map>
+#include <type_traits>
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
 #include <shlobj.h>
 #endif
@@ -597,6 +598,44 @@ static bool IsLegacyFlatFormat(const json& root) {
 	if (root.contains("text")) return true;
 
 	return false;
+}
+
+std::optional<SavedSettingValue> TryGetSavedSettingValue(const std::string& name) {
+	if (const auto bool_it = bool_vars.find(name); bool_it != bool_vars.end() && bool_it->second) {
+		return SavedSettingValue{*bool_it->second};
+	}
+
+	if (const auto numeric_it = numeric_vars.find(name); numeric_it != numeric_vars.end()) {
+		return std::visit([](auto* ptr) -> std::optional<SavedSettingValue> {
+			if (!ptr) {
+				return std::nullopt;
+			}
+
+			using ValueType = std::remove_pointer_t<decltype(ptr)>;
+			if constexpr (std::is_same_v<ValueType, float>) {
+				return SavedSettingValue{static_cast<double>(*ptr)};
+			}
+			return SavedSettingValue{static_cast<std::int64_t>(*ptr)};
+		}, numeric_it->second);
+	}
+
+	if (const auto char_it = std::find_if(char_arrays.begin(), char_arrays.end(), [&](const auto& entry) {
+		return entry.first == name;
+	}); char_it != char_arrays.end() && char_it->second.first && char_it->second.second > 0) {
+		return SavedSettingValue{TrimNullChars(char_it->second.first, char_it->second.second)};
+	}
+
+	if (name == "text") {
+		return SavedSettingValue{text};
+	}
+	if (name == "screen_width") {
+		return SavedSettingValue{static_cast<std::int64_t>(screen_width)};
+	}
+	if (name == "screen_height") {
+		return SavedSettingValue{static_cast<std::int64_t>(screen_height)};
+	}
+
+	return std::nullopt;
 }
 
 // ============================================================================

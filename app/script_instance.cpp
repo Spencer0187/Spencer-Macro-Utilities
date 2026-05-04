@@ -1,6 +1,7 @@
 #include "script_instance.h"
 
 #include "script_api.h"
+#include "profile_manager.h"
 #include "script_manager.h"
 #include "../core/legacy_globals.h"
 #include "../platform/logging.h"
@@ -9,7 +10,11 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <optional>
+#include <type_traits>
 #include <thread>
+#include <variant>
 
 extern "C" {
 #include "lauxlib.h"
@@ -40,6 +45,64 @@ void OpenRestrictedLuaLibraries(lua_State* L)
     lua_pop(L, 1);
     luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, 1);
     lua_pop(L, 1);
+}
+
+void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
+{
+    std::visit([L](const auto& storedValue) {
+        using ValueType = std::decay_t<decltype(storedValue)>;
+        if constexpr (std::is_same_v<ValueType, bool>) {
+            lua_pushboolean(L, storedValue);
+        } else if constexpr (std::is_same_v<ValueType, std::int64_t>) {
+            lua_pushinteger(L, static_cast<lua_Integer>(storedValue));
+        } else if constexpr (std::is_same_v<ValueType, double>) {
+            lua_pushnumber(L, static_cast<lua_Number>(storedValue));
+        } else {
+            lua_pushlstring(L, storedValue.c_str(), storedValue.size());
+        }
+    }, value);
+}
+
+std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
+{
+    if (value.is_boolean()) {
+        return SavedSettingValue{value.get<bool>()};
+    }
+    if (value.is_number_integer()) {
+        return SavedSettingValue{static_cast<std::int64_t>(value.get<std::int64_t>())};
+    }
+    if (value.is_number_unsigned()) {
+        return SavedSettingValue{static_cast<std::int64_t>(value.get<std::uint64_t>())};
+    }
+    if (value.is_number_float()) {
+        return SavedSettingValue{value.get<double>()};
+    }
+    if (value.is_string()) {
+        return SavedSettingValue{value.get<std::string>()};
+    }
+    return std::nullopt;
+}
+
+void SyncLuaSettingsTable(lua_State* L, const nlohmann::json& state)
+{
+    lua_newtable(L);
+    if (state.is_object()) {
+        for (const auto& [key, value] : state.items()) {
+            if (auto stored = JsonToSavedValue(value)) {
+                PushLuaSettingValue(L, *stored);
+                lua_setfield(L, -2, key.c_str());
+            }
+        }
+    }
+    lua_setglobal(L, "settings");
+}
+
+bool HasSettingsCallback(lua_State* L)
+{
+    lua_getglobal(L, "onSettings");
+    const bool exists = lua_isfunction(L, -1);
+    lua_pop(L, 1);
+    return exists;
 }
 
 void TimeoutHook(lua_State* L, lua_Debug*)
@@ -94,6 +157,7 @@ bool ScriptInstance::init()
 
     OpenRestrictedLuaLibraries(L_);
     RegisterScriptApi(L_);
+    SyncLuaSettingsTable(L_, owner_->uiState);
     return true;
 }
 
@@ -111,7 +175,11 @@ bool ScriptInstance::loadFile(const std::filesystem::path& path)
         return false;
     }
 
-    return callProtected(0, "load script");
+    const bool loaded = callProtected(0, "load script");
+    if (loaded && HasSettingsCallback(L_)) {
+        callOnSettings(false);
+    }
+    return loaded;
 }
 
 bool ScriptInstance::hasFunction(const char* name) const
@@ -158,6 +226,55 @@ bool ScriptInstance::callOnExecute()
 
     endTimedCall();
     owner_->lastError.clear();
+    return true;
+}
+
+void ScriptInstance::syncSettingsTable()
+{
+    if (L_) {
+        SyncLuaSettingsTable(L_, owner_->uiState);
+    }
+}
+
+bool ScriptInstance::tryGetTransientUiValue(const std::string& key, std::string& out) const
+{
+    const auto it = transientUi_.find(key);
+    if (it == transientUi_.end()) {
+        return false;
+    }
+    out = it->second;
+    return true;
+}
+
+void ScriptInstance::setTransientUiValue(const std::string& key, std::string value)
+{
+    transientUi_[key] = std::move(value);
+}
+
+bool ScriptInstance::callOnSettings(bool renderMode)
+{
+    if (!L_) {
+        owner_->lastError = "Script is not loaded.";
+        return false;
+    }
+
+    lua_getglobal(L_, "onSettings");
+    if (!lua_isfunction(L_, -1)) {
+        lua_pop(L_, 1);
+        return true;
+    }
+
+    setSettingsRenderMode(renderMode);
+    const int status = lua_pcall(L_, 0, 0, 0);
+    setSettingsRenderMode(false);
+    if (status != LUA_OK) {
+        const char* message = lua_tostring(L_, -1);
+        owner_->lastError = message ? message : "Lua settings callback failed.";
+        lua_pop(L_, 1);
+        LogWarning(std::string("Imported script failed during onSettings: ") + owner_->lastError);
+        return false;
+    }
+
     return true;
 }
 

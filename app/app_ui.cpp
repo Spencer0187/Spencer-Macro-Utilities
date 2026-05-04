@@ -3,6 +3,7 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
+#include "script_instance.h"
 #include "script_manager.h"
 #include "../platform/file_dialog.h"
 #include "../core/key_codes.h"
@@ -574,6 +575,10 @@ void CopySpamkeyInstanceData(const SpamkeyInstance& src, SpamkeyInstance& dst)
 
 void FormatHexKeyString(unsigned int combinedCode, char* buffer, size_t size)
 {
+    if (combinedCode == kScriptUnboundHotkey) {
+        CopyString(buffer, size, "UNBOUND");
+        return;
+    }
     unsigned int vk = combinedCode & HOTKEY_KEY_MASK;
     std::string hexStr;
     if (combinedCode & HOTKEY_MASK_WIN) hexStr += "0x5B + ";
@@ -593,6 +598,11 @@ void GetKeyNameFromHex(unsigned int combinedKeyCode, char* buffer, size_t buffer
         if (state.bindingMode && *keyPtr == combinedKeyCode) {
             return;
         }
+    }
+
+    if (combinedKeyCode == kScriptUnboundHotkey) {
+        CopyString(buffer, bufferSize, "UNBOUND");
+        return;
     }
 
     unsigned int vk = combinedKeyCode & HOTKEY_KEY_MASK;
@@ -1822,43 +1832,6 @@ void RenderSelectedImportedScript(AppContext& context)
     const std::string title = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
     ImGui::TextWrapped("Settings for %s", title.c_str());
     ImGui::Separator();
-    ImGui::NewLine();
-
-    if (!script->metadata.description.empty()) {
-        ImGui::TextWrapped("%s", script->metadata.description.c_str());
-        ImGui::Spacing();
-    }
-    if (!script->metadata.author.empty()) {
-        ImGui::TextWrapped("Author: %s", script->metadata.author.c_str());
-    }
-    if (!script->metadata.version.empty()) {
-        ImGui::TextWrapped("Version: %s", script->metadata.version.c_str());
-    }
-    ImGui::TextWrapped("File: %s", SanitizePathForDisplay(script->path).c_str());
-
-    const char* status = "Loaded";
-    ImVec4 statusColor = GetCurrentTheme().success_color;
-    if (script->running) {
-        status = "Running";
-        statusColor = GetCurrentTheme().accent_primary;
-    } else if (script->missing) {
-        status = "Missing";
-        statusColor = GetCurrentTheme().error_color;
-    } else if (!script->loaded) {
-        status = "Error";
-        statusColor = GetCurrentTheme().error_color;
-    }
-
-    ImGui::PushStyleColor(ImGuiCol_Text, statusColor);
-    ImGui::TextWrapped("Status: %s", status);
-    ImGui::PopStyleColor();
-    if (!script->lastError.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
-        ImGui::TextWrapped("%s", script->lastError.c_str());
-        ImGui::PopStyleColor();
-    }
-
-    ImGui::Separator();
     ImGui::TextWrapped("Keybind:");
     ImGui::SameLine();
     DrawKeyBindControl(("ImportedScriptKey" + std::to_string(g_selected_imported_script)).c_str(), script->hotkey, -1);
@@ -1904,6 +1877,55 @@ void RenderSelectedImportedScript(AppContext& context)
 
     if (actionsDisabled) {
         ImGui::EndDisabled();
+    }
+
+    ImGui::Separator();
+    const char* status = "Loaded";
+    ImVec4 statusColor = GetCurrentTheme().success_color;
+    if (script->running) {
+        status = "Running";
+        statusColor = GetCurrentTheme().accent_primary;
+    } else if (script->missing) {
+        status = "Missing";
+        statusColor = GetCurrentTheme().error_color;
+    } else if (!script->loaded) {
+        status = "Error";
+        statusColor = GetCurrentTheme().error_color;
+    }
+
+    ImGui::PushStyleColor(ImGuiCol_Text, statusColor);
+    ImGui::TextWrapped("Status: %s", status);
+    ImGui::PopStyleColor();
+    if (!script->lastError.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
+        ImGui::TextWrapped("%s", script->lastError.c_str());
+        ImGui::PopStyleColor();
+    }
+
+    if (!script->metadata.description.empty()) {
+        ImGui::TextWrapped("%s", script->metadata.description.c_str());
+        ImGui::Spacing();
+    }
+    if (!script->metadata.author.empty()) {
+        ImGui::TextWrapped("Author: %s", script->metadata.author.c_str());
+    }
+    if (!script->metadata.version.empty()) {
+        ImGui::TextWrapped("Version: %s", script->metadata.version.c_str());
+    }
+    ImGui::TextWrapped("File: %s", SanitizePathForDisplay(script->path).c_str());
+
+    ImGui::Separator();
+    ImGui::TextWrapped("Custom Settings");
+    if (script->running) {
+        ImGui::TextWrapped("Settings are unavailable while the script is running.");
+    } else if (script->instance && script->instance->hasFunction("onSettings")) {
+        if (!script->instance->callOnSettings(true)) {
+            ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
+            ImGui::TextWrapped("Failed to render custom settings.");
+            ImGui::PopStyleColor();
+        }
+    } else {
+        ImGui::TextWrapped("This script does not define onSettings().");
     }
 }
 
@@ -2849,6 +2871,20 @@ void RenderAppUi(AppContext& context)
     ImGui::PopStyleVar();
     ImGui::EndChild();
     ImGui::End();
+}
+
+} // namespace smu::app
+
+namespace smu::app {
+
+void DrawKeyBindControlShared(const char* id,
+    unsigned int& key,
+    int currentSection,
+    float humanWidth,
+    float hexWidth,
+    bool wrapKeyBindingLabel)
+{
+    DrawKeyBindControl(id, key, currentSection, humanWidth, hexWidth, wrapKeyBindingLabel);
 }
 
 } // namespace smu::app

@@ -37,6 +37,10 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 15. Spam a Key/Button (Supports multiple instances natively in the GUI)
 16. Intelligent Bhop/Bunnyhop
 
+## Lua Macro Scripts
+
+Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, or `.lua` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. The scripting API includes `getSavedValue(name)`, which reads the current in-memory value of a setting that is persisted in the save file. Scripts can also define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
+
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
 ## The UI is customizable, drag your buttons to re-order them

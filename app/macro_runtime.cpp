@@ -1041,7 +1041,7 @@ void MacroRuntime::processImportedScripts()
             continue;
         }
 
-        if (!script->enabled || !script->loaded || script->missing || script->hotkey == 0 || script->running) {
+        if (!script->enabled || !script->loaded || script->missing || !IsScriptHotkeyBound(script->hotkey) || script->running) {
             importedScriptWasPressed_[index] = false;
             continue;
         }
