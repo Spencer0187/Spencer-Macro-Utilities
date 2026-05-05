@@ -33,7 +33,7 @@ constexpr const char* kRegistryInstanceKey = "SMU.ScriptInstance";
 constexpr auto kMaxScriptRuntime = std::chrono::seconds(30);
 constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr int kLuaHookInstructionCount = 10000;
-constexpr int kMaxSingleSleepMs = 300000;
+constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 
 void TimeoutHook(lua_State* L, lua_Debug*);
 
@@ -94,6 +94,9 @@ int LuaSafeCoroutineResume(lua_State* L)
     luaL_argexpected(L, co, 1, "thread");
 
     const int resultCount = SafeAuxResume(L, co, lua_gettop(L) - 1);
+    if (ScriptInstance* instance = GetScriptInstance(L)) {
+        instance->throwStopIfRequested(L);
+    }
     if (resultCount < 0) {
         lua_pushboolean(L, 0);
         lua_insert(L, -2);
@@ -109,6 +112,9 @@ int LuaSafeCoroutineWrapClosure(lua_State* L)
 {
     lua_State* co = lua_tothread(L, lua_upvalueindex(1));
     const int resultCount = SafeAuxResume(L, co, lua_gettop(L));
+    if (ScriptInstance* instance = GetScriptInstance(L)) {
+        instance->throwStopIfRequested(L);
+    }
     if (resultCount < 0) {
         return lua_error(L);
     }
@@ -140,6 +146,59 @@ void InstallSafeCoroutineWrappers(lua_State* L)
     lua_pop(L, 1);
 }
 
+int LuaSafePCallContinuation(lua_State* L, int, lua_KContext)
+{
+    if (ScriptInstance* instance = GetScriptInstance(L)) {
+        instance->throwStopIfRequested(L);
+    }
+    return lua_gettop(L);
+}
+
+int LuaSafePCall(lua_State* L)
+{
+    const int argc = lua_gettop(L);
+    lua_pushvalue(L, lua_upvalueindex(1));
+    lua_insert(L, 1);
+    lua_callk(L, argc, LUA_MULTRET, 0, LuaSafePCallContinuation);
+    return LuaSafePCallContinuation(L, LUA_OK, 0);
+}
+
+int LuaSafeXpcallContinuation(lua_State* L, int, lua_KContext)
+{
+    if (ScriptInstance* instance = GetScriptInstance(L)) {
+        instance->throwStopIfRequested(L);
+    }
+    return lua_gettop(L);
+}
+
+int LuaSafeXpcall(lua_State* L)
+{
+    const int argc = lua_gettop(L);
+    lua_pushvalue(L, lua_upvalueindex(1));
+    lua_insert(L, 1);
+    lua_callk(L, argc, LUA_MULTRET, 0, LuaSafeXpcallContinuation);
+    return LuaSafeXpcallContinuation(L, LUA_OK, 0);
+}
+
+void InstallSafeCallWrappers(lua_State* L)
+{
+    lua_getglobal(L, "pcall");
+    if (lua_isfunction(L, -1)) {
+        lua_pushcclosure(L, LuaSafePCall, 1);
+        lua_setglobal(L, "pcall");
+    } else {
+        lua_pop(L, 1);
+    }
+
+    lua_getglobal(L, "xpcall");
+    if (lua_isfunction(L, -1)) {
+        lua_pushcclosure(L, LuaSafeXpcall, 1);
+        lua_setglobal(L, "xpcall");
+    } else {
+        lua_pop(L, 1);
+    }
+}
+
 void OpenRestrictedLuaLibraries(lua_State* L)
 {
     luaL_requiref(L, "_G", luaopen_base, 1);
@@ -163,6 +222,7 @@ void OpenRestrictedLuaLibraries(lua_State* L)
     luaL_requiref(L, LUA_COLIBNAME, luaopen_coroutine, 1);
     lua_pop(L, 1);
     InstallSafeCoroutineWrappers(L);
+    InstallSafeCallWrappers(L);
 }
 
 void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
@@ -237,9 +297,8 @@ bool HasSettingsCallback(lua_State* L)
 
 void TimeoutHook(lua_State* L, lua_Debug*)
 {
-    ScriptInstance* instance = GetScriptInstance(L);
-    if (instance && !instance->checkDeadline()) {
-        luaL_error(L, "script execution timed out");
+    if (ScriptInstance* instance = GetScriptInstance(L)) {
+        instance->throwStopIfRequested(L);
     }
 }
 
@@ -330,6 +389,7 @@ bool ScriptInstance::init()
     OpenRestrictedLuaLibraries(L_);
     RegisterScriptApi(L_);
     SyncLuaSettingsTable(L_, owner_->uiState);
+    syncUiIdCache();
     return true;
 }
 
@@ -340,9 +400,13 @@ bool ScriptInstance::loadFile(const std::filesystem::path& path)
     }
 
     const std::string pathString = path.string();
-    if (luaL_loadfile(L_, pathString.c_str()) != LUA_OK) {
+    if (luaL_loadfilex(L_, pathString.c_str(), "t") != LUA_OK) {
         const char* message = lua_tostring(L_, -1);
-        owner_->setLastError(message ? message : "Could not load script file.");
+        std::string errorText = message ? message : "Could not load script file.";
+        if (errorText.find("binary") != std::string::npos) {
+            errorText = "Precompiled Lua chunks are not supported. Please provide a plain-text Lua script.";
+        }
+        owner_->setLastError(std::move(errorText));
         lua_pop(L_, 1);
         return false;
     }
@@ -384,7 +448,9 @@ bool ScriptInstance::callOnExecute()
     const int status = lua_pcall(L_, 0, 0, 0);
     if (status != LUA_OK) {
         endTimedCall();
-        const char* message = lua_tostring(L_, -1);
+        const char* message = stopReason_.load(std::memory_order_acquire) != StopReason::None
+            ? stopReasonMessage()
+            : lua_tostring(L_, -1);
         owner_->setLastError(message ? message : "Lua call failed.");
         lua_pop(L_, 1);
         releaseAllSleepingCoroutines();
@@ -398,6 +464,12 @@ bool ScriptInstance::callOnExecute()
     }
 
     endTimedCall();
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        owner_->setLastError(stopReasonMessage());
+        LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
+        releaseAllSleepingCoroutines();
+        return false;
+    }
     owner_->clearLastError();
     return true;
 }
@@ -406,6 +478,22 @@ void ScriptInstance::syncSettingsTable()
 {
     if (L_) {
         SyncLuaSettingsTable(L_, owner_->uiState);
+        syncUiIdCache();
+    }
+}
+
+void ScriptInstance::syncUiIdCache()
+{
+    uiIdCache_.clear();
+    if (!owner_ || !owner_->uiState.is_object()) {
+        return;
+    }
+    for (const auto& [key, value] : owner_->uiState.items()) {
+        (void)value;
+        if (uiIdCache_.size() >= kMaxUiStateEntries) {
+            break;
+        }
+        uiIdCache_.insert(key);
     }
 }
 
@@ -421,6 +509,12 @@ bool ScriptInstance::tryGetTransientUiValue(const std::string& key, std::string&
 
 void ScriptInstance::setTransientUiValue(const std::string& key, std::string value)
 {
+    if (!tryRegisterUiId(key)) {
+        return;
+    }
+    if (value.size() > kMaxUiStateStringBytes) {
+        value.resize(kMaxUiStateStringBytes);
+    }
     transientUi_[key] = std::move(value);
 }
 
@@ -430,6 +524,18 @@ bool ScriptInstance::tryConsumeSettingsUiControl()
         return false;
     }
     ++settingsUiControlCount_;
+    return true;
+}
+
+bool ScriptInstance::tryRegisterUiId(const std::string& id)
+{
+    if (uiIdCache_.find(id) != uiIdCache_.end()) {
+        return true;
+    }
+    if (uiIdCache_.size() >= kMaxUiStateEntries) {
+        return false;
+    }
+    uiIdCache_.insert(id);
     return true;
 }
 
@@ -472,10 +578,19 @@ bool ScriptInstance::callOnSettings(bool renderMode)
     endTimedCall();
     setSettingsRenderMode(false);
     if (status != LUA_OK) {
-        const char* message = lua_tostring(L_, -1);
+        const char* message = stopReason_.load(std::memory_order_acquire) != StopReason::None
+            ? stopReasonMessage()
+            : lua_tostring(L_, -1);
         owner_->setLastError(message ? message : "Lua settings callback failed.");
         lua_pop(L_, 1);
         LogWarning(std::string("Imported script failed during onSettings: ") + owner_->lastErrorCopy());
+        return false;
+    }
+
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        owner_->setLastError(stopReasonMessage());
+        LogWarning(std::string("Imported script failed during onSettings: ") + owner_->lastErrorCopy());
+        releaseAllSleepingCoroutines();
         return false;
     }
 
@@ -484,6 +599,7 @@ bool ScriptInstance::callOnSettings(bool renderMode)
 
 void ScriptInstance::cleanup()
 {
+    requestCancel();
     setFreeze(false);
     if (L_) {
         releaseAllSleepingCoroutines();
@@ -497,31 +613,139 @@ void ScriptInstance::cleanup()
     textboxBuffers_.clear();
     dynamicTextboxBuffers_.clear();
     keybindValues_.clear();
+    uiIdCache_.clear();
 }
 
-bool ScriptInstance::checkDeadline() const
+bool ScriptInstance::checkDeadline()
 {
-    return deadline_ == std::chrono::steady_clock::time_point{} ||
-        std::chrono::steady_clock::now() <= deadline_;
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        return false;
+    }
+    if (deadline_ == std::chrono::steady_clock::time_point{}) {
+        return true;
+    }
+    if (std::chrono::steady_clock::now() <= deadline_) {
+        return true;
+    }
+    setStopReason(StopReason::Timeout);
+    return false;
 }
 
-void ScriptInstance::sleepWithDeadline(int ms)
+const char* ScriptInstance::stopReasonMessage() const
 {
-    int remaining = std::clamp(ms, 0, kMaxSingleSleepMs);
-    while (remaining > 0) {
-        if (!checkDeadline()) {
-            luaL_error(L_, "script execution timed out");
-        }
-        const int chunk = std::min(remaining, 25);
-        std::this_thread::sleep_for(std::chrono::milliseconds(chunk));
-        remaining -= chunk;
+    switch (stopReason_.load(std::memory_order_acquire)) {
+    case StopReason::Timeout:
+        return "script execution timed out";
+    case StopReason::Cancelled:
+        return "script execution cancelled";
+    default:
+        return "script execution failed";
     }
 }
 
-void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, int ms)
+void ScriptInstance::setStopReason(StopReason reason)
 {
-    const int clampedMs = std::clamp(ms, 0, kMaxSingleSleepMs);
-    const auto wakeTime = std::chrono::steady_clock::now() + std::chrono::milliseconds(clampedMs);
+    StopReason expected = StopReason::None;
+    if (stopReason_.compare_exchange_strong(expected, reason, std::memory_order_acq_rel)) {
+        sleepCv_.notify_all();
+    }
+}
+
+void ScriptInstance::requestCancel()
+{
+    setStopReason(StopReason::Cancelled);
+}
+
+void ScriptInstance::throwStopIfRequested(lua_State* L)
+{
+    if (!checkDeadline()) {
+        luaL_error(L, "%s", stopReasonMessage());
+    }
+}
+
+void ScriptInstance::pauseExecutionBudget()
+{
+    if (!budgetActive_) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto elapsed = now - activeBudgetStart_;
+    if (elapsed >= remainingBudget_) {
+        remainingBudget_ = std::chrono::steady_clock::duration::zero();
+        setStopReason(StopReason::Timeout);
+    } else {
+        remainingBudget_ -= elapsed;
+    }
+    budgetActive_ = false;
+    deadline_ = {};
+}
+
+bool ScriptInstance::resumeExecutionBudget()
+{
+    if (budgetActive_) {
+        return true;
+    }
+    if (remainingBudget_ <= std::chrono::steady_clock::duration::zero()) {
+        setStopReason(StopReason::Timeout);
+        return false;
+    }
+    budgetActive_ = true;
+    activeBudgetStart_ = std::chrono::steady_clock::now();
+    deadline_ = activeBudgetStart_ + remainingBudget_;
+    return true;
+}
+
+std::chrono::steady_clock::time_point ScriptInstance::computeWakeTime(std::int64_t ms) const
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (ms <= 0) {
+        return now;
+    }
+    const auto duration = std::chrono::milliseconds(ms);
+    const auto maxTime = std::chrono::steady_clock::time_point::max();
+    if (duration >= (maxTime - now)) {
+        return maxTime;
+    }
+    return now + duration;
+}
+
+bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
+{
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        return false;
+    }
+    std::unique_lock<std::mutex> lock(sleepMutex_);
+    if (sleepCv_.wait_until(lock, wakeTime, [this] {
+            return stopReason_.load(std::memory_order_acquire) != StopReason::None;
+        })) {
+        return false;
+    }
+    return stopReason_.load(std::memory_order_acquire) == StopReason::None;
+}
+
+bool ScriptInstance::waitFor(std::chrono::milliseconds duration)
+{
+    pauseExecutionBudget();
+    const auto wakeTime = computeWakeTime(duration.count());
+    const bool ok = waitUntil(wakeTime);
+    if (!ok) {
+        return false;
+    }
+    return resumeExecutionBudget();
+}
+
+void ScriptInstance::sleepWithDeadline(std::int64_t ms)
+{
+    const std::int64_t clamped = std::clamp<std::int64_t>(ms, 0, kMaxSingleSleepMs);
+    if (!waitFor(std::chrono::milliseconds(clamped))) {
+        throwStopIfRequested(L_);
+    }
+}
+
+void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, std::int64_t ms)
+{
+    const std::int64_t clampedMs = std::clamp<std::int64_t>(ms, 0, kMaxSingleSleepMs);
+    const auto wakeTime = computeWakeTime(clampedMs);
     for (auto& coroutine : sleepingCoroutines_) {
         if (coroutine.thread == thread) {
             coroutine.wakeTime = wakeTime;
@@ -561,16 +785,18 @@ bool ScriptInstance::drainSleepingCoroutines()
             nextWake = std::min(nextWake, coroutine.wakeTime);
         }
 
-        const auto deadline = deadline_;
-        const auto sleepUntil = deadline == std::chrono::steady_clock::time_point{}
-            ? nextWake
-            : std::min(nextWake, deadline);
-        if (sleepUntil > now) {
-            std::this_thread::sleep_until(sleepUntil);
+        pauseExecutionBudget();
+        if (nextWake > now) {
+            if (!waitUntil(nextWake)) {
+                owner_->setLastError(stopReasonMessage());
+                LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastErrorCopy());
+                releaseAllSleepingCoroutines();
+                return false;
+            }
         }
 
-        if (!checkDeadline()) {
-            owner_->setLastError("script execution timed out");
+        if (!resumeExecutionBudget()) {
+            owner_->setLastError(stopReasonMessage());
             LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastErrorCopy());
             releaseAllSleepingCoroutines();
             return false;
@@ -608,22 +834,40 @@ bool ScriptInstance::drainSleepingCoroutines()
                 lua_pop(thread, resultCount);
                 releaseSleepingCoroutine(*it);
                 it = sleepingCoroutines_.erase(it);
+                if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+                    owner_->setLastError(stopReasonMessage());
+                    LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastErrorCopy());
+                    releaseAllSleepingCoroutines();
+                    return false;
+                }
                 continue;
             }
 
             if (status == LUA_YIELD) {
                 lua_pop(thread, resultCount);
                 ++it;
+                if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+                    owner_->setLastError(stopReasonMessage());
+                    LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastErrorCopy());
+                    releaseAllSleepingCoroutines();
+                    return false;
+                }
                 continue;
             }
 
-            const char* message = lua_tostring(thread, -1);
-            owner_->setLastError(message ? message : "Lua coroutine failed.");
+            if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+                owner_->setLastError(stopReasonMessage());
+            } else {
+                const char* message = lua_tostring(thread, -1);
+                owner_->setLastError(message ? message : "Lua coroutine failed.");
+            }
             lua_pop(thread, 1);
             LogWarning(std::string("Imported script failed during coroutine sleep resume: ") + owner_->lastErrorCopy());
             releaseAllSleepingCoroutines();
             return false;
         }
+
+        pauseExecutionBudget();
     }
 
     return true;
@@ -697,11 +941,20 @@ bool ScriptInstance::callProtected(int argCount, const char* context)
     endTimedCall();
 
     if (status != LUA_OK) {
-        const char* message = lua_tostring(L_, -1);
+        const char* message = stopReason_.load(std::memory_order_acquire) != StopReason::None
+            ? stopReasonMessage()
+            : lua_tostring(L_, -1);
         owner_->setLastError(message ? message : "Lua call failed.");
         lua_pop(L_, 1);
         releaseAllSleepingCoroutines();
         LogWarning(std::string("Imported script failed during ") + context + ": " + owner_->lastErrorCopy());
+        return false;
+    }
+
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        owner_->setLastError(stopReasonMessage());
+        LogWarning(std::string("Imported script failed during ") + context + ": " + owner_->lastErrorCopy());
+        releaseAllSleepingCoroutines();
         return false;
     }
 
@@ -711,7 +964,11 @@ bool ScriptInstance::callProtected(int argCount, const char* context)
 
 void ScriptInstance::beginTimedCall(std::chrono::steady_clock::duration maxRuntime)
 {
-    deadline_ = std::chrono::steady_clock::now() + maxRuntime;
+    stopReason_.store(StopReason::None, std::memory_order_release);
+    remainingBudget_ = maxRuntime;
+    budgetActive_ = true;
+    activeBudgetStart_ = std::chrono::steady_clock::now();
+    deadline_ = activeBudgetStart_ + remainingBudget_;
     InstallTimeoutHook(L_);
 }
 
@@ -722,6 +979,7 @@ void ScriptInstance::beginTimedCall()
 
 void ScriptInstance::endTimedCall()
 {
+    pauseExecutionBudget();
     lua_sethook(L_, nullptr, 0, 0);
     deadline_ = {};
 }

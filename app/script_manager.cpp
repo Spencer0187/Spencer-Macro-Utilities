@@ -42,6 +42,9 @@ nlohmann::json SanitizeUiState(const nlohmann::json& state)
     }
 
     for (const auto& [key, value] : state.items()) {
+        if (sanitized.size() >= kMaxUiStateEntries) {
+            break;
+        }
         if (!IsSafeUiStateKey(key)) {
             continue;
         }
@@ -102,6 +105,17 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
     }
 
     if (!loadRecord(*record)) {
+        if (record->instance) {
+            record->instance->cleanup();
+            record->instance.reset();
+        }
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        for (auto it = scripts_.begin(); it != scripts_.end(); ++it) {
+            if (*it == record) {
+                scripts_.erase(it);
+                break;
+            }
+        }
         return false;
     }
 
@@ -142,14 +156,31 @@ bool ScriptManager::reloadScript(std::size_t index)
             return false;
         }
         record = scripts_[index];
-        if (!record || record->running.load(std::memory_order_acquire)) {
+        if (!record) {
             return false;
         }
-        record->running.store(true, std::memory_order_release);
     }
 
     if (!record) {
         return false;
+    }
+
+    if (record->running.load(std::memory_order_acquire)) {
+        if (record->instance) {
+            record->instance->requestCancel();
+        }
+        const auto waitUntil = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (record->running.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < waitUntil) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (!record || record->running.load(std::memory_order_acquire)) {
+            return false;
+        }
+        record->running.store(true, std::memory_order_release);
     }
 
     const unsigned int preservedHotkey = record->hotkey.load(std::memory_order_acquire);
@@ -180,16 +211,14 @@ bool ScriptManager::removeScript(std::size_t index)
         if (index >= scripts_.size() || !scripts_[index]) {
             return false;
         }
-        for (const auto& script : scripts_) {
-            if (script && script->running.load(std::memory_order_acquire)) {
-                return false;
-            }
-        }
         removed = scripts_[index];
+        if (removed && removed->running.load(std::memory_order_acquire) && removed->instance) {
+            removed->instance->requestCancel();
+        }
         scripts_.erase(scripts_.begin() + static_cast<std::ptrdiff_t>(index));
     }
 
-    if (removed && removed->instance) {
+    if (removed && removed->instance && !removed->running.load(std::memory_order_acquire)) {
         removed->instance->cleanup();
     }
     return true;
@@ -231,6 +260,14 @@ bool ScriptManager::executeScript(std::size_t index)
 
 void ScriptManager::clear()
 {
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        for (const auto& script : scripts_) {
+            if (script && script->running.load(std::memory_order_acquire) && script->instance) {
+                script->instance->requestCancel();
+            }
+        }
+    }
     const auto waitUntil = std::chrono::steady_clock::now() + std::chrono::seconds(35);
     while (std::chrono::steady_clock::now() < waitUntil) {
         bool anyRunning = false;
