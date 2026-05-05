@@ -35,7 +35,7 @@ jobs:
 
       - name: Build and verify AppImage
         run: |
-          APPIMAGETOOL="$PWD/appimagetool.AppImage" scripts/package_appimage.sh
+          APPIMAGETOOL="$PWD/appimagetool.AppImage" bash scripts/package_appimage.sh
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
