@@ -15,8 +15,10 @@
 #include <cstdio>
 #include <array>
 #include <chrono>
+#include <cctype>
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -52,6 +54,7 @@ constexpr float kMaxUiDimension = 10000.0f;
 constexpr std::size_t kMaxLogMessageBytes = 4096;
 constexpr std::size_t kMaxTypeTextBytes = 4096;
 constexpr const char* kLogTruncateSuffix = "...(truncated)";
+constexpr const char* kRegistryMoveDegreesSettingsKey = "smu.moveDegreesSettings";
 
 int CheckLuaInt(lua_State* L, int index, int minValue, int maxValue, const char* name)
 {
@@ -80,6 +83,19 @@ int CheckLuaIntClamped(lua_State* L, int index, int minValue, int maxValue, cons
         return maxValue;
     }
     return static_cast<int>(value);
+}
+
+double CheckLuaFiniteNumber(lua_State* L, int index, const char* name)
+{
+    int isNumber = 0;
+    const lua_Number number = lua_tonumberx(L, index, &isNumber);
+    if (!isNumber) {
+        return static_cast<double>(luaL_error(L, "%s must be a number", name));
+    }
+    if (!std::isfinite(static_cast<double>(number))) {
+        return static_cast<double>(luaL_error(L, "%s must be a finite number", name));
+    }
+    return static_cast<double>(number);
 }
 
 std::int64_t CheckLuaInt64Clamped(lua_State* L, int index, std::int64_t minValue, std::int64_t maxValue, const char* name)
@@ -300,6 +316,129 @@ bool IsHotkeyPressed(unsigned int combinedKey)
 
     const auto key = static_cast<smu::core::KeyCode>(combinedKey & smu::core::HOTKEY_KEY_MASK);
     return IsModifierPressed(*backend, key);
+}
+
+std::optional<bool> TryGetSavedBool(const char* name)
+{
+    const auto value = TryGetSavedSettingValue(name);
+    if (!value) {
+        return std::nullopt;
+    }
+    if (const bool* stored = std::get_if<bool>(&*value)) {
+        return *stored;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> TryGetSavedString(const char* name)
+{
+    const auto value = TryGetSavedSettingValue(name);
+    if (!value) {
+        return std::nullopt;
+    }
+    if (const std::string* stored = std::get_if<std::string>(&*value)) {
+        return *stored;
+    }
+    return std::nullopt;
+}
+
+std::optional<double> ParseFiniteDouble(std::string text)
+{
+    const auto begin = text.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos) {
+        return std::nullopt;
+    }
+    const auto end = text.find_last_not_of(" \t\r\n");
+    text = text.substr(begin, end - begin + 1);
+
+    char* parseEnd = nullptr;
+    const double value = std::strtod(text.c_str(), &parseEnd);
+    if (parseEnd == text.c_str()) {
+        return std::nullopt;
+    }
+    while (*parseEnd != '\0' && std::isspace(static_cast<unsigned char>(*parseEnd))) {
+        ++parseEnd;
+    }
+    if (*parseEnd != '\0' || !std::isfinite(value)) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+void CacheMoveDegreesSettings(lua_State* L)
+{
+    std::string error;
+    double pixelsPerDegree = 0.0;
+
+    const auto camfixEnabled = TryGetSavedBool("camfixtoggle");
+    if (!camfixEnabled) {
+        error = "moveDegrees requires the saved camfixtoggle setting.";
+    }
+
+    const auto savedSensitivity = TryGetSavedString("RobloxSensValue");
+    if (error.empty() && !savedSensitivity) {
+        error = "moveDegrees requires the saved RobloxSensValue setting.";
+    }
+
+    const auto sensitivity = savedSensitivity ? ParseFiniteDouble(*savedSensitivity) : std::nullopt;
+    if (error.empty() && (!sensitivity || *sensitivity <= 0.0)) {
+        error = "moveDegrees requires RobloxSensValue to be a finite number greater than 0.";
+    }
+
+    if (error.empty()) {
+        const double baseValue = *camfixEnabled ? 1000.0 : 720.0;
+        pixelsPerDegree = baseValue / (360.0 * *sensitivity);
+    }
+
+    lua_newtable(L);
+    lua_pushboolean(L, error.empty());
+    lua_setfield(L, -2, "valid");
+    lua_pushnumber(L, static_cast<lua_Number>(pixelsPerDegree));
+    lua_setfield(L, -2, "pixelsPerDegree");
+    lua_pushlstring(L, error.c_str(), error.size());
+    lua_setfield(L, -2, "error");
+    lua_setfield(L, LUA_REGISTRYINDEX, kRegistryMoveDegreesSettingsKey);
+}
+
+bool GetMoveDegreesSettings(lua_State* L, double& pixelsPerDegree, std::string& error)
+{
+    lua_getfield(L, LUA_REGISTRYINDEX, kRegistryMoveDegreesSettingsKey);
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        CacheMoveDegreesSettings(L);
+        lua_getfield(L, LUA_REGISTRYINDEX, kRegistryMoveDegreesSettingsKey);
+    }
+
+    lua_getfield(L, -1, "valid");
+    const bool valid = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "pixelsPerDegree");
+    pixelsPerDegree = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+
+    lua_getfield(L, -1, "error");
+    std::size_t errorLength = 0;
+    const char* errorText = lua_tolstring(L, -1, &errorLength);
+    error.assign(errorText ? errorText : "", errorLength);
+    lua_pop(L, 1);
+
+    lua_pop(L, 1);
+    return valid;
+}
+
+int RoundMouseDelta(lua_State* L, double pixels, const char* name)
+{
+    if (!std::isfinite(pixels)) {
+        return static_cast<int>(luaL_error(L, "%s conversion overflowed", name));
+    }
+
+    const double rounded = std::round(pixels);
+    if (rounded < static_cast<double>(std::numeric_limits<int>::min()) ||
+        rounded > static_cast<double>(std::numeric_limits<int>::max())) {
+        return static_cast<int>(luaL_error(L, "%s conversion is outside the allowed range", name));
+    }
+    return static_cast<int>(rounded);
 }
 
 void SyncLuaSettingsTable(lua_State* L, const nlohmann::json& state)
@@ -541,6 +680,28 @@ int LuaMoveMouse(lua_State* L)
     const int dx = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dx");
     const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
     MoveMouse(dx, dy);
+    return 0;
+}
+
+int LuaMoveDegrees(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "moveDegrees is not available while rendering script settings");
+    }
+
+    const double dxDegrees = CheckLuaFiniteNumber(L, 1, "dx");
+    const double dyDegrees = CheckLuaFiniteNumber(L, 2, "dy");
+
+    double pixelsPerDegree = 0.0;
+    std::string error;
+    if (!GetMoveDegreesSettings(L, pixelsPerDegree, error)) {
+        return luaL_error(L, "%s", error.c_str());
+    }
+
+    const int dxPixels = RoundMouseDelta(L, dxDegrees * pixelsPerDegree, "dx");
+    // Positive degree values move upward, which is negative screen-space Y.
+    const int dyPixels = RoundMouseDelta(L, -dyDegrees * pixelsPerDegree, "dy");
+    MoveMouse(dxPixels, dyPixels);
     return 0;
 }
 
@@ -1029,6 +1190,7 @@ void Register(lua_State* L, const char* name, lua_CFunction function)
 
 void RegisterScriptApi(lua_State* L)
 {
+    CacheMoveDegreesSettings(L);
     Register(L, "log", LuaLog);
     Register(L, "nowMicros", LuaNowMicros);
     Register(L, "sleep", LuaSleep);
@@ -1039,6 +1201,7 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "isHotkeyPressed", LuaIsHotkeyPressed);
     Register(L, "typeText", LuaTypeText);
     Register(L, "moveMouse", LuaMoveMouse);
+    Register(L, "moveDegrees", LuaMoveDegrees);
     Register(L, "mouseWheel", LuaMouseWheel);
     Register(L, "freeze", LuaFreeze);
     Register(L, "lagSwitch", LuaLagSwitch);
