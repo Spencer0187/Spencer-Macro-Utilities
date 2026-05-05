@@ -45,9 +45,13 @@ ScriptInstance& RequireInstance(lua_State* L)
     throw 0;
 }
 
-constexpr int kMaxSingleSleepMs = 300000;
+// Allow effectively infinite sleeps; the scheduler clamps to time_point::max().
+constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 constexpr int kMaxInputDelayMs = 300000;
 constexpr float kMaxUiDimension = 10000.0f;
+constexpr std::size_t kMaxLogMessageBytes = 4096;
+constexpr std::size_t kMaxTypeTextBytes = 4096;
+constexpr const char* kLogTruncateSuffix = "...(truncated)";
 
 int CheckLuaInt(lua_State* L, int index, int minValue, int maxValue, const char* name)
 {
@@ -76,6 +80,22 @@ int CheckLuaIntClamped(lua_State* L, int index, int minValue, int maxValue, cons
         return maxValue;
     }
     return static_cast<int>(value);
+}
+
+std::int64_t CheckLuaInt64Clamped(lua_State* L, int index, std::int64_t minValue, std::int64_t maxValue, const char* name)
+{
+    int isInteger = 0;
+    const lua_Integer value = lua_tointegerx(L, index, &isInteger);
+    if (!isInteger) {
+        return static_cast<std::int64_t>(luaL_error(L, "%s must be an integer", name));
+    }
+    if (value < static_cast<lua_Integer>(minValue)) {
+        return minValue;
+    }
+    if (value > static_cast<lua_Integer>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<std::int64_t>(value);
 }
 
 float CheckOptionalNonNegativeFloat(lua_State* L, int index, float defaultValue, const char* name)
@@ -137,6 +157,13 @@ void CheckUiControlBudget(lua_State* L, ScriptInstance& instance)
 {
     if (!instance.tryConsumeSettingsUiControl()) {
         luaL_error(L, "script settings created too many UI controls");
+    }
+}
+
+void CheckUiIdBudget(lua_State* L, ScriptInstance& instance, const std::string& id)
+{
+    if (!instance.tryRegisterUiId(id)) {
+        luaL_error(L, "script settings created too many unique UI IDs");
     }
 }
 
@@ -342,8 +369,21 @@ bool IsSettingsRenderMode(lua_State* L)
 
 int LuaLog(lua_State* L)
 {
-    const char* message = luaL_checkstring(L, 1);
-    LogInfo(std::string("[script] ") + (message ? message : ""));
+    std::size_t messageLength = 0;
+    const char* message = luaL_checklstring(L, 1, &messageLength);
+    if (!message) {
+        LogInfo("[script] ");
+        return 0;
+    }
+    if (messageLength > kMaxLogMessageBytes) {
+        const std::size_t suffixLength = std::strlen(kLogTruncateSuffix);
+        const std::size_t prefixLength = kMaxLogMessageBytes > suffixLength ? kMaxLogMessageBytes - suffixLength : 0;
+        std::string truncated(message, prefixLength);
+        truncated += kLogTruncateSuffix;
+        LogInfo(std::string("[script] ") + truncated);
+        return 0;
+    }
+    LogInfo(std::string("[script] ") + std::string(message, messageLength));
     return 0;
 }
 
@@ -364,8 +404,10 @@ int LuaSleep(lua_State* L)
         return luaL_error(L, "sleep is not available while rendering script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
-    const int ms = CheckLuaIntClamped(L, 1, 0, kMaxSingleSleepMs, "sleep duration");
+    instance.throwStopIfRequested(L);
+    const std::int64_t ms = CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMs, "sleep duration");
     if (lua_isyieldable(L)) {
+        instance.pauseExecutionBudget();
         instance.scheduleCoroutineSleep(L, ms);
         return lua_yield(L, 0);
     }
@@ -378,9 +420,21 @@ int LuaPressKey(lua_State* L)
     if (IsSettingsRenderMode(L)) {
         return luaL_error(L, "pressKey is not available while rendering script settings");
     }
+    ScriptInstance& instance = RequireInstance(L);
+    instance.throwStopIfRequested(L);
     const smu::core::KeyCode key = CheckKey(L, 1);
     const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 50;
-    PressKey(key, delay);
+    auto backend = smu::platform::GetInputBackend();
+    if (!backend) {
+        LogWarning("Imported script tried to press a key, but the input backend is not available.");
+        return 0;
+    }
+    backend->holdKey(key);
+    if (!instance.waitFor(std::chrono::milliseconds(delay))) {
+        backend->releaseKey(key);
+        instance.throwStopIfRequested(L);
+    }
+    backend->releaseKey(key);
     return 0;
 }
 
@@ -439,15 +493,43 @@ int LuaTypeText(lua_State* L)
     if (IsSettingsRenderMode(L)) {
         return luaL_error(L, "typeText is not available while rendering script settings");
     }
+    ScriptInstance& instance = RequireInstance(L);
+    instance.throwStopIfRequested(L);
     std::size_t textLength = 0;
     const char* text = luaL_checklstring(L, 1, &textLength);
+    if (textLength > kMaxTypeTextBytes) {
+        return luaL_error(L, "typeText text is too long (max %zu bytes)", kMaxTypeTextBytes);
+    }
     const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 30;
     auto backend = smu::platform::GetInputBackend();
     if (!backend) {
         LogWarning("Imported script tried to type text, but the input backend is not available.");
         return 0;
     }
-    smu::platform::typeText(*backend, std::string(text ? text : "", textLength), delay);
+    const int safeDelayMs = std::max(0, delay);
+    for (std::size_t i = 0; i < textLength; ++i) {
+        instance.throwStopIfRequested(L);
+        const smu::platform::KeyAction action = smu::platform::charToKeyAction(text[i]);
+        if (!action.valid) {
+            continue;
+        }
+        if (action.needsShift) {
+            // holdKeyChord handles modifier combinations; we use it for single modifiers too.
+            backend->holdKeyChord(smu::core::SMU_VK_SHIFT);
+        }
+        backend->holdKeyChord(action.key);
+        if (!instance.waitFor(std::chrono::milliseconds(safeDelayMs))) {
+            backend->releaseKeyChord(action.key);
+            if (action.needsShift) {
+                backend->releaseKeyChord(smu::core::SMU_VK_SHIFT);
+            }
+            instance.throwStopIfRequested(L);
+        }
+        backend->releaseKeyChord(action.key);
+        if (action.needsShift) {
+            backend->releaseKeyChord(smu::core::SMU_VK_SHIFT);
+        }
+    }
     return 0;
 }
 
@@ -585,6 +667,7 @@ int LuaUiCheckbox(lua_State* L)
     const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     const bool stored = storedIt != record.uiState.end() && storedIt->is_boolean()
@@ -639,6 +722,7 @@ int LuaUiSliderInt(lua_State* L)
     }
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     int stored = defaultValue;
@@ -691,6 +775,7 @@ int LuaUiSliderFloat(lua_State* L)
     maxValue = std::clamp(maxValue, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     double stored = defaultValue;
@@ -734,6 +819,7 @@ int LuaUiTextbox(lua_State* L)
     const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
@@ -786,6 +872,7 @@ int LuaUiDynamicTextbox(lua_State* L)
     const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
@@ -824,6 +911,7 @@ int LuaUiSetDynamicText(lua_State* L)
     const char* text = luaL_checklstring(L, 2, &textLength);
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     std::string value = ClampDynamicText(ClampedString(text, textLength));
     UpdateScriptStringSetting(instance, id, value);
     lua_pushboolean(L, 1);
@@ -856,6 +944,7 @@ int LuaUiKeybind(lua_State* L)
     }
 
     const std::string id(idText, idLength);
+    CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
     const auto storedIt = record.uiState.find(id);
     unsigned int stored = defaultValue;
