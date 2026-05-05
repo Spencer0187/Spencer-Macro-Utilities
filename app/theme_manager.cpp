@@ -77,10 +77,18 @@ static ImVec2 g_stored_theme_editor_pos;
 
 void ThemeManager::Initialize() {
     // Populate the global themes vector
-    Globals::themes = defaultthemes;
-    // Initialize custom theme with the first default
+    Globals::themes = defaultthemes;    // Initialize custom theme with the first default
     Globals::custom_theme = defaultthemes[0];
     Globals::custom_theme.name = "Custom Theme";
+
+    // Prefer "Cyberpunk" as the startup-selected theme so newly created
+    // profiles serialize with Cyberpunk instead of Default Dark.
+    for (size_t i = 0; i < Globals::themes.size(); ++i) {
+        if (Globals::themes[i].name == "Cyberpunk") {
+            Globals::current_theme_index = static_cast<int>(i);
+            break;
+        }
+    }
 }
 
 void ThemeManager::ApplyTheme() {

@@ -568,7 +568,7 @@ std::string ResolveSettingsFilePath() {
 
 	if (!currentDir.empty()) {
 		const fs::path fallbackSettings = currentDir / "SMCSettings.json";
-		LogWarning("Falling back to current-directory settings path: " + fallbackSettings.string());
+		LogWarning("Creating new settings file: " + fallbackSettings.string());
 		return fallbackSettings.string();
 	}
 
@@ -1168,7 +1168,13 @@ static void SaveMetadataThemes(json& metadata) {
 }
 
 static void LoadMetadataThemes(const json& metadata) {
-	Globals::current_theme_index = metadata.value("current_theme_index", 0);
+	// Only override the in-memory current_theme_index if the metadata
+	// explicitly contains a saved value. This prevents missing metadata
+	// (e.g. freshly written default profiles) from resetting the startup
+	// selection to the compile-time default (index 0).
+	if (metadata.contains("current_theme_index") && metadata["current_theme_index"].is_number()) {
+		Globals::current_theme_index = metadata["current_theme_index"].get<int>();
+	}
 
 	if (metadata.contains("custom_theme")) {
 		const auto& ct = metadata["custom_theme"];
@@ -1190,6 +1196,26 @@ static void LoadMetadataThemes(const json& metadata) {
 			if (!found) {
 				Globals::themes.push_back(loaded);
 			}
+		}
+	}
+
+	// Ensure the current_theme_index is valid relative to the final themes vector.
+	// `current_theme_index == themes.size()` is valid and selects the `custom_theme`.
+	if (Globals::current_theme_index < 0 || Globals::current_theme_index > static_cast<int>(Globals::themes.size())) {
+		// Try to resolve by name first (prefer "Cyberpunk"). This avoids
+		// accidental index mismatches if themes were reordered or newly
+		// inserted by metadata.
+		for (size_t i = 0; i < Globals::themes.size(); ++i) {
+			if (Globals::themes[i].name == "Cyberpunk") {
+				Globals::current_theme_index = static_cast<int>(i);
+				return;
+			}
+		}
+		// Fall back to a safe index (0) if nothing else matches.
+		if (!Globals::themes.empty()) {
+			Globals::current_theme_index = 0;
+		} else {
+			Globals::current_theme_index = 0;
 		}
 	}
 }
