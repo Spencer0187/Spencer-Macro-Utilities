@@ -88,6 +88,201 @@ UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited t
 
 ### Input
 
+#### Key and Hotkey Arguments
+
+The input functions use two related but different argument formats:
+
+| Argument kind | Used by | Meaning |
+| --- | --- | --- |
+| Single key | `pressKey()`, `holdKey()`, `releaseKey()`, `isKeyPressed()` | One physical keyboard key or mouse button. |
+| Hotkey | `isHotkeyPressed()`, `ui.keybind()`, `@keybind` | A key combination, usually one or more modifiers plus a main key. |
+
+A single key is written as one key name:
+
+```lua
+pressKey("Space")
+holdKey("LCtrl")
+releaseKey("LCtrl")
+
+if isKeyPressed("E") then
+    log("E is pressed")
+end
+```
+
+A hotkey may be written as a combination using `+`:
+
+```lua
+if isHotkeyPressed("LCtrl+K") then
+    log("LCtrl+K is pressed")
+end
+```
+
+Do **not** pass hotkey combinations to `pressKey()`, `holdKey()`, `releaseKey()`, or `isKeyPressed()`:
+
+```lua
+-- Wrong:
+pressKey("LCtrl+K")
+
+-- Correct:
+holdKey("LCtrl")
+pressKey("K")
+releaseKey("LCtrl")
+```
+
+For typing normal text, prefer `typeText()`:
+
+```lua
+typeText("hello")
+```
+
+Do not use repeated `pressKey()` calls for ordinary text entry unless you specifically need key-level behavior.
+
+Key names are case-insensitive. Spaces, underscores, and dashes are ignored, so these are equivalent:
+
+```lua
+pressKey("PageDown")
+pressKey("page down")
+pressKey("page_down")
+pressKey("page-down")
+```
+
+Numeric SMU key codes are also accepted by the input APIs, but named keys are preferred because they are easier to read and less likely to depend on implementation details.
+
+##### Supported key names
+
+The Lua API supports the following named keys.
+
+###### Letters
+
+| Key names |
+| --- |
+| `A` through `Z` |
+
+###### Number row
+
+| Key names |
+| --- |
+| `0` through `9` |
+
+###### Function keys
+
+| Key names |
+| --- |
+| `F1` through `F24` |
+
+###### Numpad keys
+
+| Key names |
+| --- |
+| `Numpad0` through `Numpad9` |
+
+###### Mouse buttons
+
+| Key name | Aliases |
+| --- | --- |
+| `LMB` | `MouseLeft`, `LeftMouse` |
+| `RMB` | `MouseRight`, `RightMouse` |
+| `MMB` | `MouseMiddle`, `MiddleMouse` |
+| `Mouse4` | `XButton1` |
+| `Mouse5` | `XButton2` |
+
+###### Modifier keys
+
+| Key name | Aliases |
+| --- | --- |
+| `Shift` | |
+| `LShift` | |
+| `RShift` | |
+| `Ctrl` | `Control` |
+| `LCtrl` | |
+| `RCtrl` | |
+| `Alt` | |
+| `LAlt` | |
+| `RAlt` | |
+| `Win` | `Super`, `Meta` |
+
+###### Navigation and editing keys
+
+| Key name | Aliases |
+| --- | --- |
+| `Space` | |
+| `Enter` | `Return` |
+| `Escape` | `Esc` |
+| `Tab` | |
+| `Backspace` | |
+| `Delete` | `Del` |
+| `Insert` | `Ins` |
+| `Home` | |
+| `End` | |
+| `PageUp` | `PgUp` |
+| `PageDown` | `PgDn` |
+| `Up` | |
+| `Down` | |
+| `Left` | |
+| `Right` | |
+
+###### Punctuation keys
+
+| Key name | Aliases |
+| --- | --- |
+| `Slash` | `/` |
+| `Backslash` | `\` |
+| `Equals` | `Equal`, `=` |
+| `Minus` | `-` |
+| `Comma` | `,` |
+| `Period` | `Dot`, `.` |
+| `Semicolon` | `;` |
+| `Quote` | `Apostrophe`, `'` |
+| `LeftBracket` | `BracketLeft`, `[` |
+| `RightBracket` | `BracketRight`, `]` |
+| `Grave` | `Backtick`, `` ` `` |
+
+###### Lock keys
+
+| Key name |
+| --- |
+| `CapsLock` |
+| `NumLock` |
+| `ScrollLock` |
+
+##### Hotkey strings
+
+Hotkey strings combine modifiers and one main key with `+`:
+
+```lua
+isHotkeyPressed("Ctrl+F")
+isHotkeyPressed("Alt+Shift+X")
+isHotkeyPressed("LCtrl+K")
+```
+
+Use `isHotkeyPressed()` when checking whether a combination is currently pressed.
+
+Use `ui.keybind()` when creating a configurable hotkey in a script UI:
+
+```lua
+local hotkey = ui.keybind("Example hotkey", "LCtrl+K")
+
+if isHotkeyPressed(hotkey) then
+    log("Configured hotkey pressed")
+end
+```
+
+Use `@keybind` for metadata-defined script settings:
+
+```lua
+-- @keybind actionHotkey "Action hotkey" LCtrl+K
+```
+
+Then read the configured value with `getSavedValue()`:
+
+```lua
+local actionHotkey = getSavedValue("actionHotkey")
+
+if isHotkeyPressed(actionHotkey) then
+    log("Action hotkey pressed")
+end
+```
+
 | Function | Description |
 | --- | --- |
 | `pressKey(key, delay)` | Press and release a key. `delay` defaults to 50 ms |
