@@ -33,50 +33,35 @@ jobs:
           wget -O appimagetool.AppImage "$URL"
           chmod +x appimagetool.AppImage
 
-      - name: Build and verify AppImage
+      - name: Build AppImage
         run: |
           APPIMAGETOOL="$PWD/appimagetool.AppImage" bash scripts/package_appimage.sh
 
-      - name: Stage AppImage for nfpm
+      - name: Prepare packaging directory
         run: |
-          mkdir -p AppImage
+          rm -rf packaging
+          mkdir -p packaging/AppImage
 
-          cp build/linux-appimage/*.AppImage AppImage/Spencer_Macro_Utilities-x86_64.AppImage
-          cp AppImage/SMU.desktop AppImage/spencer-macro-utilities.desktop
+          cp build/linux-appimage/*.AppImage \
+            packaging/AppImage/Spencer_Macro_Utilities-x86_64.AppImage
+
+          cp AppImage/SMU.desktop packaging/AppImage/spencer-macro-utilities.desktop
+          cp AppImage/SMU.png packaging/AppImage/SMU.png
 
       - name: Build deb
         run: |
-          mkdir -p build/packages
           nfpm pkg --packager deb \
             --config AppImage/nfpm.yaml \
-            --target build/packages
+            --target packaging/
 
       - name: Build rpm
         run: |
-          mkdir -p build/packages
           nfpm pkg --packager rpm \
             --config AppImage/nfpm.yaml \
-            --target build/packages
+            --target packaging/
 
-      - name: Prepare release assets
-        run: |
-          mkdir -p release-assets
-
-          cp build/linux-appimage/*.AppImage release-assets/
-          cp build/packages/*.deb release-assets/ || true
-          cp build/packages/*.rpm release-assets/ || true
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v3.2.2-${{ github.run_number }}
-          name: Spencer Macro Utilities v3.2.2 build ${{ github.run_number }}
-          files: release-assets/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload CI artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux-builds
-          path: release-assets/*
+          name: linux-packages
+          path: packaging/*
