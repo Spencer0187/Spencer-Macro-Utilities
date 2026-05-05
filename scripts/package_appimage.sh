@@ -60,6 +60,13 @@ cp "$APP_ICON_SOURCE" "$APPDIR/.DirIcon"
 test -x "$APPDIR/AppRun"
 test -x "$APPDIR/usr/bin/suspend"
 test -d "$APPDIR/usr/bin/assets"
+test -f "$APPDIR/usr/bin/assets/LSANS.TTF"
+test -f "$APPDIR/usr/bin/assets/smu_icon.bmp"
+test -f "$APPDIR/usr/bin/assets/macro_tutorials/fullgeardesync.png"
+test -f "$APPDIR/usr/bin/assets/macro_tutorials/gear-clip.jpg"
+test -f "$APPDIR/usr/bin/assets/macro_tutorials/laugh.jpg"
+test -f "$APPDIR/usr/bin/assets/macro_tutorials/wallhop.jpg"
+test -f "$APPDIR/usr/bin/assets/macro_tutorials/wallwalk.jpg"
 test -x "$APPDIR/scripts/install_linux_permissions.sh"
 test -f "$APPDIR/LINUX_SETUP.md"
 test -f "$APPDIR/spencer-macro-utilities.desktop"
@@ -74,5 +81,20 @@ fi
 "$APPIMAGETOOL" "$APPDIR" "$BUILD_DIR/$OUTPUT_NAME"
 chmod 755 "$BUILD_DIR/$OUTPUT_NAME"
 
+(
+  cd "$BUILD_DIR"
+  rm -rf squashfs-root
+  "./$OUTPUT_NAME" --appimage-extract >/dev/null
+  test -f "squashfs-root/usr/bin/assets/LSANS.TTF"
+  test -f "squashfs-root/usr/bin/assets/smu_icon.bmp"
+  test -f "squashfs-root/usr/bin/assets/macro_tutorials/fullgeardesync.png"
+  test -f "squashfs-root/usr/bin/assets/macro_tutorials/gear-clip.jpg"
+  test -f "squashfs-root/usr/bin/assets/macro_tutorials/laugh.jpg"
+  test -f "squashfs-root/usr/bin/assets/macro_tutorials/wallhop.jpg"
+  test -f "squashfs-root/usr/bin/assets/macro_tutorials/wallwalk.jpg"
+  rm -rf squashfs-root
+)
+
 echo
 echo "Built AppImage: $BUILD_DIR/$OUTPUT_NAME"
+echo "AppImage asset diagnostics passed."

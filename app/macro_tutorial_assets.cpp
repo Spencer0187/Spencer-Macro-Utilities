@@ -53,6 +53,18 @@ std::array<TutorialTexture, 4> g_textures = {{
 
 bool LoadTexture(TutorialTexture& texture)
 {
+    const unsigned char* imageBytes = nullptr;
+    std::size_t imageByteCount = 0;
+
+#if defined(_WIN32)
+    const auto embeddedAsset = FindRuntimeAssetData(texture.assetPath);
+    if (!embeddedAsset || !embeddedAsset->data || embeddedAsset->size == 0) {
+        LogWarning(std::string("Macro tutorial image resource is missing: assets/") + texture.assetPath);
+        return false;
+    }
+    imageBytes = embeddedAsset->data;
+    imageByteCount = embeddedAsset->size;
+#else
     const std::filesystem::path path = FindRuntimeAsset(texture.assetPath);
     if (path.empty()) {
         LogWarning(std::string("Macro tutorial image is missing: assets/") + texture.assetPath);
@@ -65,20 +77,32 @@ bool LoadTexture(TutorialTexture& texture)
         return false;
     }
 
-    std::vector<unsigned char> bytes(
+    std::vector<unsigned char> fileBytes(
         (std::istreambuf_iterator<char>(file)),
         std::istreambuf_iterator<char>());
-    if (bytes.empty() || bytes.size() > 16u * 1024u * 1024u) {
+    if (fileBytes.empty() || fileBytes.size() > 16u * 1024u * 1024u) {
         LogWarning(std::string("Macro tutorial image has an invalid size: ") + path.string());
+        return false;
+    }
+    imageBytes = fileBytes.data();
+    imageByteCount = fileBytes.size();
+#endif
+
+    if (!imageBytes || imageByteCount == 0 || imageByteCount > 16u * 1024u * 1024u) {
+        LogWarning(std::string("Macro tutorial image has invalid embedded data: assets/") + texture.assetPath);
+        return false;
+    }
+    if (imageByteCount > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        LogWarning(std::string("Macro tutorial image is too large for stb_image: assets/") + texture.assetPath);
         return false;
     }
 
     int width = 0;
     int height = 0;
     int channels = 0;
-    unsigned char* pixels = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()), &width, &height, &channels, 4);
+    unsigned char* pixels = stbi_load_from_memory(imageBytes, static_cast<int>(imageByteCount), &width, &height, &channels, 4);
     if (!pixels || width <= 0 || height <= 0) {
-        LogWarning(std::string("Macro tutorial image could not be loaded: ") + path.string());
+        LogWarning(std::string("Macro tutorial image could not be loaded: assets/") + texture.assetPath);
         if (pixels) {
             stbi_image_free(pixels);
         }

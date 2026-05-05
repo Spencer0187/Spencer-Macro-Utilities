@@ -203,13 +203,8 @@ if(WIN32)
         xinput
     )
 
-    add_custom_command(TARGET suspend POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/LSANS.TTF" "$<TARGET_FILE_DIR:suspend>/assets/LSANS.TTF"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/smu_icon.bmp" "$<TARGET_FILE_DIR:suspend>/assets/smu_icon.bmp"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:suspend>/assets/macro_tutorials"
-        COMMENT "Copying Windows runtime assets next to suspend"
-    )
+    # Windows runtime assets are embedded into resources/windows/suspend.rc.
+    # Do not copy an assets folder next to suspend.exe.
 elseif(UNIX AND NOT APPLE)
     find_package(OpenGL REQUIRED)
     find_package(Threads REQUIRED)

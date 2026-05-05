@@ -60,7 +60,13 @@ IDI_ICON1               ICON                    "smu.ico"
 // RCDATA
 //
 
-LSANS_TTF               RCDATA                  "..\\..\\assets\\LSANS.TTF"
+LSANS_TTF               RCDATA                  "../../assets/LSANS.TTF"
+SMU_ICON_BMP            RCDATA                  "../../assets/smu_icon.bmp"
+SMU_TUTORIAL_FULLGEARDESYNC_PNG RCDATA          "../../assets/macro_tutorials/fullgeardesync.png"
+SMU_TUTORIAL_GEAR_CLIP_JPG RCDATA               "../../assets/macro_tutorials/gear-clip.jpg"
+SMU_TUTORIAL_LAUGH_JPG  RCDATA                  "../../assets/macro_tutorials/laugh.jpg"
+SMU_TUTORIAL_WALLHOP_JPG RCDATA                 "../../assets/macro_tutorials/wallhop.jpg"
+SMU_TUTORIAL_WALLWALK_JPG RCDATA                "../../assets/macro_tutorials/wallwalk.jpg"
 
 
 /////////////////////////////////////////////////////////////////////////////
