@@ -31,6 +31,10 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
           nfpm version
 
+      - name: Add Go bin to PATH
+        run: |
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
       - name: Download appimagetool
         env:
           GH_TOKEN: ${{ github.token }}
