@@ -292,7 +292,10 @@ end
 | `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind`) |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
 | `moveMouse(dx, dy)` | Move the mouse relative to its current position |
+| `moveDegrees(dx, dy)` | Move the mouse using degree units derived from saved Roblox sensitivity and Cam-Fix settings. Positive `dy` moves upward |
 | `mouseWheel(delta)` | Scroll the mouse wheel |
+
+`moveDegrees(dx, dy)` caches its conversion settings once when the script instance starts. It uses `RobloxSensValue` and `camfixtoggle` to convert degrees into pixels with the same formula used by the built-in wallhop/rotation UI.
 
 ### Process Control
 
