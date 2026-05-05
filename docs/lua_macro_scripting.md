@@ -12,7 +12,7 @@ Imported scripts can also define their own custom ImGui settings by implementing
 Only import scripts from sources you trust. Lua scripts can simulate input and control process-related macro behavior.
 
 Each script runs with a per-script Lua memory cap. The default is 64 MiB. Scripts can request a different cap with `-- @memoryLimitMB:`, clamped between 16 MiB and 256 MiB.
-`onExecute()` and script load calls are timed, `onSettings()` is timed separately, and user-created coroutines are supported through wrapped `coroutine.resume()` and `coroutine.wrap()`.
+`onExecute()` and script load calls are timed based on active execution time. `sleep()` and input delays do not count against that timeout, so long-lived scripts can wait without being terminated. Timeout and cancellation errors cannot be suppressed with `pcall()` or `xpcall()`.
 The sandbox opens the base, table, string, math, utf8, and coroutine libraries. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
 
 ## Script Structure
@@ -35,7 +35,7 @@ end
 
 ## Metadata
 
-Add metadata at the top of the script using comment tags.
+Add metadata at the top of the script using comment tags. Metadata fields are truncated if they exceed reasonable display limits.
 
 | Tag | Description |
 | --- | --- |
@@ -56,8 +56,8 @@ You can import scripts with the in-app import button or place script files in th
 
 | Function | Description |
 | --- | --- |
-| `log(message)` | Write a message to the log console |
-| `sleep(ms)` | Pause the script for the specified number of milliseconds, clamped to 300000 ms per call |
+| `log(message)` | Write a message to the log console (messages are truncated at 4096 bytes) |
+| `sleep(ms)` | Pause the script for the specified number of milliseconds. Long sleeps are allowed and do not count against the execution timeout |
 | `nowMicros()` | Return the current monotonic time in microseconds |
 | `getSMUVersion()` | Return the current application version |
 | `getPlatform()` | Return `windows`, `linux`, or `unknown` |
@@ -84,7 +84,7 @@ Most controls accept optional size arguments at the end of the parameter list. W
 The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly.
 Script settings are stored in the save file under imported script data, separate from the main app settings.
 Dynamic text boxes are session-only and are not written to the save file.
-UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited to 128 bytes. A single `onSettings()` call may create up to 512 UI controls. Stored script UI strings are clamped to 4096 bytes.
+UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited to 128 bytes. A single `onSettings()` call may create up to 512 UI controls, and each script is capped at 4096 total unique UI IDs. Stored script UI strings are clamped to 4096 bytes.
 
 ### Input
 
@@ -135,7 +135,7 @@ For typing normal text, prefer `typeText()`:
 typeText("hello")
 ```
 
-Do not use repeated `pressKey()` calls for ordinary text entry unless you specifically need key-level behavior.
+Do not use repeated `pressKey()` calls for ordinary text entry unless you specifically need key-level behavior. `typeText()` input is capped at 4096 characters per call.
 
 Key names are case-insensitive. Spaces, underscores, and dashes are ignored, so these are equivalent:
 

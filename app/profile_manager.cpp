@@ -318,15 +318,18 @@ bool EnsureParentDirectoryExists(const fs::path& path) {
 
 	if (fs::create_directories(parent, ec) || !ec) {
 #if defined(__linux__)
-		const RealUserContext realUser = GetRealUserContext();
-		if (geteuid() == 0 && realUser.hasOriginalUser) {
-			if (chown(parent.c_str(), realUser.uid, realUser.gid) != 0) {
-				LogWarning("Could not chown settings directory " + FormatPathForLog(parent) + ": " + std::strerror(errno));
-			}
-		}
+        const RealUserContext realUser = GetRealUserContext();
+        if (geteuid() == 0 && realUser.hasOriginalUser) {
+            if (chown(parent.c_str(), realUser.uid, realUser.gid) != 0) {
+                LogWarning("Could not chown settings directory " + FormatPathForLog(parent) + ": " + std::strerror(errno));
+            }
+        }
+        if (chmod(parent.c_str(), 0700) != 0) {
+            LogWarning("Could not chmod 0700 on settings directory " + FormatPathForLog(parent) + ": " + std::strerror(errno));
+        }
 #endif
-		return true;
-	}
+        return true;
+    }
 
 	LogWarning("Could not create settings directory " + FormatPathForLog(parent) + ": " + ec.message());
 	return false;
@@ -397,10 +400,10 @@ bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
 		}
 	}
 
-	if (chmod(path.c_str(), 0666) != 0) {
-		LogWarning("Could not chmod 0666 on " + FormatPathForLog(path) + ": " + std::strerror(errno));
-		return false;
-	}
+    if (chmod(path.c_str(), 0600) != 0) {
+        LogWarning("Could not chmod 0600 on " + FormatPathForLog(path) + ": " + std::strerror(errno));
+        return false;
+    }
 #else
 	(void)path;
 #endif
