@@ -1,0 +1,26 @@
+name: spencer-macro-utilities
+arch: amd64
+platform: linux
+version: 3.2.2
+
+section: default
+priority: optional
+
+maintainer: FloofyIV <floofyiv9@proton.me>
+description: |
+  An open source C++ Roblox Macro with many features.
+
+vendor: FloofyIV
+homepage: https://example.com
+
+contents:
+  - src: ./Spencer_Macro_Utilities-x86_64.AppImage
+    dst: /usr/bin/spencer-macro-utilities
+    file_info:
+      mode: 0755
+
+  - src: ./spencer-macro-utilities.desktop
+    dst: /usr/share/applications/spencer-macro-utilities.desktop
+
+  - src: ./SMU.png
+    dst: /usr/share/pixmaps/spencer-macro-utilities.png

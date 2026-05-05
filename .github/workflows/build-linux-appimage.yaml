@@ -1,13 +1,13 @@
-name: Build Linux AppImage
-
 on:
   workflow_dispatch:
 
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+
     permissions:
-      contents: read
+      contents: write
+
     steps:
       - name: Install dependencies
         run: |
@@ -17,7 +17,7 @@ jobs:
             libaudio-dev libfribidi-dev libjack-dev libsndio-dev libx11-dev libxext-dev \
             libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev \
             libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev \
-            libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev
+            libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev libthai-dev nfpm
 
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -37,8 +37,46 @@ jobs:
         run: |
           APPIMAGETOOL="$PWD/appimagetool.AppImage" bash scripts/package_appimage.sh
 
-      - name: Upload AppImage
+      - name: Stage AppImage for nfpm
+        run: |
+          mkdir -p AppImage
+
+          cp build/linux-appimage/*.AppImage AppImage/Spencer_Macro_Utilities-x86_64.AppImage
+          cp AppImage/SMU.desktop AppImage/spencer-macro-utilities.desktop
+
+      - name: Build deb
+        run: |
+          mkdir -p build/packages
+          nfpm pkg --packager deb \
+            --config AppImage/nfpm.yaml \
+            --target build/packages
+
+      - name: Build rpm
+        run: |
+          mkdir -p build/packages
+          nfpm pkg --packager rpm \
+            --config AppImage/nfpm.yaml \
+            --target build/packages
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+
+          cp build/linux-appimage/*.AppImage release-assets/
+          cp build/packages/*.deb release-assets/ || true
+          cp build/packages/*.rpm release-assets/ || true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v3.2.2-${{ github.run_number }}
+          name: Spencer Macro Utilities v3.2.2 build ${{ github.run_number }}
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload CI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: suspend-appimage
-          path: build/linux-appimage/*.AppImage
+          name: linux-builds
+          path: release-assets/*
