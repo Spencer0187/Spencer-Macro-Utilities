@@ -497,7 +497,7 @@ int LuaTypeText(lua_State* L)
     std::size_t textLength = 0;
     const char* text = luaL_checklstring(L, 1, &textLength);
     if (textLength > kMaxTypeTextBytes) {
-        return luaL_error(L, "typeText text is too long (max %zu characters)", kMaxTypeTextBytes);
+        return luaL_error(L, "typeText text is too long (max %zu bytes)", kMaxTypeTextBytes);
     }
     const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 30;
     auto backend = smu::platform::GetInputBackend();

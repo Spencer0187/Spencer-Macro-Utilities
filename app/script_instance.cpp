@@ -618,6 +618,7 @@ void ScriptInstance::cleanup()
 
 bool ScriptInstance::checkDeadline()
 {
+    std::lock_guard<std::mutex> lock(sleepMutex_);
     if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
         return false;
     }
@@ -665,6 +666,7 @@ void ScriptInstance::throwStopIfRequested(lua_State* L)
 
 void ScriptInstance::pauseExecutionBudget()
 {
+    std::lock_guard<std::mutex> lock(sleepMutex_);
     if (!budgetActive_) {
         return;
     }
@@ -682,6 +684,7 @@ void ScriptInstance::pauseExecutionBudget()
 
 bool ScriptInstance::resumeExecutionBudget()
 {
+    std::lock_guard<std::mutex> lock(sleepMutex_);
     if (budgetActive_) {
         return true;
     }
@@ -715,11 +718,9 @@ bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
         return false;
     }
     std::unique_lock<std::mutex> lock(sleepMutex_);
-    if (sleepCv_.wait_until(lock, wakeTime, [this] {
-            return stopReason_.load(std::memory_order_acquire) != StopReason::None;
-        })) {
-        return false;
-    }
+    sleepCv_.wait_until(lock, wakeTime, [this] {
+        return stopReason_.load(std::memory_order_acquire) != StopReason::None;
+    });
     return stopReason_.load(std::memory_order_acquire) == StopReason::None;
 }
 
@@ -964,6 +965,7 @@ bool ScriptInstance::callProtected(int argCount, const char* context)
 
 void ScriptInstance::beginTimedCall(std::chrono::steady_clock::duration maxRuntime)
 {
+    std::lock_guard<std::mutex> lock(sleepMutex_);
     stopReason_.store(StopReason::None, std::memory_order_release);
     remainingBudget_ = maxRuntime;
     budgetActive_ = true;

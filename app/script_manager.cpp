@@ -14,6 +14,21 @@
 namespace smu::app {
 namespace {
 
+bool WaitForScriptStop(const ScriptManager::RecordPtr& record, std::chrono::milliseconds timeout)
+{
+    if (!record) {
+        return true;
+    }
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (record->running.load(std::memory_order_acquire)) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return true;
+}
+
 std::string PathForJson(const std::filesystem::path& path)
 {
     return path.string();
@@ -169,9 +184,8 @@ bool ScriptManager::reloadScript(std::size_t index)
         if (record->instance) {
             record->instance->requestCancel();
         }
-        const auto waitUntil = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-        while (record->running.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < waitUntil) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        if (!WaitForScriptStop(record, std::chrono::seconds(5))) {
+            return false;
         }
     }
 
@@ -212,13 +226,26 @@ bool ScriptManager::removeScript(std::size_t index)
             return false;
         }
         removed = scripts_[index];
-        if (removed && removed->running.load(std::memory_order_acquire) && removed->instance) {
-            removed->instance->requestCancel();
-        }
-        scripts_.erase(scripts_.begin() + static_cast<std::ptrdiff_t>(index));
     }
 
-    if (removed && removed->instance && !removed->running.load(std::memory_order_acquire)) {
+    if (removed && removed->running.load(std::memory_order_acquire) && removed->instance) {
+        removed->instance->requestCancel();
+    }
+    if (!WaitForScriptStop(removed, std::chrono::seconds(5))) {
+        return false;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        for (auto it = scripts_.begin(); it != scripts_.end(); ++it) {
+            if (*it == removed) {
+                scripts_.erase(it);
+                break;
+            }
+        }
+    }
+
+    if (removed && removed->instance) {
         removed->instance->cleanup();
     }
     return true;
