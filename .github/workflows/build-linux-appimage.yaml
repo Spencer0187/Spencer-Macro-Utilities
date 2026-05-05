@@ -46,20 +46,12 @@ jobs:
           mkdir -p packaging/AppImage
 
           cp build/linux-appimage/*.AppImage packaging/AppImage/Spencer_Macro_Utilities-x86_64.AppImage
-          cp AppImage/SMU.desktop packaging/AppImage/spencer-macro-utilities.desktop
+          cp AppImage/SMU.desktop packaging/AppImage/SMU.desktop
           cp AppImage/SMU.png packaging/AppImage/SMU.png
 
-<<<<<<< HEAD
-          cp AppImage/SMU.desktop \
-            packaging/AppImage/SMU.desktop
-
-          cp AppImage/SMU.png \
-            packaging/AppImage/SMU.png
-=======
       - name: Debug packaging contents
         run: |
           find packaging -type f -print
->>>>>>> 2114262dd36f46863a2715d45dc40f6e7d91f40e
 
       - name: Build deb
         run: |
