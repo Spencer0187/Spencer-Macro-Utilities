@@ -56,7 +56,7 @@ jobs:
             packaging/AppImage/Spencer_Macro_Utilities-x86_64.AppImage
 
           cp AppImage/SMU.desktop \
-            packaging/AppImage/spencer-macro-utilities.desktop
+            packaging/AppImage/SMU.desktop
 
           cp AppImage/SMU.png \
             packaging/AppImage/SMU.png
