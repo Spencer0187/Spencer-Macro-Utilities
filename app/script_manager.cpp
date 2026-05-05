@@ -5,6 +5,10 @@
 
 #include <system_error>
 #include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 #include <thread>
 
 namespace smu::app {
@@ -23,6 +27,51 @@ unsigned int NormalizeScriptHotkey(unsigned int hotkey)
     return hotkey;
 }
 
+bool IsSafeUiStateKey(const std::string& key)
+{
+    return !key.empty() &&
+        key.size() <= kMaxUiIdBytes &&
+        std::memchr(key.data(), '\0', key.size()) == nullptr;
+}
+
+nlohmann::json SanitizeUiState(const nlohmann::json& state)
+{
+    nlohmann::json sanitized = nlohmann::json::object();
+    if (!state.is_object()) {
+        return sanitized;
+    }
+
+    for (const auto& [key, value] : state.items()) {
+        if (!IsSafeUiStateKey(key)) {
+            continue;
+        }
+
+        if (value.is_boolean()) {
+            sanitized[key] = value.get<bool>();
+        } else if (value.is_number_integer()) {
+            sanitized[key] = value.get<std::int64_t>();
+        } else if (value.is_number_unsigned()) {
+            const auto unsignedValue = value.get<std::uint64_t>();
+            if (unsignedValue <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+                sanitized[key] = static_cast<std::int64_t>(unsignedValue);
+            }
+        } else if (value.is_number_float()) {
+            const double number = value.get<double>();
+            if (std::isfinite(number)) {
+                sanitized[key] = number;
+            }
+        } else if (value.is_string()) {
+            std::string text = value.get<std::string>();
+            if (text.size() > kMaxUiStateStringBytes) {
+                text.resize(kMaxUiStateStringBytes);
+            }
+            sanitized[key] = std::move(text);
+        }
+    }
+
+    return sanitized;
+}
+
 } // namespace
 
 ScriptManager& ScriptManager::Get()
@@ -33,122 +82,150 @@ ScriptManager& ScriptManager::Get()
 
 bool ScriptManager::importScript(const std::filesystem::path& path)
 {
-    ImportedScriptRecord record;
-    record.path = NormalizePath(path);
-    record.hotkey = kScriptUnboundHotkey;
-    record.enabled = false;
-    record.disableOutsideRoblox = true;
+    auto record = std::make_shared<ImportedScriptRecord>();
+    record->path = NormalizePath(path);
+    record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
+    record->enabled.store(false, std::memory_order_release);
+    record->disableOutsideRoblox.store(true, std::memory_order_release);
 
-    if (!IsSupportedScriptExtension(record.path)) {
-        LogWarning("Rejected imported script with unsupported extension: " + record.path.string());
+    if (!IsSupportedScriptExtension(record->path)) {
+        LogWarning("Rejected imported script with unsupported extension: " + record->path.string());
         return false;
     }
-    if (isDuplicatePath(record.path)) {
-        LogWarning("Script is already imported: " + record.path.string());
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (isDuplicatePath(record->path)) {
+            LogWarning("Script is already imported: " + record->path.string());
+            return false;
+        }
+        scripts_.push_back(record);
+    }
+
+    if (!loadRecord(*record)) {
         return false;
     }
 
-    scripts_.push_back(std::move(record));
-    ImportedScriptRecord& stored = scripts_.back();
-    if (!loadRecord(stored)) {
-        return false;
-    }
-
-    if (auto hotkey = ParseScriptHotkeyMetadata(stored.path)) {
-        stored.hotkey = NormalizeScriptHotkey(*hotkey);
+    if (auto hotkey = ParseScriptHotkeyMetadata(record->path)) {
+        record->hotkey.store(NormalizeScriptHotkey(*hotkey), std::memory_order_release);
     } else {
-        stored.hotkey = kScriptUnboundHotkey;
+        record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
     }
     return true;
 }
 
 bool ScriptManager::importScriptFromSave(const std::filesystem::path& path, unsigned int hotkey, bool enabled, bool disableOutsideRoblox)
 {
-    ImportedScriptRecord record;
-    record.path = NormalizePath(path);
-    record.hotkey = NormalizeScriptHotkey(hotkey);
-    record.enabled = enabled;
-    record.disableOutsideRoblox = disableOutsideRoblox;
+    auto record = std::make_shared<ImportedScriptRecord>();
+    record->path = NormalizePath(path);
+    record->hotkey.store(NormalizeScriptHotkey(hotkey), std::memory_order_release);
+    record->enabled.store(enabled, std::memory_order_release);
+    record->disableOutsideRoblox.store(disableOutsideRoblox, std::memory_order_release);
 
-    if (isDuplicatePath(record.path)) {
-        return false;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (isDuplicatePath(record->path)) {
+            return false;
+        }
+        scripts_.push_back(record);
     }
 
-    scripts_.push_back(std::move(record));
-    loadRecord(scripts_.back());
+    loadRecord(*record);
     return true;
 }
 
 bool ScriptManager::reloadScript(std::size_t index)
 {
-    ImportedScriptRecord* record = get(index);
-    if (!record || record->running) {
+    RecordPtr record;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (index >= scripts_.size()) {
+            return false;
+        }
+        record = scripts_[index];
+        if (!record || record->running.load(std::memory_order_acquire)) {
+            return false;
+        }
+        record->running.store(true, std::memory_order_release);
+    }
+
+    if (!record) {
         return false;
     }
 
-    const unsigned int preservedHotkey = record->hotkey;
-    const bool preservedEnabled = record->enabled;
-    const bool preservedDisableOutside = record->disableOutsideRoblox;
+    const unsigned int preservedHotkey = record->hotkey.load(std::memory_order_acquire);
+    const bool preservedEnabled = record->enabled.load(std::memory_order_acquire);
+    const bool preservedDisableOutside = record->disableOutsideRoblox.load(std::memory_order_acquire);
     record->instance.reset();
-    record->loaded = false;
-    record->missing = false;
-    record->lastError.clear();
+    record->loaded.store(false, std::memory_order_release);
+    record->missing.store(false, std::memory_order_release);
+    record->clearLastError();
 
     const bool loaded = loadRecord(*record);
     if (auto hotkey = ParseScriptHotkeyMetadata(record->path)) {
-        record->hotkey = *hotkey;
+        record->hotkey.store(NormalizeScriptHotkey(*hotkey), std::memory_order_release);
     } else {
-        record->hotkey = preservedHotkey;
+        record->hotkey.store(preservedHotkey, std::memory_order_release);
     }
-    record->enabled = preservedEnabled;
-    record->disableOutsideRoblox = preservedDisableOutside;
+    record->enabled.store(preservedEnabled, std::memory_order_release);
+    record->disableOutsideRoblox.store(preservedDisableOutside, std::memory_order_release);
+    record->running.store(false, std::memory_order_release);
     return loaded;
 }
 
 bool ScriptManager::removeScript(std::size_t index)
 {
-    ImportedScriptRecord* record = get(index);
-    if (!record || record->running) {
-        return false;
-    }
-    for (const auto& script : scripts_) {
-        if (script.running) {
+    RecordPtr removed;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (index >= scripts_.size() || !scripts_[index]) {
             return false;
         }
-    }
-    scripts_.erase(scripts_.begin() + static_cast<std::ptrdiff_t>(index));
-    for (ImportedScriptRecord& script : scripts_) {
-        if (script.instance) {
-            script.instance->setOwner(script);
+        for (const auto& script : scripts_) {
+            if (script && script->running.load(std::memory_order_acquire)) {
+                return false;
+            }
         }
+        removed = scripts_[index];
+        scripts_.erase(scripts_.begin() + static_cast<std::ptrdiff_t>(index));
+    }
+
+    if (removed && removed->instance) {
+        removed->instance->cleanup();
     }
     return true;
 }
 
 bool ScriptManager::executeScript(std::size_t index)
 {
-    ImportedScriptRecord* record = get(index);
-    if (!record || record->running || record->missing || !record->loaded || !record->instance) {
-        return false;
+    RecordPtr record;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (index >= scripts_.size()) {
+            return false;
+        }
+        record = scripts_[index];
+        if (!record ||
+            record->running.load(std::memory_order_acquire) ||
+            record->missing.load(std::memory_order_acquire) ||
+            !record->loaded.load(std::memory_order_acquire) ||
+            !record->instance) {
+            return false;
+        }
+        record->running.store(true, std::memory_order_release);
     }
-
-    record->running = true;
-    const auto clearRunning = [&] {
-        record->running = false;
-    };
 
     bool ok = false;
     try {
         ok = record->instance->callOnExecute();
     } catch (const std::exception& e) {
-        record->lastError = e.what();
-        LogWarning("Imported script threw an exception: " + record->lastError);
+        record->setLastError(e.what());
+        LogWarning("Imported script threw an exception: " + record->lastErrorCopy());
     } catch (...) {
-        record->lastError = "Script execution failed with an unknown C++ exception.";
-        LogWarning(record->lastError);
+        record->setLastError("Script execution failed with an unknown C++ exception.");
+        LogWarning(record->lastErrorCopy());
     }
 
-    clearRunning();
+    record->running.store(false, std::memory_order_release);
     return ok;
 }
 
@@ -157,8 +234,11 @@ void ScriptManager::clear()
     const auto waitUntil = std::chrono::steady_clock::now() + std::chrono::seconds(35);
     while (std::chrono::steady_clock::now() < waitUntil) {
         bool anyRunning = false;
-        for (const auto& script : scripts_) {
-            anyRunning = anyRunning || script.running;
+        {
+            std::lock_guard<std::mutex> lock(scriptsMutex_);
+            for (const auto& script : scripts_) {
+                anyRunning = anyRunning || (script && script->running.load(std::memory_order_acquire));
+            }
         }
         if (!anyRunning) {
             break;
@@ -166,64 +246,80 @@ void ScriptManager::clear()
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
+    Container toCleanup;
     bool anyRunning = false;
-    for (const auto& script : scripts_) {
-        anyRunning = anyRunning || script.running;
-    }
-    if (anyRunning) {
-        LogWarning("Imported script was still running during script manager shutdown; keeping it alive until it finishes.");
-        for (auto it = scripts_.begin(); it != scripts_.end();) {
-            if (it->running) {
-                ++it;
-                continue;
-            }
-            if (it->instance) {
-                it->instance->cleanup();
-            }
-            it = scripts_.erase(it);
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        for (const auto& script : scripts_) {
+            anyRunning = anyRunning || (script && script->running.load(std::memory_order_acquire));
         }
-        return;
+
+        if (anyRunning) {
+            LogWarning("Imported script was still running during script manager shutdown; keeping it alive until it finishes.");
+            for (auto it = scripts_.begin(); it != scripts_.end();) {
+                if ((*it) && (*it)->running.load(std::memory_order_acquire)) {
+                    ++it;
+                    continue;
+                }
+                toCleanup.push_back(*it);
+                it = scripts_.erase(it);
+            }
+        } else {
+            toCleanup.swap(scripts_);
+        }
     }
 
-    for (auto& script : scripts_) {
-        if (script.instance) {
-            script.instance->cleanup();
+    for (auto& script : toCleanup) {
+        if (script && script->instance) {
+            script->instance->cleanup();
         }
     }
-    scripts_.clear();
 }
 
 std::size_t ScriptManager::count() const
 {
+    std::lock_guard<std::mutex> lock(scriptsMutex_);
     return scripts_.size();
 }
 
-ImportedScriptRecord* ScriptManager::get(std::size_t index)
+ScriptManager::RecordPtr ScriptManager::get(std::size_t index)
 {
+    std::lock_guard<std::mutex> lock(scriptsMutex_);
     if (index >= scripts_.size()) {
         return nullptr;
     }
-    return &scripts_[index];
+    return scripts_[index];
 }
 
-const ImportedScriptRecord* ScriptManager::get(std::size_t index) const
+ScriptManager::ConstRecordPtr ScriptManager::get(std::size_t index) const
 {
+    std::lock_guard<std::mutex> lock(scriptsMutex_);
     if (index >= scripts_.size()) {
         return nullptr;
     }
-    return &scripts_[index];
+    return scripts_[index];
+}
+
+std::vector<ScriptManager::RecordPtr> ScriptManager::snapshot() const
+{
+    std::lock_guard<std::mutex> lock(scriptsMutex_);
+    return {scripts_.begin(), scripts_.end()};
 }
 
 nlohmann::json ScriptManager::serialize() const
 {
     nlohmann::json array = nlohmann::json::array();
-    for (const ImportedScriptRecord& script : scripts_) {
+    const auto records = snapshot();
+    for (const auto& script : records) {
+        if (!script) {
+            continue;
+        }
         nlohmann::json item;
-        item["path"] = PathForJson(script.path);
-        item["hotkey"] = script.hotkey;
-        item["enabled"] = script.enabled;
-        item["disable_outside_roblox"] = script.disableOutsideRoblox;
-        item["ui_state"] = script.uiState;
+        item["path"] = PathForJson(script->path);
+        item["hotkey"] = script->hotkey.load(std::memory_order_acquire);
+        item["enabled"] = script->enabled.load(std::memory_order_acquire);
+        item["disable_outside_roblox"] = script->disableOutsideRoblox.load(std::memory_order_acquire);
+        item["ui_state"] = script->uiState;
         array.push_back(std::move(item));
     }
     return array;
@@ -243,10 +339,15 @@ void ScriptManager::deserialize(const nlohmann::json& value)
 
         unsigned int hotkey = 0;
         if (item.contains("hotkey") && item["hotkey"].is_number_unsigned()) {
-            hotkey = item["hotkey"].get<unsigned int>();
+            const auto value = item["hotkey"].get<std::uint64_t>();
+            hotkey = value <= static_cast<std::uint64_t>(std::numeric_limits<unsigned int>::max())
+                ? static_cast<unsigned int>(value)
+                : 0;
         } else if (item.contains("hotkey") && item["hotkey"].is_number_integer()) {
-            const int value = item["hotkey"].get<int>();
-            hotkey = value > 0 ? static_cast<unsigned int>(value) : 0;
+            const auto value = item["hotkey"].get<std::int64_t>();
+            hotkey = value > 0 && value <= static_cast<std::int64_t>(std::numeric_limits<unsigned int>::max())
+                ? static_cast<unsigned int>(value)
+                : 0;
         }
         hotkey = NormalizeScriptHotkey(hotkey);
         const bool enabled = item.contains("enabled") && item["enabled"].is_boolean()
@@ -260,9 +361,13 @@ void ScriptManager::deserialize(const nlohmann::json& value)
             continue;
         }
 
-        ImportedScriptRecord* record = scripts_.empty() ? nullptr : &scripts_.back();
+        RecordPtr record;
+        {
+            std::lock_guard<std::mutex> lock(scriptsMutex_);
+            record = scripts_.empty() ? nullptr : scripts_.back();
+        }
         if (record && item.contains("ui_state") && item["ui_state"].is_object()) {
-            record->uiState = item["ui_state"];
+            record->uiState = SanitizeUiState(item["ui_state"]);
             if (record->instance) {
                 record->instance->syncSettingsTable();
             }
@@ -280,45 +385,45 @@ bool ScriptManager::loadRecord(ImportedScriptRecord& record)
     std::error_code ec;
     if (!std::filesystem::exists(record.path, ec) || ec) {
         record.metadata.name = record.path.stem().string();
-        record.missing = true;
-        record.loaded = false;
-        record.lastError = "Script file is missing.";
+        record.missing.store(true, std::memory_order_release);
+        record.loaded.store(false, std::memory_order_release);
+        record.setLastError("Script file is missing.");
         return false;
     }
 
     if (!IsSupportedScriptExtension(record.path)) {
         record.metadata.name = record.path.stem().string();
-        record.loaded = false;
-        record.lastError = "Unsupported script extension.";
+        record.loaded.store(false, std::memory_order_release);
+        record.setLastError("Unsupported script extension.");
         return false;
     }
 
     record.metadata = ParseScriptMetadata(record.path);
     record.instance = std::make_unique<ScriptInstance>(record);
     if (!record.instance->init()) {
-        record.loaded = false;
+        record.loaded.store(false, std::memory_order_release);
         return false;
     }
     if (!record.instance->loadFile(record.path)) {
-        record.loaded = false;
+        record.loaded.store(false, std::memory_order_release);
         return false;
     }
     if (!record.instance->hasFunction("onExecute")) {
-        record.loaded = false;
-        record.lastError = "Script does not define onExecute().";
+        record.loaded.store(false, std::memory_order_release);
+        record.setLastError("Script does not define onExecute().");
         return false;
     }
 
-    record.missing = false;
-    record.loaded = true;
+    record.missing.store(false, std::memory_order_release);
+    record.loaded.store(true, std::memory_order_release);
     return true;
 }
 
 bool ScriptManager::isDuplicatePath(const std::filesystem::path& path) const
 {
     const std::filesystem::path normalized = NormalizePath(path);
-    for (const ImportedScriptRecord& script : scripts_) {
-        if (NormalizePath(script.path) == normalized) {
+    for (const auto& script : scripts_) {
+        if (script && NormalizePath(script->path) == normalized) {
             return true;
         }
     }

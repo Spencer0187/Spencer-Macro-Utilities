@@ -15,6 +15,7 @@ set(SMU_PLATFORM_WINDOWS_DIR "${SMU_PLATFORM_DIR}/windows")
 set(SMU_PLATFORM_LINUX_DIR "${SMU_PLATFORM_DIR}/linux")
 set(SMU_UPDATER_DIR "${SMU_PLATFORM_DIR}/updater")
 set(SMU_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+set(SMU_MACRO_TUTORIAL_ASSETS_DIR "${SMU_ASSETS_DIR}/macro_tutorials")
 set(SMU_RESOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
 set(SMU_WINDOWS_RESOURCES_DIR "${SMU_RESOURCES_DIR}/windows")
 set(SMU_THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
@@ -94,6 +95,7 @@ if(WIN32)
         "${SMU_APP_DIR}/askpass.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
+        "${SMU_APP_DIR}/macro_tutorial_assets.cpp"
         "${SMU_APP_DIR}/main_windows.cpp"
         "${SMU_APP_DIR}/profile_manager.cpp"
         "${SMU_APP_DIR}/script_api.cpp"
@@ -200,6 +202,14 @@ if(WIN32)
         dwmapi
         xinput
     )
+
+    add_custom_command(TARGET suspend POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/LSANS.TTF" "$<TARGET_FILE_DIR:suspend>/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/smu_icon.bmp" "$<TARGET_FILE_DIR:suspend>/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:suspend>/assets/macro_tutorials"
+        COMMENT "Copying Windows runtime assets next to suspend"
+    )
 elseif(UNIX AND NOT APPLE)
     find_package(OpenGL REQUIRED)
     find_package(Threads REQUIRED)
@@ -280,6 +290,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
+        "${SMU_APP_DIR}/macro_tutorial_assets.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
         "${SMU_APP_DIR}/profile_manager.cpp"
         "${SMU_APP_DIR}/script_api.cpp"
@@ -354,6 +365,7 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/scripts"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/LSANS.TTF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:suspend>/assets/macro_tutorials"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "$<TARGET_FILE_DIR:suspend>/scripts/install_linux_permissions.sh"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "$<TARGET_FILE_DIR:suspend>/LINUX_SETUP.md"
         COMMAND chmod 755 "$<TARGET_FILE_DIR:suspend>/scripts/install_linux_permissions.sh"
@@ -375,6 +387,7 @@ elseif(UNIX AND NOT APPLE)
     install(TARGETS suspend RUNTIME DESTINATION ".")
     install(FILES "${SMU_LINUX_FONT_ASSET}" DESTINATION "assets" RENAME "LSANS.TTF")
     install(FILES "${SMU_LINUX_ICON_ASSET}" DESTINATION "assets" RENAME "smu_icon.bmp")
+    install(DIRECTORY "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" DESTINATION "assets")
     install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" DESTINATION ".")
     install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" DESTINATION "scripts")
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" DESTINATION ".")
@@ -393,6 +406,7 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:suspend>" "${SMU_LINUX_PACKAGE_DIR}/suspend"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/LSANS.TTF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "${SMU_LINUX_PACKAGE_DIR}/assets/macro_tutorials"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" "${SMU_LINUX_PACKAGE_DIR}/run.sh"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/scripts"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"

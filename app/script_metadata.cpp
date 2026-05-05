@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
@@ -90,6 +91,17 @@ MetadataScanResult ScanMetadata(const std::filesystem::path& path)
             result.metadata.author = value;
         } else if (key == "version") {
             result.metadata.version = value;
+        } else if (key == "memorylimitmb") {
+            try {
+                std::size_t parsed = 0;
+                std::size_t consumed = 0;
+                parsed = static_cast<std::size_t>(std::stoull(value, &consumed, 10));
+                if (consumed == value.size() && parsed <= std::numeric_limits<std::size_t>::max()) {
+                    result.metadata.memoryLimitMB = parsed;
+                }
+            } catch (...) {
+                // Ignore malformed optional metadata and keep the default limit.
+            }
         } else if (key == "keybind") {
             result.keybind = value;
         }

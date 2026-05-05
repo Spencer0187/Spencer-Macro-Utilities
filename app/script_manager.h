@@ -4,12 +4,14 @@
 
 #include "json.hpp"
 
+#include <atomic>
 #include <deque>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
-
-#include "json.hpp"
+#include <utility>
+#include <vector>
 
 namespace smu::app {
 
@@ -24,20 +26,41 @@ class ScriptInstance;
 struct ImportedScriptRecord {
     std::filesystem::path path;
     ImportedScriptMetadata metadata;
-    unsigned int hotkey = 0;
-    bool enabled = false;
-    bool disableOutsideRoblox = true;
-    bool loaded = false;
-    bool missing = false;
-    bool running = false;
+    std::atomic_uint hotkey{0};
+    std::atomic_bool enabled{false};
+    std::atomic_bool disableOutsideRoblox{true};
+    std::atomic_bool loaded{false};
+    std::atomic_bool missing{false};
+    std::atomic_bool running{false};
     std::string lastError;
     nlohmann::json uiState = nlohmann::json::object();
     std::unique_ptr<ScriptInstance> instance;
+    mutable std::mutex errorMutex;
+
+    void setLastError(std::string value)
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        lastError = std::move(value);
+    }
+
+    void clearLastError()
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        lastError.clear();
+    }
+
+    std::string lastErrorCopy() const
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        return lastError;
+    }
 };
 
 class ScriptManager {
 public:
-    using Container = std::deque<ImportedScriptRecord>;
+    using RecordPtr = std::shared_ptr<ImportedScriptRecord>;
+    using ConstRecordPtr = std::shared_ptr<const ImportedScriptRecord>;
+    using Container = std::deque<RecordPtr>;
 
     static ScriptManager& Get();
 
@@ -48,10 +71,9 @@ public:
     bool executeScript(std::size_t index);
     void clear();
     std::size_t count() const;
-    ImportedScriptRecord* get(std::size_t index);
-    const ImportedScriptRecord* get(std::size_t index) const;
-    Container& scripts() { return scripts_; }
-    const Container& scripts() const { return scripts_; }
+    RecordPtr get(std::size_t index);
+    ConstRecordPtr get(std::size_t index) const;
+    std::vector<RecordPtr> snapshot() const;
     nlohmann::json serialize() const;
     void deserialize(const nlohmann::json& value);
     void shutdown();
@@ -62,6 +84,7 @@ private:
     static std::filesystem::path NormalizePath(const std::filesystem::path& path);
 
     Container scripts_;
+    mutable std::mutex scriptsMutex_;
 };
 
 } // namespace smu::app

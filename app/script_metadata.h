@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <cstddef>
 
 namespace smu::app {
 
@@ -13,6 +14,7 @@ struct ImportedScriptMetadata {
     std::string description;
     std::string author;
     std::string version;
+    std::optional<std::size_t> memoryLimitMB;
 };
 
 ImportedScriptMetadata ParseScriptMetadata(const std::filesystem::path& path);

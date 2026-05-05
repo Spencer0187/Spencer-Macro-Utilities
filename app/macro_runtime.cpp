@@ -1031,27 +1031,35 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 void MacroRuntime::processImportedScripts()
 {
     ScriptManager& manager = ScriptManager::Get();
-    if (importedScriptWasPressed_.size() != manager.count()) {
-        importedScriptWasPressed_.assign(manager.count(), false);
+    const auto scripts = manager.snapshot();
+    if (importedScriptWasPressed_.size() != scripts.size()) {
+        importedScriptWasPressed_.assign(scripts.size(), false);
     }
 
-    for (std::size_t index = 0; index < manager.count(); ++index) {
-        ImportedScriptRecord* script = manager.get(index);
+    for (std::size_t index = 0; index < scripts.size(); ++index) {
+        const auto& script = scripts[index];
         if (!script) {
             continue;
         }
 
-        if (!script->enabled || !script->loaded || script->missing || !IsScriptHotkeyBound(script->hotkey) || script->running) {
+        const bool enabled = script->enabled.load(std::memory_order_acquire);
+        const bool loaded = script->loaded.load(std::memory_order_acquire);
+        const bool missing = script->missing.load(std::memory_order_acquire);
+        const bool running = script->running.load(std::memory_order_acquire);
+        const bool disableOutside = script->disableOutsideRoblox.load(std::memory_order_acquire);
+        const unsigned int hotkey = script->hotkey.load(std::memory_order_acquire);
+
+        if (!enabled || !loaded || missing || !IsScriptHotkeyBound(hotkey) || running) {
             importedScriptWasPressed_[index] = false;
             continue;
         }
 
-        if (script->disableOutsideRoblox && !foregroundAllows(true)) {
+        if (disableOutside && !foregroundAllows(true)) {
             importedScriptWasPressed_[index] = false;
             continue;
         }
 
-        const bool pressed = isHotkeyPressed(script->hotkey);
+        const bool pressed = isHotkeyPressed(hotkey);
         const bool edge = pressed && !importedScriptWasPressed_[index];
         importedScriptWasPressed_[index] = pressed;
         if (!edge) {
