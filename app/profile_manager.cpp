@@ -814,6 +814,18 @@ static json SerializeProfileData() {
 }
 
 static void DeserializeProfileData(const json& settings) {
+	// SMU_FIX_PROFILE_MULTI_INSTANCE_REBUILD:
+	// Multi-macro instance vectors are process-lifetime globals. Loading a
+	// profile must rebuild them from the selected profile snapshot instead
+	// of appending loaded extras onto the previous active profile's vectors.
+	wallhop_instances.clear();
+	presskey_instances.clear();
+	spamkey_instances.clear();
+	wallhop_instances.emplace_back();
+	presskey_instances.emplace_back();
+	spamkey_instances.emplace_back();
+	selected_wallhop_instance = 0;
+
 	try {
 		// Load booleans
 		for (const auto& [key, ptr] : bool_vars) {
@@ -1066,7 +1078,21 @@ static void DeserializeProfileData(const json& settings) {
 	} catch (const json::exception& e) {
 		LogWarning(std::string("Error deserializing profile data: ") + e.what());
 	}
-}
+
+	// SMU_FIX_PROFILE_MULTI_INSTANCE_REBUILD: keep rebuilt profile state valid.
+	if (wallhop_instances.empty()) {
+		wallhop_instances.emplace_back();
+	}
+	if (presskey_instances.empty()) {
+		presskey_instances.emplace_back();
+	}
+	if (spamkey_instances.empty()) {
+		spamkey_instances.emplace_back();
+	}
+	if (selected_wallhop_instance < 0 ||
+		selected_wallhop_instance >= static_cast<int>(wallhop_instances.size())) {
+		selected_wallhop_instance = 0;
+	}}
 
 // ============================================================================
 //  THEME SERIALIZATION — Save/Load theme data to/from metadata
