@@ -14,7 +14,7 @@ contents:
     dst: /usr/share/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
-  - src: ./staged/usr/bin/assets/
+  - src: ./staged/usr/bin/assets/**/*
     dst: /usr/share/spencer-macro-utilities/assets/
   - src: ./AppImage/launcher.sh
     dst: /usr/bin/spencer-macro-utilities
