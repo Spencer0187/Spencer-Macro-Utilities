@@ -45,6 +45,7 @@ ScriptInstance& RequireInstance(lua_State* L)
     throw 0;
 }
 
+// Allow effectively infinite sleeps; the scheduler clamps to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 constexpr int kMaxInputDelayMs = 300000;
 constexpr float kMaxUiDimension = 10000.0f;
@@ -513,6 +514,7 @@ int LuaTypeText(lua_State* L)
             continue;
         }
         if (action.needsShift) {
+            // holdKeyChord handles modifier combinations; we use it for single modifiers too.
             backend->holdKeyChord(smu::core::SMU_VK_SHIFT);
         }
         backend->holdKeyChord(action.key);

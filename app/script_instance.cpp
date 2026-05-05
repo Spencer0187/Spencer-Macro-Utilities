@@ -33,6 +33,7 @@ constexpr const char* kRegistryInstanceKey = "SMU.ScriptInstance";
 constexpr auto kMaxScriptRuntime = std::chrono::seconds(30);
 constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr int kLuaHookInstructionCount = 10000;
+// Allow effectively infinite sleeps; wake times are clamped to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 
 void TimeoutHook(lua_State* L, lua_Debug*);
