@@ -929,7 +929,9 @@ void RenderScriptFileDialogFallback()
         return;
     }
 
-    if (ImGuiFileDialog::Instance()->Display("SMUImportScriptFileDialog")) {
+    const ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
+    const ImVec2 minSize(std::max(320.0f, viewportSize.x * 0.3f), std::max(240.0f, viewportSize.y * 0.3f));
+    if (ImGuiFileDialog::Instance()->Display("SMUImportScriptFileDialog", ImGuiWindowFlags_NoCollapse, minSize)) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             QueueScriptImportTrustModal(ImGuiFileDialog::Instance()->GetFilePathName());
         }
@@ -975,7 +977,7 @@ void RenderImportTrustModal()
                         g_import_error.clear();
                     }
                 } else if (!ok) {
-                    g_import_error = "Script could not be imported. It may already be imported or use an unsupported extension.";
+                    g_import_error = "Script could not be imported. It may already be imported or is malformed.";
                 }
             }
             g_pending_import_path.reset();

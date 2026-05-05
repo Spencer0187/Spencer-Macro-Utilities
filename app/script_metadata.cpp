@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstddef>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -10,6 +11,11 @@
 
 namespace smu::app {
 namespace {
+
+constexpr std::size_t kMaxMetadataNameBytes = 128;
+constexpr std::size_t kMaxMetadataDescriptionBytes = 1024;
+constexpr std::size_t kMaxMetadataAuthorBytes = 128;
+constexpr std::size_t kMaxMetadataVersionBytes = 64;
 
 std::string Trim(std::string value)
 {
@@ -38,6 +44,14 @@ std::string LowerNoSeparators(std::string value)
     return out;
 }
 
+std::string ClampMetadataValue(std::string value, std::size_t maxBytes)
+{
+    if (value.size() > maxBytes) {
+        value.resize(maxBytes);
+    }
+    return value;
+}
+
 struct MetadataScanResult {
     ImportedScriptMetadata metadata;
     std::optional<std::string> keybind;
@@ -46,7 +60,7 @@ struct MetadataScanResult {
 MetadataScanResult ScanMetadata(const std::filesystem::path& path)
 {
     MetadataScanResult result;
-    result.metadata.name = path.stem().string();
+    result.metadata.name = ClampMetadataValue(path.stem().string(), kMaxMetadataNameBytes);
 
     std::ifstream file(path);
     if (!file.is_open()) {
@@ -80,17 +94,17 @@ MetadataScanResult ScanMetadata(const std::filesystem::path& path)
         }
 
         if (key == "name") {
-            result.metadata.name = value;
+            result.metadata.name = ClampMetadataValue(value, kMaxMetadataNameBytes);
         } else if (key == "desc") {
             if (result.metadata.description.empty()) {
-                result.metadata.description = value;
+                result.metadata.description = ClampMetadataValue(value, kMaxMetadataDescriptionBytes);
             }
         } else if (key == "description") {
-            result.metadata.description = value;
+            result.metadata.description = ClampMetadataValue(value, kMaxMetadataDescriptionBytes);
         } else if (key == "author") {
-            result.metadata.author = value;
+            result.metadata.author = ClampMetadataValue(value, kMaxMetadataAuthorBytes);
         } else if (key == "version") {
-            result.metadata.version = value;
+            result.metadata.version = ClampMetadataValue(value, kMaxMetadataVersionBytes);
         } else if (key == "memorylimitmb") {
             try {
                 std::size_t parsed = 0;
@@ -108,7 +122,7 @@ MetadataScanResult ScanMetadata(const std::filesystem::path& path)
     }
 
     if (result.metadata.name.empty()) {
-        result.metadata.name = path.stem().string();
+        result.metadata.name = ClampMetadataValue(path.stem().string(), kMaxMetadataNameBytes);
     }
 
     return result;
