@@ -18,3 +18,6 @@ contents:
     dst: /usr/share/applications/spencer-macro-utilities.desktop
   - src: ./AppImage/SMU.png
     dst: /usr/share/pixmaps/spencer-macro-utilities.png
+scripts:
+  postinstall: ../AppImage/postinstall.sh
+  postremove: ../AppImage/postremove.sh
