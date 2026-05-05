@@ -65,13 +65,15 @@ jobs:
         run: |
           nfpm pkg --packager deb \
             --config AppImage/nfpm.yaml \
-            --target packaging/
+            --target packaging/ \
+            --packager-file packaging/
 
       - name: Build rpm
         run: |
           nfpm pkg --packager rpm \
             --config AppImage/nfpm.yaml \
-            --target packaging/
+            --target packaging/ \
+            --packager-file packaging/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
