@@ -17,6 +17,8 @@
 #include <chrono>
 #include <cstring>
 #include <cstdint>
+#include <cmath>
+#include <limits>
 #include <memory>
 #include <type_traits>
 #include <optional>
@@ -43,10 +45,112 @@ ScriptInstance& RequireInstance(lua_State* L)
     throw 0;
 }
 
+constexpr int kMaxSingleSleepMs = 300000;
+constexpr int kMaxInputDelayMs = 300000;
+constexpr float kMaxUiDimension = 10000.0f;
+
+int CheckLuaInt(lua_State* L, int index, int minValue, int maxValue, const char* name)
+{
+    int isInteger = 0;
+    const lua_Integer value = lua_tointegerx(L, index, &isInteger);
+    if (!isInteger) {
+        return static_cast<int>(luaL_error(L, "%s must be an integer", name));
+    }
+    if (value < static_cast<lua_Integer>(minValue) || value > static_cast<lua_Integer>(maxValue)) {
+        return static_cast<int>(luaL_error(L, "%s is outside the allowed range", name));
+    }
+    return static_cast<int>(value);
+}
+
+int CheckLuaIntClamped(lua_State* L, int index, int minValue, int maxValue, const char* name)
+{
+    int isInteger = 0;
+    const lua_Integer value = lua_tointegerx(L, index, &isInteger);
+    if (!isInteger) {
+        return static_cast<int>(luaL_error(L, "%s must be an integer", name));
+    }
+    if (value < static_cast<lua_Integer>(minValue)) {
+        return minValue;
+    }
+    if (value > static_cast<lua_Integer>(maxValue)) {
+        return maxValue;
+    }
+    return static_cast<int>(value);
+}
+
+float CheckOptionalNonNegativeFloat(lua_State* L, int index, float defaultValue, const char* name)
+{
+    if (lua_gettop(L) < index || lua_isnil(L, index)) {
+        return defaultValue;
+    }
+
+    int isNumber = 0;
+    const lua_Number number = lua_tonumberx(L, index, &isNumber);
+    if (!isNumber) {
+        return static_cast<float>(luaL_error(L, "%s must be a number", name));
+    }
+    if (!std::isfinite(static_cast<double>(number))) {
+        return static_cast<float>(luaL_error(L, "%s must be a finite number", name));
+    }
+    if (number <= 0.0) {
+        return 0.0f;
+    }
+    if (number > static_cast<lua_Number>(kMaxUiDimension)) {
+        return kMaxUiDimension;
+    }
+    return static_cast<float>(number);
+}
+
+double CheckOptionalFiniteNumber(lua_State* L, int index, double defaultValue, const char* name)
+{
+    if (lua_gettop(L) < index || lua_isnil(L, index)) {
+        return defaultValue;
+    }
+
+    int isNumber = 0;
+    const lua_Number number = lua_tonumberx(L, index, &isNumber);
+    if (!isNumber) {
+        return static_cast<double>(luaL_error(L, "%s must be a number", name));
+    }
+    if (!std::isfinite(static_cast<double>(number))) {
+        return static_cast<double>(luaL_error(L, "%s must be a finite number", name));
+    }
+    return static_cast<double>(number);
+}
+
+const char* CheckUiId(lua_State* L, int index, std::size_t& length)
+{
+    const char* id = luaL_checklstring(L, index, &length);
+    if (length == 0) {
+        luaL_argerror(L, index, "UI id must not be empty");
+    }
+    if (length > kMaxUiIdBytes) {
+        luaL_argerror(L, index, "UI id is too long");
+    }
+    if (std::memchr(id, '\0', length)) {
+        luaL_argerror(L, index, "UI id must not contain embedded NUL bytes");
+    }
+    return id;
+}
+
+void CheckUiControlBudget(lua_State* L, ScriptInstance& instance)
+{
+    if (!instance.tryConsumeSettingsUiControl()) {
+        luaL_error(L, "script settings created too many UI controls");
+    }
+}
+
+std::string ClampedString(const char* text, std::size_t length)
+{
+    const std::size_t clampedLength = std::min(length, kMaxUiStateStringBytes);
+    return std::string(text ? text : "", clampedLength);
+}
+
 smu::core::KeyCode CheckKey(lua_State* L, int index)
 {
     if (lua_isinteger(L, index)) {
-        const auto key = static_cast<smu::core::KeyCode>(lua_tointeger(L, index));
+        const int keyValue = CheckLuaInt(L, index, 0, std::numeric_limits<int>::max(), "key");
+        const auto key = static_cast<smu::core::KeyCode>(keyValue);
         if ((key & smu::core::HOTKEY_KEY_MASK) != smu::core::SMU_VK_NONE) {
             return key;
         }
@@ -85,13 +189,25 @@ std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
         return SavedSettingValue{static_cast<std::int64_t>(value.get<std::int64_t>())};
     }
     if (value.is_number_unsigned()) {
-        return SavedSettingValue{static_cast<std::int64_t>(value.get<std::uint64_t>())};
+        const auto unsignedValue = value.get<std::uint64_t>();
+        if (unsignedValue > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+            return std::nullopt;
+        }
+        return SavedSettingValue{static_cast<std::int64_t>(unsignedValue)};
     }
     if (value.is_number_float()) {
-        return SavedSettingValue{value.get<double>()};
+        const double number = value.get<double>();
+        if (!std::isfinite(number)) {
+            return std::nullopt;
+        }
+        return SavedSettingValue{number};
     }
     if (value.is_string()) {
-        return SavedSettingValue{value.get<std::string>()};
+        std::string text = value.get<std::string>();
+        if (text.size() > kMaxUiStateStringBytes) {
+            text.resize(kMaxUiStateStringBytes);
+        }
+        return SavedSettingValue{std::move(text)};
     }
     return std::nullopt;
 }
@@ -197,18 +313,24 @@ void UpdateScriptSetting(ScriptInstance& instance, const std::string& name, cons
     SyncLuaSetting(instance.luaState(), name, value);
 }
 
+void UpdateScriptStringSetting(ScriptInstance& instance, const std::string& name, std::string value)
+{
+    if (value.size() > kMaxUiStateStringBytes) {
+        value.resize(kMaxUiStateStringBytes);
+    }
+    UpdateScriptSetting(instance, name, SavedSettingValue{std::move(value)});
+}
+
 template <std::size_t N>
 void CopyToBuffer(std::array<char, N>& buffer, const std::string& text)
 {
     std::snprintf(buffer.data(), buffer.size(), "%s", text.c_str());
 }
 
-constexpr std::size_t kDynamicTextLimit = 4000;
-
 std::string ClampDynamicText(std::string text)
 {
-    if (text.size() > kDynamicTextLimit) {
-        text = text.substr(text.size() - kDynamicTextLimit);
+    if (text.size() > kMaxUiStateStringBytes) {
+        text = text.substr(text.size() - kMaxUiStateStringBytes);
     }
     return text;
 }
@@ -242,7 +364,7 @@ int LuaSleep(lua_State* L)
         return luaL_error(L, "sleep is not available while rendering script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
-    const int ms = static_cast<int>(luaL_checkinteger(L, 1));
+    const int ms = CheckLuaIntClamped(L, 1, 0, kMaxSingleSleepMs, "sleep duration");
     if (lua_isyieldable(L)) {
         instance.scheduleCoroutineSleep(L, ms);
         return lua_yield(L, 0);
@@ -257,8 +379,8 @@ int LuaPressKey(lua_State* L)
         return luaL_error(L, "pressKey is not available while rendering script settings");
     }
     const smu::core::KeyCode key = CheckKey(L, 1);
-    const int delay = lua_gettop(L) >= 2 ? static_cast<int>(luaL_checkinteger(L, 2)) : 50;
-    PressKey(key, std::max(0, delay));
+    const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 50;
+    PressKey(key, delay);
     return 0;
 }
 
@@ -297,7 +419,7 @@ int LuaIsHotkeyPressed(lua_State* L)
 
     unsigned int combinedKey = 0;
     if (lua_isinteger(L, 1)) {
-        combinedKey = static_cast<unsigned int>(lua_tointeger(L, 1));
+        combinedKey = static_cast<unsigned int>(CheckLuaInt(L, 1, 0, std::numeric_limits<int>::max(), "hotkey"));
     } else {
         const char* text = luaL_checkstring(L, 1);
         if (auto parsed = ParseScriptHotkeyString(text ? text : "")) {
@@ -317,13 +439,15 @@ int LuaTypeText(lua_State* L)
     if (IsSettingsRenderMode(L)) {
         return luaL_error(L, "typeText is not available while rendering script settings");
     }
-    const char* text = luaL_checkstring(L, 1);
-    const int delay = lua_gettop(L) >= 2 ? static_cast<int>(luaL_checkinteger(L, 2)) : 30;
+    std::size_t textLength = 0;
+    const char* text = luaL_checklstring(L, 1, &textLength);
+    const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 30;
     auto backend = smu::platform::GetInputBackend();
     if (!backend) {
-        return luaL_error(L, "input backend is not available");
+        LogWarning("Imported script tried to type text, but the input backend is not available.");
+        return 0;
     }
-    smu::platform::typeText(*backend, text ? std::string(text) : std::string(), std::max(0, delay));
+    smu::platform::typeText(*backend, std::string(text ? text : "", textLength), delay);
     return 0;
 }
 
@@ -332,8 +456,8 @@ int LuaMoveMouse(lua_State* L)
     if (IsSettingsRenderMode(L)) {
         return luaL_error(L, "moveMouse is not available while rendering script settings");
     }
-    const int dx = static_cast<int>(luaL_checkinteger(L, 1));
-    const int dy = static_cast<int>(luaL_checkinteger(L, 2));
+    const int dx = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dx");
+    const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
     MoveMouse(dx, dy);
     return 0;
 }
@@ -343,7 +467,7 @@ int LuaMouseWheel(lua_State* L)
     if (IsSettingsRenderMode(L)) {
         return luaL_error(L, "mouseWheel is not available while rendering script settings");
     }
-    const int delta = static_cast<int>(luaL_checkinteger(L, 1));
+    const int delta = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "delta");
     MouseWheel(delta);
     return 0;
 }
@@ -418,15 +542,19 @@ int LuaGetSavedValue(lua_State* L)
 
 int LuaUiText(lua_State* L)
 {
-    const char* text = luaL_checkstring(L, 1);
-    const float width = lua_gettop(L) >= 2 ? static_cast<float>(luaL_optnumber(L, 2, 0.0)) : 0.0f;
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t textLength = 0;
+    const char* text = luaL_checklstring(L, 1, &textLength);
+    const float width = CheckOptionalNonNegativeFloat(L, 2, 0.0f, "width");
     if (IsSettingsRenderMode(L) && text) {
+        const int displayLength = static_cast<int>(std::min(textLength, kMaxUiStateStringBytes));
         if (width > 0.0f) {
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width);
-            ImGui::TextWrapped("%s", text);
+            ImGui::TextWrapped("%.*s", displayLength, text);
             ImGui::PopTextWrapPos();
         } else {
-            ImGui::TextWrapped("%s", text);
+            ImGui::TextWrapped("%.*s", displayLength, text);
         }
     }
     return 0;
@@ -434,9 +562,11 @@ int LuaUiText(lua_State* L)
 
 int LuaUiSeparator(lua_State* L)
 {
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
     if (IsSettingsRenderMode(L)) {
         ImGui::Separator();
-        const float height = lua_gettop(L) >= 2 ? static_cast<float>(luaL_optnumber(L, 2, 0.0)) : 0.0f;
+        const float height = CheckOptionalNonNegativeFloat(L, 2, 0.0f, "height");
         if (height > 0.0f) {
             ImGui::Dummy(ImVec2(0.0f, height));
         }
@@ -446,17 +576,21 @@ int LuaUiSeparator(lua_State* L)
 
 int LuaUiCheckbox(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
     const char* label = luaL_checkstring(L, 2);
     const bool defaultValue = lua_gettop(L) >= 3 ? (lua_toboolean(L, 3) != 0) : false;
-    const float width = lua_gettop(L) >= 4 ? static_cast<float>(luaL_optnumber(L, 4, 0.0)) : 0.0f;
+    const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
 
-    ScriptInstance& instance = RequireInstance(L);
+    const std::string id(idText, idLength);
     ImportedScriptRecord& record = instance.owner();
-    const bool stored = record.uiState.contains(id) && record.uiState[id].is_boolean()
-        ? record.uiState[id].get<bool>()
+    const auto storedIt = record.uiState.find(id);
+    const bool stored = storedIt != record.uiState.end() && storedIt->is_boolean()
+        ? storedIt->get<bool>()
         : defaultValue;
-    if (!record.uiState.contains(id)) {
+    if (storedIt == record.uiState.end()) {
         UpdateScriptSetting(instance, id, SavedSettingValue{stored});
     }
 
@@ -485,19 +619,41 @@ int LuaUiCheckbox(lua_State* L)
 
 int LuaUiSliderInt(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
-    const char* label = luaL_checkstring(L, 2);
-    const int defaultValue = static_cast<int>(luaL_optinteger(L, 3, 0));
-    const int minValue = static_cast<int>(luaL_optinteger(L, 4, defaultValue));
-    const int maxValue = static_cast<int>(luaL_optinteger(L, 5, defaultValue));
-    const float width = lua_gettop(L) >= 6 ? static_cast<float>(luaL_optnumber(L, 6, 0.0)) : 0.0f;
-
     ScriptInstance& instance = RequireInstance(L);
-    ImportedScriptRecord& record = instance.owner();
-    const int stored = record.uiState.contains(id) && (record.uiState[id].is_number_integer() || record.uiState[id].is_number_unsigned())
-        ? record.uiState[id].get<int>()
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+    const int defaultValue = lua_gettop(L) >= 3 && !lua_isnil(L, 3)
+        ? CheckLuaInt(L, 3, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "default value")
+        : 0;
+    int minValue = lua_gettop(L) >= 4 && !lua_isnil(L, 4)
+        ? CheckLuaInt(L, 4, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "min value")
         : defaultValue;
-    if (!record.uiState.contains(id)) {
+    int maxValue = lua_gettop(L) >= 5 && !lua_isnil(L, 5)
+        ? CheckLuaInt(L, 5, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "max value")
+        : defaultValue;
+    const float width = CheckOptionalNonNegativeFloat(L, 6, 0.0f, "width");
+    if (minValue > maxValue) {
+        std::swap(minValue, maxValue);
+    }
+
+    const std::string id(idText, idLength);
+    ImportedScriptRecord& record = instance.owner();
+    const auto storedIt = record.uiState.find(id);
+    int stored = defaultValue;
+    if (storedIt != record.uiState.end()) {
+        if (storedIt->is_number_integer()) {
+            const auto value = storedIt->get<std::int64_t>();
+            stored = static_cast<int>(std::clamp<std::int64_t>(value, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()));
+        } else if (storedIt->is_number_unsigned()) {
+            const auto value = storedIt->get<std::uint64_t>();
+            stored = value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())
+                ? std::numeric_limits<int>::max()
+                : static_cast<int>(value);
+        }
+    }
+    if (storedIt == record.uiState.end()) {
         UpdateScriptSetting(instance, id, SavedSettingValue{static_cast<std::int64_t>(stored)});
     }
 
@@ -519,19 +675,33 @@ int LuaUiSliderInt(lua_State* L)
 
 int LuaUiSliderFloat(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
-    const char* label = luaL_checkstring(L, 2);
-    const double defaultValue = luaL_optnumber(L, 3, 0.0);
-    const double minValue = luaL_optnumber(L, 4, defaultValue);
-    const double maxValue = luaL_optnumber(L, 5, defaultValue);
-    const float width = lua_gettop(L) >= 6 ? static_cast<float>(luaL_optnumber(L, 6, 0.0)) : 0.0f;
-
     ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+    const double defaultValue = CheckOptionalFiniteNumber(L, 3, 0.0, "default value");
+    double minValue = CheckOptionalFiniteNumber(L, 4, defaultValue, "min value");
+    double maxValue = CheckOptionalFiniteNumber(L, 5, defaultValue, "max value");
+    const float width = CheckOptionalNonNegativeFloat(L, 6, 0.0f, "width");
+    if (minValue > maxValue) {
+        std::swap(minValue, maxValue);
+    }
+    minValue = std::clamp(minValue, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
+    maxValue = std::clamp(maxValue, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
+
+    const std::string id(idText, idLength);
     ImportedScriptRecord& record = instance.owner();
-    const double stored = record.uiState.contains(id) && record.uiState[id].is_number()
-        ? record.uiState[id].get<double>()
-        : defaultValue;
-    if (!record.uiState.contains(id)) {
+    const auto storedIt = record.uiState.find(id);
+    double stored = defaultValue;
+    if (storedIt != record.uiState.end() && storedIt->is_number()) {
+        const double storedNumber = storedIt->get<double>();
+        if (std::isfinite(storedNumber)) {
+            stored = storedNumber;
+        }
+    }
+    stored = std::clamp(stored, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
+    if (storedIt == record.uiState.end()) {
         UpdateScriptSetting(instance, id, SavedSettingValue{stored});
     }
 
@@ -553,24 +723,30 @@ int LuaUiSliderFloat(lua_State* L)
 
 int LuaUiTextbox(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
-    const char* label = luaL_checkstring(L, 2);
-    const char* defaultValue = lua_gettop(L) >= 3 ? luaL_checkstring(L, 3) : "";
-    const float width = lua_gettop(L) >= 4 ? static_cast<float>(luaL_optnumber(L, 4, 0.0)) : 0.0f;
-    const float height = lua_gettop(L) >= 5 ? static_cast<float>(luaL_optnumber(L, 5, 0.0)) : 0.0f;
-
     ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+    std::size_t defaultLength = 0;
+    const char* defaultValue = lua_gettop(L) >= 3 && !lua_isnil(L, 3) ? luaL_checklstring(L, 3, &defaultLength) : "";
+    const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
+    const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
+
+    const std::string id(idText, idLength);
     ImportedScriptRecord& record = instance.owner();
-    const std::string scopedId = std::to_string(reinterpret_cast<std::uintptr_t>(&instance)) + "::" + id;
-    const std::string stored = record.uiState.contains(id) && record.uiState[id].is_string()
-        ? record.uiState[id].get<std::string>()
-        : std::string(defaultValue ? defaultValue : "");
-    if (!record.uiState.contains(id)) {
-        UpdateScriptSetting(instance, id, SavedSettingValue{stored});
+    const auto storedIt = record.uiState.find(id);
+    std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
+        ? storedIt->get<std::string>()
+        : ClampedString(defaultValue, defaultLength);
+    if (stored.size() > kMaxUiStateStringBytes) {
+        stored.resize(kMaxUiStateStringBytes);
+    }
+    if (storedIt == record.uiState.end()) {
+        UpdateScriptStringSetting(instance, id, stored);
     }
 
-    static std::unordered_map<std::string, std::array<char, 512>> buffers;
-    auto& buffer = buffers[scopedId];
+    auto& buffer = instance.textboxBuffer(id);
     if (buffer[0] == '\0') {
         CopyToBuffer(buffer, stored);
     }
@@ -580,14 +756,14 @@ int LuaUiTextbox(lua_State* L)
         if (height > 0.0f) {
             ImVec2 size(width > 0.0f ? width : -1.0f, height);
             if (ImGui::InputTextMultiline(label, buffer.data(), buffer.size(), size)) {
-                UpdateScriptSetting(instance, id, SavedSettingValue{std::string(buffer.data())});
+                UpdateScriptStringSetting(instance, id, std::string(buffer.data()));
             }
         } else {
             if (width > 0.0f) {
                 ImGui::SetNextItemWidth(width);
             }
             if (ImGui::InputText(label, buffer.data(), buffer.size())) {
-                UpdateScriptSetting(instance, id, SavedSettingValue{std::string(buffer.data())});
+                UpdateScriptStringSetting(instance, id, std::string(buffer.data()));
             }
         }
         ImGui::PopID();
@@ -599,30 +775,33 @@ int LuaUiTextbox(lua_State* L)
 
 int LuaUiDynamicTextbox(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
-    const char* label = luaL_checkstring(L, 2);
-    const char* defaultValue = lua_gettop(L) >= 3 ? luaL_checkstring(L, 3) : "";
-    const float width = lua_gettop(L) >= 4 ? static_cast<float>(luaL_optnumber(L, 4, 0.0)) : 0.0f;
-    const float height = lua_gettop(L) >= 5 ? static_cast<float>(luaL_optnumber(L, 5, 0.0)) : 0.0f;
-
     ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+    std::size_t defaultLength = 0;
+    const char* defaultValue = lua_gettop(L) >= 3 && !lua_isnil(L, 3) ? luaL_checklstring(L, 3, &defaultLength) : "";
+    const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
+    const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
+
+    const std::string id(idText, idLength);
     ImportedScriptRecord& record = instance.owner();
-    const std::string scopedId = std::to_string(reinterpret_cast<std::uintptr_t>(&instance)) + "::" + id;
-    std::string stored = record.uiState.contains(id) && record.uiState[id].is_string()
-        ? record.uiState[id].get<std::string>()
-        : std::string(defaultValue ? defaultValue : "");
+    const auto storedIt = record.uiState.find(id);
+    std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
+        ? storedIt->get<std::string>()
+        : ClampedString(defaultValue, defaultLength);
     stored = ClampDynamicText(std::move(stored));
 
-    if (!record.uiState.contains(id)) {
-        UpdateScriptSetting(instance, id, SavedSettingValue{stored});
+    if (storedIt == record.uiState.end()) {
+        UpdateScriptStringSetting(instance, id, stored);
     }
 
-    static std::unordered_map<std::string, std::array<char, kDynamicTextLimit + 1>> buffers;
-    auto& buffer = buffers[scopedId];
+    auto& buffer = instance.dynamicTextboxBuffer(id);
     CopyToBuffer(buffer, stored);
 
     if (instance.isSettingsRenderMode()) {
-        ImGui::PushID(scopedId.c_str());
+        ImGui::PushID(id.c_str());
         ImGui::TextWrapped("%s", label);
         const float resolvedHeight = height > 0.0f ? height : ImGui::GetTextLineHeight() * 4.0f;
         ImGui::InputTextMultiline("##dynamic", buffer.data(), buffer.size(),
@@ -637,26 +816,33 @@ int LuaUiDynamicTextbox(lua_State* L)
 
 int LuaUiSetDynamicText(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
-    const char* text = luaL_checkstring(L, 2);
-
     ScriptInstance& instance = RequireInstance(L);
-    std::string value = ClampDynamicText(text ? std::string(text) : std::string());
-    UpdateScriptSetting(instance, id, SavedSettingValue{value});
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    std::size_t textLength = 0;
+    const char* text = luaL_checklstring(L, 2, &textLength);
+
+    const std::string id(idText, idLength);
+    std::string value = ClampDynamicText(ClampedString(text, textLength));
+    UpdateScriptStringSetting(instance, id, value);
     lua_pushboolean(L, 1);
     return 1;
 }
 
 int LuaUiKeybind(lua_State* L)
 {
-    const std::string id = luaL_checkstring(L, 1);
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
     const char* label = luaL_checkstring(L, 2);
-    const float width = lua_gettop(L) >= 4 ? static_cast<float>(luaL_optnumber(L, 4, 0.0)) : 0.0f;
+    const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
 
     unsigned int defaultValue = kScriptUnboundHotkey;
     if (lua_gettop(L) >= 3) {
         if (lua_isinteger(L, 3)) {
-            defaultValue = NormalizeScriptHotkey(static_cast<unsigned int>(lua_tointeger(L, 3)));
+            defaultValue = NormalizeScriptHotkey(static_cast<unsigned int>(CheckLuaInt(L, 3, 0, std::numeric_limits<int>::max(), "default keybind")));
         } else {
             const char* defaultText = lua_tostring(L, 3);
             if (defaultText) {
@@ -669,27 +855,34 @@ int LuaUiKeybind(lua_State* L)
         }
     }
 
-    ScriptInstance& instance = RequireInstance(L);
+    const std::string id(idText, idLength);
     ImportedScriptRecord& record = instance.owner();
-    const std::string scopedId = std::to_string(reinterpret_cast<std::uintptr_t>(&instance)) + "::" + id;
-    const unsigned int stored = record.uiState.contains(id) && (record.uiState[id].is_number_integer() || record.uiState[id].is_number_unsigned())
-        ? NormalizeScriptHotkey(record.uiState[id].get<unsigned int>())
-        : defaultValue;
-    if (!record.uiState.contains(id)) {
+    const auto storedIt = record.uiState.find(id);
+    unsigned int stored = defaultValue;
+    if (storedIt != record.uiState.end()) {
+        if (storedIt->is_number_integer()) {
+            const auto value = storedIt->get<std::int64_t>();
+            stored = value >= 0 && value <= static_cast<std::int64_t>(std::numeric_limits<int>::max())
+                ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
+                : kScriptUnboundHotkey;
+        } else if (storedIt->is_number_unsigned()) {
+            const auto value = storedIt->get<std::uint64_t>();
+            stored = value <= static_cast<std::uint64_t>(std::numeric_limits<int>::max())
+                ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
+                : kScriptUnboundHotkey;
+        }
+    }
+    if (storedIt == record.uiState.end()) {
         UpdateScriptSetting(instance, id, SavedSettingValue{static_cast<std::int64_t>(stored)});
     }
 
-    static std::unordered_map<std::string, std::unique_ptr<unsigned int>> keyValues;
-    auto& keyPtr = keyValues[scopedId];
-    if (!keyPtr) {
-        keyPtr = std::make_unique<unsigned int>(stored);
-    }
-    if (*keyPtr != stored) {
-        *keyPtr = stored;
+    unsigned int& keyValue = instance.keybindValue(id, stored);
+    if (keyValue != stored) {
+        keyValue = stored;
     }
 
     if (instance.isSettingsRenderMode()) {
-        ImGui::PushID(scopedId.c_str());
+        ImGui::PushID(id.c_str());
         if (width > 0.0f) {
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width);
             ImGui::TextWrapped("%s", label);
@@ -699,17 +892,17 @@ int LuaUiKeybind(lua_State* L)
         }
         const float humanWidth = width > 0.0f ? width * 0.55f : 170.0f;
         const float hexWidth = width > 0.0f ? width * 0.35f : 130.0f;
-        DrawKeyBindControlShared("##ScriptKeybind", *keyPtr, -1, humanWidth, hexWidth, true);
+        DrawKeyBindControlShared("##ScriptKeybind", keyValue, -1, humanWidth, hexWidth, true);
         ImGui::PopID();
     }
 
-    const unsigned int normalized = NormalizeScriptHotkey(*keyPtr);
+    const unsigned int normalized = NormalizeScriptHotkey(keyValue);
     if (normalized != stored) {
         UpdateScriptSetting(instance, id, SavedSettingValue{static_cast<std::int64_t>(normalized)});
-        *keyPtr = normalized;
+        keyValue = normalized;
     }
 
-    lua_pushinteger(L, static_cast<lua_Integer>(*keyPtr));
+    lua_pushinteger(L, static_cast<lua_Integer>(keyValue));
     return 1;
 }
 

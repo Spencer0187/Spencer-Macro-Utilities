@@ -6,6 +6,7 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "app_ui.h"
+#include "macro_tutorial_assets.h"
 #include "../core/app_state.h"
 #include "../core/legacy_globals.h"
 
@@ -224,6 +225,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     if (!ImGui_ImplOpenGL3_Init("#version 130")) {
         LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
     }
+    LoadMacroTutorialTextures();
 
     constexpr int targetFps = 60;
     const auto targetFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
@@ -282,6 +284,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     ShutdownSharedProfiles();
     ResetFloatingUiWindowState();
 
+    UnloadMacroTutorialTextures();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

@@ -3,6 +3,7 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
+#include "macro_tutorial_assets.h"
 #include "script_instance.h"
 #include "script_manager.h"
 #include "../platform/file_dialog.h"
@@ -27,6 +28,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -107,22 +109,22 @@ struct SectionConfig {
 std::vector<Section> sections;
 
 std::array<SectionConfig, section_amounts> SECTION_CONFIGS = {{
-    {"Freeze", "Automatically Tab Glitch With a Button"},
-    {"Item Desync", "Enable Item Collision (Hold Item Before Pressing)"},
-    {"Wall Helicopter High Jump", "Use COM Offset to Catapult Yourself Into The Air by Aligning your Back Angled to the Wall and Jumping and Letting Your Character Turn"},
-    {"Speedglitch", "Use COM offset to Massively Increase Midair Speed"},
-    {"Item Unequip COM Offset", "Automatically Do a /e dance2 Item COM Offset Where You Unequip the Item"},
-    {"Press a Button", "Whenever You Press Your Keybind, it Presses the Other Button for One Frame"},
-    {"Wallhop/Rotation", "Automatically Flick and Jump to easily Wallhop On All FPS"},
-    {"Walless LHJ", "Lag High Jump Without a Wall by Offsetting COM Downwards or to the Right"},
-    {"Item Clip", "Clip through 2-3 Stud Walls Using Gears"},
-    {"Laugh Clip", "Automatically Perform a Laugh Clip"},
-    {"Wall-Walk", "Walk Across Wall Seams Without Jumping"},
-    {"Spam a Key", "Whenever You Press Your Keybind, it Spams the Other Button"},
-    {"Ledge Bounce", "Briefly Falls off a Ledge to Then Bounce Off it While Falling"},
-    {"Smart Bunnyhop", "Intelligently enables or disables Bunnyhop for any Key"},
-    {"Floor Bounce", "Jump much higher from flat ground"},
-    {"Lag Switch", "Modify or disable your internet connection temporarily"}
+    {"Freeze", "Freeze the Roblox process."},
+    {"Item Desync", "Desynchronize a held item from the client and server."},
+    {"Wall Helicopter High Jump", "Use COM offset to launch yourself high into the air."},
+    {"Speedglitch", "Use COM offset to gain extreme midair speed."},
+    {"Item Unequip COM Offset", "Create a COM offset by using an emote and unequipping an item."},
+    {"Press a Button", "Press another key for a short moment."},
+    {"Wallhop/Rotation", "Flick and jump automatically to perform wallhops."},
+    {"Walless LHJ", "Perform a lag high jump without using a wall."},
+    {"Item Clip", "Clip through thin walls using item equip timing."},
+    {"Laugh Clip", "Perform a laugh clip automatically."},
+    {"Wall-Walk", "Walk along wall seams without jumping."},
+    {"Spam a Key", "Spam a selected key while the macro is active."},
+    {"Ledge Bounce", "Drop from a ledge and bounce back with timed camera movement."},
+    {"Smart Bunnyhop", "Automatically bunnyhop while avoiding chat/input conflicts."},
+    {"Floor Bounce", "Perform a high jump from flat ground."},
+    {"Lag Switch", "Temporarily block or delay Roblox network traffic."}
 }};
 
 struct BindingState {
@@ -965,9 +967,10 @@ void RenderImportTrustModal()
                 if (afterCount > beforeCount) {
                     g_selected_imported_script = static_cast<int>(afterCount - 1);
                     selected_section = -1;
-                    ImportedScriptRecord* record = ScriptManager::Get().get(afterCount - 1);
-                    if (!ok && record && !record->lastError.empty()) {
-                        g_import_error = record->lastError;
+                    auto record = ScriptManager::Get().get(afterCount - 1);
+                    const std::string lastError = record ? record->lastErrorCopy() : std::string();
+                    if (!ok && !lastError.empty()) {
+                        g_import_error = lastError;
                     } else {
                         g_import_error.clear();
                     }
@@ -1704,15 +1707,21 @@ void RenderImportedScriptsSidebar(float leftPanelWidth)
         StartImportedScriptImportFlow();
     }
 
-    for (std::size_t index = 0; index < manager.count(); ++index) {
-        ImportedScriptRecord* script = manager.get(index);
+    const auto scripts = manager.snapshot();
+    for (std::size_t index = 0; index < scripts.size(); ++index) {
+        const auto& script = scripts[index];
         if (!script) {
             continue;
         }
 
         const bool selected = g_selected_imported_script == static_cast<int>(index);
-        const bool attention = script->missing || (!script->loaded && !script->lastError.empty());
-        const bool active = script->enabled && script->loaded && !script->missing;
+        const bool missing = script->missing.load(std::memory_order_acquire);
+        const bool loaded = script->loaded.load(std::memory_order_acquire);
+        const bool running = script->running.load(std::memory_order_acquire);
+        const bool enabled = script->enabled.load(std::memory_order_acquire);
+        const std::string lastError = script->lastErrorCopy();
+        const bool attention = missing || (!loaded && !lastError.empty());
+        const bool active = enabled && loaded && !missing;
 
         ImGui::PushID(static_cast<int>(index));
         if (attention) {
@@ -1730,11 +1739,11 @@ void RenderImportedScriptsSidebar(float leftPanelWidth)
         }
 
         std::string label = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
-        if (script->running) {
+        if (running) {
             label += " (Running)";
-        } else if (script->missing) {
+        } else if (missing) {
             label += " (Missing)";
-        } else if (!script->loaded) {
+        } else if (!loaded) {
             label += " (Error)";
         }
 
@@ -1823,33 +1832,45 @@ void RenderSelectedImportedScript(AppContext& context)
         return;
     }
 
-    ImportedScriptRecord* script = manager.get(static_cast<std::size_t>(g_selected_imported_script));
+    auto script = manager.get(static_cast<std::size_t>(g_selected_imported_script));
     if (!script) {
         ImGui::TextWrapped("Select a section to see its settings.");
         return;
     }
+
+    unsigned int hotkey = script->hotkey.load(std::memory_order_acquire);
+    bool enabled = script->enabled.load(std::memory_order_acquire);
+    bool disableOutside = script->disableOutsideRoblox.load(std::memory_order_acquire);
+    const bool running = script->running.load(std::memory_order_acquire);
+    const bool missing = script->missing.load(std::memory_order_acquire);
+    const bool loaded = script->loaded.load(std::memory_order_acquire);
+    const std::string lastError = script->lastErrorCopy();
 
     const std::string title = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
     ImGui::TextWrapped("Settings for %s", title.c_str());
     ImGui::Separator();
     ImGui::TextWrapped("Keybind:");
     ImGui::SameLine();
-    DrawKeyBindControl(("ImportedScriptKey" + std::to_string(g_selected_imported_script)).c_str(), script->hotkey, -1);
+    DrawKeyBindControl(("ImportedScriptKey" + std::to_string(g_selected_imported_script)).c_str(), hotkey, -1);
+    script->hotkey.store(hotkey, std::memory_order_release);
 
-    ImGui::PushStyleColor(ImGuiCol_Text, script->enabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
+    ImGui::PushStyleColor(ImGuiCol_Text, enabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
     ImGui::TextWrapped("Enable This Script:");
     ImGui::PopStyleColor();
     ImGui::SameLine();
-    ImGui::Checkbox(("##ImportedScriptEnabled" + std::to_string(g_selected_imported_script)).c_str(), &script->enabled);
+    if (ImGui::Checkbox(("##ImportedScriptEnabled" + std::to_string(g_selected_imported_script)).c_str(), &enabled)) {
+        script->enabled.store(enabled, std::memory_order_release);
+    }
 
     ImGui::SameLine();
     RenderForegroundDependentCheckbox(
         context,
         "Disable outside of Roblox:",
         ("##ImportedScriptDisableOutside" + std::to_string(g_selected_imported_script)).c_str(),
-        &script->disableOutsideRoblox);
+        &disableOutside);
+    script->disableOutsideRoblox.store(disableOutside, std::memory_order_release);
 
-    const bool actionsDisabled = script->running;
+    const bool actionsDisabled = running;
     if (actionsDisabled) {
         ImGui::BeginDisabled();
     }
@@ -1882,13 +1903,13 @@ void RenderSelectedImportedScript(AppContext& context)
     ImGui::Separator();
     const char* status = "Loaded";
     ImVec4 statusColor = GetCurrentTheme().success_color;
-    if (script->running) {
+    if (running) {
         status = "Running";
         statusColor = GetCurrentTheme().accent_primary;
-    } else if (script->missing) {
+    } else if (missing) {
         status = "Missing";
         statusColor = GetCurrentTheme().error_color;
-    } else if (!script->loaded) {
+    } else if (!loaded) {
         status = "Error";
         statusColor = GetCurrentTheme().error_color;
     }
@@ -1896,9 +1917,9 @@ void RenderSelectedImportedScript(AppContext& context)
     ImGui::PushStyleColor(ImGuiCol_Text, statusColor);
     ImGui::TextWrapped("Status: %s", status);
     ImGui::PopStyleColor();
-    if (!script->lastError.empty()) {
+    if (!lastError.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
-        ImGui::TextWrapped("%s", script->lastError.c_str());
+        ImGui::TextWrapped("%s", lastError.c_str());
         ImGui::PopStyleColor();
     }
 
@@ -1916,7 +1937,7 @@ void RenderSelectedImportedScript(AppContext& context)
 
     ImGui::Separator();
     ImGui::TextWrapped("Custom Settings");
-    if (script->running) {
+    if (running) {
         ImGui::TextWrapped("Settings are unavailable while the script is running.");
     } else if (script->instance && script->instance->hasFunction("onSettings")) {
         if (!script->instance->callOnSettings(true)) {
@@ -2016,7 +2037,8 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("Hold the hotkey to freeze your game, let go of it to release it. Suspending your game also pauses ALL network and physics activity that the server sends or recieves from you.");
+        ImGui::TextWrapped("This macro freezes the Roblox process. It can be used for lag high jumps, extended clips, head-glide setups, and other timing glitches.");
+        ImGui::TextWrapped("Hold the hotkey to freeze and release it to unfreeze. In toggle mode, press once to freeze and press again to release. Auto-unfreeze keeps the process from staying suspended too long.");
     }
 
     if (selected_section == 1) {
@@ -2027,11 +2049,12 @@ void RenderSelectedSection(AppContext& context)
             try { desync_slot = std::stoi(ItemDesyncSlot); } catch (...) {}
         }
         ImGui::Separator();
-        ImGui::TextWrapped("Equip your item inside of the slot you have picked here, then hold the keybind for 4-7 seconds");
+        ImGui::TextWrapped("Equip your item in the slot selected here, then hold the keybind for about 4-7 seconds.");
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("This Macro rapidly sends number inputs to your roblox client, enough that the server begins to throttle you. The item that you're holding must not make a serverside sound, else desyncing yourself will be very buggy, and you will be unable to send any physics data to the server.");
+        ImGui::TextWrapped("This macro allows you to desynchronize a held item from the client and server. It rapidly sends slot inputs until Roblox starts throttling the item state.");
+        ImGui::TextWrapped("Use an item that does not make a server-side sound. Loud or server-driven gear can make the desync unstable and may stop your physics data from reaching the server cleanly.");
         ImGui::Separator();
         ImGui::TextWrapped("If 'Disable outside of Roblox' is enabled, this module will only run while tabbed into Roblox. Turning it off allows use in other windows (use carefully).");
     }
@@ -2130,14 +2153,15 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Unindent();
         }
         ImGui::Separator();
-        ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
+        ImGui::TextWrapped("This macro allows you to jump very high when used properly. It uses COM offset, angular velocity, and Roblox's center-of-mass behavior to launch you upward.");
         ImGui::Separator();
         ImGui::TextWrapped("IMPORTANT:");
         ImGui::TextWrapped("Have your Sensitivity and Cam-Fix options set before using this module.");
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("Assuming unequip com offset is used prior to offset com, align yourself with your back against the wall and rotate slightly to the left. Now turn your camera towards the wall, hold W, and press the assigned hotkey.");
+        ImGui::TextWrapped("First create COM offset, usually with Item Unequip COM Offset. Then align your back near the wall, rotate slightly left, turn your camera toward the wall, hold W, and trigger the macro.");
+        ImGui::TextWrapped("Reference video coming soon!");
     }
 
     if (selected_section == 3) {
@@ -2157,13 +2181,24 @@ void RenderSelectedSection(AppContext& context)
             } catch (...) {}
         }
         ImGui::Checkbox("Switch from Toggle Key to Hold Key", &isspeedswitch);
-        ImGui::TextWrapped("This module abuses Roblox's conversion from angular velocity to regular velocity, and its flawed centre of mass calculation.");
+        ImGui::TextWrapped("This macro allows you to travel extremely fast in midair. It uses COM offset and a timed 180 degree camera turn to convert angular velocity into regular velocity.");
         ImGui::Separator();
         ImGui::TextWrapped("IMPORTANT: Have your Sensitivity and Cam-Fix options set before using this module.");
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("Enable shiftlock mode, press the keybind once to start the macro, then jump and hold W. The macro should rotate you exactly 180 degrees.");
+        ImGui::TextWrapped("Enable shiftlock, press the keybind once, then jump and hold W. The macro should rotate you exactly 180 degrees. If the turn is off, fix your Roblox sensitivity and Cam-Fix settings first.");
+        ImGui::TextWrapped("Reference video:");
+        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_secondary);
+        ImGui::SameLine();
+        ImGui::TextWrapped("https://www.youtube.com/watch?v=5rmeivUegHc");
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            if (ImGui::IsItemClicked() && context.openExternalUrl) {
+                context.openExternalUrl("https://www.youtube.com/watch?v=5rmeivUegHc");
+            }
+        }
+        ImGui::PopStyleColor();
     }
 
     if (selected_section == 4) {
@@ -2196,9 +2231,9 @@ void RenderSelectedSection(AppContext& context)
         DrawKeyBindControl("EnterKey", vk_enterkey, selected_section, 170.0f, 130.0f, true);
         ImGui::Checkbox("Let the macro Keep the item equipped", &unequiptoggle);
         ImGui::Separator();
-        ImGui::TextWrapped("IMPORTANT: This glitch has been patched by Roblox. This is currently deprecated. You may get a COM offset manually by equipping an item without doing any animations, but it will be very small.");
+        ImGui::TextWrapped("IMPORTANT: This automatic emote unequip setup has been patched by Roblox in many places. You may still get a small COM offset manually by equipping an item without animation.");
         ImGui::Separator();
-        ImGui::TextWrapped("This module allows you to trick Roblox into thinking your centre of mass is elsewhere. This is used in the Helicopter High Jump, Speed Glitch and Walless LHJ modules.");
+        ImGui::TextWrapped("This macro allows you to create COM offset by sending an emote or custom chat message, then unequipping an item from the chosen slot. HHJ, Speedglitch, and Walless LHJ rely on this kind of offset.");
     }
 
     if (selected_section == 5) {
@@ -2232,7 +2267,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextWrapped("Explanation:");
             ImGui::NewLine();
-            ImGui::TextWrapped("It will press the second keybind for a single frame whenever you press the first keybind. This is most commonly used for micro-adjustments while moving, especially if you do this while jumping.");
+            ImGui::TextWrapped("This macro allows you to press another key for a short moment whenever you trigger the macro. It is useful for micro-adjustments while moving, especially while jumping.");
         }
     }
 
@@ -2308,7 +2343,9 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextWrapped("Explanation:");
             ImGui::NewLine();
-            ImGui::TextWrapped("This Macro automatically flicks your screen AND jumps at the same time, performing a wallhop.");
+            ImGui::TextWrapped("This macro allows you to double jump on stacked wall parts by flicking and jumping automatically.");
+            RenderCenteredMacroTutorialImage(MacroTutorialImage::Wallhop, 248.0f, 140.0f);
+            ImGui::TextWrapped("Set your Roblox sensitivity and flick angle first. After this, line up on a wall seam and trigger the macro. You can tune left/right flicking, jumping, and flick-back per instance.");
         }
     }
 
@@ -2317,7 +2354,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("If you offset your center of mass to any direction EXCEPT directly upwards, you will be able to perform 14 stud jumps using this macro. However, you need at LEAST one FULL FOOT on the platform in order to do it.");
+        ImGui::TextWrapped("This macro allows you to perform a lag high jump without using a wall. Offset your center of mass sideways or downward, keep at least one full foot on the platform, then trigger the macro.");
     }
 
     if (selected_section == 8) {
@@ -2337,7 +2374,9 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("This macro will equip and unequip your item in the amount of milliseconds you put in. It's recommended to shiftlock, jump, and hold W while staying at the wall.");
+        ImGui::TextWrapped("This macro allows you to clip through thin walls using item equip timing.");
+        RenderCenteredMacroTutorialImage(MacroTutorialImage::GearClip, 248.0f, 140.0f);
+        ImGui::TextWrapped("To use this macro, shiftlock near the wall, jump, hold W, and let the macro equip and unequip the selected item using your delay. This can be RNG; lower FPS may help.");
         ImGui::TextWrapped("If 'Disable outside of Roblox' is enabled, item clip only runs while tabbed into Roblox.");
     }
 
@@ -2346,8 +2385,11 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Checkbox("Disable S being pressed (Slightly weaker laugh clips, but interferes with movement less)", &laughmoveswitch);
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6!");
-        ImGui::TextWrapped("Go against a wall unshiftlocked and angle your camera DIRECTLY OPPOSITE TO THE WALL. The Macro will Automatically type out /e laugh using the settings inside of the \"Unequip Com\" section.");
+        ImGui::TextWrapped("This macro allows you to clip through walls of 1+ studs of thickness.");
+        ImGui::TextWrapped("MUST BE ABOVE 60 FPS AND IN R6.");
+        ImGui::TextWrapped("Set yourself and the camera up like this:");
+        RenderCenteredMacroTutorialImage(MacroTutorialImage::LaughClip, 248.0f, 140.0f);
+        ImGui::TextWrapped("After this, trigger the macro. It will type /e laugh using the settings from Item Unequip COM Offset. Higher FPS is better.");
     }
 
     if (selected_section == 10) {
@@ -2372,12 +2414,14 @@ void RenderSelectedSection(AppContext& context)
         } catch (...) {}
         ImGui::Checkbox("Switch from Toggle Key to Hold Key", &iswallwalkswitch);
         ImGui::Separator();
-        ImGui::TextWrapped("IMPORTANT: FOR MOST OPTIMAL RESULTS, INPUT YOUR ROBLOX INGAME SENSITIVITY!");
-        ImGui::TextWrapped("THE HIGHER FPS YOU ARE, THE MORE STABLE IT GETS, HOWEVER 60 FPS IS ENOUGH FOR INFINITE DISTANCE");
+        ImGui::TextWrapped("IMPORTANT: For best results, input your Roblox in-game sensitivity.");
+        ImGui::TextWrapped("Higher FPS makes this more stable, but 60 FPS is enough for infinite distance.");
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("This macro abuses the way leg raycast physics work to permanently keep wallhopping, without jumping you can walk up to a wall, maybe at a bit of an angle, and hold W and D or A to slowly walk across.");
+        ImGui::TextWrapped("This macro allows you to walk inside wall seams when there are two parts stacked above each other.");
+        RenderCenteredMacroTutorialImage(MacroTutorialImage::Wallwalk, 248.0f, 140.0f);
+        ImGui::TextWrapped("Walk up to the seam at a slight angle, then trigger the macro while holding W and D or W and A depending on the selected flick side.");
     }
 
     if (selected_section == 11) {
@@ -2410,7 +2454,9 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextWrapped("Explanation:");
             ImGui::NewLine();
-            ImGui::TextWrapped("This macro will spam the second key with a millisecond delay. This can be used as an autoclicker for any games you want, or a key-spam.");
+            ImGui::TextWrapped("This macro allows you to spam a key very fast while the macro is active. You can use it for gear clipping, autoclicking, or general key-spam.");
+            RenderCenteredMacroTutorialImage(MacroTutorialImage::GearClip, 248.0f, 140.0f);
+            ImGui::TextWrapped("For gear clipping, set up near the wall like above, trigger the macro, and hold W. This can be RNG, but lower FPS often helps.");
         }
     }
 
@@ -2424,7 +2470,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("Walk up to a ledge with your camera sideways, about half of your left foot should be on the platform. The Macro will Automatically flick your camera 90 degrees, let you fall, and then flick back.");
+        ImGui::TextWrapped("This macro allows you to drop from a ledge and bounce back with timed camera movement. Walk up to a ledge with your camera sideways and about half of your left foot on the platform, then trigger the macro.");
     }
 
     if (selected_section == 13) {
@@ -2440,7 +2486,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("This Macro will automatically spam your key (typically space) with a specified delay whenever space is held down. This is created as a more functional Spamkey implementation specifically for Bhop/Bunnyhop.");
+        ImGui::TextWrapped("This macro allows you to bunnyhop automatically while a movement key is held. It is a more practical spam-key setup for bhop, with smart toggling to avoid chat/input conflicts.");
         ImGui::TextWrapped("This will only be restricted to Roblox when 'Disable outside of Roblox' is enabled.");
     }
 
@@ -2474,7 +2520,8 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
-        ImGui::TextWrapped("This Macro will automate an extremely precise glitch involving basically doing a lag high jump off the floor.");
+        ImGui::TextWrapped("This macro allows you to jump much higher from flat ground. Have 160+ FPS, R6, and default Roblox gravity; higher FPS is better.");
+        ImGui::TextWrapped("After this, trigger the macro on flat ground. Results can vary, and the HHJ option may add a little more height but is experimental.");
     }
 
     if (selected_section == 15) {
@@ -2485,6 +2532,9 @@ void RenderSelectedSection(AppContext& context)
         }
 
         ImGui::Checkbox("Switch from Hold Key to Toggle Key", &islagswitchswitch);
+        ImGui::Separator();
+        ImGui::TextWrapped("Explanation:");
+        ImGui::TextWrapped("This macro allows you to temporarily block or delay Roblox network traffic. Use the direction checkboxes below to choose whether other players stop seeing you, you stop seeing them, or both.");
         ImGui::Separator();
         ImVec2 tooltipCursorPos = ImGui::GetCursorScreenPos();
         ImGui::Checkbox("Prevent Roblox Disconnection (", &prevent_disconnect);
