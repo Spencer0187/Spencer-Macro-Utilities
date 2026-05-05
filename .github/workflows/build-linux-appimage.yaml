@@ -47,6 +47,7 @@ jobs:
           cp AppImage/SMU.png     packaging/AppImage/SMU.png
           cp AppImage/postinstall.sh packaging/AppImage/postinstall.sh
           cp AppImage/postremove.sh  packaging/AppImage/postremove.sh
+          cp AppImage/launcher.sh  packaging/AppImage/launcher.sh
       - name: Debug packaging contents
         run: find packaging -type f -print
       - name: Build deb
