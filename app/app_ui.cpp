@@ -977,7 +977,7 @@ void RenderImportTrustModal()
                         g_import_error.clear();
                     }
                 } else if (!ok) {
-                    g_import_error = "Script could not be imported. It may already be imported or use an unsupported extension.";
+                    g_import_error = "Script could not be imported. It may already be imported or is malformed.";
                 }
             }
             g_pending_import_path.reset();
