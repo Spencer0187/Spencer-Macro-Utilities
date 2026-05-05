@@ -29,7 +29,6 @@ jobs:
         run: |
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-          nfpm version
 
       - name: Add Go bin to PATH
         run: |
