@@ -123,162 +123,162 @@ Scripts also receive the global `settings` table for per-script UI state created
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `macrotoggled` | boolean | Master macro enable toggle. |
-| `shiftswitch` | boolean | Shift-related macro toggle. |
-| `wallhopswitch` | boolean | Whether wallhop uses the left-flick variant. |
-| `wallhopcamfix` | boolean | Camera-fix mode used by wallhop calculations. |
-| `unequiptoggle` | boolean | Whether the unequip macro is enabled. |
-| `isspeedswitch` | boolean | Whether the speed macro is enabled. |
-| `isfreezeswitch` | boolean | Whether the freeze macro is enabled. |
-| `iswallwalkswitch` | boolean | Whether the wallwalk macro is enabled. |
-| `isspamswitch` | boolean | Whether spam-key behavior is enabled. |
-| `isitemclipswitch` | boolean | Whether item-clip behavior is enabled. |
-| `autotoggle` | boolean | Whether the automatic macro mode is enabled. |
-| `toggle_jump` | boolean | Whether wallhop jumps during execution. |
-| `toggle_flick` | boolean | Whether wallhop flicks back during execution. |
-| `camfixtoggle` | boolean | Whether camera-fix behavior is enabled. |
-| `wallwalktoggleside` | boolean | Selected wallwalk side toggle. |
-| `antiafktoggle` | boolean | Whether anti-AFK behavior is enabled. |
-| `fasthhj` | boolean | Whether the fast HHJ mode is enabled. |
-| `globalzoomin` | boolean | Whether global zoom-in behavior is enabled. |
-| `globalzoominreverse` | boolean | Whether global zoom-in direction is reversed. |
-| `wallesslhjswitch` | boolean | Whether wall-less LHJ behavior is enabled. |
-| `chatoverride` | boolean | Whether chat override behavior is enabled. |
-| `bounceautohold` | boolean | Whether bounce auto-hold is enabled. |
-| `bouncerealignsideways` | boolean | Whether bounce realigns sideways. |
-| `bouncesidetoggle` | boolean | Selected bounce side toggle. |
-| `laughmoveswitch` | boolean | Whether laugh-move behavior is enabled. |
-| `freezeoutsideroblox` | boolean | Whether freeze is allowed outside Roblox. |
-| `takeallprocessids` | boolean | Whether process control targets all matching processes instead of the main process. |
-| `ontoptoggle` | boolean | Whether the main window is set always-on-top. |
-| `bunnyhopsmart` | boolean | Whether smart bunny-hop behavior is enabled. |
-| `presskeyinroblox` | boolean | Whether press-key is restricted to Roblox focus. |
-| `unequipinroblox` | boolean | Whether unequip is restricted to Roblox focus. |
-| `doublepressafkkey` | boolean | Whether the AFK key is double-pressed. |
-| `useoldpaste` | boolean | Whether legacy paste behavior is used. |
-| `floorbouncehhj` | boolean | Whether floor-bounce HHJ behavior is enabled. |
-| `HHJFreezeDelayApply` | boolean | Whether HHJ freeze-delay override is applied. |
-| `islagswitchswitch` | boolean | Whether lag-switch behavior is enabled. |
-| `prevent_disconnect` | boolean | Whether disconnect prevention is enabled for lag-switch behavior. |
-| `lagswitchoutbound` | boolean | Whether outbound packets are affected by the lag switch. |
-| `lagswitchinbound` | boolean | Whether inbound packets are affected by the lag switch. |
-| `lagswitchtargetroblox` | boolean | Whether the lag switch targets Roblox traffic only. |
-| `lagswitchlaginbound` | boolean | Whether inbound traffic is delayed instead of blocked. |
-| `lagswitchlagoutbound` | boolean | Whether outbound traffic is delayed instead of blocked. |
-| `lagswitchlag` | boolean | Whether lag-switch delay mode is enabled. |
-| `lagswitchusetcp` | boolean | Whether lag-switch filtering includes TCP traffic. |
-| `lagswitch_autounblock` | boolean | Whether lag switch automatically unblocks after a duration. |
-| `show_lag_overlay` | boolean | Whether the lag-switch overlay is shown. |
-| `overlay_hide_inactive` | boolean | Whether the lag overlay hides while inactive. |
-| `overlay_use_bg` | boolean | Whether the lag overlay draws a background. |
+| `macrotoggled` | boolean | Master macro enable toggle. Anti-AFK is controlled separately. |
+| `shiftswitch` | boolean | Unused legacy saved flag; currently persisted for compatibility but not read by the runtime. |
+| `wallhopswitch` | boolean | First Wallhop/Rotation instance: use left-flick direction instead of right-flick direction. |
+| `wallhopcamfix` | boolean | Legacy first Wallhop/Rotation cam-fix flag; currently saved/synced for compatibility, while global `camfixtoggle` drives the active calculations. |
+| `unequiptoggle` | boolean | Item Unequip COM Offset: keep the selected item equipped after the emote/message instead of unequipping it. |
+| `isspeedswitch` | boolean | Speedglitch mode flag: `false` means toggle mode, `true` means hold-key mode. |
+| `isfreezeswitch` | boolean | Freeze mode flag: `false` means hold-to-freeze, `true` means press-to-toggle. |
+| `iswallwalkswitch` | boolean | Wall-Walk mode flag: `false` means toggle mode, `true` means hold-key mode. |
+| `isspamswitch` | boolean | First Spam a Key instance: `false` means toggle mode, `true` means hold-key mode. |
+| `isitemclipswitch` | boolean | Item Clip mode flag: `false` means toggle mode, `true` means hold-key mode. |
+| `autotoggle` | boolean | Wall Helicopter High Jump: automatically hold the configured Auto-HHJ keys before the freeze sequence. |
+| `toggle_jump` | boolean | First Wallhop/Rotation instance: press the configured wallhop jump key during the wallhop. |
+| `toggle_flick` | boolean | First Wallhop/Rotation instance: perform the flick-back movement after the initial flick. |
+| `camfixtoggle` | boolean | Global Game Uses Cam-Fix setting; changes sensitivity-derived pixel calculations for Speedglitch, Wallhop, Wall-Walk, and Ledge Bounce. |
+| `wallwalktoggleside` | boolean | Wall-Walk: use the left-flick side instead of the default side. |
+| `antiafktoggle` | boolean | Enable the Anti-AFK timer/key press routine. |
+| `fasthhj` | boolean | Wall Helicopter High Jump: decrease the default freeze duration in speedrunner mode. |
+| `globalzoomin` | boolean | Use mouse-wheel zoom instead of the configured shiftlock key for HHJ-style shiftlock steps. |
+| `globalzoominreverse` | boolean | Reverse the mouse-wheel direction used when `globalzoomin` is enabled. |
+| `wallesslhjswitch` | boolean | Walless LHJ: use the left-sided setup key instead of the default right-sided setup key. |
+| `chatoverride` | boolean | Force the chat-open key to `/` instead of relying on the custom `vk_chatkey` setting. |
+| `bounceautohold` | boolean | Ledge Bounce: automatically hold the movement key after the bounce setup. |
+| `bouncerealignsideways` | boolean | Ledge Bounce: use the horizontal realignment branch after the bounce. |
+| `bouncesidetoggle` | boolean | Ledge Bounce: use the left-sided bounce path instead of the default side. |
+| `laughmoveswitch` | boolean | Laugh Clip: disable the automatic `S` key hold during the clip sequence. |
+| `freezeoutsideroblox` | boolean | Legacy compatibility mirror for Freeze foreground restriction. `true` means Freeze is allowed outside Roblox; internally this is the inverse of section 0's Disable outside Roblox flag. |
+| `takeallprocessids` | boolean | Freeze/process control: target every matching process ID instead of only the newest/main matching process. |
+| `ontoptoggle` | boolean | Keep the main SMU window always on top. |
+| `bunnyhopsmart` | boolean | Smart Bunnyhop: temporarily suppress bunnyhop while chat is open until Enter or left-click closes it. |
+| `presskeyinroblox` | boolean | First Press a Button instance: restrict the macro to Roblox foreground focus when enabled. |
+| `unequipinroblox` | boolean | Item Unequip COM Offset: restrict the macro to Roblox foreground focus when enabled. |
+| `doublepressafkkey` | boolean | Anti-AFK: press the configured Anti-AFK key twice per Anti-AFK run. |
+| `useoldpaste` | boolean | Use the legacy Unicode/chat typing path for pasted chat text. |
+| `floorbouncehhj` | boolean | Floor Bounce: run the optional HHJ-style shiftlock/helicoptering sequence after the floor bounce. |
+| `HHJFreezeDelayApply` | boolean | Wall Helicopter High Jump: apply `HHJFreezeDelayOverride` instead of the default freeze-delay timing. |
+| `islagswitchswitch` | boolean | Lag Switch mode flag: `false` means hold-key mode, `true` means press-to-toggle. |
+| `prevent_disconnect` | boolean | Lag Switch: use the disconnect-prevention behavior while blocking/delaying Roblox traffic. |
+| `lagswitchoutbound` | boolean | Lag Switch: hard-block outbound/upload packets. |
+| `lagswitchinbound` | boolean | Lag Switch: hard-block inbound/download packets. |
+| `lagswitchtargetroblox` | boolean | Lag Switch: restrict filtering to Roblox traffic instead of all matching network traffic. |
+| `lagswitchlaginbound` | boolean | Fake Lag: delay inbound/download packets when fake-lag mode is enabled. |
+| `lagswitchlagoutbound` | boolean | Fake Lag: delay outbound/upload packets when fake-lag mode is enabled. |
+| `lagswitchlag` | boolean | Lag Switch: enable fake-lag packet delay mode instead of only hard-blocking. |
+| `lagswitchusetcp` | boolean | Lag Switch: include TCP traffic in addition to UDP traffic. |
+| `lagswitch_autounblock` | boolean | Lag Switch: automatically stop lagging after `lagswitch_max_duration` seconds. |
+| `show_lag_overlay` | boolean | Show the Windows lag-switch status overlay. |
+| `overlay_hide_inactive` | boolean | Hide the lag-switch overlay when the lag switch is not actively blocking/delaying traffic. |
+| `overlay_use_bg` | boolean | Draw a background behind the lag-switch overlay text. |
 
 #### Numeric values
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `selected_section` | number | Currently selected main UI section index. |
-| `vk_f5` | number | Virtual-key/hotkey value for f5. |
-| `vk_f6` | number | Virtual-key/hotkey value for f6. |
-| `vk_f8` | number | Virtual-key/hotkey value for f8. |
-| `vk_mbutton` | number | Virtual-key/hotkey value for middle mouse button. |
-| `vk_xbutton1` | number | Virtual-key/hotkey value for mouse X button 1. |
-| `vk_xbutton2` | number | Virtual-key/hotkey value for mouse X button 2. |
-| `vk_wallhopjumpkey` | number | Virtual-key/hotkey value for wallhopjump key. |
-| `vk_leftbracket` | number | Virtual-key/hotkey value for leftbracket. |
-| `vk_spamkey` | number | Virtual-key/hotkey value for spam key. |
-| `vk_zkey` | number | Virtual-key/hotkey value for z key. |
-| `vk_dkey` | number | Virtual-key/hotkey value for d key. |
-| `vk_xkey` | number | Virtual-key/hotkey value for x key. |
-| `vk_clipkey` | number | Virtual-key/hotkey value for clip key. |
-| `vk_laughkey` | number | Virtual-key/hotkey value for laugh key. |
-| `vk_bouncekey` | number | Virtual-key/hotkey value for bounce key. |
-| `vk_bunnyhopkey` | number | Virtual-key/hotkey value for bunnyhop key. |
-| `vk_shiftkey` | number | Virtual-key/hotkey value for shift key. |
-| `vk_enterkey` | number | Virtual-key/hotkey value for enter key. |
-| `vk_chatkey` | number | Virtual-key/hotkey value for chat key. |
-| `vk_afkkey` | number | Virtual-key/hotkey value for afk key. |
-| `vk_floorbouncekey` | number | Virtual-key/hotkey value for floorbounce key. |
-| `vk_lagswitchkey` | number | Virtual-key/hotkey value for lagswitch key. |
-| `vk_autohhjkey1` | number | Virtual-key/hotkey value for autohhj key1. |
-| `vk_autohhjkey2` | number | Virtual-key/hotkey value for autohhj key2. |
-| `selected_dropdown` | number | Selected dropdown option index. |
-| `vk_wallkey` | number | Virtual-key/hotkey value for wall key. |
-| `PreviousWallWalkSide` | number | Previously selected wallwalk side. |
-| `selected_wallhop_instance` | number | Selected wallhop instance index. |
-| `speed_slot` | number | Saved speed macro gear-slot number. |
-| `desync_slot` | number | Saved desync macro gear-slot number. |
-| `clip_slot` | number | Saved item-clip gear-slot number. |
-| `spam_delay` | number | Spam-key delay in milliseconds. |
-| `real_delay` | number | Resolved spam-key delay after parsing UI text. |
-| `wallhop_dx` | number | Wallhop horizontal mouse movement delta. |
-| `wallhop_dy` | number | Wallhop vertical mouse movement delta. |
-| `wallhop_vertical` | number | Wallhop vertical movement amount. |
-| `PreviousWallWalkValue` | number | Previously applied wallwalk value. |
-| `maxfreezetime` | number | Maximum freeze duration in milliseconds. |
-| `maxfreezeoverride` | number | Freeze duration override value. |
-| `RobloxWallWalkValueDelay` | number | Delay value used by Roblox wallwalk behavior. |
-| `speed_strengthx` | number | Speed macro X-axis strength. |
-| `speedoffsetx` | number | Speed macro X-axis offset. |
-| `speed_strengthy` | number | Speed macro Y-axis strength. |
-| `speedoffsety` | number | Speed macro Y-axis offset. |
-| `clip_delay` | number | Item-clip delay in milliseconds. |
-| `AutoHHJKey1Time` | number | Auto-HHJ timing for key 1. |
-| `AutoHHJKey2Time` | number | Auto-HHJ timing for key 2. |
-| `RobloxPixelValue` | number | Parsed Roblox pixel-value setting. |
-| `PreviousSensValue` | number | Previously applied Roblox sensitivity value. |
-| `windowOpacityPercent` | number | Main-window opacity percentage. |
-| `AntiAFKTime` | number | Anti-AFK interval value. |
-| `display_scale` | number | UI display scaling factor. |
-| `WindowPosX` | number | Saved main-window X position. |
-| `WindowPosY` | number | Saved main-window Y position. |
-| `lagswitch_max_duration` | number | Maximum lag-switch active duration in milliseconds. |
-| `lagswitch_unblock_ms` | number | Lag-switch auto-unblock duration in milliseconds. |
-| `lagswitchlagdelay` | number | Lag-switch delay amount in milliseconds. |
-| `overlay_x` | number | Lag-overlay X position. |
-| `overlay_y` | number | Lag-overlay Y position. |
-| `overlay_size` | number | Lag-overlay size. |
-| `overlay_bg_r` | number | Lag-overlay background red channel. |
-| `overlay_bg_g` | number | Lag-overlay background green channel. |
-| `overlay_bg_b` | number | Lag-overlay background blue channel. |
-| `screen_width` | number | Current or last recorded screen width. |
-| `screen_height` | number | Current or last recorded screen height. |
+| `vk_mbutton` | number | Freeze macro trigger hotkey. Legacy name reflects the default middle-mouse binding. |
+| `vk_f5` | number | Item Desync macro trigger hotkey. Legacy name reflects the default F5 binding. |
+| `vk_xbutton1` | number | Wall Helicopter High Jump trigger hotkey. Legacy name reflects the default mouse XButton1 binding. |
+| `vk_xkey` | number | Speedglitch trigger hotkey. Legacy name reflects the default X binding. |
+| `vk_f8` | number | Item Unequip COM Offset trigger hotkey. Legacy name reflects the default F8 binding. |
+| `vk_zkey` | number | First Press a Button instance trigger hotkey. Legacy name reflects the default Z binding. |
+| `vk_dkey` | number | First Press a Button instance output key: the key the macro presses after the trigger. Legacy name reflects the default D binding. |
+| `vk_xbutton2` | number | First Wallhop/Rotation instance trigger hotkey. Legacy name reflects the default mouse XButton2 binding. |
+| `vk_wallhopjumpkey` | number | First Wallhop/Rotation instance jump key used during the wallhop sequence. |
+| `vk_f6` | number | Walless LHJ trigger hotkey. Legacy name reflects the default F6 binding. |
+| `vk_clipkey` | number | Item Clip trigger hotkey. |
+| `vk_laughkey` | number | Laugh Clip trigger hotkey. |
+| `vk_wallkey` | number | Wall-Walk trigger hotkey. |
+| `vk_leftbracket` | number | First Spam a Key instance trigger hotkey. Legacy name reflects the default `[` binding. |
+| `vk_spamkey` | number | First Spam a Key instance output key: the key repeatedly pressed while spam is active. |
+| `vk_bouncekey` | number | Ledge Bounce trigger hotkey. |
+| `vk_bunnyhopkey` | number | Smart Bunnyhop trigger/output hotkey. The macro detects this physical key and also injects the same key for hopping. |
+| `vk_floorbouncekey` | number | Floor Bounce trigger hotkey. |
+| `vk_lagswitchkey` | number | Lag Switch trigger hotkey. |
+| `vk_shiftkey` | number | Custom shiftlock key used by HHJ-style macros when `globalzoomin` is disabled. |
+| `vk_chatkey` | number | Chat-open key used by chat/emote macros and by Smart Bunnyhop's chat suppression logic. |
+| `vk_enterkey` | number | Key used to submit chat messages/emotes after paste/type operations. |
+| `vk_afkkey` | number | Anti-AFK key that the Anti-AFK routine presses. |
+| `vk_autohhjkey1` | number | Wall Helicopter High Jump Auto-HHJ first key to hold before the freeze sequence. |
+| `vk_autohhjkey2` | number | Wall Helicopter High Jump Auto-HHJ second key to hold before the freeze sequence. |
+| `selected_section` | number | Currently selected macro section index in the UI. Section IDs are 0 Freeze, 1 Item Desync, 2 Wall Helicopter High Jump, 3 Speedglitch, 4 Item Unequip COM Offset, 5 Press a Button, 6 Wallhop/Rotation, 7 Walless LHJ, 8 Item Clip, 9 Laugh Clip, 10 Wall-Walk, 11 Spam a Key, 12 Ledge Bounce, 13 Smart Bunnyhop, 14 Floor Bounce, 15 Lag Switch. |
+| `selected_dropdown` | number | Selected Item Unequip COM Offset emote dropdown index: 0 `/e dance2`, 1 `/e laugh`, 2 `/e cheer`. |
+| `PreviousWallWalkSide` | number | Unused legacy wall-walk side cache; currently persisted for compatibility but not read by the runtime. |
+| `selected_wallhop_instance` | number | Currently selected Wallhop/Rotation instance index in the UI. |
+| `speed_slot` | number | Item Unequip COM Offset gear slot used after the emote/message sequence. |
+| `desync_slot` | number | Item Desync gear slot repeatedly equipped/released while the trigger is held. |
+| `clip_slot` | number | Item Clip gear slot repeatedly equipped/released while item clip is active. |
+| `spam_delay` | number | First Spam a Key instance user-facing spam delay in milliseconds. |
+| `real_delay` | number | First Spam a Key instance half-cycle delay actually used between output-key press/release operations. |
+| `wallhop_dx` | number | First Wallhop/Rotation instance initial horizontal mouse flick amount. |
+| `wallhop_dy` | number | First Wallhop/Rotation instance horizontal flick-back amount. Despite the name, this is not vertical movement. |
+| `wallhop_vertical` | number | First Wallhop/Rotation instance vertical mouse movement paired with the flick. |
+| `PreviousWallWalkValue` | number | Cached Roblox sensitivity value last used to recalculate Wall-Walk pixel movement. |
+| `maxfreezetime` | number | Freeze auto-unfreeze timeout in seconds. |
+| `maxfreezeoverride` | number | Freeze refreeze delay in milliseconds after an automatic unfreeze. |
+| `RobloxWallWalkValueDelay` | number | Wall-Walk delay between the two flicks, stored as microseconds. |
+| `speed_strengthx` | number | Speedglitch/HHJ first horizontal mouse movement amount for the timed 180-degree turn. |
+| `speedoffsetx` | number | Unused legacy Speedglitch X offset; currently persisted for compatibility but not read by the runtime. |
+| `speed_strengthy` | number | Speedglitch/HHJ second horizontal mouse movement amount for the timed 180-degree turn. |
+| `speedoffsety` | number | Unused legacy Speedglitch Y offset; currently persisted for compatibility but not read by the runtime. |
+| `clip_delay` | number | Item Clip total equip/release cycle delay in milliseconds; the runtime uses half for hold and half for release spacing. |
+| `AutoHHJKey1Time` | number | Wall Helicopter High Jump Auto-HHJ first key hold time in milliseconds. |
+| `AutoHHJKey2Time` | number | Wall Helicopter High Jump Auto-HHJ second key hold time in milliseconds. |
+| `RobloxPixelValue` | number | Calculated Speedglitch/HHJ 180-degree turn pixel value derived from Roblox sensitivity and `camfixtoggle`. |
+| `PreviousSensValue` | number | Cached Roblox sensitivity value last used to recalculate sensitivity-derived pixel values. |
+| `windowOpacityPercent` | number | Main window opacity percentage. |
+| `AntiAFKTime` | number | Anti-AFK interval in minutes. |
+| `display_scale` | number | Windows display scale percentage used by the app's UI scaling logic. |
+| `WindowPosX` | number | Saved main window X position. |
+| `WindowPosY` | number | Saved main window Y position. |
+| `lagswitch_max_duration` | number | Lag Switch auto-unlag timeout in seconds. |
+| `lagswitch_unblock_ms` | number | Lag Switch auto-unblock/unlag duration in milliseconds. |
+| `lagswitchlagdelay` | number | Fake Lag packet delay amount in milliseconds. |
+| `overlay_x` | number | Lag-switch overlay X position. |
+| `overlay_y` | number | Lag-switch overlay Y position. |
+| `overlay_size` | number | Lag-switch overlay text size. |
+| `overlay_bg_r` | number | Lag-switch overlay background red channel, normalized 0.0 to 1.0. |
+| `overlay_bg_g` | number | Lag-switch overlay background green channel, normalized 0.0 to 1.0. |
+| `overlay_bg_b` | number | Lag-switch overlay background blue channel, normalized 0.0 to 1.0. |
+| `screen_width` | number | Saved/calculated application window width value. |
+| `screen_height` | number | Saved/calculated application window height value. |
 
 #### String values
 
 | Name | Type | Description |
 | --- | --- | --- |
-| `settingsBuffer` | string | Target process name/filter text used by process-related macros. |
-| `ItemDesyncSlot` | string | Text value for the desync gear slot. |
-| `ItemSpeedSlot` | string | Text value for the speed gear slot. |
-| `ItemClipSlot` | string | Text value for the item-clip gear slot. |
-| `ItemClipDelay` | string | Text value for the item-clip delay. |
-| `BunnyHopDelayChar` | string | Text value for bunny-hop delay. |
-| `RobloxSensValue` | string | Text value for Roblox camera sensitivity. |
-| `RobloxWallWalkValueChar` | string | Text value for wallwalk amount. |
-| `RobloxWallWalkValueDelayChar` | string | Text value for wallwalk delay. |
-| `WallhopPixels` | string | Text value for wallhop mouse-movement pixels. |
-| `WallhopVerticalChar` | string | Text value for wallhop vertical movement. |
-| `SpamDelay` | string | Text value for spam-key delay. |
-| `RobloxPixelValueChar` | string | Text value for Roblox pixel value. |
-| `CustomTextChar` | string | Text used by the custom text/paste macro. |
-| `RobloxFPSChar` | string | Text value for Roblox FPS. |
-| `AntiAFKTimeChar` | string | Text value for the anti-AFK interval. |
-| `WallhopDelayChar` | string | Text value for wallhop duration. |
-| `WallhopBonusDelayChar` | string | Text value for wallhop bonus delay before jumping. |
-| `PressKeyDelayChar` | string | Text value for press-key delay. |
-| `PressKeyBonusDelayChar` | string | Text value for press-key bonus delay. |
-| `PasteDelayChar` | string | Text value for paste delay. |
-| `HHJLengthChar` | string | Text value for HHJ length. |
-| `HHJFreezeDelayOverrideChar` | string | Text value for HHJ freeze-delay override. |
-| `HHJDelay1Char` | string | Text value for HHJ delay 1. |
-| `HHJDelay2Char` | string | Text value for HHJ delay 2. |
-| `HHJDelay3Char` | string | Text value for HHJ delay 3. |
-| `AutoHHJKey1TimeChar` | string | Text value for Auto-HHJ key 1 timing. |
-| `AutoHHJKey2TimeChar` | string | Text value for Auto-HHJ key 2 timing. |
-| `FloorBounceDelay1Char` | string | Text value for floor-bounce delay 1. |
-| `FloorBounceDelay2Char` | string | Text value for floor-bounce delay 2. |
-| `FloorBounceDelay3Char` | string | Text value for floor-bounce delay 3. |
-| `text` | string | Saved custom text macro content. |
+| `settingsBuffer` | string | Target Roblox executable/process-name text, or PID list text on Linux/Wine paths. |
+| `ItemDesyncSlot` | string | Text backing the Item Desync gear-slot input. |
+| `ItemSpeedSlot` | string | Text backing the Item Unequip COM Offset gear-slot input. |
+| `ItemClipSlot` | string | Text backing the Item Clip gear-slot input. |
+| `ItemClipDelay` | string | Text backing the Item Clip delay input. |
+| `BunnyHopDelayChar` | string | Text backing the Smart Bunnyhop delay input in milliseconds. |
+| `RobloxSensValue` | string | Text backing the Roblox sensitivity input used for sensitivity-derived pixel calculations. |
+| `RobloxWallWalkValueChar` | string | Text backing the Wall-Walk pixel-value input. |
+| `RobloxWallWalkValueDelayChar` | string | Text backing the Wall-Walk delay-between-flicks input. |
+| `WallhopPixels` | string | First Wallhop/Rotation instance text backing the flick pixel amount. |
+| `WallhopVerticalChar` | string | First Wallhop/Rotation instance text backing vertical pixel movement. |
+| `SpamDelay` | string | First Spam a Key instance text backing the spam delay input. |
+| `RobloxPixelValueChar` | string | Text backing the Speedglitch/HHJ 180-degree turn pixel-value input. |
+| `CustomTextChar` | string | Custom Item Unequip COM Offset chat message. If non-empty, it disables gear equipping and only pastes/sends this text. |
+| `RobloxFPSChar` | string | Text backing the Roblox FPS input used for frame-delay calculations. |
+| `AntiAFKTimeChar` | string | Text backing the Anti-AFK interval input. |
+| `WallhopDelayChar` | string | First Wallhop/Rotation instance text backing wallhop length in milliseconds. |
+| `WallhopBonusDelayChar` | string | First Wallhop/Rotation instance text backing bonus delay before jumping, in milliseconds. |
+| `PressKeyDelayChar` | string | First Press a Button instance text backing output-key hold length in milliseconds. |
+| `PressKeyBonusDelayChar` | string | First Press a Button instance text backing delay before pressing the output key, in milliseconds. |
+| `PasteDelayChar` | string | Text backing the delay between chat typing/paste key events in milliseconds. |
+| `HHJLengthChar` | string | Text backing HHJ flick/helicopter duration in milliseconds. |
+| `HHJFreezeDelayOverrideChar` | string | Text backing the optional HHJ freeze-delay override in milliseconds. |
+| `HHJDelay1Char` | string | Text backing HHJ delay after unfreezing and before shiftlock/zoom is held, in milliseconds. |
+| `HHJDelay2Char` | string | Text backing HHJ delay before helicoptering/spinning starts, in milliseconds. |
+| `HHJDelay3Char` | string | Text backing HHJ delay while shiftlock/zoom remains held after spinning starts, in milliseconds. |
+| `AutoHHJKey1TimeChar` | string | Text backing Auto-HHJ first key hold time in milliseconds. |
+| `AutoHHJKey2TimeChar` | string | Text backing Auto-HHJ second key hold time in milliseconds. |
+| `FloorBounceDelay1Char` | string | Text backing Floor Bounce HHJ delay after unfreezing and before shiftlocking, in milliseconds. |
+| `FloorBounceDelay2Char` | string | Text backing Floor Bounce HHJ delay before helicoptering, in milliseconds. |
+| `FloorBounceDelay3Char` | string | Text backing Floor Bounce HHJ helicoptering duration in milliseconds. |
+| `text` | string | Selected Item Unequip COM Offset emote text from the dropdown, such as `/e dance2`, `/e laugh`, or `/e cheer`. |
 
 Examples:
 
