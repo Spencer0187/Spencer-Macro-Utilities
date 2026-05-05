@@ -10,14 +10,24 @@ description: |
 vendor: FloofyIV
 homepage: https://example.com
 contents:
-  - src: ./AppImage/Spencer-Macro-Utilities-x86_64.AppImage
+  - src: ./staged/usr/bin/suspend
     dst: /usr/bin/spencer-macro-utilities
     file_info:
       mode: 0755
+  - src: ./staged/usr/lib/
+    dst: /usr/lib/
+  - src: ./staged/usr/bin/assets/
+    dst: /usr/share/spencer-macro-utilities/assets/
+  - src: ./staged/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
+    dst: /usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
+    file_info:
+      mode: 0755
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
+    dst: /usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
   - src: ./AppImage/spencer-macro-utilities.desktop
     dst: /usr/share/applications/spencer-macro-utilities.desktop
   - src: ./AppImage/SMU.png
     dst: /usr/share/pixmaps/spencer-macro-utilities.png
 scripts:
-  postinstall: ../AppImage/postinstall.sh
-  postremove: ../AppImage/postremove.sh
+  postinstall: ./AppImage/postinstall.sh
+  postremove: ./AppImage/postremove.sh
