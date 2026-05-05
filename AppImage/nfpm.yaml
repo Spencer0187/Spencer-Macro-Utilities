@@ -16,6 +16,8 @@ contents:
       mode: 0755
   - src: ./staged/usr/bin/assets/
     dst: /usr/share/spencer-macro-utilities/assets/
+  - src: ./staged/usr/bin/assets/macro_tutorials/
+    dst: /usr/share/spencer-macro-utilities/assets/
   - src: ./AppImage/launcher.sh
     dst: /usr/bin/spencer-macro-utilities
     file_info:
