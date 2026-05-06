@@ -51,6 +51,8 @@
 namespace smu::platform::linux {
 namespace {
 
+constexpr const char kLinuxInputBackendInitWarningId[] = "linux_input_backend_init_failed";
+
 constexpr PlatformKeyCode kVkLButton = 0x01;
 constexpr PlatformKeyCode kVkRButton = 0x02;
 constexpr PlatformKeyCode kVkMButton = 0x04;
@@ -727,13 +729,13 @@ bool EvdevUinputInputBackend::init(std::string* errorMessage)
         if (errorMessage) {
             *errorMessage = message;
         }
-        smu::log::LogWarning(message);
+        smu::log::LogWarning(message, kLinuxInputBackendInitWarningId, true);
         return false;
     }
 
     if (!setupUinput(errorMessage)) {
         if (errorMessage && !errorMessage->empty()) {
-            smu::log::LogWarning(*errorMessage);
+            smu::log::LogWarning(*errorMessage, kLinuxInputBackendInitWarningId, true);
         }
         shutdown();
         return false;
@@ -741,7 +743,7 @@ bool EvdevUinputInputBackend::init(std::string* errorMessage)
 
     if (!detectInputDevices(errorMessage)) {
         if (errorMessage && !errorMessage->empty()) {
-            smu::log::LogWarning(*errorMessage);
+            smu::log::LogWarning(*errorMessage, kLinuxInputBackendInitWarningId, true);
         }
         shutdown();
         return false;

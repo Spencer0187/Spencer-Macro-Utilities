@@ -1,6 +1,7 @@
 #include "macro_runtime.h"
 
 #include "input_actions.h"
+#include "notification_suppression.h"
 #include "script_manager.h"
 #include "../core/key_codes.h"
 #include "../platform/input_backend.h"
@@ -969,7 +970,7 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
             }
 #if defined(_WIN32)
             if (!smu::platform::windows::IsRunAsAdmin()) {
-                if (DontShowAdminWarning) {
+                if (IsNotificationSuppressed(kAdminElevationWarningId)) {
                     if (smu::platform::windows::RestartAsAdmin()) {
                         done.store(true, std::memory_order_release);
                         running.store(false, std::memory_order_release);

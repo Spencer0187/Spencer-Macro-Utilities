@@ -24,6 +24,8 @@ namespace {
 
 using namespace Globals;
 
+constexpr const char kWindowsBunnyhopHookWarningId[] = "windows_bunnyhop_hook_install_failed";
+
 constexpr ULONG_PTR kInjectedInputTag = static_cast<ULONG_PTR>(0x534D4301u);
 
 std::mutex g_guiInjectedInputBudgetMutex;
@@ -112,7 +114,8 @@ void StartBunnyhopPhysicalKeyHook()
             0);
 
         if (!g_bunnyhopPhysicalKeyHook) {
-            LogWarning("Windows input backend failed to install Smart Bunnyhop physical-key hook. Bunnyhop may stop after one injected key press.");
+            LogWarning("Windows input backend failed to install Smart Bunnyhop physical-key hook. Bunnyhop may stop after one injected key press.",
+                kWindowsBunnyhopHookWarningId, true);
         }
 
         g_bunnyhopPhysicalKeyHookReady.store(true, std::memory_order_release);

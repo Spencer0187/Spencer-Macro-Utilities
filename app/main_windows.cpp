@@ -21,6 +21,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     (void)lpCmdLine;
     (void)nCmdShow;
 
+    constexpr const char kWindowsInputBackendInitWarningId[] = "windows_input_backend_init_failed";
+    constexpr const char kWindowsProcessBackendInitWarningId[] = "windows_process_backend_init_failed";
+
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
     LogInfo("Starting Spencer Macro Utilities native Windows app.");
 
@@ -31,14 +34,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     if (auto inputBackend = smu::platform::GetInputBackend()) {
         context.inputBackendAvailable = inputBackend->init(&context.inputBackendError);
         if (!context.inputBackendAvailable && !context.inputBackendError.empty()) {
-            LogWarning(context.inputBackendError);
+            LogWarning(context.inputBackendError, kWindowsInputBackendInitWarningId, true);
         }
     }
 
     if (auto processBackend = smu::platform::GetProcessBackend()) {
         context.processBackendAvailable = processBackend->init(&context.processBackendError);
         if (!context.processBackendAvailable && !context.processBackendError.empty()) {
-            LogWarning(context.processBackendError);
+            LogWarning(context.processBackendError, kWindowsProcessBackendInitWarningId, true);
         }
     }
 

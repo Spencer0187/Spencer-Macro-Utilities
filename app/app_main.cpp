@@ -44,6 +44,11 @@
 namespace smu::app {
 namespace {
 
+constexpr const char kWindowIconWarningId[] = "window_icon_unavailable";
+constexpr const char kNativeDarkTitleBarWarningId[] = "native_dark_titlebar_unavailable";
+constexpr const char kWindowOpacityWarningId[] = "window_opacity_unavailable";
+constexpr const char kWindowAlwaysOnTopWarningId[] = "window_always_on_top_unavailable";
+
 void ApplyWindowIcon(SDL_Window* window)
 {
 #if defined(__linux__)
@@ -54,7 +59,8 @@ void ApplyWindowIcon(SDL_Window* window)
 
     SDL_Surface* icon = SDL_LoadBMP(iconPath.string().c_str());
     if (!icon) {
-        LogWarning(std::string("Failed to load SMU window icon from ") + iconPath.string() + ": " + SDL_GetError());
+        LogWarning(std::string("Failed to load SMU window icon from ") + iconPath.string() + ": " + SDL_GetError(),
+            kWindowIconWarningId, true);
         return;
     }
 
@@ -100,26 +106,30 @@ void ApplyDarkTitleBar(SDL_Window* window)
 {
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
     if (!props) {
-        LogWarning("SDL window properties were unavailable; skipping native dark title bar setup.");
+        LogWarning("SDL window properties were unavailable; skipping native dark title bar setup.",
+            kNativeDarkTitleBarWarningId, true);
         return;
     }
 
     HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
     if (!hwnd) {
-        LogWarning("SDL window HWND was unavailable; skipping native dark title bar setup.");
+        LogWarning("SDL window HWND was unavailable; skipping native dark title bar setup.",
+            kNativeDarkTitleBarWarningId, true);
         return;
     }
 
     const BOOL darkModeEnabled = TRUE;
     HRESULT darkModeResult = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkModeEnabled, sizeof(darkModeEnabled));
     if (FAILED(darkModeResult)) {
-        LogWarning("Failed to apply immersive dark mode to the native title bar.");
+        LogWarning("Failed to apply immersive dark mode to the native title bar.",
+            kNativeDarkTitleBarWarningId, true);
     }
 
     const COLORREF captionColor = RGB(0, 0, 0);
     HRESULT captionResult = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
     if (FAILED(captionResult)) {
-        LogWarning("Failed to apply native title bar caption color.");
+        LogWarning("Failed to apply native title bar caption color.",
+            kNativeDarkTitleBarWarningId, true);
     }
 }
 #endif
@@ -191,10 +201,12 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
     const float opacity = std::clamp(state.windowOpacityPercent / 100.0f, 0.2f, 1.0f);
     if (!SDL_SetWindowOpacity(window, opacity)) {
-        LogWarning("SDL window opacity could not be applied on this platform.");
+        LogWarning("SDL window opacity could not be applied on this platform.",
+            kWindowOpacityWarningId, true);
     }
     if (state.alwaysOnTop && !SDL_SetWindowAlwaysOnTop(window, true)) {
-        LogWarning("SDL always-on-top could not be applied on this platform.");
+        LogWarning("SDL always-on-top could not be applied on this platform.",
+            kWindowAlwaysOnTopWarningId, true);
     }
 
     SDL_ShowWindow(window);

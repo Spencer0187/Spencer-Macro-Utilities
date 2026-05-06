@@ -7,6 +7,12 @@
 
 namespace smu::app {
 
+namespace {
+
+constexpr const char kSettingsLoadFailedWarningId[] = "settings_load_failed";
+
+} // namespace
+
 void InitializeSharedProfiles()
 {
     using namespace Globals;
@@ -28,7 +34,8 @@ void InitializeSharedProfiles()
     SaveDefaultProfile(G_SETTINGS_FILEPATH);
     if (!TryLoadLastActiveProfile(G_SETTINGS_FILEPATH) && G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
         G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-        LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.");
+        LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.",
+            kSettingsLoadFailedWarningId, true);
     }
 
     state.screenWidth = screen_width;

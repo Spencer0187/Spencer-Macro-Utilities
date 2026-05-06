@@ -16,6 +16,8 @@ enum class LogLevel {
 struct LogEntry {
     LogLevel level = LogLevel::Info;
     std::string message;
+    std::string id;
+    bool onLaunch = false;
     std::chrono::system_clock::time_point timestamp;
 };
 
@@ -24,6 +26,7 @@ constexpr const char* kCriticalSupportText =
 
 void LogInfo(const std::string& message);
 void LogWarning(const std::string& message);
+void LogWarning(const std::string& message, const std::string& id, bool onLaunch);
 void LogError(const std::string& message);
 void LogCritical(const std::string& message);
 
@@ -37,5 +40,6 @@ void SetFileLoggingEnabled(bool enabled);
 
 inline void LogInfo(const std::string& message) { smu::log::LogInfo(message); }
 inline void LogWarning(const std::string& message) { smu::log::LogWarning(message); }
+inline void LogWarning(const std::string& message, const std::string& id, bool onLaunch) { smu::log::LogWarning(message, id, onLaunch); }
 inline void LogError(const std::string& message) { smu::log::LogError(message); }
 inline void LogCritical(const std::string& message) { smu::log::LogCritical(message); }
