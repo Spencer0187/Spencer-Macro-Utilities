@@ -34,6 +34,34 @@ inline constexpr std::size_t kMaxUiStateEntries = 4096;
 class ScriptInstance {
 public:
     using UiStringBuffer = std::array<char, kMaxUiStateStringBytes + 1>;
+    struct SettingsUiControl {
+        enum class Kind {
+            Text,
+            Separator,
+            Checkbox,
+            SliderInt,
+            SliderFloat,
+            Textbox,
+            DynamicTextbox,
+            Keybind
+        };
+
+        Kind kind = Kind::Text;
+        std::string id;
+        std::string label;
+        std::string text;
+        std::string defaultText;
+        bool defaultBool = false;
+        int defaultInt = 0;
+        int minInt = 0;
+        int maxInt = 0;
+        double defaultFloat = 0.0;
+        double minFloat = 0.0;
+        double maxFloat = 0.0;
+        unsigned int defaultKeybind = 0;
+        float width = 0.0f;
+        float height = 0.0f;
+    };
 
     explicit ScriptInstance(ImportedScriptRecord& owner);
     ~ScriptInstance();
@@ -44,8 +72,10 @@ public:
     bool init();
     bool loadFile(const std::filesystem::path& path);
     bool hasFunction(const char* name) const;
+    bool hasSettingsCallback() const { return hasSettingsCallback_; }
     bool callOnExecute();
     bool callOnSettings(bool renderMode);
+    void renderCachedSettings(bool readOnly);
     void syncSettingsTable();
     void cleanup();
     void* reallocateLuaMemory(void* ptr, std::size_t oldSize, std::size_t newSize);
@@ -73,6 +103,16 @@ public:
     UiStringBuffer& textboxBuffer(const std::string& id);
     UiStringBuffer& dynamicTextboxBuffer(const std::string& id);
     unsigned int& keybindValue(const std::string& id, unsigned int defaultValue);
+    void beginSettingsUiCapture();
+    void finishSettingsUiCapture(bool commit);
+    void recordSettingsText(std::string text, float width);
+    void recordSettingsSeparator(float height);
+    void recordSettingsCheckbox(std::string id, std::string label, bool defaultValue, float width);
+    void recordSettingsSliderInt(std::string id, std::string label, int defaultValue, int minValue, int maxValue, float width);
+    void recordSettingsSliderFloat(std::string id, std::string label, double defaultValue, double minValue, double maxValue, float width);
+    void recordSettingsTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
+    void recordSettingsDynamicTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
+    void recordSettingsKeybind(std::string id, std::string label, unsigned int defaultValue, float width);
     bool tryGetTransientUiValue(const std::string& key, std::string& out) const;
     void setTransientUiValue(const std::string& key, std::string value);
 
@@ -114,14 +154,19 @@ private:
     std::unordered_map<std::string, UiStringBuffer> textboxBuffers_;
     std::unordered_map<std::string, UiStringBuffer> dynamicTextboxBuffers_;
     std::unordered_map<std::string, unsigned int> keybindValues_;
+    std::vector<SettingsUiControl> settingsUiControls_;
+    std::vector<SettingsUiControl> pendingSettingsUiControls_;
     std::unordered_set<std::string> uiIdCache_;
     std::size_t settingsUiControlCount_ = 0;
     std::size_t memoryLimitBytes_ = kDefaultScriptMemoryLimitMB * 1024u * 1024u;
     std::size_t memoryUsedBytes_ = 0;
+    bool hasSettingsCallback_ = false;
+    bool settingsUiCaptureActive_ = false;
     bool settingsRenderMode_ = false;
     bool budgetActive_ = false;
     std::condition_variable sleepCv_;
     std::mutex sleepMutex_;
+    mutable std::mutex settingsUiMutex_;
     mutable std::mutex luaMutex_;
 };
 

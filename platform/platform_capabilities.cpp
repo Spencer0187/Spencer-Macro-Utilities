@@ -26,7 +26,7 @@ PlatformCapabilities GetPlatformCapabilities()
     caps.displayServer = linux::DisplayServerName(displayServer);
 
     if (displayServer == linux::DisplayServer::Wayland) {
-        caps.warnings.push_back("Generic foreground process detection is unsupported on Wayland.");
+        // caps.warnings.push_back("Generic foreground process detection is unsupported on Wayland.");
     } else if (displayServer == linux::DisplayServer::X11) {
         std::string x11Error;
         if (linux::IsX11ForegroundDetectionAvailable(&x11Error)) {

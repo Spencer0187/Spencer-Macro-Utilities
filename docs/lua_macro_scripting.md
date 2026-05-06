@@ -6,6 +6,7 @@ Imported scripts can also define their own custom ImGui settings by implementing
 `onSettings()` should only call `ui.*` helpers. Input, mouse, process, sleep, and lag-switch APIs are blocked while settings are being rendered.
 `onSettings()` has a 5-second hard timeout.
 `onSettings()` is optional. If it is not defined, only the built-in script controls appear.
+While a script is running, custom settings stay visible using the last cached `onSettings()` layout. Interactive controls become read-only, while `ui.dynamicTextbox()` remains live and copyable.
 
 ## Safety
 
@@ -77,13 +78,13 @@ Most controls accept optional size arguments at the end of the parameter list. W
 | `ui.sliderInt(id, label, defaultValue, minValue, maxValue, width)` | Render an integer slider and persist the value |
 | `ui.sliderFloat(id, label, defaultValue, minValue, maxValue, width)` | Render a float slider and persist the value |
 | `ui.textbox(id, label, defaultValue, width, height)` | Render a text box and persist the value |
-| `ui.dynamicTextbox(id, label, defaultValue, width, height)` | Render an editable multi-line text box backed by a script-updated value (not persisted) |
-| `ui.setDynamicText(id, text)` | Update a dynamic text box value (clamped to 4096 characters, not persisted) |
+| `ui.dynamicTextbox(id, label, defaultValue, width, height)` | Render a read-only multi-line text box backed by a script-updated value |
+| `ui.setDynamicText(id, text)` | Update a dynamic text box value (clamped to 4096 characters) |
 | `ui.keybind(id, label, defaultValue, width)` | Render the standard SMU keybind picker (with hex display) and persist the combo as a hotkey value |
 
 The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly.
 Script settings are stored in the save file under imported script data, separate from the main app settings.
-Dynamic text boxes are session-only and are not written to the save file.
+Dynamic text boxes are saved with imported script UI state. After restarting SMU, the last dynamic text value may still be visible as a "ghost" until the script writes a new value. Scripts still start from a fresh Lua state, so previous dynamic text is not automatically appended unless the script preserves its own history.
 UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited to 128 bytes. A single `onSettings()` call may create up to 512 UI controls, and each script is capped at 4096 total unique UI IDs. Stored script UI strings are clamped to 4096 bytes.
 
 ### Input
@@ -524,36 +525,60 @@ Save-file settings are read-only from scripts. Scripts cannot modify the main ap
 ## Example Script
 
 ```lua
--- @name: Camfix Checker
--- @desc: Reads a save-file-backed setting and reports its current value
+-- @name: Hotkey Telemetry Demo
+-- @desc: Shows custom settings, save-file reads, and live dynamic text updates
 -- @version: 1.0
+-- @keybind: F6
+
+local liveLog = ""
+
+local function pushStatus(line)
+    log(line)
+    if liveLog == "" then
+        liveLog = line
+    else
+        liveLog = liveLog .. "\n" .. line
+    end
+    ui.setDynamicText("telemetry_output", liveLog)
+end
 
 function onSettings()
-    ui.text("Camera Fix - Logs camfix status and hotkey activity", 360)
-    ui.separator(6)
-    camfixEnabled = ui.checkbox("camfix_enabled", "Enable camfix", true, 260)
-    camfixMode = ui.sliderInt("camfix_mode", "Camfix mode", 1, 0, 3, 240)
-    camfixKey = ui.keybind("camfix_key", "Override keybind", "F5", 260)
-    camfixLabel = ui.textbox("camfix_label", "Label", "Camfix", 260)
-    ui.dynamicTextbox("camfix_status", "Status", "Idle", 500, 200)
+    ui.text("This demo shows custom settings, live dynamic text, and save-file reads.", 420)
+    ui.separator(8)
+    ui.checkbox("telemetry_enabled", "Enable telemetry run", true, 260)
+    ui.sliderInt("telemetry_samples", "Sample count", 12, 1, 60, 260)
+    ui.sliderFloat("telemetry_delay_ms", "Delay between samples (ms)", 125, 10, 1000, 260)
+    ui.keybind("telemetry_hotkey", "Hotkey to watch", "F6", 260)
+    ui.textbox("telemetry_label", "Label", "Telemetry", 260)
+    ui.dynamicTextbox("telemetry_output", "Live Output", "No samples yet.", 560, 220)
 end
 
 function onExecute()
-    local camfix = getSavedValue("camfixtoggle")
-    if settings.camfix_enabled then
-        local logLine = "camfixtoggle = " .. tostring(camfix)
-        log(logLine)
-        logBuffer = (logBuffer or "") .. logLine .. "\n"
-        logBuffer = string.sub(logBuffer, -4000)
-        ui.setDynamicText("camfix_status", logBuffer)
-
-        if isHotkeyPressed(settings.camfix_key) then
-            local pressedLine = "Hotkey pressed: " .. tostring(settings.camfix_key)
-            log(pressedLine)
-            logBuffer = (logBuffer or "") .. pressedLine .. "\n"
-            logBuffer = string.sub(logBuffer, -4000)
-            ui.setDynamicText("camfix_status", logBuffer)
-        end
+    if not settings.telemetry_enabled then
+        pushStatus("Telemetry run skipped because the custom setting is disabled.")
+        return
     end
+
+    liveLog = ""
+
+    local label = settings.telemetry_label or "Telemetry"
+    local savedCamfix = getSavedValue("camfixtoggle")
+    local samples = settings.telemetry_samples or 12
+    local delayMs = math.max(0, math.floor((settings.telemetry_delay_ms or 125) + 0.5))
+    local watchedHotkey = settings.telemetry_hotkey or "F6"
+
+    pushStatus(string.format("%s started on %s (SMU %s)", label, getPlatform(), getSMUVersion()))
+    pushStatus("Saved camfixtoggle = " .. tostring(savedCamfix))
+
+    for i = 1, samples do
+        local t0 = nowMicros()
+        local pressed = isHotkeyPressed(watchedHotkey)
+        local elapsedMs = (nowMicros() - t0) / 1000.0
+        pushStatus(string.format("[%02d/%02d] %s pressed=%s poll=%.3fms",
+            i, samples, tostring(watchedHotkey), tostring(pressed), elapsedMs))
+        sleep(delayMs)
+    end
+
+    pushStatus(label .. " finished.")
 end
 ```

@@ -1961,8 +1961,13 @@ void RenderSelectedImportedScript(AppContext& context)
     ImGui::Separator();
     ImGui::TextWrapped("Custom Settings");
     if (running) {
-        ImGui::TextWrapped("Settings are unavailable while the script is running.");
-    } else if (script->instance && script->instance->hasFunction("onSettings")) {
+        if (script->instance && script->instance->hasSettingsCallback()) {
+            ImGui::TextWrapped("Settings are read-only while the script is running. Dynamic text stays live and copyable.");
+            script->instance->renderCachedSettings(true);
+        } else {
+            ImGui::TextWrapped("This script does not define onSettings().");
+        }
+    } else if (script->instance && script->instance->hasSettingsCallback()) {
         if (!script->instance->callOnSettings(true)) {
             ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
             ImGui::TextWrapped("Failed to render custom settings.");
