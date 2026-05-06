@@ -10,6 +10,7 @@
 #include <windows.h>
 
 #include <atomic>
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -31,6 +32,84 @@ constexpr ULONG_PTR kInjectedInputTag = static_cast<ULONG_PTR>(0x534D4301u);
 std::mutex g_guiInjectedInputBudgetMutex;
 auto g_guiInjectedInputBudgetResetTime = std::chrono::steady_clock::now();
 int g_guiInjectedInputBudgetRemaining = 50;
+
+struct MonitorCaptureInfo {
+    HMONITOR monitor = nullptr;
+    ScreenBounds bounds {};
+    std::chrono::microseconds refreshInterval {16666};
+};
+
+std::chrono::microseconds RefreshIntervalForMonitor(HMONITOR monitor)
+{
+    constexpr std::chrono::microseconds kDefaultRefreshInterval{16666};
+
+    if (!monitor) {
+        return kDefaultRefreshInterval;
+    }
+
+    MONITORINFOEXA monitorInfo = {};
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    if (GetMonitorInfoA(monitor, &monitorInfo)) {
+        DEVMODEA mode = {};
+        mode.dmSize = sizeof(mode);
+        if (EnumDisplaySettingsA(monitorInfo.szDevice, ENUM_CURRENT_SETTINGS, &mode) &&
+            mode.dmDisplayFrequency > 1) {
+            const auto hz = static_cast<std::int64_t>(mode.dmDisplayFrequency);
+            return std::chrono::microseconds{std::max<std::int64_t>(1, 1000000 / hz)};
+        }
+    }
+
+    HDC screenDc = GetDC(nullptr);
+    if (screenDc) {
+        const int refresh = GetDeviceCaps(screenDc, VREFRESH);
+        ReleaseDC(nullptr, screenDc);
+        if (refresh > 1) {
+            const auto hz = static_cast<std::int64_t>(refresh);
+            return std::chrono::microseconds{std::max<std::int64_t>(1, 1000000 / hz)};
+        }
+    }
+
+    return kDefaultRefreshInterval;
+}
+
+bool ResolveMonitorCaptureInfo(int x, int y, MonitorCaptureInfo& info, std::string* errorMessage)
+{
+    POINT point = {};
+    point.x = x;
+    point.y = y;
+
+    info.monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+    if (!info.monitor) {
+        if (errorMessage) {
+            *errorMessage = "failed to resolve the monitor for the requested pixel";
+        }
+        return false;
+    }
+
+    MONITORINFOEXA monitorInfo = {};
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    if (!GetMonitorInfoA(info.monitor, &monitorInfo)) {
+        if (errorMessage) {
+            *errorMessage = "GetMonitorInfo failed while preparing screen pixel sampling";
+        }
+        return false;
+    }
+
+    const int left = static_cast<int>(monitorInfo.rcMonitor.left);
+    const int top = static_cast<int>(monitorInfo.rcMonitor.top);
+    const int width = static_cast<int>(monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left);
+    const int height = static_cast<int>(monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top);
+    if (width <= 0 || height <= 0) {
+        if (errorMessage) {
+            *errorMessage = "monitor bounds were invalid while preparing screen pixel sampling";
+        }
+        return false;
+    }
+
+    info.bounds = ScreenBounds{left, top, width, height};
+    info.refreshInterval = RefreshIntervalForMonitor(info.monitor);
+    return true;
+}
 
 
 std::thread g_bunnyhopPhysicalKeyHookThread;
@@ -553,29 +632,27 @@ public:
     std::optional<PixelColor> sample(int x, int y, std::string* errorMessage)
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!ensureInitialized(errorMessage)) {
+        MonitorCaptureInfo monitorInfo {};
+        if (!ResolveMonitorCaptureInfo(x, y, monitorInfo, errorMessage)) {
             return std::nullopt;
         }
 
-        PixelColor color = {};
-        if (capturePixel(x, y, color, errorMessage)) {
-            return color;
-        }
-
-        resetResources();
-        if (!ensureInitialized(errorMessage)) {
+        if (!ensureInitialized(monitorInfo, errorMessage)) {
             return std::nullopt;
         }
 
-        if (capturePixel(x, y, color, errorMessage)) {
-            return color;
+        if (shouldRefreshFrame(monitorInfo)) {
+            if (!captureFrame(monitorInfo, errorMessage)) {
+                cacheValid_ = false;
+                return std::nullopt;
+            }
         }
 
-        return std::nullopt;
+        return sampleCachedPixel(x, y, errorMessage);
     }
 
 private:
-    void resetResources()
+    void resetFrameResources()
     {
         if (memDc_) {
             if (oldBitmap_) {
@@ -588,81 +665,184 @@ private:
             DeleteObject(bitmap_);
             bitmap_ = nullptr;
         }
-        if (screenDc_) {
-            ReleaseDC(nullptr, screenDc_);
-            screenDc_ = nullptr;
-        }
         oldBitmap_ = nullptr;
         pixelBits_ = nullptr;
+        bitmapWidth_ = 0;
+        bitmapHeight_ = 0;
+        cachedMonitor_ = nullptr;
+        cachedBounds_ = {};
+        cacheCaptureTime_ = {};
+        cacheRefreshInterval_ = std::chrono::microseconds{0};
+        cacheValid_ = false;
     }
 
-    bool capturePixel(int x, int y, PixelColor& color, std::string* errorMessage)
+    void resetResources()
     {
-        if (!BitBlt(memDc_, 0, 0, 1, 1, screenDc_, x, y, SRCCOPY | CAPTUREBLT)) {
-            if (errorMessage) {
-                const DWORD lastError = GetLastError();
-                if (lastError != 0) {
-                    *errorMessage = "BitBlt failed while sampling the screen pixel (GetLastError=" + std::to_string(lastError) + ")";
-                } else {
-                    *errorMessage = "BitBlt failed while sampling the screen pixel";
-                }
-            }
-            return false;
-        }
-
-        const auto* bytes = static_cast<const unsigned char*>(pixelBits_);
-        color = PixelColor{bytes[2], bytes[1], bytes[0]};
-        return true;
+        resetFrameResources();
     }
 
-    bool ensureInitialized(std::string* errorMessage)
+    bool ensureInitialized(const MonitorCaptureInfo& monitorInfo, std::string* errorMessage)
     {
-        if (screenDc_ && memDc_ && bitmap_ && pixelBits_) {
+        if (memDc_ && bitmap_ && pixelBits_ &&
+            bitmapWidth_ == monitorInfo.bounds.width &&
+            bitmapHeight_ == monitorInfo.bounds.height) {
             return true;
         }
 
-        screenDc_ = GetDC(nullptr);
-        if (!screenDc_) {
+        HDC screenDc = GetDC(nullptr);
+        if (!screenDc) {
             if (errorMessage) {
                 *errorMessage = "GetDC failed while preparing screen pixel sampling";
             }
             return false;
         }
 
-        memDc_ = CreateCompatibleDC(screenDc_);
+        resetFrameResources();
+
+        memDc_ = CreateCompatibleDC(screenDc);
         if (!memDc_) {
             if (errorMessage) {
                 *errorMessage = "CreateCompatibleDC failed while preparing screen pixel sampling";
             }
+            ReleaseDC(nullptr, screenDc);
             return false;
         }
 
         BITMAPINFO bmi = {};
         bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth = 1;
-        bmi.bmiHeader.biHeight = -1;
+        bmi.bmiHeader.biWidth = monitorInfo.bounds.width;
+        bmi.bmiHeader.biHeight = -monitorInfo.bounds.height;
         bmi.bmiHeader.biPlanes = 1;
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = BI_RGB;
 
-        bitmap_ = CreateDIBSection(screenDc_, &bmi, DIB_RGB_COLORS, &pixelBits_, nullptr, 0);
+        bitmap_ = CreateDIBSection(screenDc, &bmi, DIB_RGB_COLORS, &pixelBits_, nullptr, 0);
         if (!bitmap_ || !pixelBits_) {
             if (errorMessage) {
                 *errorMessage = "CreateDIBSection failed while preparing screen pixel sampling";
             }
+            resetFrameResources();
+            ReleaseDC(nullptr, screenDc);
             return false;
         }
 
         oldBitmap_ = SelectObject(memDc_, bitmap_);
+        if (!oldBitmap_ || oldBitmap_ == reinterpret_cast<HGDIOBJ>(HGDI_ERROR)) {
+            if (errorMessage) {
+                *errorMessage = "SelectObject failed while preparing screen pixel sampling";
+            }
+            resetFrameResources();
+            ReleaseDC(nullptr, screenDc);
+            return false;
+        }
+
+        bitmapWidth_ = monitorInfo.bounds.width;
+        bitmapHeight_ = monitorInfo.bounds.height;
+        ReleaseDC(nullptr, screenDc);
         return true;
     }
 
+    bool shouldRefreshFrame(const MonitorCaptureInfo& monitorInfo) const
+    {
+        if (!cacheValid_) {
+            return true;
+        }
+        if (cachedMonitor_ != monitorInfo.monitor) {
+            return true;
+        }
+        if (cachedBounds_.x != monitorInfo.bounds.x ||
+            cachedBounds_.y != monitorInfo.bounds.y ||
+            cachedBounds_.width != monitorInfo.bounds.width ||
+            cachedBounds_.height != monitorInfo.bounds.height) {
+            return true;
+        }
+        if (cacheRefreshInterval_ != monitorInfo.refreshInterval) {
+            return true;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        return (now - cacheCaptureTime_) >= cacheRefreshInterval_;
+    }
+
+    bool captureFrame(const MonitorCaptureInfo& monitorInfo, std::string* errorMessage)
+    {
+        if (!memDc_ || !bitmap_ || !pixelBits_) {
+            if (errorMessage) {
+                *errorMessage = "screen pixel sampling resources are not ready";
+            }
+            return false;
+        }
+
+        HDC screenDc = GetDC(nullptr);
+        if (!screenDc) {
+            if (errorMessage) {
+                *errorMessage = "GetDC failed while sampling the screen frame";
+            }
+            cacheValid_ = false;
+            return false;
+        }
+
+        if (!BitBlt(memDc_, 0, 0, monitorInfo.bounds.width, monitorInfo.bounds.height,
+                screenDc, monitorInfo.bounds.x, monitorInfo.bounds.y, SRCCOPY | CAPTUREBLT)) {
+            ReleaseDC(nullptr, screenDc);
+            if (errorMessage) {
+                const DWORD lastError = GetLastError();
+                if (lastError != 0) {
+                    *errorMessage = "BitBlt failed while sampling the screen frame (GetLastError=" + std::to_string(lastError) + ")";
+                } else {
+                    *errorMessage = "BitBlt failed while sampling the screen frame";
+                }
+            }
+            cacheValid_ = false;
+            return false;
+        }
+
+        ReleaseDC(nullptr, screenDc);
+
+        cachedMonitor_ = monitorInfo.monitor;
+        cachedBounds_ = monitorInfo.bounds;
+        cacheRefreshInterval_ = monitorInfo.refreshInterval;
+        cacheCaptureTime_ = std::chrono::steady_clock::now();
+        cacheValid_ = true;
+        return true;
+    }
+
+    std::optional<PixelColor> sampleCachedPixel(int x, int y, std::string* errorMessage) const
+    {
+        if (!cacheValid_ || !pixelBits_ || bitmapWidth_ <= 0 || bitmapHeight_ <= 0) {
+            if (errorMessage) {
+                *errorMessage = "screen pixel cache is not ready";
+            }
+            return std::nullopt;
+        }
+
+        const int localX = x - cachedBounds_.x;
+        const int localY = y - cachedBounds_.y;
+        if (localX < 0 || localY < 0 || localX >= bitmapWidth_ || localY >= bitmapHeight_) {
+            if (errorMessage) {
+                *errorMessage = "requested pixel is outside the cached monitor bounds";
+            }
+            return std::nullopt;
+        }
+
+        const auto* bytes = static_cast<const unsigned char*>(pixelBits_);
+        const std::size_t offset = (static_cast<std::size_t>(localY) * static_cast<std::size_t>(bitmapWidth_) +
+            static_cast<std::size_t>(localX)) * 4;
+        return PixelColor{bytes[offset + 2], bytes[offset + 1], bytes[offset]};
+    }
+
     mutable std::mutex mutex_;
-    HDC screenDc_ = nullptr;
     HDC memDc_ = nullptr;
     HBITMAP bitmap_ = nullptr;
     HGDIOBJ oldBitmap_ = nullptr;
     void* pixelBits_ = nullptr;
+    int bitmapWidth_ = 0;
+    int bitmapHeight_ = 0;
+    HMONITOR cachedMonitor_ = nullptr;
+    ScreenBounds cachedBounds_ {};
+    std::chrono::steady_clock::time_point cacheCaptureTime_ {};
+    std::chrono::microseconds cacheRefreshInterval_ {0};
+    bool cacheValid_ = false;
 };
 
 ScreenPixelSamplerNative& GetScreenPixelSamplerNative()
