@@ -556,6 +556,7 @@ end
 function onExecute()
     if not settings.telemetry_enabled then
         pushStatus("Telemetry run skipped because the custom setting is disabled.")
+        sleep(800)
         return
     end
 
