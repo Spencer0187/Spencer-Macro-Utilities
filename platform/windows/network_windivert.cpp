@@ -315,12 +315,13 @@ void RobloxLogScannerThread() {
         return;
     }
 
-    while (running)
+    while (g_windivert_running.load(std::memory_order_relaxed))
     {
-        while (running && !g_log_thread_running.load(std::memory_order_relaxed)) 
+        while (g_windivert_running.load(std::memory_order_relaxed) &&
+               !g_log_thread_running.load(std::memory_order_relaxed)) 
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
         
-        if (!running) break;
+        if (!g_windivert_running.load(std::memory_order_relaxed)) break;
 
         // 2. Call Library Handle
         state s = logzz::loop_handle();
