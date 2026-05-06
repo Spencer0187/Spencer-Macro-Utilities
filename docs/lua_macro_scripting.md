@@ -1,6 +1,6 @@
 # Lua Macro Scripting
 
-Custom macros can be written as Lua scripts and imported into Spencer Macro Client. The scripting system supports `.smus`, `.hss`, and `.lua` files. Scripts run inside the macro runtime and can automate keyboard input, mouse movement, text entry, timing, freeze behavior, and lag-switch controls.
+Custom macros can be written as Lua scripts and imported into Spencer Macro Client. The scripting system supports `.smus`, `.hss`, `.lua`, and `.txt` files. Scripts run inside the macro runtime and can automate keyboard input, mouse movement, text entry, timing, freeze behavior, and lag-switch controls.
 
 Imported scripts can also define their own custom ImGui settings by implementing `onSettings()`. The app runs that callback once in a non-rendering initialization pass when the script loads, then again in the selected-script panel to render the controls.
 `onSettings()` should only call `ui.*` helpers. Input, mouse, process, sleep, and lag-switch APIs are blocked while settings are being rendered.
@@ -291,9 +291,32 @@ end
 | `isKeyPressed(key)` | Return whether a key is currently pressed |
 | `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind`) |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
-| `moveMouse(dx, dy)` | Move the mouse relative to its current position |
+| `moveMouse(dx, dy)` | Move the mouse relative to its current position. On Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent |
+| `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor by calculating the needed relative delta from the current cursor position. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"`. Unlike `moveMouse`, this function uses a raw relative move internally and does not apply `display_scale` |
+| `getPixelColor(x, y, mode)` | Return the pixel color at a position on the monitor containing the cursor as a `"#RRGGBB"` string. Uses the same coordinate modes as `moveMouseAbs`. Not available while rendering `onSettings()` |
 | `moveDegrees(dx, dy)` | Move the mouse using degree units derived from saved Roblox sensitivity and Cam-Fix settings. `dx` and `dy` may be integers or floats. Positive `dy` moves upward |
 | `mouseWheel(delta)` | Scroll the mouse wheel |
+
+
+`moveMouseAbs(x, y, mode)` and `getPixelColor(x, y, mode)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size.
+
+Examples:
+
+```lua
+moveMouseAbs(960, 540)
+moveMouseAbs(50, 50, "percent")
+moveMouseAbs(960, 540, "scaled1080p")
+moveMouseAbs(1280, 720, "scaled1440p")
+
+local color = getPixelColor(50, 50, "percent")
+if color == "#FF0000" then
+    log("center pixel is red")
+end
+```
+
+`getPixelColor()` samples a fresh pixel each call and reuses backend capture resources where possible, so it is suitable for moderate polling loops. It is not a bulk image-scanning API; repeated scans across many pixels should use a future cached screenshot/buffer API instead of calling `getPixelColor()` thousands of times per frame.
+
+Linux note: absolute-coordinate APIs currently need X11/XWayland cursor-position and screen-read access. `moveMouseAbs()` still injects movement through the existing relative `uinput` path. Native Wayland sessions without usable X11 access report descriptive `moveMouseAbs failed: ...` or `getPixelColor failed: ...` script errors in the selected script status panel, explaining that global cursor/screen position or arbitrary screen reads are unavailable.
 
 `moveDegrees(dx, dy)` caches its conversion settings once when the script instance starts. It uses `RobloxSensValue` and `camfixtoggle` to convert degrees into pixels with the same formula used by the built-in wallhop/rotation UI.
 
@@ -434,7 +457,7 @@ Scripts also receive the global `settings` table for per-script UI state created
 | `PreviousSensValue` | number | Cached Roblox sensitivity value last used to recalculate sensitivity-derived pixel values. |
 | `windowOpacityPercent` | number | Main window opacity percentage. |
 | `AntiAFKTime` | number | Anti-AFK interval in minutes. |
-| `display_scale` | number | Windows display scale percentage used by the app's UI scaling logic. |
+| `display_scale` | number | Windows mouse movement scale percentage. It affects `moveMouse()` and other scaled relative movement paths, but `moveMouseAbs()` bypasses it so absolute targeting can use raw relative deltas. `getPixelColor()` only reads screen pixels and is not affected by `display_scale`. |
 | `WindowPosX` | number | Saved main window X position. |
 | `WindowPosY` | number | Saved main window Y position. |
 | `lagswitch_max_duration` | number | Lag Switch auto-unlag timeout in seconds. |

@@ -34,7 +34,7 @@ FileDialogResult OpenNativeFileDialog(const FileDialogOptions& options)
     std::array<wchar_t, 32768> fileBuffer{};
     const std::wstring title = Widen(options.title.empty() ? "Import SMU Script" : options.title);
     const std::wstring initialDir = options.initialDirectory.empty() ? std::wstring() : options.initialDirectory.wstring();
-    const wchar_t filter[] = L"SMU Scripts (*.smus;*.hss;*.lua)\0*.smus;*.hss;*.lua\0All Files (*.*)\0*.*\0\0";
+    const wchar_t filter[] = L"SMU Scripts (*.smus;*.hss;*.lua;*.txt)\0*.smus;*.hss;*.lua;*.txt\0All Files (*.*)\0*.*\0\0";
 
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);

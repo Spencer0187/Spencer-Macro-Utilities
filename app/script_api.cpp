@@ -683,6 +683,56 @@ int LuaMoveMouse(lua_State* L)
     return 0;
 }
 
+int LuaMoveMouseAbs(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "moveMouseAbs is not available while rendering script settings");
+    }
+
+    const double x = CheckLuaFiniteNumber(L, 1, "x");
+    const double y = CheckLuaFiniteNumber(L, 2, "y");
+    const char* modeText = "pixels";
+    if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+        modeText = luaL_checkstring(L, 3);
+    }
+
+    std::string error;
+    if (!MoveMouseAbs(x, y, modeText ? modeText : "pixels", &error)) {
+        if (error.empty()) {
+            error = "unknown failure";
+        }
+        return luaL_error(L, "moveMouseAbs failed: %s", error.c_str());
+    }
+    return 0;
+}
+
+
+int LuaGetPixelColor(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "getPixelColor is not available while rendering script settings");
+    }
+
+    const double x = CheckLuaFiniteNumber(L, 1, "x");
+    const double y = CheckLuaFiniteNumber(L, 2, "y");
+    const char* modeText = "pixels";
+    if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+        modeText = luaL_checkstring(L, 3);
+    }
+
+    std::string error;
+    const auto color = GetPixelColorHex(x, y, modeText ? modeText : "pixels", &error);
+    if (!color) {
+        if (error.empty()) {
+            error = "unknown failure";
+        }
+        return luaL_error(L, "getPixelColor failed: %s", error.c_str());
+    }
+
+    lua_pushlstring(L, color->c_str(), color->size());
+    return 1;
+}
+
 int LuaMoveDegrees(lua_State* L)
 {
     if (IsSettingsRenderMode(L)) {
@@ -1201,6 +1251,8 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "isHotkeyPressed", LuaIsHotkeyPressed);
     Register(L, "typeText", LuaTypeText);
     Register(L, "moveMouse", LuaMoveMouse);
+    Register(L, "moveMouseAbs", LuaMoveMouseAbs);
+    Register(L, "getPixelColor", LuaGetPixelColor);
     Register(L, "moveDegrees", LuaMoveDegrees);
     Register(L, "mouseWheel", LuaMouseWheel);
     Register(L, "freeze", LuaFreeze);

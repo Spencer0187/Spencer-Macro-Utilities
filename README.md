@@ -39,7 +39,7 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 ## Lua Macro Scripts
 
-Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, or `.lua` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. The scripting API includes `getSavedValue(name)`, which reads the current in-memory value of a setting that is persisted in the save file. Scripts can also define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
+Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, `.lua`, or `.txt` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. The scripting API includes `getSavedValue(name)`, which reads the current in-memory value of a setting that is persisted in the save file. Scripts can also define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
@@ -80,7 +80,7 @@ The Linux build now produces the native `suspend` executable. SDL3 is built from
 
 Install dependencies on Ubuntu/Debian:
 ```bash
-sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxkbcommon-dev
+sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxinerama-dev libxkbcommon-dev
 ```
 
 Configure and build:
@@ -102,7 +102,7 @@ Runtime notes for the native Linux backend:
 - The backend needs group-based access to those devices. Run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot if access is still missing.
 - The app may launch the setup script with `pkexec`, but it does not relaunch the whole GUI as root and does not read your password.
 - Runtime assets are loaded from `assets/` next to the executable; developer builds fall back to the source tree assets.
-- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`.
+- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior.
 - Wayland foreground process detection is intentionally unsupported.
 - Linux network lagswitch support is not part of the native backend target.
 

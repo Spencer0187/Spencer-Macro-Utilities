@@ -122,6 +122,7 @@ private:
     bool budgetActive_ = false;
     std::condition_variable sleepCv_;
     std::mutex sleepMutex_;
+    mutable std::mutex luaMutex_;
 };
 
 ScriptInstance* GetScriptInstance(lua_State* L);

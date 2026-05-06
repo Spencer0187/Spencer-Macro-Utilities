@@ -900,7 +900,7 @@ void OpenScriptFileDialogFallback()
     ImGuiFileDialog::Instance()->OpenDialog(
         "SMUImportScriptFileDialog",
         "Import SMU Script",
-        ".smus,.hss,.lua",
+        "SMU Scripts{.txt,.lua,.hss,.smus}",
         config);
 }
 
@@ -908,7 +908,7 @@ void StartImportedScriptImportFlow()
 {
     smu::platform::FileDialogOptions options;
     options.title = "Import SMU Script";
-    options.extensions = {".smus", ".hss", ".lua"};
+    options.extensions = {".smus", ".hss", ".lua", ".txt"};
 
     BeginModalInputCapture();
     const smu::platform::FileDialogResult result = smu::platform::OpenNativeFileDialog(options);
@@ -930,7 +930,7 @@ void RenderScriptFileDialogFallback()
     }
 
     const ImVec2 viewportSize = ImGui::GetMainViewport()->Size;
-    const ImVec2 minSize(std::max(320.0f, viewportSize.x * 0.3f), std::max(240.0f, viewportSize.y * 0.3f));
+    const ImVec2 minSize(std::max(320.0f, viewportSize.x * 0.5f), std::max(240.0f, viewportSize.y * 0.5f));
     if (ImGuiFileDialog::Instance()->Display("SMUImportScriptFileDialog", ImGuiWindowFlags_NoCollapse, minSize)) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             QueueScriptImportTrustModal(ImGuiFileDialog::Instance()->GetFilePathName());

@@ -27,8 +27,15 @@ public:
     void holdKeyChord(PlatformKeyCode combinedKey) override;
     void releaseKeyChord(PlatformKeyCode combinedKey) override;
     void moveMouse(int dx, int dy) override;
+    void moveMouseRaw(int dx, int dy) override;
     void mouseWheel(int delta) override;
 
+    std::optional<CursorPosition> getCursorPosition() const override;
+    std::optional<ScreenBounds> getScreenBounds() const override;
+    std::optional<ScreenBounds> getActiveMonitorBounds() const override;
+    std::string absolutePointerUnavailableReason() const override;
+    std::optional<PixelColor> getPixelColor(int x, int y, std::string* errorMessage = nullptr) const override;
+    std::string screenReadUnavailableReason() const override;
     std::optional<PlatformKeyCode> getCurrentPressedKey() const override;
     std::string formatKeyName(PlatformKeyCode key) const override;
 

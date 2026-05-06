@@ -25,6 +25,29 @@ struct PlatformWindowHandle {
     }
 };
 
+struct CursorPosition {
+    int x = 0;
+    int y = 0;
+};
+
+struct ScreenBounds {
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+
+    constexpr bool valid() const noexcept
+    {
+        return width > 0 && height > 0;
+    }
+};
+
+struct PixelColor {
+    std::uint8_t r = 0;
+    std::uint8_t g = 0;
+    std::uint8_t b = 0;
+};
+
 constexpr PlatformKeyCode kNoKey = 0;
 constexpr PlatformKeyCode kMouseWheelUp = 256;
 constexpr PlatformKeyCode kMouseWheelDown = 257;
