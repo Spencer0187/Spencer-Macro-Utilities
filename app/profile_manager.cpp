@@ -1,6 +1,7 @@
 ﻿#define NOMINMAX
 #include "profile_manager.h"
 #include "script_manager.h"
+#include "notification_suppression.h"
 #include "../core/legacy_globals.h"
 #include "../platform/logging.h"
 #include "imgui.h"
@@ -14,6 +15,8 @@
 #include <iostream>
 #include <optional>
 #include <system_error>
+#include <set>
+#include <utility>
 #include <variant>
 #include <unordered_map>
 #include <type_traits>
@@ -46,6 +49,43 @@ static std::string TrimNullChars(const char *buffer, size_t size) {
 }
 
 using NumericVar = std::variant<int*, float*, unsigned int*>;
+
+namespace {
+
+std::mutex g_notificationSuppressionMutex;
+std::set<std::string> g_suppressedNotificationIds;
+
+std::vector<std::string> GetSuppressedNotificationIdsSnapshot()
+{
+    std::lock_guard<std::mutex> lock(g_notificationSuppressionMutex);
+    return {g_suppressedNotificationIds.begin(), g_suppressedNotificationIds.end()};
+}
+
+void LoadSuppressedNotificationIds(const json& metadata)
+{
+    std::set<std::string> ids;
+
+    if (metadata.contains("suppressed_notifications") && metadata["suppressed_notifications"].is_array()) {
+        for (const auto& value : metadata["suppressed_notifications"]) {
+            if (value.is_string()) {
+                ids.insert(value.get<std::string>());
+            }
+        }
+    }
+
+    if (metadata.contains("DontShowAdminWarning") && metadata["DontShowAdminWarning"].is_boolean() && metadata["DontShowAdminWarning"].get<bool>()) {
+        ids.insert(smu::app::kAdminElevationWarningId);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_notificationSuppressionMutex);
+        g_suppressedNotificationIds = std::move(ids);
+    }
+
+    DontShowAdminWarning = smu::app::IsNotificationSuppressed(smu::app::kAdminElevationWarningId);
+}
+
+} // namespace
 
 // ============================================================================
 //  VARIABLE MAPS — Data-driven save/load tables
@@ -1235,24 +1275,69 @@ static void SaveMetadata(json& root) {
 	}
 
 	meta["shortdescriptions"] = shortdescriptions;
-	meta["DontShowAdminWarning"] = DontShowAdminWarning;
+	meta["suppressed_notifications"] = GetSuppressedNotificationIdsSnapshot();
+	meta["DontShowAdminWarning"] = smu::app::IsNotificationSuppressed(smu::app::kAdminElevationWarningId);
 
 	SaveMetadataThemes(meta);
 }
 
 static void LoadMetadata(const json& root) {
-	if (!root.contains(METADATA_KEY) || !root[METADATA_KEY].is_object()) return;
+	if (!root.contains(METADATA_KEY) || !root[METADATA_KEY].is_object()) {
+		std::lock_guard<std::mutex> lock(g_notificationSuppressionMutex);
+		g_suppressedNotificationIds.clear();
+		DontShowAdminWarning = false;
+		return;
+	}
 	const auto& meta = root[METADATA_KEY];
 
 	if (meta.contains("shortdescriptions") && meta["shortdescriptions"].is_boolean()) {
 		shortdescriptions = meta["shortdescriptions"].get<bool>();
 	}
-	if (meta.contains("DontShowAdminWarning") && meta["DontShowAdminWarning"].is_boolean()) {
-		DontShowAdminWarning = meta["DontShowAdminWarning"].get<bool>();
-	}
+	LoadSuppressedNotificationIds(meta);
 
 	LoadMetadataThemes(meta);
 }
+
+namespace smu::app {
+
+bool IsNotificationSuppressed(const std::string& id) {
+	if (id.empty()) {
+		return false;
+	}
+
+	std::lock_guard<std::mutex> lock(g_notificationSuppressionMutex);
+	return g_suppressedNotificationIds.find(id) != g_suppressedNotificationIds.end();
+}
+
+void SetNotificationSuppressed(const std::string& id, bool suppressed) {
+	if (id.empty()) {
+		return;
+	}
+
+	bool changed = false;
+	{
+		std::lock_guard<std::mutex> lock(g_notificationSuppressionMutex);
+		if (suppressed) {
+			changed = g_suppressedNotificationIds.insert(id).second;
+		} else {
+			changed = g_suppressedNotificationIds.erase(id) > 0;
+		}
+	}
+
+	DontShowAdminWarning = IsNotificationSuppressed(kAdminElevationWarningId);
+
+	if (!changed) {
+		return;
+	}
+
+	if (!G_SETTINGS_FILEPATH.empty() &&
+		!G_CURRENTLY_LOADED_PROFILE_NAME.empty() &&
+		G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
+		SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
+	}
+}
+
+} // namespace smu::app
 
 // ============================================================================
 //  PROFILE NAMES + UNIQUE NAME GENERATION

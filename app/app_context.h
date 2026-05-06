@@ -36,6 +36,6 @@ struct AppContext {
 AppContext CreateAppContext();
 bool IsForegroundDetectionFallbackActive(const AppContext& context);
 bool ForegroundRestrictionAllows(const AppContext& context, bool disableOutsideRoblox, bool tabbedIntoRoblox);
-void MaybeWarnForegroundDetectionFallback(AppContext& context);
+void MaybeWarnForegroundDetectionFallback(AppContext& context, bool onLaunch = false);
 
 } // namespace smu::app

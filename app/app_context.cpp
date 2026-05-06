@@ -24,14 +24,15 @@ bool ForegroundRestrictionAllows(const AppContext& context, bool disableOutsideR
     return !disableOutsideRoblox || tabbedIntoRoblox;
 }
 
-void MaybeWarnForegroundDetectionFallback(AppContext& context)
+void MaybeWarnForegroundDetectionFallback(AppContext& context, bool onLaunch)
 {
     if (context.foregroundFallbackWarningShown || !IsForegroundDetectionFallbackActive(context)) {
         return;
     }
 
     context.foregroundFallbackWarningShown = true;
-    LogWarning("Foreground-detection-dependent macros are in always-active mode because foreground Roblox window detection is unavailable on Wayland or this specific display server.");
+    LogWarning("Foreground-detection-dependent macros are in always-active mode because foreground Roblox window detection is unavailable on Wayland or this specific display server.",
+        "foreground_detection_unavailable", onLaunch);
 }
 
 } // namespace smu::app

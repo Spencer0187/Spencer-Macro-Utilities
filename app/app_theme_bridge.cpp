@@ -19,6 +19,8 @@
 namespace smu::app {
 namespace {
 
+constexpr const char kThemeFontUnavailableWarningId[] = "theme_font_unavailable";
+
 #if defined(__linux__)
 std::filesystem::path FindLinuxFontPath()
 {
@@ -107,19 +109,23 @@ void SetupSharedFontsAndStyle(ImGuiIO& io)
             if (resourceData && resourceSize > 0) {
                 cfg.FontDataOwnedByAtlas = false;
                 if (!io.Fonts->AddFontFromMemoryTTF(resourceData, static_cast<int>(resourceSize), 20.0f, &cfg)) {
-                    LogWarning("LSANS_TTF resource was found but ImGui could not load it; falling back to ImGui default font.");
+                    LogWarning("LSANS_TTF resource was found but ImGui could not load it; falling back to ImGui default font.",
+                        kThemeFontUnavailableWarningId, true);
                     io.Fonts->AddFontDefault();
                 }
             } else {
-                LogWarning("LSANS_TTF resource data was invalid; falling back to ImGui default font.");
+                LogWarning("LSANS_TTF resource data was invalid; falling back to ImGui default font.",
+                    kThemeFontUnavailableWarningId, true);
                 io.Fonts->AddFontDefault();
             }
         } else {
-            LogWarning("LSANS_TTF resource could not be loaded; falling back to ImGui default font.");
+            LogWarning("LSANS_TTF resource could not be loaded; falling back to ImGui default font.",
+                kThemeFontUnavailableWarningId, true);
             io.Fonts->AddFontDefault();
         }
     } else {
-        LogWarning("LSANS_TTF resource was not found; falling back to ImGui default font.");
+        LogWarning("LSANS_TTF resource was not found; falling back to ImGui default font.",
+            kThemeFontUnavailableWarningId, true);
         io.Fonts->AddFontDefault();
     }
 #else
@@ -129,11 +135,13 @@ void SetupSharedFontsAndStyle(ImGuiIO& io)
 #if !defined(_WIN32)
     if (!fontPath.empty()) {
         if (!io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), 20.0f, &cfg)) {
-            LogWarning("LSANS.TTF was found at " + fontPath.string() + " but ImGui could not load it; falling back to ImGui default font.");
+            LogWarning("LSANS.TTF was found at " + fontPath.string() + " but ImGui could not load it; falling back to ImGui default font.",
+                kThemeFontUnavailableWarningId, true);
             io.Fonts->AddFontDefault();
         }
     } else {
-        LogWarning("LSANS.TTF font was not found; falling back to ImGui default font.");
+        LogWarning("LSANS.TTF font was not found; falling back to ImGui default font.",
+            kThemeFontUnavailableWarningId, true);
         io.Fonts->AddFontDefault();
     }
 #endif

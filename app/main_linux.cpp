@@ -28,6 +28,11 @@
 
 namespace {
 
+constexpr const char kLinuxProcessBackendInitWarningId[] = "linux_process_backend_init_failed";
+constexpr const char kLinuxInputBackendInitWarningId[] = "linux_input_backend_init_failed";
+constexpr const char kLinuxNetworkBackendUnavailableWarningId[] = "linux_network_backend_unavailable";
+constexpr const char kForegroundDetectionUnavailableWarningId[] = "foreground_detection_unavailable";
+
 std::string GetExecutablePath()
 {
     std::array<char, 4096> buffer{};
@@ -275,7 +280,7 @@ void InitializeLinuxInputBackend(
         context.linuxInputSetupRequired = true;
         if (!context.inputBackendError.empty()) {
             context.linuxInputPermissionDetails += "\nBackend initialization: " + context.inputBackendError;
-            LogWarning(context.inputBackendError);
+            LogWarning(context.inputBackendError, kLinuxInputBackendInitWarningId, true);
         }
         inputBackend.reset();
         smu::platform::SetInputBackend(nullptr);
@@ -363,7 +368,7 @@ int main(int argc, char** argv)
     smu::platform::SetProcessBackend(processBackend);
     context.processBackendAvailable = processBackend->init(&context.processBackendError);
     if (!context.processBackendAvailable && !context.processBackendError.empty()) {
-        LogWarning(context.processBackendError);
+        LogWarning(context.processBackendError, kLinuxProcessBackendInitWarningId, true);
     } else if (context.processBackendAvailable) {
         LogInfo("Linux process backend initialized.");
     }
@@ -372,11 +377,13 @@ int main(int argc, char** argv)
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         context.networkBackendAvailable = networkBackend->isAvailable();
         context.networkBackendError = networkBackend->unsupportedReason();
-        LogWarning(context.networkBackendError);
+        if (!context.networkBackendError.empty()) {
+            LogWarning(context.networkBackendError, kLinuxNetworkBackendUnavailableWarningId, true);
+        }
     }
 
     for (const std::string& warning : context.capabilities.warnings) {
-        LogWarning(warning);
+        LogWarning(warning, kForegroundDetectionUnavailableWarningId, true);
     }
     for (const std::string& error : context.capabilities.criticalErrors) {
         LogCritical(error);

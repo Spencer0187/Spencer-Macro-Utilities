@@ -86,11 +86,13 @@ std::string WithSupportText(const std::string& message)
     return message + "\n\n" + kCriticalSupportText;
 }
 
-void WriteEntry(LogLevel level, const std::string& rawMessage)
+void WriteEntry(LogLevel level, const std::string& rawMessage, const std::string& id, bool onLaunch)
 {
     LogEntry entry;
     entry.level = level;
     entry.message = (level == LogLevel::Critical) ? WithSupportText(rawMessage) : rawMessage;
+    entry.id = id;
+    entry.onLaunch = onLaunch;
     entry.timestamp = std::chrono::system_clock::now();
 
     const std::string formatted = FormatEntry(entry);
@@ -136,22 +138,27 @@ void WriteEntry(LogLevel level, const std::string& rawMessage)
 
 void LogInfo(const std::string& message)
 {
-    WriteEntry(LogLevel::Info, message);
+    WriteEntry(LogLevel::Info, message, "", false);
 }
 
 void LogWarning(const std::string& message)
 {
-    WriteEntry(LogLevel::Warning, message);
+    WriteEntry(LogLevel::Warning, message, "", false);
+}
+
+void LogWarning(const std::string& message, const std::string& id, bool onLaunch)
+{
+    WriteEntry(LogLevel::Warning, message, id, onLaunch);
 }
 
 void LogError(const std::string& message)
 {
-    WriteEntry(LogLevel::Error, message);
+    WriteEntry(LogLevel::Error, message, "", false);
 }
 
 void LogCritical(const std::string& message)
 {
-    WriteEntry(LogLevel::Critical, message);
+    WriteEntry(LogLevel::Critical, message, "", false);
 }
 
 std::vector<LogEntry> GetLogSnapshot()
