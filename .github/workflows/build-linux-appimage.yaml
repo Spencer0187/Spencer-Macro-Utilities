@@ -1,3 +1,5 @@
+name: Build Linux
+
 on:
   workflow_dispatch:
 jobs:
