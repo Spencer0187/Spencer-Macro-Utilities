@@ -255,6 +255,27 @@ void ResetInstanceRemoveConfirmState()
     g_instance_remove_confirm_state = {};
 }
 
+void RenderSelectableToastMessage(const std::string& message)
+{
+    std::vector<char> buffer(message.begin(), message.end());
+    buffer.push_back('\0');
+
+    const float availableWidth = std::max(ImGui::GetContentRegionAvail().x, 1.0f);
+    const ImVec2 textSize = ImGui::CalcTextSize(message.c_str(), nullptr, false, availableWidth);
+    const float height = std::clamp(textSize.y + ImGui::GetStyle().FramePadding.y * 2.0f, 56.0f, 220.0f);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::InputTextMultiline("##toast_message", buffer.data(), buffer.size(), ImVec2(-FLT_MIN, height),
+        ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoHorizontalScroll | ImGuiInputTextFlags_WordWrap);
+    ImGui::PopStyleColor(4);
+    ImGui::PopStyleVar(2);
+}
+
 
 void StartUpdateCheck(bool force)
 {
@@ -2765,9 +2786,7 @@ void RenderPlatformWarningNotifications()
     if (ImGui::Begin("Platform Warnings", nullptr, flags)) {
         ImGui::TextUnformatted("Warning");
         ImGui::Separator();
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 380.0f);
-        ImGui::TextUnformatted(activeWarnings.front().message.c_str());
-        ImGui::PopTextWrapPos();
+        RenderSelectableToastMessage(activeWarnings.front().message);
         if (ImGui::Button("Dismiss", ImVec2(100.0f, 0.0f))) {
             activeWarnings.erase(activeWarnings.begin());
         }
