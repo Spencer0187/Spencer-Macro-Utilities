@@ -79,7 +79,7 @@ FileDialogResult OpenNativeFileDialog(const FileDialogOptions& options)
     if (CommandExists("zenity")) {
         const std::string command =
             "zenity --file-selection --title=" + ShellQuote(title) +
-            " --file-filter=" + ShellQuote("SMU Scripts | *.smus *.hss *.lua");
+            " --file-filter=" + ShellQuote("SMU Scripts | *.smus *.hss *.lua *.txt");
         if (auto output = RunCommandCapture(command)) {
             return {FileDialogResultType::Selected, std::filesystem::path(*output), {}};
         }
@@ -89,7 +89,7 @@ FileDialogResult OpenNativeFileDialog(const FileDialogOptions& options)
     if (CommandExists("kdialog")) {
         const std::string command =
             "kdialog --getopenfilename " + ShellQuote(InitialDirectory(options)) +
-            " " + ShellQuote("*.smus *.hss *.lua|SMU Scripts");
+            " " + ShellQuote("*.smus *.hss *.lua *.txt|SMU Scripts");
         if (auto output = RunCommandCapture(command)) {
             return {FileDialogResultType::Selected, std::filesystem::path(*output), {}};
         }

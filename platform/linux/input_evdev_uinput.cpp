@@ -6,7 +6,9 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdint>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
 #include <dirent.h>
@@ -14,7 +16,9 @@
 #include <initializer_list>
 #include <linux/input.h>
 #include <linux/uinput.h>
+#include <limits>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <poll.h>
 #include <set>
@@ -26,6 +30,23 @@
 #include <thread>
 #include <unordered_map>
 #include <unistd.h>
+
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#endif
+
+#if defined(SMU_HAS_XINERAMA) && SMU_HAS_XINERAMA
+#include <X11/extensions/Xinerama.h>
+#endif
+
+#if !defined(SMU_HAS_X11)
+#define SMU_HAS_X11 0
+#endif
+
+#if !defined(SMU_HAS_XINERAMA)
+#define SMU_HAS_XINERAMA 0
+#endif
 
 namespace smu::platform::linux {
 namespace {
@@ -80,6 +101,309 @@ constexpr PlatformKeyCode kVkOem4 = 0xDB;
 constexpr PlatformKeyCode kVkOem5 = 0xDC;
 constexpr PlatformKeyCode kVkOem6 = 0xDD;
 constexpr PlatformKeyCode kVkOem7 = 0xDE;
+
+
+std::optional<CursorPosition> GetX11CursorPosition()
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        return std::nullopt;
+    }
+
+    Window root = DefaultRootWindow(display);
+    Window returnedRoot = 0;
+    Window returnedChild = 0;
+    int rootX = 0;
+    int rootY = 0;
+    int winX = 0;
+    int winY = 0;
+    unsigned int mask = 0;
+    const Bool ok = XQueryPointer(display, root, &returnedRoot, &returnedChild, &rootX, &rootY, &winX, &winY, &mask);
+    XCloseDisplay(display);
+    if (!ok) {
+        return std::nullopt;
+    }
+    return CursorPosition{rootX, rootY};
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<ScreenBounds> GetX11ScreenBounds()
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        return std::nullopt;
+    }
+
+    const int screen = DefaultScreen(display);
+    const int width = DisplayWidth(display, screen);
+    const int height = DisplayHeight(display, screen);
+    XCloseDisplay(display);
+    if (width <= 0 || height <= 0) {
+        return std::nullopt;
+    }
+    return ScreenBounds{0, 0, width, height};
+#else
+    return std::nullopt;
+#endif
+}
+
+std::optional<ScreenBounds> GetX11ActiveMonitorBounds()
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        return std::nullopt;
+    }
+
+    Window root = DefaultRootWindow(display);
+    Window returnedRoot = 0;
+    Window returnedChild = 0;
+    int rootX = 0;
+    int rootY = 0;
+    int winX = 0;
+    int winY = 0;
+    unsigned int mask = 0;
+    const Bool ok = XQueryPointer(display, root, &returnedRoot, &returnedChild, &rootX, &rootY, &winX, &winY, &mask);
+    if (!ok) {
+        XCloseDisplay(display);
+        return std::nullopt;
+    }
+
+#if defined(SMU_HAS_XINERAMA) && SMU_HAS_XINERAMA
+    if (XineramaIsActive(display)) {
+        int monitorCount = 0;
+        XineramaScreenInfo* monitors = XineramaQueryScreens(display, &monitorCount);
+        if (monitors && monitorCount > 0) {
+            std::optional<ScreenBounds> fallback;
+            long long bestDistance = std::numeric_limits<long long>::max();
+            for (int i = 0; i < monitorCount; ++i) {
+                const int x = monitors[i].x_org;
+                const int y = monitors[i].y_org;
+                const int width = monitors[i].width;
+                const int height = monitors[i].height;
+                if (width <= 0 || height <= 0) {
+                    continue;
+                }
+                if (rootX >= x && rootX < x + width && rootY >= y && rootY < y + height) {
+                    const ScreenBounds bounds{x, y, width, height};
+                    XFree(monitors);
+                    XCloseDisplay(display);
+                    return bounds;
+                }
+
+                const long long centerX = static_cast<long long>(x) + width / 2;
+                const long long centerY = static_cast<long long>(y) + height / 2;
+                const long long dx = static_cast<long long>(rootX) - centerX;
+                const long long dy = static_cast<long long>(rootY) - centerY;
+                const long long distance = dx * dx + dy * dy;
+                if (!fallback || distance < bestDistance) {
+                    bestDistance = distance;
+                    fallback = ScreenBounds{x, y, width, height};
+                }
+            }
+            XFree(monitors);
+            if (fallback) {
+                XCloseDisplay(display);
+                return fallback;
+            }
+        }
+    }
+#endif
+
+    const int screen = DefaultScreen(display);
+    const int width = DisplayWidth(display, screen);
+    const int height = DisplayHeight(display, screen);
+    XCloseDisplay(display);
+    if (width <= 0 || height <= 0) {
+        return std::nullopt;
+    }
+    return ScreenBounds{0, 0, width, height};
+#else
+    return std::nullopt;
+#endif
+}
+
+std::string LinuxScreenReadUnavailableReason();
+
+std::uint8_t ComponentFromMask(unsigned long pixel, unsigned long mask)
+{
+    if (mask == 0) {
+        return 0;
+    }
+
+    int shift = 0;
+    while (shift < static_cast<int>(sizeof(mask) * 8) && ((mask >> shift) & 1UL) == 0UL) {
+        ++shift;
+    }
+
+    unsigned long shiftedMask = mask >> shift;
+    unsigned long maxValue = shiftedMask;
+    unsigned long value = (pixel & mask) >> shift;
+    if (maxValue == 0) {
+        return 0;
+    }
+    return static_cast<std::uint8_t>((value * 255UL + maxValue / 2UL) / maxValue);
+}
+
+class X11PixelSampler {
+public:
+    X11PixelSampler() = default;
+    X11PixelSampler(const X11PixelSampler&) = delete;
+    X11PixelSampler& operator=(const X11PixelSampler&) = delete;
+
+    ~X11PixelSampler()
+    {
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+        if (display_) {
+            XCloseDisplay(display_);
+        }
+#endif
+    }
+
+    std::optional<PixelColor> sample(int x, int y, std::string* errorMessage)
+    {
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!ensureOpen(errorMessage)) {
+            return std::nullopt;
+        }
+
+        Window root = DefaultRootWindow(display_);
+        XImage* image = XGetImage(display_, root, x, y, 1, 1, AllPlanes, ZPixmap);
+        if (!image) {
+            if (errorMessage) {
+                *errorMessage = "XGetImage failed while sampling the screen pixel";
+            }
+            return std::nullopt;
+        }
+
+        const unsigned long pixel = XGetPixel(image, 0, 0);
+        Visual* visual = DefaultVisual(display_, DefaultScreen(display_));
+        PixelColor color{};
+        if (visual) {
+            color.r = ComponentFromMask(pixel, visual->red_mask);
+            color.g = ComponentFromMask(pixel, visual->green_mask);
+            color.b = ComponentFromMask(pixel, visual->blue_mask);
+        }
+        XDestroyImage(image);
+        return color;
+#else
+        (void)x;
+        (void)y;
+        if (errorMessage) {
+            *errorMessage = LinuxScreenReadUnavailableReason();
+        }
+        return std::nullopt;
+#endif
+    }
+
+private:
+    bool ensureOpen(std::string* errorMessage)
+    {
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+        if (display_) {
+            return true;
+        }
+        display_ = XOpenDisplay(nullptr);
+        if (!display_) {
+            if (errorMessage) {
+                *errorMessage = LinuxScreenReadUnavailableReason();
+            }
+            return false;
+        }
+        return true;
+#else
+        (void)errorMessage;
+        return false;
+#endif
+    }
+
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    std::mutex mutex_;
+    Display* display_ = nullptr;
+#endif
+};
+
+X11PixelSampler& GetX11PixelSampler()
+{
+    static X11PixelSampler sampler;
+    return sampler;
+}
+
+std::optional<PixelColor> GetX11PixelColor(int x, int y, std::string* errorMessage)
+{
+    return GetX11PixelSampler().sample(x, y, errorMessage);
+}
+
+bool EnvEquals(const char* name, const char* expected)
+{
+    const char* value = std::getenv(name);
+    if (!value) {
+        return false;
+    }
+    return std::string(value) == expected;
+}
+
+std::string LinuxAbsolutePointerUnavailableReason()
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    const bool appearsWayland = EnvEquals("XDG_SESSION_TYPE", "wayland");
+    const char* displayEnv = std::getenv("DISPLAY");
+    if (!displayEnv || displayEnv[0] == '\0') {
+        if (appearsWayland) {
+            return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux currently require X11/XWayland cursor-position access, but this appears to be a native Wayland session with no X11 DISPLAY. Native Wayland usually blocks global cursor position and arbitrary screen reads; use relative moveMouse() or run under X11/XWayland.";
+        }
+        return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux currently require an X11 DISPLAY so SMU can query the global cursor position and active monitor bounds.";
+    }
+
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        if (appearsWayland) {
+            return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux currently require X11/XWayland cursor-position access; this Wayland session exposes DISPLAY but XOpenDisplay failed. Native Wayland usually blocks global cursor position and arbitrary screen reads.";
+        }
+        return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux require X11 cursor-position access, but XOpenDisplay failed for the current DISPLAY.";
+    }
+    XCloseDisplay(display);
+
+    if (appearsWayland) {
+        return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux currently rely on X11/XWayland cursor-position queries; this Wayland session did not provide usable global cursor/monitor data.";
+    }
+    return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux require X11 cursor-position and active-monitor queries, but the current X11 query failed.";
+#else
+    return "absolute screen coordinates are unavailable. moveMouseAbs and getPixelColor on Linux require X11 cursor-position support, but this build was compiled without X11 support. Native Wayland sessions usually block global cursor position and arbitrary screen reads.";
+#endif
+}
+
+std::string LinuxScreenReadUnavailableReason()
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    const bool appearsWayland = EnvEquals("XDG_SESSION_TYPE", "wayland");
+    const char* displayEnv = std::getenv("DISPLAY");
+    if (!displayEnv || displayEnv[0] == '\0') {
+        if (appearsWayland) {
+            return "screen pixel color sampling is unavailable. getPixelColor on Linux currently requires X11/XWayland screen-read access, but this appears to be a native Wayland session with no X11 DISPLAY. Native Wayland usually blocks arbitrary global screen reads.";
+        }
+        return "screen pixel color sampling is unavailable. getPixelColor on Linux currently requires an X11 DISPLAY so SMU can read pixels from the root window.";
+    }
+
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        if (appearsWayland) {
+            return "screen pixel color sampling is unavailable. getPixelColor on Linux currently requires X11/XWayland screen-read access; this Wayland session exposes DISPLAY but XOpenDisplay failed. Native Wayland usually blocks arbitrary global screen reads.";
+        }
+        return "screen pixel color sampling is unavailable. getPixelColor on Linux requires X11 root-window access, but XOpenDisplay failed for the current DISPLAY.";
+    }
+    XCloseDisplay(display);
+
+    return "screen pixel color sampling failed while reading from the X11 root window.";
+#else
+    return "screen pixel color sampling is unavailable. getPixelColor on Linux requires X11 screen-read support, but this build was compiled without X11 support. Native Wayland usually blocks arbitrary global screen reads.";
+#endif
+}
 
 bool TestBit(const unsigned long* bits, int bit)
 {
@@ -546,9 +870,44 @@ void EvdevUinputInputBackend::releaseKeyChord(PlatformKeyCode combinedKey)
 
 void EvdevUinputInputBackend::moveMouse(int dx, int dy)
 {
+    moveMouseRaw(dx, dy);
+}
+
+void EvdevUinputInputBackend::moveMouseRaw(int dx, int dy)
+{
     emit(EV_REL, REL_X, dx);
     emit(EV_REL, REL_Y, dy);
     emitSyn();
+}
+
+std::optional<CursorPosition> EvdevUinputInputBackend::getCursorPosition() const
+{
+    return GetX11CursorPosition();
+}
+
+std::optional<ScreenBounds> EvdevUinputInputBackend::getScreenBounds() const
+{
+    return GetX11ScreenBounds();
+}
+
+std::optional<ScreenBounds> EvdevUinputInputBackend::getActiveMonitorBounds() const
+{
+    return GetX11ActiveMonitorBounds();
+}
+
+std::string EvdevUinputInputBackend::absolutePointerUnavailableReason() const
+{
+    return LinuxAbsolutePointerUnavailableReason();
+}
+
+std::optional<PixelColor> EvdevUinputInputBackend::getPixelColor(int x, int y, std::string* errorMessage) const
+{
+    return GetX11PixelColor(x, y, errorMessage);
+}
+
+std::string EvdevUinputInputBackend::screenReadUnavailableReason() const
+{
+    return LinuxScreenReadUnavailableReason();
 }
 
 void EvdevUinputInputBackend::mouseWheel(int delta)

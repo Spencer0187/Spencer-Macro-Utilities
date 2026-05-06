@@ -22,7 +22,45 @@ public:
     virtual void holdKeyChord(PlatformKeyCode combinedKey) = 0;
     virtual void releaseKeyChord(PlatformKeyCode combinedKey) = 0;
     virtual void moveMouse(int dx, int dy) = 0;
+    virtual void moveMouseRaw(int dx, int dy)
+    {
+        moveMouse(dx, dy);
+    }
     virtual void mouseWheel(int delta) = 0;
+
+    virtual std::optional<CursorPosition> getCursorPosition() const
+    {
+        return std::nullopt;
+    }
+    virtual std::optional<ScreenBounds> getScreenBounds() const
+    {
+        return std::nullopt;
+    }
+
+    virtual std::optional<ScreenBounds> getActiveMonitorBounds() const
+    {
+        return getScreenBounds();
+    }
+
+    virtual std::string absolutePointerUnavailableReason() const
+    {
+        return "cursor/screen position is not available on this platform/session";
+    }
+
+    virtual std::optional<PixelColor> getPixelColor(int x, int y, std::string* errorMessage = nullptr) const
+    {
+        if (errorMessage) {
+            *errorMessage = "screen pixel color sampling is not available on this platform/session";
+        }
+        (void)x;
+        (void)y;
+        return std::nullopt;
+    }
+
+    virtual std::string screenReadUnavailableReason() const
+    {
+        return "screen pixel color sampling is not available on this platform/session";
+    }
 
     virtual std::optional<PlatformKeyCode> getCurrentPressedKey() const = 0;
     virtual std::string formatKeyName(PlatformKeyCode key) const = 0;

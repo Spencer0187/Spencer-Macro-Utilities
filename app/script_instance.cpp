@@ -421,6 +421,7 @@ bool ScriptInstance::loadFile(const std::filesystem::path& path)
 
 bool ScriptInstance::hasFunction(const char* name) const
 {
+    std::lock_guard<std::mutex> luaLock(luaMutex_);
     if (!L_) {
         return false;
     }
@@ -433,6 +434,7 @@ bool ScriptInstance::hasFunction(const char* name) const
 
 bool ScriptInstance::callOnExecute()
 {
+    std::lock_guard<std::mutex> luaLock(luaMutex_);
     if (!L_) {
         owner_->setLastError("Script is not loaded.");
         return false;
@@ -477,6 +479,7 @@ bool ScriptInstance::callOnExecute()
 
 void ScriptInstance::syncSettingsTable()
 {
+    std::lock_guard<std::mutex> luaLock(luaMutex_);
     if (L_) {
         SyncLuaSettingsTable(L_, owner_->uiState);
         syncUiIdCache();
@@ -561,6 +564,15 @@ unsigned int& ScriptInstance::keybindValue(const std::string& id, unsigned int d
 
 bool ScriptInstance::callOnSettings(bool renderMode)
 {
+    std::unique_lock<std::mutex> luaLock(luaMutex_, std::defer_lock);
+    if (renderMode) {
+        if (!luaLock.try_lock()) {
+            return true;
+        }
+    } else {
+        luaLock.lock();
+    }
+
     if (!L_) {
         owner_->setLastError("Script is not loaded.");
         return false;
@@ -601,6 +613,7 @@ bool ScriptInstance::callOnSettings(bool renderMode)
 void ScriptInstance::cleanup()
 {
     requestCancel();
+    std::lock_guard<std::mutex> luaLock(luaMutex_);
     setFreeze(false);
     if (L_) {
         releaseAllSleepingCoroutines();

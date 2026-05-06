@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
+#include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -467,17 +469,208 @@ void ReleaseChordNative(unsigned int combinedKey)
     DispatchTaggedInputs(inputs.data(), inputs.size());
 }
 
-void MoveMouseNative(int dx, int dy)
+void MoveMouseNativeRaw(int dx, int dy)
 {
     INPUT input = {};
     input.type = INPUT_MOUSE;
-    dx = static_cast<int>(static_cast<std::int64_t>(dx) * display_scale / 100);
-    dy = static_cast<int>(static_cast<std::int64_t>(dy) * display_scale / 100);
     input.mi.dx = dx;
     input.mi.dy = dy;
     input.mi.dwFlags = MOUSEEVENTF_MOVE;
     TagInjectedInput(input);
     DispatchTaggedInputs(&input, 1);
+}
+
+void MoveMouseNative(int dx, int dy)
+{
+    dx = static_cast<int>(static_cast<std::int64_t>(dx) * display_scale / 100);
+    dy = static_cast<int>(static_cast<std::int64_t>(dy) * display_scale / 100);
+    MoveMouseNativeRaw(dx, dy);
+}
+
+std::optional<CursorPosition> GetCursorPositionNative()
+{
+    POINT point = {};
+    if (!GetCursorPos(&point)) {
+        return std::nullopt;
+    }
+    return CursorPosition{static_cast<int>(point.x), static_cast<int>(point.y)};
+}
+
+std::optional<ScreenBounds> GetScreenBoundsNative()
+{
+    const int x = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int y = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    const int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (width <= 0 || height <= 0) {
+        return std::nullopt;
+    }
+    return ScreenBounds{x, y, width, height};
+}
+
+std::optional<ScreenBounds> GetActiveMonitorBoundsNative()
+{
+    POINT point = {};
+    if (!GetCursorPos(&point)) {
+        return std::nullopt;
+    }
+
+    HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) {
+        return std::nullopt;
+    }
+
+    MONITORINFO info = {};
+    info.cbSize = sizeof(info);
+    if (!GetMonitorInfoA(monitor, &info)) {
+        return std::nullopt;
+    }
+
+    const int x = static_cast<int>(info.rcMonitor.left);
+    const int y = static_cast<int>(info.rcMonitor.top);
+    const int width = static_cast<int>(info.rcMonitor.right - info.rcMonitor.left);
+    const int height = static_cast<int>(info.rcMonitor.bottom - info.rcMonitor.top);
+    if (width <= 0 || height <= 0) {
+        return std::nullopt;
+    }
+    return ScreenBounds{x, y, width, height};
+}
+
+class ScreenPixelSamplerNative {
+public:
+    ScreenPixelSamplerNative() = default;
+    ScreenPixelSamplerNative(const ScreenPixelSamplerNative&) = delete;
+    ScreenPixelSamplerNative& operator=(const ScreenPixelSamplerNative&) = delete;
+
+    ~ScreenPixelSamplerNative()
+    {
+        resetResources();
+    }
+
+    std::optional<PixelColor> sample(int x, int y, std::string* errorMessage)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!ensureInitialized(errorMessage)) {
+            return std::nullopt;
+        }
+
+        PixelColor color = {};
+        if (capturePixel(x, y, color, errorMessage)) {
+            return color;
+        }
+
+        resetResources();
+        if (!ensureInitialized(errorMessage)) {
+            return std::nullopt;
+        }
+
+        if (capturePixel(x, y, color, errorMessage)) {
+            return color;
+        }
+
+        return std::nullopt;
+    }
+
+private:
+    void resetResources()
+    {
+        if (memDc_) {
+            if (oldBitmap_) {
+                SelectObject(memDc_, oldBitmap_);
+            }
+            DeleteDC(memDc_);
+            memDc_ = nullptr;
+        }
+        if (bitmap_) {
+            DeleteObject(bitmap_);
+            bitmap_ = nullptr;
+        }
+        if (screenDc_) {
+            ReleaseDC(nullptr, screenDc_);
+            screenDc_ = nullptr;
+        }
+        oldBitmap_ = nullptr;
+        pixelBits_ = nullptr;
+    }
+
+    bool capturePixel(int x, int y, PixelColor& color, std::string* errorMessage)
+    {
+        if (!BitBlt(memDc_, 0, 0, 1, 1, screenDc_, x, y, SRCCOPY | CAPTUREBLT)) {
+            if (errorMessage) {
+                const DWORD lastError = GetLastError();
+                if (lastError != 0) {
+                    *errorMessage = "BitBlt failed while sampling the screen pixel (GetLastError=" + std::to_string(lastError) + ")";
+                } else {
+                    *errorMessage = "BitBlt failed while sampling the screen pixel";
+                }
+            }
+            return false;
+        }
+
+        const auto* bytes = static_cast<const unsigned char*>(pixelBits_);
+        color = PixelColor{bytes[2], bytes[1], bytes[0]};
+        return true;
+    }
+
+    bool ensureInitialized(std::string* errorMessage)
+    {
+        if (screenDc_ && memDc_ && bitmap_ && pixelBits_) {
+            return true;
+        }
+
+        screenDc_ = GetDC(nullptr);
+        if (!screenDc_) {
+            if (errorMessage) {
+                *errorMessage = "GetDC failed while preparing screen pixel sampling";
+            }
+            return false;
+        }
+
+        memDc_ = CreateCompatibleDC(screenDc_);
+        if (!memDc_) {
+            if (errorMessage) {
+                *errorMessage = "CreateCompatibleDC failed while preparing screen pixel sampling";
+            }
+            return false;
+        }
+
+        BITMAPINFO bmi = {};
+        bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth = 1;
+        bmi.bmiHeader.biHeight = -1;
+        bmi.bmiHeader.biPlanes = 1;
+        bmi.bmiHeader.biBitCount = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        bitmap_ = CreateDIBSection(screenDc_, &bmi, DIB_RGB_COLORS, &pixelBits_, nullptr, 0);
+        if (!bitmap_ || !pixelBits_) {
+            if (errorMessage) {
+                *errorMessage = "CreateDIBSection failed while preparing screen pixel sampling";
+            }
+            return false;
+        }
+
+        oldBitmap_ = SelectObject(memDc_, bitmap_);
+        return true;
+    }
+
+    mutable std::mutex mutex_;
+    HDC screenDc_ = nullptr;
+    HDC memDc_ = nullptr;
+    HBITMAP bitmap_ = nullptr;
+    HGDIOBJ oldBitmap_ = nullptr;
+    void* pixelBits_ = nullptr;
+};
+
+ScreenPixelSamplerNative& GetScreenPixelSamplerNative()
+{
+    static ScreenPixelSamplerNative sampler;
+    return sampler;
+}
+
+std::optional<PixelColor> GetPixelColorNative(int x, int y, std::string* errorMessage)
+{
+    return GetScreenPixelSamplerNative().sample(x, y, errorMessage);
 }
 
 class SendInputBackend final : public smu::platform::InputBackend {
@@ -531,6 +724,36 @@ public:
     void moveMouse(int dx, int dy) override
     {
         MoveMouseNative(dx, dy);
+    }
+
+    void moveMouseRaw(int dx, int dy) override
+    {
+        MoveMouseNativeRaw(dx, dy);
+    }
+
+    std::optional<CursorPosition> getCursorPosition() const override
+    {
+        return GetCursorPositionNative();
+    }
+
+    std::optional<ScreenBounds> getScreenBounds() const override
+    {
+        return GetScreenBoundsNative();
+    }
+
+    std::optional<ScreenBounds> getActiveMonitorBounds() const override
+    {
+        return GetActiveMonitorBoundsNative();
+    }
+
+    std::optional<PixelColor> getPixelColor(int x, int y, std::string* errorMessage = nullptr) const override
+    {
+        return GetPixelColorNative(x, y, errorMessage);
+    }
+
+    std::string screenReadUnavailableReason() const override
+    {
+        return "screen pixel color sampling is not available in the current Windows session";
     }
 
     void mouseWheel(int delta) override

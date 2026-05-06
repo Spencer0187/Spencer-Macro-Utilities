@@ -322,7 +322,7 @@ bool IsSupportedScriptExtension(const std::filesystem::path& path)
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
     });
-    return ext == ".smus" || ext == ".hss" || ext == ".lua";
+    return ext == ".smus" || ext == ".hss" || ext == ".lua" || ext == ".txt";
 }
 
 } // namespace smu::app
