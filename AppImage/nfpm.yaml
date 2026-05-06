@@ -8,7 +8,7 @@ maintainer: FloofyIV <floofyiv9@proton.me>
 description: |
   An open source C++ Roblox Macro with many features.
 vendor: FloofyIV
-homepage: https://example.com
+homepage: https://spencermacro.vercel.app
 contents:
   - src: ./staged/usr/bin/suspend
     dst: /usr/share/spencer-macro-utilities/suspend
