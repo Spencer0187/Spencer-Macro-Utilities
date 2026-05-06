@@ -31,7 +31,7 @@ void MaybeWarnForegroundDetectionFallback(AppContext& context)
     }
 
     context.foregroundFallbackWarningShown = true;
-    LogWarning("Foreground-detection-dependent macros are in always-active mode because foreground Roblox window detection is unavailable on this display server.");
+    LogWarning("Foreground-detection-dependent macros are in always-active mode because foreground Roblox window detection is unavailable on Wayland or this specific display server.");
 }
 
 } // namespace smu::app

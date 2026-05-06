@@ -473,6 +473,7 @@ void SyncLuaSetting(lua_State* L, const std::string& name, const SavedSettingVal
 void UpdateScriptSetting(ScriptInstance& instance, const std::string& name, const SavedSettingValue& value)
 {
     ImportedScriptRecord& record = instance.owner();
+    std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
     std::visit([&record, &name](const auto& storedValue) {
         record.uiState[name] = storedValue;
     }, value);
@@ -840,6 +841,7 @@ int LuaUiText(lua_State* L)
     std::size_t textLength = 0;
     const char* text = luaL_checklstring(L, 1, &textLength);
     const float width = CheckOptionalNonNegativeFloat(L, 2, 0.0f, "width");
+    instance.recordSettingsText(text ? ClampedString(text, textLength) : std::string(), width);
     if (IsSettingsRenderMode(L) && text) {
         const int displayLength = static_cast<int>(std::min(textLength, kMaxUiStateStringBytes));
         if (width > 0.0f) {
@@ -857,9 +859,10 @@ int LuaUiSeparator(lua_State* L)
 {
     ScriptInstance& instance = RequireInstance(L);
     CheckUiControlBudget(L, instance);
+    const float height = CheckOptionalNonNegativeFloat(L, 1, 0.0f, "height");
+    instance.recordSettingsSeparator(height);
     if (IsSettingsRenderMode(L)) {
         ImGui::Separator();
-        const float height = CheckOptionalNonNegativeFloat(L, 2, 0.0f, "height");
         if (height > 0.0f) {
             ImGui::Dummy(ImVec2(0.0f, height));
         }
@@ -878,13 +881,20 @@ int LuaUiCheckbox(lua_State* L)
     const float width = CheckOptionalNonNegativeFloat(L, 4, 0.0f, "width");
 
     const std::string id(idText, idLength);
+    instance.recordSettingsCheckbox(id, label, defaultValue, width);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
-    const bool stored = storedIt != record.uiState.end() && storedIt->is_boolean()
-        ? storedIt->get<bool>()
-        : defaultValue;
-    if (storedIt == record.uiState.end()) {
+    bool hasStored = false;
+    bool stored = defaultValue;
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored && storedIt->is_boolean()) {
+            stored = storedIt->get<bool>();
+        }
+    }
+    if (!hasStored) {
         UpdateScriptSetting(instance, id, SavedSettingValue{stored});
     }
 
@@ -933,22 +943,28 @@ int LuaUiSliderInt(lua_State* L)
     }
 
     const std::string id(idText, idLength);
+    instance.recordSettingsSliderInt(id, label, defaultValue, minValue, maxValue, width);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
     int stored = defaultValue;
-    if (storedIt != record.uiState.end()) {
-        if (storedIt->is_number_integer()) {
-            const auto value = storedIt->get<std::int64_t>();
-            stored = static_cast<int>(std::clamp<std::int64_t>(value, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()));
-        } else if (storedIt->is_number_unsigned()) {
-            const auto value = storedIt->get<std::uint64_t>();
-            stored = value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())
-                ? std::numeric_limits<int>::max()
-                : static_cast<int>(value);
+    bool hasStored = false;
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored) {
+            if (storedIt->is_number_integer()) {
+                const auto value = storedIt->get<std::int64_t>();
+                stored = static_cast<int>(std::clamp<std::int64_t>(value, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()));
+            } else if (storedIt->is_number_unsigned()) {
+                const auto value = storedIt->get<std::uint64_t>();
+                stored = value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())
+                    ? std::numeric_limits<int>::max()
+                    : static_cast<int>(value);
+            }
         }
     }
-    if (storedIt == record.uiState.end()) {
+    if (!hasStored) {
         UpdateScriptSetting(instance, id, SavedSettingValue{static_cast<std::int64_t>(stored)});
     }
 
@@ -986,18 +1002,24 @@ int LuaUiSliderFloat(lua_State* L)
     maxValue = std::clamp(maxValue, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
 
     const std::string id(idText, idLength);
+    instance.recordSettingsSliderFloat(id, label, defaultValue, minValue, maxValue, width);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
     double stored = defaultValue;
-    if (storedIt != record.uiState.end() && storedIt->is_number()) {
-        const double storedNumber = storedIt->get<double>();
-        if (std::isfinite(storedNumber)) {
-            stored = storedNumber;
+    bool hasStored = false;
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored && storedIt->is_number()) {
+            const double storedNumber = storedIt->get<double>();
+            if (std::isfinite(storedNumber)) {
+                stored = storedNumber;
+            }
         }
     }
     stored = std::clamp(stored, static_cast<double>(-std::numeric_limits<float>::max()), static_cast<double>(std::numeric_limits<float>::max()));
-    if (storedIt == record.uiState.end()) {
+    if (!hasStored) {
         UpdateScriptSetting(instance, id, SavedSettingValue{stored});
     }
 
@@ -1030,16 +1052,23 @@ int LuaUiTextbox(lua_State* L)
     const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
 
     const std::string id(idText, idLength);
+    instance.recordSettingsTextbox(id, label, ClampedString(defaultValue, defaultLength), width, height);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
-    std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
-        ? storedIt->get<std::string>()
-        : ClampedString(defaultValue, defaultLength);
+    bool hasStored = false;
+    std::string stored = ClampedString(defaultValue, defaultLength);
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored && storedIt->is_string()) {
+            stored = storedIt->get<std::string>();
+        }
+    }
     if (stored.size() > kMaxUiStateStringBytes) {
         stored.resize(kMaxUiStateStringBytes);
     }
-    if (storedIt == record.uiState.end()) {
+    if (!hasStored) {
         UpdateScriptStringSetting(instance, id, stored);
     }
 
@@ -1083,15 +1112,22 @@ int LuaUiDynamicTextbox(lua_State* L)
     const float height = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "height");
 
     const std::string id(idText, idLength);
+    instance.recordSettingsDynamicTextbox(id, label, ClampedString(defaultValue, defaultLength), width, height);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
-    std::string stored = storedIt != record.uiState.end() && storedIt->is_string()
-        ? storedIt->get<std::string>()
-        : ClampedString(defaultValue, defaultLength);
+    bool hasStored = false;
+    std::string stored = ClampedString(defaultValue, defaultLength);
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored && storedIt->is_string()) {
+            stored = storedIt->get<std::string>();
+        }
+    }
     stored = ClampDynamicText(std::move(stored));
 
-    if (storedIt == record.uiState.end()) {
+    if (!hasStored) {
         UpdateScriptStringSetting(instance, id, stored);
     }
 
@@ -1155,24 +1191,30 @@ int LuaUiKeybind(lua_State* L)
     }
 
     const std::string id(idText, idLength);
+    instance.recordSettingsKeybind(id, label, defaultValue, width);
     CheckUiIdBudget(L, instance, id);
     ImportedScriptRecord& record = instance.owner();
-    const auto storedIt = record.uiState.find(id);
     unsigned int stored = defaultValue;
-    if (storedIt != record.uiState.end()) {
-        if (storedIt->is_number_integer()) {
-            const auto value = storedIt->get<std::int64_t>();
-            stored = value >= 0 && value <= static_cast<std::int64_t>(std::numeric_limits<int>::max())
-                ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
-                : kScriptUnboundHotkey;
-        } else if (storedIt->is_number_unsigned()) {
-            const auto value = storedIt->get<std::uint64_t>();
-            stored = value <= static_cast<std::uint64_t>(std::numeric_limits<int>::max())
-                ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
-                : kScriptUnboundHotkey;
+    bool hasStored = false;
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored) {
+            if (storedIt->is_number_integer()) {
+                const auto value = storedIt->get<std::int64_t>();
+                stored = value >= 0 && value <= static_cast<std::int64_t>(std::numeric_limits<int>::max())
+                    ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
+                    : kScriptUnboundHotkey;
+            } else if (storedIt->is_number_unsigned()) {
+                const auto value = storedIt->get<std::uint64_t>();
+                stored = value <= static_cast<std::uint64_t>(std::numeric_limits<int>::max())
+                    ? NormalizeScriptHotkey(static_cast<unsigned int>(value))
+                    : kScriptUnboundHotkey;
+            }
         }
     }
-    if (storedIt == record.uiState.end()) {
+    if (!hasStored) {
         UpdateScriptSetting(instance, id, SavedSettingValue{static_cast<std::int64_t>(stored)});
     }
 

@@ -1,5 +1,6 @@
 #include "script_instance.h"
 
+#include "app_ui_controls.h"
 #include "script_api.h"
 #include "profile_manager.h"
 #include "script_manager.h"
@@ -10,6 +11,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
@@ -20,6 +22,8 @@
 #include <thread>
 #include <utility>
 #include <variant>
+
+#include "imgui.h"
 
 extern "C" {
 #include "lauxlib.h"
@@ -242,6 +246,33 @@ void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
     }, value);
 }
 
+template <std::size_t N>
+void CopyToBuffer(std::array<char, N>& buffer, const std::string& text)
+{
+    std::snprintf(buffer.data(), buffer.size(), "%s", text.c_str());
+}
+
+std::string ClampStoredUiText(std::string text)
+{
+    if (text.size() > kMaxUiStateStringBytes) {
+        text.resize(kMaxUiStateStringBytes);
+    }
+    return text;
+}
+
+std::string ClampDynamicUiText(std::string text)
+{
+    if (text.size() > kMaxUiStateStringBytes) {
+        text = text.substr(text.size() - kMaxUiStateStringBytes);
+    }
+    return text;
+}
+
+unsigned int NormalizeCachedHotkey(unsigned int hotkey)
+{
+    return IsScriptHotkeyBound(hotkey) ? hotkey : kScriptUnboundHotkey;
+}
+
 std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
 {
     if (value.is_boolean()) {
@@ -389,7 +420,12 @@ bool ScriptInstance::init()
 
     OpenRestrictedLuaLibraries(L_);
     RegisterScriptApi(L_);
-    SyncLuaSettingsTable(L_, owner_->uiState);
+    nlohmann::json uiStateSnapshot = nlohmann::json::object();
+    if (owner_) {
+        std::lock_guard<std::mutex> uiLock(owner_->uiStateMutex);
+        uiStateSnapshot = owner_->uiState;
+    }
+    SyncLuaSettingsTable(L_, uiStateSnapshot);
     syncUiIdCache();
     return true;
 }
@@ -413,7 +449,8 @@ bool ScriptInstance::loadFile(const std::filesystem::path& path)
     }
 
     const bool loaded = callProtected(0, "load script");
-    if (loaded && HasSettingsCallback(L_)) {
+    hasSettingsCallback_ = loaded && HasSettingsCallback(L_);
+    if (hasSettingsCallback_) {
         callOnSettings(false);
     }
     return loaded;
@@ -481,7 +518,12 @@ void ScriptInstance::syncSettingsTable()
 {
     std::lock_guard<std::mutex> luaLock(luaMutex_);
     if (L_) {
-        SyncLuaSettingsTable(L_, owner_->uiState);
+        nlohmann::json uiStateSnapshot = nlohmann::json::object();
+        if (owner_) {
+            std::lock_guard<std::mutex> uiLock(owner_->uiStateMutex);
+            uiStateSnapshot = owner_->uiState;
+        }
+        SyncLuaSettingsTable(L_, uiStateSnapshot);
         syncUiIdCache();
     }
 }
@@ -489,7 +531,11 @@ void ScriptInstance::syncSettingsTable()
 void ScriptInstance::syncUiIdCache()
 {
     uiIdCache_.clear();
-    if (!owner_ || !owner_->uiState.is_object()) {
+    if (!owner_) {
+        return;
+    }
+    std::lock_guard<std::mutex> uiLock(owner_->uiStateMutex);
+    if (!owner_->uiState.is_object()) {
         return;
     }
     for (const auto& [key, value] : owner_->uiState.items()) {
@@ -562,6 +608,340 @@ unsigned int& ScriptInstance::keybindValue(const std::string& id, unsigned int d
     return it->second;
 }
 
+void ScriptInstance::beginSettingsUiCapture()
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    settingsUiCaptureActive_ = true;
+    pendingSettingsUiControls_.clear();
+}
+
+void ScriptInstance::finishSettingsUiCapture(bool commit)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (commit) {
+        settingsUiControls_ = std::move(pendingSettingsUiControls_);
+    } else {
+        pendingSettingsUiControls_.clear();
+    }
+    pendingSettingsUiControls_.clear();
+    settingsUiCaptureActive_ = false;
+}
+
+void ScriptInstance::recordSettingsText(std::string text, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Text;
+    control.text = std::move(text);
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsSeparator(float height)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Separator;
+    control.height = height;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsCheckbox(std::string id, std::string label, bool defaultValue, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Checkbox;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultBool = defaultValue;
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsSliderInt(std::string id, std::string label, int defaultValue, int minValue, int maxValue, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::SliderInt;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultInt = defaultValue;
+    control.minInt = minValue;
+    control.maxInt = maxValue;
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsSliderFloat(std::string id, std::string label, double defaultValue, double minValue, double maxValue, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::SliderFloat;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultFloat = defaultValue;
+    control.minFloat = minValue;
+    control.maxFloat = maxValue;
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsTextbox(std::string id, std::string label, std::string defaultValue, float width, float height)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Textbox;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultText = std::move(defaultValue);
+    control.width = width;
+    control.height = height;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsDynamicTextbox(std::string id, std::string label, std::string defaultValue, float width, float height)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::DynamicTextbox;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultText = std::move(defaultValue);
+    control.width = width;
+    control.height = height;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::recordSettingsKeybind(std::string id, std::string label, unsigned int defaultValue, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Keybind;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.defaultKeybind = defaultValue;
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
+void ScriptInstance::renderCachedSettings(bool readOnly)
+{
+    std::vector<SettingsUiControl> controls;
+    {
+        std::lock_guard<std::mutex> lock(settingsUiMutex_);
+        controls = settingsUiControls_;
+    }
+
+    auto copyUiValue = [this](const std::string& id) -> nlohmann::json {
+        if (!owner_) {
+            return nullptr;
+        }
+        std::lock_guard<std::mutex> uiLock(owner_->uiStateMutex);
+        const auto it = owner_->uiState.find(id);
+        if (it == owner_->uiState.end()) {
+            return nullptr;
+        }
+        return *it;
+    };
+
+    for (std::size_t index = 0; index < controls.size(); ++index) {
+        const SettingsUiControl& control = controls[index];
+        ImGui::PushID(static_cast<int>(index));
+        switch (control.kind) {
+        case SettingsUiControl::Kind::Text:
+            if (control.width > 0.0f) {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + control.width);
+                ImGui::TextWrapped("%s", control.text.c_str());
+                ImGui::PopTextWrapPos();
+            } else {
+                ImGui::TextWrapped("%s", control.text.c_str());
+            }
+            break;
+        case SettingsUiControl::Kind::Separator:
+            ImGui::Separator();
+            if (control.height > 0.0f) {
+                ImGui::Dummy(ImVec2(0.0f, control.height));
+            }
+            break;
+        case SettingsUiControl::Kind::Checkbox: {
+            bool value = control.defaultBool;
+            const nlohmann::json stored = copyUiValue(control.id);
+            if (stored.is_boolean()) {
+                value = stored.get<bool>();
+            }
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.width > 0.0f) {
+                ImGui::Checkbox("##checkbox", &value);
+                ImGui::SameLine();
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + control.width);
+                ImGui::TextWrapped("%s", control.label.c_str());
+                ImGui::PopTextWrapPos();
+            } else {
+                ImGui::Checkbox(control.label.c_str(), &value);
+            }
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::SliderInt: {
+            int value = control.defaultInt;
+            const nlohmann::json stored = copyUiValue(control.id);
+            if (stored.is_number_integer()) {
+                const auto raw = stored.get<std::int64_t>();
+                value = static_cast<int>(std::clamp<std::int64_t>(raw, std::numeric_limits<int>::min(), std::numeric_limits<int>::max()));
+            } else if (stored.is_number_unsigned()) {
+                const auto raw = stored.get<std::uint64_t>();
+                value = raw > static_cast<std::uint64_t>(std::numeric_limits<int>::max())
+                    ? std::numeric_limits<int>::max()
+                    : static_cast<int>(raw);
+            }
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.width > 0.0f) {
+                ImGui::SetNextItemWidth(control.width);
+            }
+            ImGui::SliderInt(control.label.c_str(), &value, control.minInt, control.maxInt);
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::SliderFloat: {
+            double storedValue = control.defaultFloat;
+            const nlohmann::json stored = copyUiValue(control.id);
+            if (stored.is_number()) {
+                const double raw = stored.get<double>();
+                if (std::isfinite(raw)) {
+                    storedValue = raw;
+                }
+            }
+            storedValue = std::clamp(storedValue,
+                static_cast<double>(-std::numeric_limits<float>::max()),
+                static_cast<double>(std::numeric_limits<float>::max()));
+            float value = static_cast<float>(storedValue);
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.width > 0.0f) {
+                ImGui::SetNextItemWidth(control.width);
+            }
+            ImGui::SliderFloat(control.label.c_str(), &value,
+                static_cast<float>(control.minFloat),
+                static_cast<float>(control.maxFloat));
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::Textbox: {
+            std::string stored = ClampStoredUiText(control.defaultText);
+            const nlohmann::json value = copyUiValue(control.id);
+            if (value.is_string()) {
+                stored = ClampStoredUiText(value.get<std::string>());
+            }
+            auto& buffer = textboxBuffer(control.id);
+            CopyToBuffer(buffer, stored);
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.height > 0.0f) {
+                ImGui::InputTextMultiline(control.label.c_str(), buffer.data(), buffer.size(),
+                    ImVec2(control.width > 0.0f ? control.width : -1.0f, control.height));
+            } else {
+                if (control.width > 0.0f) {
+                    ImGui::SetNextItemWidth(control.width);
+                }
+                ImGui::InputText(control.label.c_str(), buffer.data(), buffer.size());
+            }
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::DynamicTextbox: {
+            std::string stored = ClampDynamicUiText(control.defaultText);
+            const nlohmann::json value = copyUiValue(control.id);
+            if (value.is_string()) {
+                stored = ClampDynamicUiText(value.get<std::string>());
+            }
+            auto& buffer = dynamicTextboxBuffer(control.id);
+            CopyToBuffer(buffer, stored);
+            ImGui::TextWrapped("%s", control.label.c_str());
+            const float resolvedHeight = control.height > 0.0f ? control.height : ImGui::GetTextLineHeight() * 4.0f;
+            ImGui::InputTextMultiline("##dynamic", buffer.data(), buffer.size(),
+                ImVec2(control.width > 0.0f ? control.width : -1.0f, resolvedHeight),
+                ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoHorizontalScroll);
+            break;
+        }
+        case SettingsUiControl::Kind::Keybind: {
+            unsigned int value = control.defaultKeybind;
+            const nlohmann::json stored = copyUiValue(control.id);
+            if (stored.is_number_integer()) {
+                const auto raw = stored.get<std::int64_t>();
+                if (raw >= 0 && raw <= static_cast<std::int64_t>(std::numeric_limits<int>::max())) {
+                    value = NormalizeCachedHotkey(static_cast<unsigned int>(raw));
+                } else {
+                    value = kScriptUnboundHotkey;
+                }
+            } else if (stored.is_number_unsigned()) {
+                const auto raw = stored.get<std::uint64_t>();
+                if (raw <= static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+                    value = NormalizeCachedHotkey(static_cast<unsigned int>(raw));
+                } else {
+                    value = kScriptUnboundHotkey;
+                }
+            }
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.width > 0.0f) {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + control.width);
+                ImGui::TextWrapped("%s", control.label.c_str());
+                ImGui::PopTextWrapPos();
+            } else {
+                ImGui::TextWrapped("%s", control.label.c_str());
+            }
+            const float humanWidth = control.width > 0.0f ? control.width * 0.55f : 170.0f;
+            const float hexWidth = control.width > 0.0f ? control.width * 0.35f : 130.0f;
+            DrawKeyBindControlShared("##ScriptKeybind", value, -1, humanWidth, hexWidth, true);
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        }
+        ImGui::PopID();
+    }
+}
+
 bool ScriptInstance::callOnSettings(bool renderMode)
 {
     std::unique_lock<std::mutex> luaLock(luaMutex_, std::defer_lock);
@@ -584,12 +964,15 @@ bool ScriptInstance::callOnSettings(bool renderMode)
         return true;
     }
 
+    beginSettingsUiCapture();
     resetSettingsUiControlCount();
     setSettingsRenderMode(renderMode);
     beginTimedCall(kMaxSettingsRuntime);
     const int status = lua_pcall(L_, 0, 0, 0);
     endTimedCall();
     setSettingsRenderMode(false);
+    const bool committed = status == LUA_OK && stopReason_.load(std::memory_order_acquire) == StopReason::None;
+    finishSettingsUiCapture(committed);
     if (status != LUA_OK) {
         const char* message = stopReason_.load(std::memory_order_acquire) != StopReason::None
             ? stopReasonMessage()
@@ -621,12 +1004,19 @@ void ScriptInstance::cleanup()
         L_ = nullptr;
     }
     memoryUsedBytes_ = 0;
+    hasSettingsCallback_ = false;
+    settingsUiCaptureActive_ = false;
     settingsRenderMode_ = false;
     settingsUiControlCount_ = 0;
     transientUi_.clear();
     textboxBuffers_.clear();
     dynamicTextboxBuffers_.clear();
     keybindValues_.clear();
+    {
+        std::lock_guard<std::mutex> settingsUiLock(settingsUiMutex_);
+        settingsUiControls_.clear();
+        pendingSettingsUiControls_.clear();
+    }
     uiIdCache_.clear();
 }
 

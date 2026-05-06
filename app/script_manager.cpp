@@ -383,7 +383,10 @@ nlohmann::json ScriptManager::serialize() const
         item["hotkey"] = script->hotkey.load(std::memory_order_acquire);
         item["enabled"] = script->enabled.load(std::memory_order_acquire);
         item["disable_outside_roblox"] = script->disableOutsideRoblox.load(std::memory_order_acquire);
-        item["ui_state"] = script->uiState;
+        {
+            std::lock_guard<std::mutex> uiLock(script->uiStateMutex);
+            item["ui_state"] = script->uiState;
+        }
         array.push_back(std::move(item));
     }
     return array;
@@ -431,7 +434,10 @@ void ScriptManager::deserialize(const nlohmann::json& value)
             record = scripts_.empty() ? nullptr : scripts_.back();
         }
         if (record && item.contains("ui_state") && item["ui_state"].is_object()) {
-            record->uiState = SanitizeUiState(item["ui_state"]);
+            {
+                std::lock_guard<std::mutex> uiLock(record->uiStateMutex);
+                record->uiState = SanitizeUiState(item["ui_state"]);
+            }
             if (record->instance) {
                 record->instance->syncSettingsTable();
             }

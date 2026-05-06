@@ -36,6 +36,7 @@ struct ImportedScriptRecord {
     nlohmann::json uiState = nlohmann::json::object();
     std::unique_ptr<ScriptInstance> instance;
     mutable std::mutex errorMutex;
+    mutable std::mutex uiStateMutex;
 
     void setLastError(std::string value)
     {
