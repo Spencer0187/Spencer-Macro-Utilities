@@ -96,7 +96,7 @@ The input functions use two related but different argument formats:
 | Argument kind | Used by | Meaning |
 | --- | --- | --- |
 | Single key | `pressKey()`, `holdKey()`, `releaseKey()`, `isKeyPressed()` | One physical keyboard key or mouse button. |
-| Hotkey | `isHotkeyPressed()`, `ui.keybind()`, `@keybind` | A key combination, usually one or more modifiers plus a main key. |
+| Hotkey | `isHotkeyPressed()`, `ui.keybind()`, `@keybind:` | A key combination, usually one or more modifiers plus a main key. |
 
 A single key is written as one key name:
 
@@ -268,19 +268,24 @@ if isHotkeyPressed(hotkey) then
 end
 ```
 
-Use `@keybind` for metadata-defined script settings:
+Use `@keybind:` to define the script's default activation hotkey (the same as the "Keybind" field shown in the app's script list):
 
 ```lua
--- @keybind actionHotkey "Action hotkey" LCtrl+K
+-- @keybind: LCtrl+K
 ```
 
-Then read the configured value with `getSavedValue()`:
+To expose a *configurable* keybind inside your script, create it in `onSettings()` with `ui.keybind()` and read the result from the global `settings` table:
 
 ```lua
-local actionHotkey = getSavedValue("actionHotkey")
+function onSettings()
+    ui.keybind("actionHotkey", "Action hotkey", "LCtrl+K")
+end
 
-if isHotkeyPressed(actionHotkey) then
-    log("Action hotkey pressed")
+function onExecute()
+    local actionHotkey = settings.actionHotkey
+    if actionHotkey and isHotkeyPressed(actionHotkey) then
+        log("Action hotkey pressed")
+    end
 end
 ```
 
