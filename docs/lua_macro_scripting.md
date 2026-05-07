@@ -353,7 +353,7 @@ Limitations:
 Lag-switch config overrides are temporary. They apply only while the script run owns them, do not write to the main profile/save settings, and are cleared when the script completes, errors, is cancelled, is reloaded, or is removed.
 If multiple scripts control lag-switch settings at the same time, the most recent script-owned override wins. A script can only clear its own current override.
 Lag-switch APIs are not available inside `onSettings()`.
-Lag-switch is currently Windows only (Windivert), we are working on a Linux port soon.
+Lag-switch is currently Windows only (Windivert), we are actively working on a Linux port.
 
 The config table supports these keys:
 
