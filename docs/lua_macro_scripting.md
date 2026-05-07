@@ -343,8 +343,80 @@ Limitations:
 | `freeze(enable)` | Freeze or unfreeze the target process |
 | `robloxFreeze(enable)` | Alias for `freeze(enable)` |
 | `roblox_freeze(enable)` | Alias for `freeze(enable)` |
-| `lagSwitch(enable)` | Toggle lag-switch behavior |
+| `lagSwitch(enable, options)` | Toggle lag-switch behavior, optionally applying a temporary config table first |
 | `lagswitch(enable)` | Alias for `lagSwitch(enable)` |
+| `getLagSwitchConfig()` | Return the effective lag-switch config table currently used by scripts/backend |
+| `setLagSwitchConfig(options)` | Apply a temporary script-owned lag-switch config override |
+| `getLagSwitchStatus()` | Return lag-switch availability, active state, target mode, and unsupported reason |
+| `clearLagSwitchConfig()` | Clear this script's config override without modifying saved app/profile settings |
+
+Lag-switch config overrides are temporary. They apply only while the script run owns them, do not write to the main profile/save settings, and are cleared when the script completes, errors, is cancelled, is reloaded, or is removed.
+If multiple scripts control lag-switch settings at the same time, the most recent script-owned override wins. A script can only clear its own current override.
+Lag-switch APIs are not available inside `onSettings()`.
+
+The config table supports these keys:
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `hardBlockInbound` | boolean | Hard-block inbound/download packets |
+| `hardBlockOutbound` | boolean | Hard-block outbound/upload packets |
+| `fakeLag` | boolean | Delay matching packets instead of only hard-blocking |
+| `fakeLagInbound` | boolean | Delay inbound/download packets when fake lag is enabled |
+| `fakeLagOutbound` | boolean | Delay outbound/upload packets when fake lag is enabled |
+| `fakeLagDelayMs` | integer | Fake-lag delay in milliseconds |
+| `targetMode` | string | `"roblox"`, `"all"`, or `"custom"` |
+| `useUdp` | boolean | Include UDP traffic |
+| `useTcp` | boolean | Include TCP traffic |
+| `preventDisconnect` | boolean | Use the Roblox disconnect-prevention behavior while hard-blocking |
+| `autoUnblock` | boolean | Keep the setting in the effective config for compatibility with built-in behavior |
+| `maxDurationSeconds` | number | Auto-unblock duration value in seconds |
+| `unblockDurationMs` | integer | Auto-unblock release duration in milliseconds |
+| `remoteIps` | table | Custom-mode IPv4 address list, exact-match only |
+| `remotePorts` | table | Custom-mode remote TCP/UDP port list |
+| `includeRobloxDynamicIps` | boolean | In custom mode, also include the Roblox static range and discovered Roblox server IPs |
+
+Custom targeting is intentionally limited to validated IP and port filters. The Lua API does not expose raw WinDivert handles, packet payload bytes, packet receive/send functions, or arbitrary packet injection.
+
+Examples:
+
+```lua
+function onExecute()
+    lagSwitch(true, {
+        fakeLag = true,
+        fakeLagDelayMs = 250,
+        hardBlockInbound = false,
+        hardBlockOutbound = false,
+        targetMode = "roblox",
+        useUdp = true,
+        useTcp = false,
+    })
+    sleep(2000)
+    lagSwitch(false)
+end
+```
+
+```lua
+function onExecute()
+    setLagSwitchConfig({
+        targetMode = "custom",
+        remoteIps = { "203.0.113.10" },
+        remotePorts = { 7777, 9000 },
+        useUdp = true,
+        useTcp = false,
+        fakeLag = true,
+        fakeLagDelayMs = 150,
+    })
+
+    local status = getLagSwitchStatus()
+    if status.available then
+        lagSwitch(true)
+        sleep(1000)
+        lagSwitch(false)
+    else
+        log("Lag switch unavailable: " .. status.unsupportedReason)
+    end
+end
+```
 
 ## Reading Saved Settings
 

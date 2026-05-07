@@ -1027,6 +1027,7 @@ smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
     config.outboundFakeLag = lagswitchlagoutbound;
     config.fakeLagDelayMs = lagswitchlagdelay;
     config.targetRobloxOnly = lagswitchtargetroblox;
+    config.targetMode = lagswitchtargetroblox ? smu::platform::LagSwitchTargetMode::Roblox : smu::platform::LagSwitchTargetMode::All;
     config.useUdp = true;
     config.useTcp = lagswitchusetcp;
     config.preventDisconnect = prevent_disconnect;
@@ -1189,6 +1190,7 @@ void RenderAdministratorRequiredPopup()
         if (ImGui::Button("Restart as Admin", ImVec2(180, 0))) {
             ImGui::CloseCurrentPopup();
             bShowAdminPopup = false;
+            smu::app::SaveSharedProfilesNow();
             if (smu::platform::windows::RestartAsAdmin()) {
                 done.store(true, std::memory_order_release);
                 running.store(false, std::memory_order_release);
@@ -1868,6 +1870,7 @@ void RenderSelectedImportedScript(AppContext& context)
     const bool missing = script->missing.load(std::memory_order_acquire);
     const bool loaded = script->loaded.load(std::memory_order_acquire);
     const std::string lastError = script->lastErrorCopy();
+    const std::string lastWarning = script->lastWarningCopy();
 
     const std::string title = script->metadata.name.empty() ? script->path.stem().string() : script->metadata.name;
     ImGui::TextWrapped("Settings for %s", title.c_str());
@@ -1943,6 +1946,11 @@ void RenderSelectedImportedScript(AppContext& context)
     if (!lastError.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
         ImGui::TextWrapped("%s", lastError.c_str());
+        ImGui::PopStyleColor();
+    }
+    if (!lastWarning.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().warning_color);
+        ImGui::TextWrapped("%s", lastWarning.c_str());
         ImGui::PopStyleColor();
     }
 
@@ -2693,6 +2701,7 @@ void RenderSelectedSection(AppContext& context)
 #if defined(_WIN32)
                     if (!smu::platform::windows::IsRunAsAdmin()) {
                         if (DontShowAdminWarning) {
+                            smu::app::SaveSharedProfilesNow();
                             if (smu::platform::windows::RestartAsAdmin()) {
                                 done.store(true, std::memory_order_release);
                                 running.store(false, std::memory_order_release);

@@ -33,6 +33,7 @@ struct ImportedScriptRecord {
     std::atomic_bool missing{false};
     std::atomic_bool running{false};
     std::string lastError;
+    std::string lastWarning;
     nlohmann::json uiState = nlohmann::json::object();
     std::unique_ptr<ScriptInstance> instance;
     mutable std::mutex errorMutex;
@@ -54,6 +55,24 @@ struct ImportedScriptRecord {
     {
         std::lock_guard<std::mutex> lock(errorMutex);
         return lastError;
+    }
+
+    void setLastWarning(std::string value)
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        lastWarning = std::move(value);
+    }
+
+    void clearLastWarning()
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        lastWarning.clear();
+    }
+
+    std::string lastWarningCopy() const
+    {
+        std::lock_guard<std::mutex> lock(errorMutex);
+        return lastWarning;
     }
 };
 

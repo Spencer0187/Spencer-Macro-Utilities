@@ -9,6 +9,10 @@
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
 
+#if defined(_WIN32)
+#include "../platform/windows/admin_elevation.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -34,6 +38,8 @@ namespace smu::app {
 namespace {
 
 constexpr const char* kRegistryInstanceKey = "SMU.ScriptInstance";
+constexpr const char* kLagSwitchRequiresAdminWarning =
+    "Lag switch was requested, but SMU is not running as Administrator. The script continued, but lag-switch actions were skipped.";
 constexpr auto kMaxScriptRuntime = std::chrono::seconds(30);
 constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr int kLuaHookInstructionCount = 10000;
@@ -474,6 +480,7 @@ bool ScriptInstance::callOnExecute()
     std::lock_guard<std::mutex> luaLock(luaMutex_);
     if (!L_) {
         owner_->setLastError("Script is not loaded.");
+        releaseLagSwitchControls();
         return false;
     }
 
@@ -481,9 +488,11 @@ bool ScriptInstance::callOnExecute()
     if (!lua_isfunction(L_, -1)) {
         lua_pop(L_, 1);
         owner_->setLastError("Script does not define onExecute().");
+        releaseLagSwitchControls();
         return false;
     }
 
+    owner_->clearLastWarning();
     beginTimedCall(kMaxScriptRuntime);
     const int status = lua_pcall(L_, 0, 0, 0);
     if (status != LUA_OK) {
@@ -494,12 +503,14 @@ bool ScriptInstance::callOnExecute()
         owner_->setLastError(message ? message : "Lua call failed.");
         lua_pop(L_, 1);
         releaseAllSleepingCoroutines();
+        releaseLagSwitchControls();
         LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
         return false;
     }
 
     if (!drainSleepingCoroutines()) {
         endTimedCall();
+        releaseLagSwitchControls();
         return false;
     }
 
@@ -508,9 +519,11 @@ bool ScriptInstance::callOnExecute()
         owner_->setLastError(stopReasonMessage());
         LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
         releaseAllSleepingCoroutines();
+        releaseLagSwitchControls();
         return false;
     }
     owner_->clearLastError();
+    releaseLagSwitchControls();
     return true;
 }
 
@@ -998,6 +1011,7 @@ void ScriptInstance::cleanup()
     requestCancel();
     std::lock_guard<std::mutex> luaLock(luaMutex_);
     setFreeze(false);
+    releaseLagSwitchControls();
     if (L_) {
         releaseAllSleepingCoroutines();
         lua_close(L_);
@@ -1307,36 +1321,81 @@ void ScriptInstance::setLagSwitch(bool enabled)
         return;
     }
 
-    smu::platform::LagSwitchConfig config = backend->config();
-    config.enabled = Globals::bWinDivertEnabled || enabled;
-    config.inboundHardBlock = Globals::lagswitchinbound;
-    config.outboundHardBlock = Globals::lagswitchoutbound;
-    config.fakeLagEnabled = Globals::lagswitchlag;
-    config.inboundFakeLag = Globals::lagswitchlaginbound;
-    config.outboundFakeLag = Globals::lagswitchlagoutbound;
-    config.fakeLagDelayMs = Globals::lagswitchlagdelay;
-    config.targetRobloxOnly = Globals::lagswitchtargetroblox;
-    config.useTcp = Globals::lagswitchusetcp;
-    config.useUdp = !Globals::lagswitchusetcp;
-    config.preventDisconnect = Globals::prevent_disconnect;
-    config.autoUnblock = Globals::lagswitch_autounblock;
-    config.maxDurationSeconds = Globals::lagswitch_max_duration;
-    config.unblockDurationMs = Globals::lagswitch_unblock_ms;
-    backend->setConfig(config);
-
     if (enabled && !Globals::bWinDivertEnabled) {
         std::string error;
         if (backend->init(&error)) {
             Globals::bWinDivertEnabled = true;
-        } else if (!error.empty()) {
+            owner_->clearLastWarning();
+        } else {
+#if defined(_WIN32)
+            if (!smu::platform::windows::IsRunAsAdmin()) {
+                owner_->setLastWarning(kLagSwitchRequiresAdminWarning);
+                LogWarning(kLagSwitchRequiresAdminWarning);
+                return;
+            }
+#endif
+            if (error.empty()) {
+                error = "Lag switch backend could not be initialized.";
+            }
             owner_->setLastError(error);
             LogWarning(error);
             return;
         }
     }
 
-    backend->setBlockingActive(enabled);
-    Globals::g_windivert_blocking.store(enabled, std::memory_order_relaxed);
+    touchedLagSwitch_ = true;
+    backend->setScriptBlockingActive(lagSwitchOwnerToken(), enabled);
+    Globals::g_windivert_blocking.store(backend->isBlockingActive(), std::memory_order_relaxed);
+}
+
+void ScriptInstance::setLagSwitchConfig(const smu::platform::LagSwitchConfig& config)
+{
+    auto backend = smu::platform::GetNetworkLagBackend();
+    if (!backend) {
+        return;
+    }
+
+    touchedLagSwitch_ = true;
+    backend->setScriptConfigOverride(lagSwitchOwnerToken(), config);
+    Globals::g_windivert_blocking.store(backend->isBlockingActive(), std::memory_order_relaxed);
+}
+
+void ScriptInstance::clearLagSwitchConfig()
+{
+    auto backend = smu::platform::GetNetworkLagBackend();
+    if (!backend) {
+        return;
+    }
+
+    backend->clearScriptConfigOverride(lagSwitchOwnerToken());
+    Globals::g_windivert_blocking.store(backend->isBlockingActive(), std::memory_order_relaxed);
+}
+
+smu::platform::LagSwitchConfig ScriptInstance::lagSwitchConfig() const
+{
+    auto backend = smu::platform::GetNetworkLagBackend();
+    if (!backend) {
+        return {};
+    }
+    return backend->effectiveConfig();
+}
+
+std::uintptr_t ScriptInstance::lagSwitchOwnerToken() const
+{
+    return reinterpret_cast<std::uintptr_t>(this);
+}
+
+void ScriptInstance::releaseLagSwitchControls()
+{
+    if (!touchedLagSwitch_) {
+        return;
+    }
+
+    if (auto backend = smu::platform::GetNetworkLagBackend()) {
+        backend->clearScriptState(lagSwitchOwnerToken());
+        Globals::g_windivert_blocking.store(backend->isBlockingActive(), std::memory_order_relaxed);
+    }
+    touchedLagSwitch_ = false;
 }
 
 bool ScriptInstance::callProtected(int argCount, const char* context)

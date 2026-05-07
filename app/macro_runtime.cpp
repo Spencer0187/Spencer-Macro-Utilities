@@ -1,5 +1,6 @@
 #include "macro_runtime.h"
 
+#include "app_profile_bridge.h"
 #include "input_actions.h"
 #include "notification_suppression.h"
 #include "script_manager.h"
@@ -957,7 +958,7 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 
     bool shouldInitializeBackend = false;
     if (islagswitchswitch) {
-        shouldInitializeBackend = pressed && !lagSwitchWasPressed_ && !backend->isBlockingActive();
+        shouldInitializeBackend = pressed && !lagSwitchWasPressed_ && !backend->isBaseBlockingActive();
     } else {
         shouldInitializeBackend = pressed;
     }
@@ -971,6 +972,7 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 #if defined(_WIN32)
             if (!smu::platform::windows::IsRunAsAdmin()) {
                 if (IsNotificationSuppressed(kAdminElevationWarningId)) {
+                    smu::app::SaveSharedProfilesNow();
                     if (smu::platform::windows::RestartAsAdmin()) {
                         done.store(true, std::memory_order_release);
                         running.store(false, std::memory_order_release);
@@ -997,8 +999,9 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
     config.outboundFakeLag = lagswitchlagoutbound;
     config.fakeLagDelayMs = lagswitchlagdelay;
     config.targetRobloxOnly = lagswitchtargetroblox;
+    config.targetMode = lagswitchtargetroblox ? smu::platform::LagSwitchTargetMode::Roblox : smu::platform::LagSwitchTargetMode::All;
     config.useTcp = lagswitchusetcp;
-    config.useUdp = !lagswitchusetcp;
+    config.useUdp = true;
     config.preventDisconnect = prevent_disconnect;
     config.autoUnblock = lagswitch_autounblock;
     config.maxDurationSeconds = lagswitch_max_duration;
@@ -1007,21 +1010,21 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 
     if (islagswitchswitch) {
         if (pressed && !lagSwitchWasPressed_) {
-            const bool nextActive = !backend->isBlockingActive();
+            const bool nextActive = !backend->isBaseBlockingActive();
             backend->setBlockingActive(nextActive);
             if (nextActive) {
                 lagSwitchStartTime_ = std::chrono::steady_clock::now();
             }
         }
     } else {
-        if (pressed && !backend->isBlockingActive()) {
+        if (pressed && !backend->isBaseBlockingActive()) {
             lagSwitchStartTime_ = std::chrono::steady_clock::now();
         }
         backend->setBlockingActive(pressed);
     }
     lagSwitchWasPressed_ = pressed;
 
-    if (lagswitch_autounblock && backend->isBlockingActive()) {
+    if (lagswitch_autounblock && backend->isBaseBlockingActive()) {
         const auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - lagSwitchStartTime_).count();
         if (elapsed >= lagswitch_max_duration) {
             backend->setBlockingActive(false);
