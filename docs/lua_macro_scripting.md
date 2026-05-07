@@ -552,6 +552,8 @@ Scripts also receive the global `settings` table for per-script UI state created
 | `overlay_bg_b` | number | Lag-switch overlay background blue channel, normalized 0.0 to 1.0. |
 | `screen_width` | number | Saved/calculated application window width value. |
 | `screen_height` | number | Saved/calculated application window height value. |
+| `active_monitor_width` | number | Current monitor width in pixels for the monitor containing the cursor (transient; not saved to disk). |
+| `active_monitor_height` | number | Current monitor height in pixels for the monitor containing the cursor (transient; not saved to disk). |
 
 #### String values
 
