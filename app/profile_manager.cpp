@@ -4,6 +4,7 @@
 #include "notification_suppression.h"
 #include "../core/legacy_globals.h"
 #include "../platform/logging.h"
+#include "../platform/input_backend.h"
 #include "imgui.h"
 #include "json.hpp"
 #include <array>
@@ -671,11 +672,26 @@ std::optional<SavedSettingValue> TryGetSavedSettingValue(const std::string& name
 	if (name == "text") {
 		return SavedSettingValue{text};
 	}
+
+	// Saved application window dimensions (persisted)
 	if (name == "screen_width") {
 		return SavedSettingValue{static_cast<std::int64_t>(screen_width)};
 	}
 	if (name == "screen_height") {
 		return SavedSettingValue{static_cast<std::int64_t>(screen_height)};
+	}
+
+	// Transient: active monitor dimensions for the monitor currently containing the cursor.
+	// These values are not persisted to disk and reflect the monitor that contains the mouse.
+	if (name == "active_monitor_width" || name == "active_monitor_height") {
+		auto backend = smu::platform::GetInputBackend();
+		if (!backend) return std::nullopt;
+		const auto bounds = backend->getActiveMonitorBounds();
+		if (!bounds || !bounds->valid()) return std::nullopt;
+		if (name == "active_monitor_width") {
+			return SavedSettingValue{static_cast<std::int64_t>(bounds->width)};
+		}
+		return SavedSettingValue{static_cast<std::int64_t>(bounds->height)};
 	}
 
 	return std::nullopt;
