@@ -29,6 +29,14 @@ namespace smu::platform::windows {
 namespace {
 
 std::atomic<bool> g_is_using_rcc = false;
+std::mutex g_lag_config_mutex;
+smu::platform::LagSwitchConfig g_base_lag_config;
+smu::platform::LagSwitchConfig g_script_lag_config;
+std::uintptr_t g_script_config_owner = 0;
+std::uintptr_t g_script_blocking_owner = 0;
+bool g_has_script_lag_config = false;
+bool g_base_lag_blocking = false;
+bool g_script_lag_blocking = false;
 
 // DELAY / LAG SYSTEM DEFINITIONS
 
@@ -52,6 +60,129 @@ void SafeCloseWinDivert()
 		pWinDivertClose(hWindivert);
 		hWindivert = INVALID_HANDLE_VALUE;
 	}
+}
+
+bool LagSwitchTargetUsesRoblox(const smu::platform::LagSwitchConfig& config)
+{
+    return config.targetMode == smu::platform::LagSwitchTargetMode::Roblox ||
+        (config.targetMode == smu::platform::LagSwitchTargetMode::Custom && config.includeRobloxDynamicIps);
+}
+
+smu::platform::LagSwitchConfig EffectiveLagSwitchConfigLocked()
+{
+    smu::platform::LagSwitchConfig effective = g_has_script_lag_config ? g_script_lag_config : g_base_lag_config;
+    effective.currentlyBlocking = g_base_lag_blocking || g_script_lag_blocking;
+    effective.enabled = effective.enabled || effective.currentlyBlocking;
+    return effective;
+}
+
+void PublishEffectiveLagSwitchStateLocked()
+{
+    const smu::platform::LagSwitchConfig effective = EffectiveLagSwitchConfigLocked();
+    g_windivert_blocking.store(effective.currentlyBlocking, std::memory_order_relaxed);
+    g_log_thread_running.store(LagSwitchTargetUsesRoblox(effective), std::memory_order_relaxed);
+}
+
+smu::platform::LagSwitchConfig EffectiveLagSwitchConfig()
+{
+    std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+    return EffectiveLagSwitchConfigLocked();
+}
+
+std::string BuildProtocolFilter(const smu::platform::LagSwitchConfig& config)
+{
+    if (config.useUdp && config.useTcp) {
+        return "(udp or tcp)";
+    }
+    if (config.useUdp) {
+        return "udp";
+    }
+    if (config.useTcp) {
+        return "tcp";
+    }
+    return "false";
+}
+
+std::string BuildRobloxFilter()
+{
+    std::string combined_ip_filter = ROBLOX_RANGE_FILTER;
+    std::shared_lock lock(g_ip_mutex);
+    for (const auto& ip : g_roblox_dynamic_ips) {
+        combined_ip_filter += " or (ip.SrcAddr == " + ip + " or ip.DstAddr == " + ip + ")";
+    }
+    return "(" + combined_ip_filter + ")";
+}
+
+std::string BuildCustomTargetFilter(const smu::platform::LagSwitchConfig& config)
+{
+    std::vector<std::string> clauses;
+    clauses.reserve(config.remoteIps.size() + config.remotePorts.size() + 1);
+
+    if (config.includeRobloxDynamicIps) {
+        clauses.push_back(BuildRobloxFilter());
+    }
+
+    for (const std::string& ip : config.remoteIps) {
+        clauses.push_back("((outbound and ip.DstAddr == " + ip + ") or (inbound and ip.SrcAddr == " + ip + "))");
+    }
+
+    for (int port : config.remotePorts) {
+        std::vector<std::string> portClauses;
+        if (config.useUdp) {
+            portClauses.push_back("((outbound and udp.DstPort == " + std::to_string(port) + ") or (inbound and udp.SrcPort == " + std::to_string(port) + "))");
+        }
+        if (config.useTcp) {
+            portClauses.push_back("((outbound and tcp.DstPort == " + std::to_string(port) + ") or (inbound and tcp.SrcPort == " + std::to_string(port) + "))");
+        }
+        if (portClauses.size() == 1) {
+            clauses.push_back(portClauses.front());
+        } else if (portClauses.size() == 2) {
+            clauses.push_back("(" + portClauses[0] + " or " + portClauses[1] + ")");
+        }
+    }
+
+    if (clauses.empty()) {
+        return "false";
+    }
+
+    std::string filter = "(" + clauses.front();
+    for (std::size_t index = 1; index < clauses.size(); ++index) {
+        filter += " or " + clauses[index];
+    }
+    filter += ")";
+    return filter;
+}
+
+std::string BuildTargetFilter(const smu::platform::LagSwitchConfig& config)
+{
+    switch (config.targetMode) {
+    case smu::platform::LagSwitchTargetMode::All:
+        return "true";
+    case smu::platform::LagSwitchTargetMode::Custom:
+        return BuildCustomTargetFilter(config);
+    case smu::platform::LagSwitchTargetMode::Roblox:
+    default:
+        return BuildRobloxFilter();
+    }
+}
+
+std::string BuildWindDivertFilter(const smu::platform::LagSwitchConfig& config)
+{
+    const bool captureInbound = config.inboundHardBlock || (config.fakeLagEnabled && config.inboundFakeLag);
+    const bool captureOutbound = config.outboundHardBlock || (config.fakeLagEnabled && config.outboundFakeLag);
+
+    std::string directionFilter;
+    if (captureInbound && captureOutbound) {
+        directionFilter = "(inbound or outbound)";
+    } else if (captureInbound) {
+        directionFilter = "inbound";
+    } else if (captureOutbound) {
+        directionFilter = "outbound";
+    } else {
+        directionFilter = "false";
+    }
+
+    return directionFilter + " and " + BuildTargetFilter(config) + " and " + BuildProtocolFilter(config);
 }
 
 // ExtractResource function required for dynamic WinDivert Usage
@@ -396,38 +527,8 @@ void WindivertWorkerThread() {
     std::thread senderThread(DelaySenderWorker);
 
     while (g_windivert_running) {
-        
-        // Construct Filter
-        std::string direction_filter = "";
-        
-        // We capture packets if EITHER Hard Blocking OR Fake Lag is enabled for a direction
-        // This ensures we have the packet in hand to decide what to do with it later
-        bool capture_inbound = lagswitchinbound || lagswitchlaginbound;
-        bool capture_outbound = lagswitchoutbound || lagswitchlagoutbound;
-
-        // If nothing is selected, we still capture "false" to keep the thread alive but idle
-        if (capture_inbound && capture_outbound) direction_filter = "(inbound or outbound)";
-        else if (capture_inbound) direction_filter = "inbound";
-        else if (capture_outbound) direction_filter = "outbound";
-        else direction_filter = "false";
-
-        std::string final_filter = "";
-        
-        if (lagswitchtargetroblox) {
-            std::string combined_ip_filter = ROBLOX_RANGE_FILTER;
-            {
-                std::shared_lock lock(g_ip_mutex);
-                for (const auto& ip : g_roblox_dynamic_ips) {
-                    combined_ip_filter += " or (ip.SrcAddr == " + ip + " or ip.DstAddr == " + ip + ")";
-                }
-            }
-            final_filter = direction_filter + " and (" + combined_ip_filter + ")";
-        } else {
-            final_filter = direction_filter;
-        }
-
-		if (lagswitchusetcp) final_filter = final_filter + " and (udp or tcp)";
-		else final_filter = final_filter + " and udp";
+        smu::platform::LagSwitchConfig filterConfig = EffectiveLagSwitchConfig();
+        std::string final_filter = BuildWindDivertFilter(filterConfig);
 
         g_current_windivert_filter = final_filter; 
 
@@ -453,24 +554,25 @@ void WindivertWorkerThread() {
             if (!pWinDivertRecv(hWindivert, packet.get(), WINDIVERT_MTU_MAX, &packetLen, &addr)) {
                 break;
             }
+            const smu::platform::LagSwitchConfig packetConfig = EffectiveLagSwitchConfig();
             // We only manipulate packets if the Lagswitch is currently ACTIVE (Toggle On / Key Held)
-            if (g_windivert_blocking) {
+            if (packetConfig.currentlyBlocking) {
 
                 // 1. HARD BLOCKING CHECK
                 bool should_hard_block = false;
-                if (addr.Outbound && lagswitchoutbound) should_hard_block = true;
-                if (!addr.Outbound && lagswitchinbound) should_hard_block = true;
+                if (addr.Outbound && packetConfig.outboundHardBlock) should_hard_block = true;
+                if (!addr.Outbound && packetConfig.inboundHardBlock) should_hard_block = true;
 
                 if (should_hard_block) {
-                    if (prevent_disconnect) {
+                    if (packetConfig.preventDisconnect) {
                         // Pulse Logic
                         long long interval_ms = 0;
                         bool is_rcc = g_is_using_rcc.load();
 
                         if (is_rcc) interval_ms = 9500;
                         else {
-                            if (lagswitchinbound && lagswitchoutbound) interval_ms = 19900; 
-                            else if (lagswitchoutbound) interval_ms = 290000;
+                            if (packetConfig.inboundHardBlock && packetConfig.outboundHardBlock) interval_ms = 19900;
+                            else if (packetConfig.outboundHardBlock) interval_ms = 290000;
                             else interval_ms = 0;
                         }
 
@@ -527,17 +629,17 @@ void WindivertWorkerThread() {
                 }
 
                 // 2. FAKE LAG (LATENCY) CHECK
-                if (lagswitchlag) {
+                if (packetConfig.fakeLagEnabled) {
                     bool should_delay = false;
-                    if (addr.Outbound && lagswitchlagoutbound) should_delay = true;
-                    if (!addr.Outbound && lagswitchlaginbound) should_delay = true;
+                    if (addr.Outbound && packetConfig.outboundFakeLag) should_delay = true;
+                    if (!addr.Outbound && packetConfig.inboundFakeLag) should_delay = true;
 
-                    if (should_delay && lagswitchlagdelay > 0) {
+                    if (should_delay && packetConfig.fakeLagDelayMs > 0) {
                         DelayedPacket p;
                         p.data.assign(packet.get(), packet.get() + packetLen);
                         p.len = packetLen;
                         p.addr = addr;
-                        p.send_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(lagswitchlagdelay);
+                        p.send_time = std::chrono::steady_clock::now() + std::chrono::milliseconds(packetConfig.fakeLagDelayMs);
 
                         {
                             std::lock_guard<std::mutex> qLock(g_delay_queue_mutex);
@@ -584,12 +686,12 @@ smu::platform::LagSwitchConfig LagSwitchConfigFromGlobals()
     config.autoUnblock = lagswitch_autounblock;
     config.maxDurationSeconds = lagswitch_max_duration;
     config.unblockDurationMs = lagswitch_unblock_ms;
+    config.targetMode = lagswitchtargetroblox ? smu::platform::LagSwitchTargetMode::Roblox : smu::platform::LagSwitchTargetMode::All;
     return config;
 }
 
 void ApplyLagSwitchConfigToGlobals(const smu::platform::LagSwitchConfig& config)
 {
-    g_windivert_blocking.store(config.currentlyBlocking, std::memory_order_relaxed);
     lagswitchinbound = config.inboundHardBlock;
     lagswitchoutbound = config.outboundHardBlock;
     lagswitchlag = config.fakeLagEnabled;
@@ -602,11 +704,116 @@ void ApplyLagSwitchConfigToGlobals(const smu::platform::LagSwitchConfig& config)
     lagswitch_autounblock = config.autoUnblock;
     lagswitch_max_duration = config.maxDurationSeconds;
     lagswitch_unblock_ms = config.unblockDurationMs;
-    g_log_thread_running.store(config.targetRobloxOnly, std::memory_order_relaxed);
+}
+
+void SetBaseLagSwitchConfig(const smu::platform::LagSwitchConfig& config)
+{
+    bool shouldRestart = false;
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        const std::string oldFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        g_base_lag_config = config;
+        g_base_lag_config.currentlyBlocking = g_base_lag_blocking;
+        ApplyLagSwitchConfigToGlobals(config);
+        PublishEffectiveLagSwitchStateLocked();
+        const std::string newFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        shouldRestart = oldFilter != newFilter;
+    }
+    if (shouldRestart) {
+        SafeCloseWinDivert();
+    }
+}
+
+void SetBaseLagSwitchBlocking(bool active)
+{
+    std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+    g_base_lag_blocking = active;
+    g_base_lag_config.currentlyBlocking = active;
+    PublishEffectiveLagSwitchStateLocked();
+}
+
+void SetScriptLagSwitchConfig(std::uintptr_t ownerToken, const smu::platform::LagSwitchConfig& config)
+{
+    bool shouldRestart = false;
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        const std::string oldFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        g_script_config_owner = ownerToken;
+        g_script_lag_config = config;
+        g_script_lag_config.currentlyBlocking = g_script_lag_blocking;
+        g_has_script_lag_config = true;
+        PublishEffectiveLagSwitchStateLocked();
+        const std::string newFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        shouldRestart = oldFilter != newFilter;
+    }
+    if (shouldRestart) {
+        SafeCloseWinDivert();
+    }
+}
+
+void ClearScriptLagSwitchConfig(std::uintptr_t ownerToken)
+{
+    bool cleared = false;
+    bool shouldRestart = false;
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        const std::string oldFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        if (g_has_script_lag_config && g_script_config_owner == ownerToken) {
+            g_has_script_lag_config = false;
+            g_script_lag_config = {};
+            cleared = true;
+            PublishEffectiveLagSwitchStateLocked();
+        }
+        const std::string newFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        shouldRestart = oldFilter != newFilter;
+    }
+    if (cleared && shouldRestart) {
+        SafeCloseWinDivert();
+    }
+}
+
+void SetScriptLagSwitchBlocking(std::uintptr_t ownerToken, bool active)
+{
+    std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+    g_script_blocking_owner = ownerToken;
+    g_script_lag_blocking = active;
+    PublishEffectiveLagSwitchStateLocked();
+}
+
+void ClearScriptLagSwitchState(std::uintptr_t ownerToken)
+{
+    bool clearedConfig = false;
+    bool shouldRestart = false;
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        const std::string oldFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        if (g_has_script_lag_config && g_script_config_owner == ownerToken) {
+            g_has_script_lag_config = false;
+            g_script_lag_config = {};
+            clearedConfig = true;
+        }
+        if (g_script_blocking_owner == ownerToken) {
+            g_script_lag_blocking = false;
+        }
+        PublishEffectiveLagSwitchStateLocked();
+        const std::string newFilter = BuildWindDivertFilter(EffectiveLagSwitchConfigLocked());
+        shouldRestart = oldFilter != newFilter;
+    }
+    if (clearedConfig && shouldRestart) {
+        SafeCloseWinDivert();
+    }
 }
 
 class WinDivertNetworkLagBackend final : public smu::platform::NetworkLagBackend {
 public:
+    WinDivertNetworkLagBackend()
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        g_base_lag_config = LagSwitchConfigFromGlobals();
+        g_base_lag_blocking = g_base_lag_config.currentlyBlocking;
+        PublishEffectiveLagSwitchStateLocked();
+    }
+
     ~WinDivertNetworkLagBackend() override
     {
         shutdown();
@@ -634,7 +841,11 @@ public:
 
         bWinDivertEnabled = true;
         g_windivert_running.store(true, std::memory_order_relaxed);
-        g_log_thread_running.store(lagswitchtargetroblox, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+            g_base_lag_config.enabled = true;
+            PublishEffectiveLagSwitchStateLocked();
+        }
         if (!workerThread_.joinable()) {
             workerThread_ = std::thread(WindivertWorkerThread);
         }
@@ -652,7 +863,13 @@ public:
 
         bWinDivertEnabled = false;
         g_windivert_running.store(false, std::memory_order_relaxed);
-        g_windivert_blocking.store(false, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+            g_base_lag_config.enabled = false;
+            g_base_lag_blocking = false;
+            g_script_lag_blocking = false;
+            PublishEffectiveLagSwitchStateLocked();
+        }
         g_log_thread_running.store(false, std::memory_order_relaxed);
         SafeCloseWinDivert();
 
@@ -671,22 +888,56 @@ public:
 
     bool isBlockingActive() const override
     {
-        return g_windivert_blocking.load(std::memory_order_relaxed);
+        return effectiveConfig().currentlyBlocking;
+    }
+
+    bool isBaseBlockingActive() const override
+    {
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        return g_base_lag_blocking;
     }
 
     void setBlockingActive(bool active) override
     {
-        g_windivert_blocking.store(active, std::memory_order_relaxed);
+        SetBaseLagSwitchBlocking(active);
+    }
+
+    void setScriptBlockingActive(std::uintptr_t ownerToken, bool active) override
+    {
+        SetScriptLagSwitchBlocking(ownerToken, active);
     }
 
     void setConfig(const smu::platform::LagSwitchConfig& config) override
     {
-        ApplyLagSwitchConfigToGlobals(config);
+        SetBaseLagSwitchConfig(config);
+    }
+
+    void setScriptConfigOverride(std::uintptr_t ownerToken, const smu::platform::LagSwitchConfig& config) override
+    {
+        SetScriptLagSwitchConfig(ownerToken, config);
+    }
+
+    void clearScriptConfigOverride(std::uintptr_t ownerToken) override
+    {
+        ClearScriptLagSwitchConfig(ownerToken);
+    }
+
+    void clearScriptState(std::uintptr_t ownerToken) override
+    {
+        ClearScriptLagSwitchState(ownerToken);
     }
 
     smu::platform::LagSwitchConfig config() const override
     {
-        return LagSwitchConfigFromGlobals();
+        std::lock_guard<std::mutex> lock(g_lag_config_mutex);
+        smu::platform::LagSwitchConfig config = g_base_lag_config;
+        config.currentlyBlocking = g_base_lag_blocking;
+        return config;
+    }
+
+    smu::platform::LagSwitchConfig effectiveConfig() const override
+    {
+        return EffectiveLagSwitchConfig();
     }
 
     void restartCapture() override

@@ -48,7 +48,7 @@ void InitializeSharedProfiles()
     state.alwaysOnTop = ontoptoggle;
 }
 
-void ShutdownSharedProfiles()
+void SaveSharedProfilesNow()
 {
     using namespace Globals;
     auto& state = smu::core::GetAppState();
@@ -69,6 +69,11 @@ void ShutdownSharedProfiles()
     if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
         SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
     }
+}
+
+void ShutdownSharedProfiles()
+{
+    SaveSharedProfilesNow();
 }
 
 void RenderSharedProfileManager()

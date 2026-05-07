@@ -9,6 +9,7 @@
 #include "../core/legacy_globals.h"
 #include "../platform/input_backend.h"
 #include "../platform/logging.h"
+#include "../platform/network_backend.h"
 #include "../platform/text_input_backend.h"
 
 #include <algorithm>
@@ -25,7 +26,9 @@
 #include <type_traits>
 #include <optional>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
+#include <vector>
 #include <string>
 
 #include "imgui.h"
@@ -261,6 +264,296 @@ unsigned int NormalizeScriptHotkey(unsigned int hotkey)
         return kScriptUnboundHotkey;
     }
     return hotkey;
+}
+
+const char* LagSwitchTargetModeToString(smu::platform::LagSwitchTargetMode mode)
+{
+    switch (mode) {
+    case smu::platform::LagSwitchTargetMode::All:
+        return "all";
+    case smu::platform::LagSwitchTargetMode::Custom:
+        return "custom";
+    case smu::platform::LagSwitchTargetMode::Roblox:
+    default:
+        return "roblox";
+    }
+}
+
+bool IsValidIpv4Address(const char* text, std::size_t length)
+{
+    if (!text || length == 0 || length > 15 || std::memchr(text, '\0', length)) {
+        return false;
+    }
+
+    int partCount = 0;
+    std::size_t index = 0;
+    while (index < length) {
+        if (partCount >= 4 || !std::isdigit(static_cast<unsigned char>(text[index]))) {
+            return false;
+        }
+
+        int value = 0;
+        int digitCount = 0;
+        while (index < length && std::isdigit(static_cast<unsigned char>(text[index]))) {
+            value = value * 10 + (text[index] - '0');
+            if (value > 255 || ++digitCount > 3) {
+                return false;
+            }
+            ++index;
+        }
+
+        ++partCount;
+        if (partCount == 4) {
+            return index == length;
+        }
+        if (index >= length || text[index] != '.') {
+            return false;
+        }
+        ++index;
+    }
+
+    return false;
+}
+
+void ValidateLagSwitchConfigKeys(lua_State* L, int index)
+{
+    static const std::unordered_set<std::string> kAllowedKeys = {
+        "hardBlockInbound",
+        "hardBlockOutbound",
+        "fakeLag",
+        "fakeLagInbound",
+        "fakeLagOutbound",
+        "fakeLagDelayMs",
+        "targetMode",
+        "useUdp",
+        "useTcp",
+        "preventDisconnect",
+        "autoUnblock",
+        "maxDurationSeconds",
+        "unblockDurationMs",
+        "remoteIps",
+        "remotePorts",
+        "includeRobloxDynamicIps"
+    };
+
+    const int tableIndex = lua_absindex(L, index);
+    lua_pushnil(L);
+    while (lua_next(L, tableIndex) != 0) {
+        if (!lua_isstring(L, -2)) {
+            luaL_error(L, "lag-switch config keys must be strings");
+        }
+        const char* key = lua_tostring(L, -2);
+        if (!key || kAllowedKeys.find(key) == kAllowedKeys.end()) {
+            luaL_error(L, "unknown lag-switch config key: %s", key ? key : "<null>");
+        }
+        lua_pop(L, 1);
+    }
+}
+
+bool CheckOptionalLagSwitchBool(lua_State* L, int tableIndex, const char* name, bool currentValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+    if (!lua_isboolean(L, -1)) {
+        luaL_error(L, "%s must be a boolean", name);
+    }
+    const bool value = lua_toboolean(L, -1) != 0;
+    lua_pop(L, 1);
+    return value;
+}
+
+int CheckOptionalLagSwitchInt(lua_State* L, int tableIndex, const char* name, int currentValue, int minValue, int maxValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+    const int value = CheckLuaInt(L, -1, minValue, maxValue, name);
+    lua_pop(L, 1);
+    return value;
+}
+
+float CheckOptionalLagSwitchFloat(lua_State* L, int tableIndex, const char* name, float currentValue, float minValue, float maxValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+    const double value = CheckLuaFiniteNumber(L, -1, name);
+    if (value < minValue || value > maxValue) {
+        luaL_error(L, "%s is outside the allowed range", name);
+    }
+    lua_pop(L, 1);
+    return static_cast<float>(value);
+}
+
+std::vector<std::string> CheckOptionalLagSwitchIpList(lua_State* L, int tableIndex, const char* name, const std::vector<std::string>& currentValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+    std::vector<std::string> values;
+    const int listIndex = lua_absindex(L, -1);
+    lua_pushnil(L);
+    while (lua_next(L, listIndex) != 0) {
+        if (values.size() >= 64) {
+            luaL_error(L, "%s may contain at most 64 entries", name);
+        }
+        std::size_t length = 0;
+        const char* value = luaL_checklstring(L, -1, &length);
+        if (!IsValidIpv4Address(value, length)) {
+            luaL_error(L, "%s contains an invalid IPv4 address", name);
+        }
+        values.emplace_back(value, length);
+        lua_pop(L, 1);
+    }
+
+    lua_pop(L, 1);
+    return values;
+}
+
+std::vector<int> CheckOptionalLagSwitchPortList(lua_State* L, int tableIndex, const char* name, const std::vector<int>& currentValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+    luaL_checktype(L, -1, LUA_TTABLE);
+
+    std::vector<int> values;
+    const int listIndex = lua_absindex(L, -1);
+    lua_pushnil(L);
+    while (lua_next(L, listIndex) != 0) {
+        if (values.size() >= 64) {
+            luaL_error(L, "%s may contain at most 64 entries", name);
+        }
+        values.push_back(CheckLuaInt(L, -1, 1, 65535, name));
+        lua_pop(L, 1);
+    }
+
+    lua_pop(L, 1);
+    return values;
+}
+
+smu::platform::LagSwitchTargetMode CheckOptionalLagSwitchTargetMode(
+    lua_State* L,
+    int tableIndex,
+    const char* name,
+    smu::platform::LagSwitchTargetMode currentValue)
+{
+    lua_getfield(L, tableIndex, name);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return currentValue;
+    }
+
+    const char* text = luaL_checkstring(L, -1);
+    smu::platform::LagSwitchTargetMode mode = currentValue;
+    if (std::strcmp(text, "roblox") == 0) {
+        mode = smu::platform::LagSwitchTargetMode::Roblox;
+    } else if (std::strcmp(text, "all") == 0) {
+        mode = smu::platform::LagSwitchTargetMode::All;
+    } else if (std::strcmp(text, "custom") == 0) {
+        mode = smu::platform::LagSwitchTargetMode::Custom;
+    } else {
+        luaL_error(L, "%s must be \"roblox\", \"all\", or \"custom\"", name);
+    }
+
+    lua_pop(L, 1);
+    return mode;
+}
+
+smu::platform::LagSwitchConfig CheckLagSwitchConfigTable(lua_State* L, int index, smu::platform::LagSwitchConfig config)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    const int tableIndex = lua_absindex(L, index);
+    ValidateLagSwitchConfigKeys(L, tableIndex);
+
+    config.inboundHardBlock = CheckOptionalLagSwitchBool(L, tableIndex, "hardBlockInbound", config.inboundHardBlock);
+    config.outboundHardBlock = CheckOptionalLagSwitchBool(L, tableIndex, "hardBlockOutbound", config.outboundHardBlock);
+    config.fakeLagEnabled = CheckOptionalLagSwitchBool(L, tableIndex, "fakeLag", config.fakeLagEnabled);
+    config.inboundFakeLag = CheckOptionalLagSwitchBool(L, tableIndex, "fakeLagInbound", config.inboundFakeLag);
+    config.outboundFakeLag = CheckOptionalLagSwitchBool(L, tableIndex, "fakeLagOutbound", config.outboundFakeLag);
+    config.fakeLagDelayMs = CheckOptionalLagSwitchInt(L, tableIndex, "fakeLagDelayMs", config.fakeLagDelayMs, 0, 300000);
+    config.targetMode = CheckOptionalLagSwitchTargetMode(L, tableIndex, "targetMode", config.targetMode);
+    config.useUdp = CheckOptionalLagSwitchBool(L, tableIndex, "useUdp", config.useUdp);
+    config.useTcp = CheckOptionalLagSwitchBool(L, tableIndex, "useTcp", config.useTcp);
+    config.preventDisconnect = CheckOptionalLagSwitchBool(L, tableIndex, "preventDisconnect", config.preventDisconnect);
+    config.autoUnblock = CheckOptionalLagSwitchBool(L, tableIndex, "autoUnblock", config.autoUnblock);
+    config.maxDurationSeconds = CheckOptionalLagSwitchFloat(L, tableIndex, "maxDurationSeconds", config.maxDurationSeconds, 0.0f, 3600.0f);
+    config.unblockDurationMs = CheckOptionalLagSwitchInt(L, tableIndex, "unblockDurationMs", config.unblockDurationMs, 0, 300000);
+    config.remoteIps = CheckOptionalLagSwitchIpList(L, tableIndex, "remoteIps", config.remoteIps);
+    config.remotePorts = CheckOptionalLagSwitchPortList(L, tableIndex, "remotePorts", config.remotePorts);
+    config.includeRobloxDynamicIps = CheckOptionalLagSwitchBool(L, tableIndex, "includeRobloxDynamicIps", config.includeRobloxDynamicIps);
+    config.targetRobloxOnly = config.targetMode == smu::platform::LagSwitchTargetMode::Roblox;
+    return config;
+}
+
+void PushStringList(lua_State* L, const std::vector<std::string>& values)
+{
+    lua_createtable(L, static_cast<int>(values.size()), 0);
+    int index = 1;
+    for (const std::string& value : values) {
+        lua_pushlstring(L, value.c_str(), value.size());
+        lua_rawseti(L, -2, index++);
+    }
+}
+
+void PushIntList(lua_State* L, const std::vector<int>& values)
+{
+    lua_createtable(L, static_cast<int>(values.size()), 0);
+    int index = 1;
+    for (int value : values) {
+        lua_pushinteger(L, value);
+        lua_rawseti(L, -2, index++);
+    }
+}
+
+void PushLagSwitchConfig(lua_State* L, const smu::platform::LagSwitchConfig& config)
+{
+    lua_createtable(L, 0, 16);
+    lua_pushboolean(L, config.inboundHardBlock);
+    lua_setfield(L, -2, "hardBlockInbound");
+    lua_pushboolean(L, config.outboundHardBlock);
+    lua_setfield(L, -2, "hardBlockOutbound");
+    lua_pushboolean(L, config.fakeLagEnabled);
+    lua_setfield(L, -2, "fakeLag");
+    lua_pushboolean(L, config.inboundFakeLag);
+    lua_setfield(L, -2, "fakeLagInbound");
+    lua_pushboolean(L, config.outboundFakeLag);
+    lua_setfield(L, -2, "fakeLagOutbound");
+    lua_pushinteger(L, config.fakeLagDelayMs);
+    lua_setfield(L, -2, "fakeLagDelayMs");
+    lua_pushstring(L, LagSwitchTargetModeToString(config.targetMode));
+    lua_setfield(L, -2, "targetMode");
+    lua_pushboolean(L, config.useUdp);
+    lua_setfield(L, -2, "useUdp");
+    lua_pushboolean(L, config.useTcp);
+    lua_setfield(L, -2, "useTcp");
+    lua_pushboolean(L, config.preventDisconnect);
+    lua_setfield(L, -2, "preventDisconnect");
+    lua_pushboolean(L, config.autoUnblock);
+    lua_setfield(L, -2, "autoUnblock");
+    lua_pushnumber(L, config.maxDurationSeconds);
+    lua_setfield(L, -2, "maxDurationSeconds");
+    lua_pushinteger(L, config.unblockDurationMs);
+    lua_setfield(L, -2, "unblockDurationMs");
+    lua_pushboolean(L, config.includeRobloxDynamicIps);
+    lua_setfield(L, -2, "includeRobloxDynamicIps");
+    PushStringList(L, config.remoteIps);
+    lua_setfield(L, -2, "remoteIps");
+    PushIntList(L, config.remotePorts);
+    lua_setfield(L, -2, "remotePorts");
 }
 
 bool IsModifierPressed(const smu::platform::InputBackend& input, smu::core::KeyCode key)
@@ -782,8 +1075,71 @@ int LuaLagSwitch(lua_State* L)
         return luaL_error(L, "lagSwitch is not available while rendering script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
+    if (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) {
+        const smu::platform::LagSwitchConfig config = CheckLagSwitchConfigTable(L, 2, instance.lagSwitchConfig());
+        instance.setLagSwitchConfig(config);
+    }
     instance.setLagSwitch(lua_toboolean(L, 1) != 0);
     return 0;
+}
+
+int LuaGetLagSwitchConfig(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "getLagSwitchConfig is not available while rendering script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    PushLagSwitchConfig(L, instance.lagSwitchConfig());
+    return 1;
+}
+
+int LuaSetLagSwitchConfig(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "setLagSwitchConfig is not available while rendering script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    const smu::platform::LagSwitchConfig config = CheckLagSwitchConfigTable(L, 1, instance.lagSwitchConfig());
+    instance.setLagSwitchConfig(config);
+    return 0;
+}
+
+int LuaClearLagSwitchConfig(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "clearLagSwitchConfig is not available while rendering script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    instance.clearLagSwitchConfig();
+    return 0;
+}
+
+int LuaGetLagSwitchStatus(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "getLagSwitchStatus is not available while rendering script settings");
+    }
+
+    auto backend = smu::platform::GetNetworkLagBackend();
+    const bool available = backend && backend->isAvailable();
+    const smu::platform::LagSwitchConfig config = backend ? backend->effectiveConfig() : smu::platform::LagSwitchConfig{};
+
+    lua_createtable(L, 0, 7);
+    lua_pushboolean(L, available);
+    lua_setfield(L, -2, "available");
+    lua_pushboolean(L, config.enabled);
+    lua_setfield(L, -2, "enabled");
+    lua_pushboolean(L, backend ? backend->isBlockingActive() : false);
+    lua_setfield(L, -2, "active");
+    lua_pushboolean(L, backend ? backend->isBaseBlockingActive() : false);
+    lua_setfield(L, -2, "baseActive");
+    lua_pushstring(L, available ? "available" : "unsupported");
+    lua_setfield(L, -2, "platformSupport");
+    lua_pushstring(L, backend ? backend->unsupportedReason().c_str() : "Network lagswitch backend is unavailable.");
+    lua_setfield(L, -2, "unsupportedReason");
+    lua_pushstring(L, LagSwitchTargetModeToString(config.targetMode));
+    lua_setfield(L, -2, "targetMode");
+    return 1;
 }
 
 int LuaGetPlatform(lua_State* L)
@@ -1299,6 +1655,10 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "mouseWheel", LuaMouseWheel);
     Register(L, "freeze", LuaFreeze);
     Register(L, "lagSwitch", LuaLagSwitch);
+    Register(L, "getLagSwitchConfig", LuaGetLagSwitchConfig);
+    Register(L, "setLagSwitchConfig", LuaSetLagSwitchConfig);
+    Register(L, "getLagSwitchStatus", LuaGetLagSwitchStatus);
+    Register(L, "clearLagSwitchConfig", LuaClearLagSwitchConfig);
     Register(L, "getPlatform", LuaGetPlatform);
     Register(L, "getSMUVersion", LuaGetSMUVersion);
     Register(L, "getSavedValue", LuaGetSavedValue);

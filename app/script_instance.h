@@ -1,11 +1,13 @@
 #pragma once
 
 #include "../platform/platform_types.h"
+#include "../platform/network_backend.h"
 
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <filesystem>
 #include <cstddef>
 #include <mutex>
@@ -94,6 +96,10 @@ public:
     bool waitFor(std::chrono::milliseconds duration);
     void setFreeze(bool enabled);
     void setLagSwitch(bool enabled);
+    void setLagSwitchConfig(const smu::platform::LagSwitchConfig& config);
+    void clearLagSwitchConfig();
+    smu::platform::LagSwitchConfig lagSwitchConfig() const;
+    std::uintptr_t lagSwitchOwnerToken() const;
     void setSettingsRenderMode(bool enabled) { settingsRenderMode_ = enabled; }
     bool isSettingsRenderMode() const { return settingsRenderMode_; }
     void resetSettingsUiControlCount() { settingsUiControlCount_ = 0; }
@@ -134,6 +140,7 @@ private:
     void setStopReason(StopReason reason);
     const char* stopReasonMessage() const;
     void configureMemoryLimit();
+    void releaseLagSwitchControls();
 
     lua_State* L_ = nullptr;
     ImportedScriptRecord* owner_ = nullptr;
@@ -164,6 +171,7 @@ private:
     bool settingsUiCaptureActive_ = false;
     bool settingsRenderMode_ = false;
     bool budgetActive_ = false;
+    bool touchedLagSwitch_ = false;
     std::condition_variable sleepCv_;
     std::mutex sleepMutex_;
     mutable std::mutex settingsUiMutex_;
