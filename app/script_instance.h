@@ -176,6 +176,9 @@ private:
     std::mutex sleepMutex_;
     mutable std::mutex settingsUiMutex_;
     mutable std::mutex luaMutex_;
+#if defined(_WIN32)
+    void* cancelEvent_ = nullptr;
+#endif
 };
 
 ScriptInstance* GetScriptInstance(lua_State* L);

@@ -3,6 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include <mmsystem.h>
 
 #include "app_context.h"
 #include "app_main.h"
@@ -13,6 +14,86 @@
 #include "../platform/process_backend.h"
 #include "../platform/windows/windows_backends.h"
 #include "../platform/windows/lagswitch_overlay.h"
+
+#include <algorithm>
+#include <string>
+
+namespace {
+
+// Some older Windows SDKs do not expose this Windows 11 power-throttling bit yet.
+// The runtime SetProcessInformation call below also retries without it if the OS
+// rejects the flag.
+#ifndef PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION
+constexpr ULONG kProcessPowerThrottlingIgnoreTimerResolution = 0x4;
+#else
+constexpr ULONG kProcessPowerThrottlingIgnoreTimerResolution = PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;
+#endif
+
+#ifndef PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+constexpr ULONG kProcessPowerThrottlingExecutionSpeed = 0x1;
+#else
+constexpr ULONG kProcessPowerThrottlingExecutionSpeed = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+#endif
+
+UINT g_windowsTimerResolutionPeriod = 0;
+
+std::string FormatWindowsError(DWORD error)
+{
+    return std::to_string(static_cast<unsigned long>(error));
+}
+
+void ConfigureWindowsTiming()
+{
+    TIMECAPS caps = {};
+    UINT requestedPeriod = 1;
+    if (timeGetDevCaps(&caps, sizeof(caps)) == MMSYSERR_NOERROR) {
+        requestedPeriod = std::max(caps.wPeriodMin, requestedPeriod);
+        if (caps.wPeriodMax > 0) {
+            requestedPeriod = std::min(requestedPeriod, caps.wPeriodMax);
+        }
+    }
+
+    if (timeBeginPeriod(requestedPeriod) == TIMERR_NOERROR) {
+        g_windowsTimerResolutionPeriod = requestedPeriod;
+        LogInfo("Requested high-resolution Windows timer period for macro/script timing.");
+    } else {
+        LogWarning("Windows refused the high-resolution timer-period request; short script sleeps may fall back to default scheduler granularity.");
+    }
+
+    PROCESS_POWER_THROTTLING_STATE powerThrottling = {};
+    powerThrottling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    powerThrottling.ControlMask = kProcessPowerThrottlingExecutionSpeed | kProcessPowerThrottlingIgnoreTimerResolution;
+    powerThrottling.StateMask = 0; // Disable EcoQoS execution throttling and force Windows to honor timer-resolution requests.
+
+    if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &powerThrottling, sizeof(powerThrottling))) {
+        const DWORD firstError = GetLastError();
+
+        // Older OS builds may reject PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION.
+        // Still disable execution-speed throttling when available.
+        powerThrottling = {};
+        powerThrottling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+        powerThrottling.ControlMask = kProcessPowerThrottlingExecutionSpeed;
+        powerThrottling.StateMask = 0;
+
+        if (!SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &powerThrottling, sizeof(powerThrottling))) {
+            LogWarning("Windows refused process power-throttling configuration; first error=" +
+                FormatWindowsError(firstError) + ", retry error=" + FormatWindowsError(GetLastError()) + ".");
+        } else {
+            LogWarning("Windows refused the ignore-timer-resolution power-throttling flag; execution-speed throttling was still disabled. Error=" +
+                FormatWindowsError(firstError) + ".");
+        }
+    }
+}
+
+void RestoreWindowsTiming()
+{
+    if (g_windowsTimerResolutionPeriod != 0) {
+        timeEndPeriod(g_windowsTimerResolutionPeriod);
+        g_windowsTimerResolutionPeriod = 0;
+    }
+}
+
+} // namespace
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -26,6 +107,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
     LogInfo("Starting Spencer Macro Utilities native Windows app.");
+    ConfigureWindowsTiming();
 
     smu::platform::windows::InitializeWindowsPlatformBackends();
 
@@ -70,6 +152,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     }
 
     LogInfo("Spencer Macro Utilities native Windows app stopped.");
+    RestoreWindowsTiming();
     return result;
 }
 
