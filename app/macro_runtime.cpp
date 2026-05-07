@@ -143,6 +143,7 @@ void MacroRuntime::stop()
     }
 
     setTargetSuspended(false);
+    ScriptManager::Get().shutdown();
 
     std::lock_guard<std::mutex> lock(workerMutex_);
     for (auto& worker : workers_) {

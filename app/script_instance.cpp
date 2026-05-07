@@ -10,6 +10,9 @@
 #include "../platform/process_backend.h"
 
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
 #include "../platform/windows/admin_elevation.h"
 #endif
 
@@ -36,6 +39,84 @@ extern "C" {
 
 namespace smu::app {
 namespace {
+
+#if defined(_WIN32)
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+constexpr DWORD kCreateWaitableTimerHighResolution = 0x00000002;
+#else
+constexpr DWORD kCreateWaitableTimerHighResolution = CREATE_WAITABLE_TIMER_HIGH_RESOLUTION;
+#endif
+
+HANDLE CreateScriptSleepTimer()
+{
+    HANDLE timer = CreateWaitableTimerExW(nullptr, nullptr, kCreateWaitableTimerHighResolution, TIMER_MODIFY_STATE | SYNCHRONIZE);
+    if (!timer) {
+        timer = CreateWaitableTimerW(nullptr, FALSE, nullptr);
+    }
+    return timer;
+}
+
+bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, HANDLE cancelEvent)
+{
+    if (cancelEvent && WaitForSingleObject(cancelEvent, 0) == WAIT_OBJECT_0) {
+        return false;
+    }
+
+    if (wakeTime == std::chrono::steady_clock::time_point::max()) {
+        if (!cancelEvent) {
+            Sleep(INFINITE);
+            return true;
+        }
+        WaitForSingleObject(cancelEvent, INFINITE);
+        return false;
+    }
+
+    HANDLE timer = CreateScriptSleepTimer();
+    if (!timer) {
+        return false;
+    }
+
+    constexpr LONGLONG kHundredNanosecondsPerSecond = 10000000LL;
+    constexpr LONGLONG kMaxSingleTimerChunk = 60LL * kHundredNanosecondsPerSecond;
+
+    bool reachedWakeTime = false;
+    while (true) {
+        if (cancelEvent && WaitForSingleObject(cancelEvent, 0) == WAIT_OBJECT_0) {
+            break;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= wakeTime) {
+            reachedWakeTime = true;
+            break;
+        }
+
+        const auto remaining = wakeTime - now;
+        const auto remainingHundredNs = std::chrono::duration_cast<std::chrono::nanoseconds>(remaining).count() / 100;
+        const LONGLONG chunkHundredNs = std::clamp<LONGLONG>(remainingHundredNs, 1, kMaxSingleTimerChunk);
+
+        LARGE_INTEGER dueTime = {};
+        dueTime.QuadPart = -chunkHundredNs;
+        if (!SetWaitableTimer(timer, &dueTime, 0, nullptr, nullptr, FALSE)) {
+            break;
+        }
+
+        HANDLE handles[2] = {timer, cancelEvent};
+        const DWORD handleCount = cancelEvent ? 2u : 1u;
+        const DWORD waitResult = WaitForMultipleObjects(handleCount, handles, FALSE, INFINITE);
+        if (waitResult == WAIT_OBJECT_0) {
+            continue;
+        }
+        if (waitResult == WAIT_OBJECT_0 + 1) {
+            break;
+        }
+        break;
+    }
+
+    CloseHandle(timer);
+    return reachedWakeTime;
+}
+#endif
 
 constexpr const char* kRegistryInstanceKey = "SMU.ScriptInstance";
 constexpr const char* kLagSwitchRequiresAdminWarning =
@@ -363,11 +444,20 @@ std::vector<smu::platform::PlatformPid> CurrentTargetPids()
 ScriptInstance::ScriptInstance(ImportedScriptRecord& owner)
     : owner_(&owner)
 {
+#if defined(_WIN32)
+    cancelEvent_ = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+#endif
 }
 
 ScriptInstance::~ScriptInstance()
 {
     cleanup();
+#if defined(_WIN32)
+    if (cancelEvent_) {
+        CloseHandle(static_cast<HANDLE>(cancelEvent_));
+        cancelEvent_ = nullptr;
+    }
+#endif
 }
 
 void ScriptInstance::configureMemoryLimit()
@@ -1066,6 +1156,11 @@ void ScriptInstance::setStopReason(StopReason reason)
 {
     StopReason expected = StopReason::None;
     if (stopReason_.compare_exchange_strong(expected, reason, std::memory_order_acq_rel)) {
+#if defined(_WIN32)
+        if (cancelEvent_) {
+            SetEvent(static_cast<HANDLE>(cancelEvent_));
+        }
+#endif
         sleepCv_.notify_all();
     }
 }
@@ -1135,6 +1230,14 @@ bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
     if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
         return false;
     }
+
+#if defined(_WIN32)
+    if (cancelEvent_) {
+        const bool ok = WaitUntilWithWindowsTimer(wakeTime, static_cast<HANDLE>(cancelEvent_));
+        return ok && stopReason_.load(std::memory_order_acquire) == StopReason::None;
+    }
+#endif
+
     std::unique_lock<std::mutex> lock(sleepMutex_);
     sleepCv_.wait_until(lock, wakeTime, [this] {
         return stopReason_.load(std::memory_order_acquire) != StopReason::None;
@@ -1430,6 +1533,11 @@ void ScriptInstance::beginTimedCall(std::chrono::steady_clock::duration maxRunti
 {
     std::lock_guard<std::mutex> lock(sleepMutex_);
     stopReason_.store(StopReason::None, std::memory_order_release);
+#if defined(_WIN32)
+    if (cancelEvent_) {
+        ResetEvent(static_cast<HANDLE>(cancelEvent_));
+    }
+#endif
     remainingBudget_ = maxRuntime;
     budgetActive_ = true;
     activeBudgetStart_ = std::chrono::steady_clock::now();
