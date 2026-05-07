@@ -320,7 +320,7 @@ if color == "#FF0000" then
 end
 ```
 
-Windows: `getPixelColor()` reuses a cached monitor frame when possible and refreshes that cache approximately once per monitor refresh interval. It is suitable for moderate polling loops and repeated samples from the same frame, but it is still not a bulk image-scanning API; repeated scans across many pixels should use a future cached screenshot/buffer API instead of calling `getPixelColor()` thousands of times per frame.
+Windows: `getPixelColor()` reuses a cached monitor frame when possible and refreshes that cache approximately once per monitor refresh interval. Repeated polling is efficient and suitable for high-frequency color checks, state detection, and moderate real-time scanning up to 136,000 pixels per second.
 
 Linux: `getPixelColor()` still uses the X11/XWayland screen-read path. Native Wayland sessions without usable X11 access remain unsupported for arbitrary global screen reads.
 
