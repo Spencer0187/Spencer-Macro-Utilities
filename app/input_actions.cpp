@@ -187,74 +187,44 @@ void MoveMouse(int dx, int dy)
     }
 }
 
-namespace {
-
-#if defined(_WIN32)
-struct WindowsMouseMotionSettings {
-    int threshold1 = 0;
-    int threshold2 = 0;
-    int speed = 0;
-};
-
-std::optional<WindowsMouseMotionSettings> GetWindowsMouseMotionSettings()
+bool MoveMouseAbsoluteDelta(int dx, int dy, std::string* errorMessage)
 {
-    static std::optional<WindowsMouseMotionSettings> cachedSettings;
-    static bool cached = false;
-    if (!cached) {
-        int values[3] = {};
-        if (SystemParametersInfoA(SPI_GETMOUSE, 0, values, 0)) {
-            cachedSettings = WindowsMouseMotionSettings{values[0], values[1], values[2]};
-        } else {
-            cachedSettings = std::nullopt;
-        }
-        cached = true;
+    if (errorMessage) {
+        errorMessage->clear();
     }
-    return cachedSettings;
+
+    auto backend = platform::GetInputBackend();
+    if (!backend) {
+        SetError(errorMessage, "input backend is not available");
+        return false;
+    }
+
+    const auto cursor = backend->getCursorPosition();
+    if (!cursor) {
+        const std::string reason = backend->absolutePointerUnavailableReason();
+        SetError(errorMessage, reason.empty() ? "cursor position is not available on this platform/session" : reason);
+        return false;
+    }
+
+    const long long targetX = static_cast<long long>(cursor->x) + static_cast<long long>(dx);
+    const long long targetY = static_cast<long long>(cursor->y) + static_cast<long long>(dy);
+    if (targetX < static_cast<long long>(std::numeric_limits<int>::min()) ||
+        targetX > static_cast<long long>(std::numeric_limits<int>::max()) ||
+        targetY < static_cast<long long>(std::numeric_limits<int>::min()) ||
+        targetY > static_cast<long long>(std::numeric_limits<int>::max())) {
+        SetError(errorMessage, "absolute movement target is outside the supported integer range");
+        return false;
+    }
+
+    std::string backendError;
+    if (!backend->moveMouseAbsolute(static_cast<int>(targetX), static_cast<int>(targetY), &backendError)) {
+        SetError(errorMessage, backendError.empty() ? backend->absolutePointerUnavailableReason() : backendError);
+        return false;
+    }
+    return true;
 }
 
-int CompensateWindowsMouseAxis(int value, const WindowsMouseMotionSettings& settings)
-{
-    const int magnitude = std::abs(value);
-    if (magnitude == 0) {
-        return 0;
-    }
-
-    // This mirrors the inverse of the classic Control Panel relative-mouse path.
-    // It is a best-effort compensation for desktop motion, not an exact inversion
-    // of every custom accessibility or driver-level curve.
-    double compensated = static_cast<double>(value);
-    if (settings.speed >= 2 && magnitude > settings.threshold2 * 2) {
-        compensated = static_cast<double>(value) / 4.0;
-    } else if (settings.speed >= 1 && magnitude > settings.threshold1) {
-        compensated = static_cast<double>(value) / 2.0;
-    }
-
-    const double rounded = std::round(compensated);
-    if (rounded < static_cast<double>(std::numeric_limits<int>::min()) ||
-        rounded > static_cast<double>(std::numeric_limits<int>::max())) {
-        return value;
-    }
-    return static_cast<int>(rounded);
-}
-#endif
-
-} // namespace
-
-void MoveMouseDesktop(int dx, int dy)
-{
-    if (auto backend = platform::GetInputBackend()) {
-#if defined(_WIN32)
-        const auto settings = GetWindowsMouseMotionSettings();
-        if (settings) {
-            backend->moveMouseRaw(CompensateWindowsMouseAxis(dx, *settings), CompensateWindowsMouseAxis(dy, *settings));
-            return;
-        }
-#endif
-        backend->moveMouseRaw(dx, dy);
-    }
-}
-
-bool MoveMouseAbs(double x, double y, const std::string& mode, bool useDesktopMotion, std::string* errorMessage)
+bool MoveMouseAbs(double x, double y, const std::string& mode, bool useAbsoluteMotion, std::string* errorMessage)
 {
     if (errorMessage) {
         errorMessage->clear();
@@ -284,19 +254,22 @@ bool MoveMouseAbs(double x, double y, const std::string& mode, bool useDesktopMo
         return false;
     }
 
-    const long long deltaX = static_cast<long long>(targetX) - static_cast<long long>(cursor->x);
-    const long long deltaY = static_cast<long long>(targetY) - static_cast<long long>(cursor->y);
-    if (deltaX < static_cast<long long>(std::numeric_limits<int>::min()) ||
-        deltaX > static_cast<long long>(std::numeric_limits<int>::max()) ||
-        deltaY < static_cast<long long>(std::numeric_limits<int>::min()) ||
-        deltaY > static_cast<long long>(std::numeric_limits<int>::max())) {
-        SetError(errorMessage, "relative movement delta is outside the supported integer range");
-        return false;
-    }
-
-    if (useDesktopMotion) {
-        MoveMouseDesktop(static_cast<int>(deltaX), static_cast<int>(deltaY));
+    if (useAbsoluteMotion) {
+        std::string backendError;
+        if (!backend->moveMouseAbsolute(targetX, targetY, &backendError)) {
+            SetError(errorMessage, backendError.empty() ? backend->absolutePointerUnavailableReason() : backendError);
+            return false;
+        }
     } else {
+        const long long deltaX = static_cast<long long>(targetX) - static_cast<long long>(cursor->x);
+        const long long deltaY = static_cast<long long>(targetY) - static_cast<long long>(cursor->y);
+        if (deltaX < static_cast<long long>(std::numeric_limits<int>::min()) ||
+            deltaX > static_cast<long long>(std::numeric_limits<int>::max()) ||
+            deltaY < static_cast<long long>(std::numeric_limits<int>::min()) ||
+            deltaY > static_cast<long long>(std::numeric_limits<int>::max())) {
+            SetError(errorMessage, "relative movement delta is outside the supported integer range");
+            return false;
+        }
         backend->moveMouse(static_cast<int>(deltaX), static_cast<int>(deltaY));
     }
     return true;

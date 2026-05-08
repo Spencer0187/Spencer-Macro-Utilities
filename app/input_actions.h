@@ -16,8 +16,8 @@ void PressKey(core::KeyCode key, int delayMs = 50);
 void HoldKeyBinded(core::KeyCode combinedKey);
 void ReleaseKeyBinded(core::KeyCode combinedKey);
 void MoveMouse(int dx, int dy);
-void MoveMouseDesktop(int dx, int dy);
-bool MoveMouseAbs(double x, double y, const std::string& mode, bool useDesktopMotion, std::string* errorMessage = nullptr);
+bool MoveMouseAbsoluteDelta(int dx, int dy, std::string* errorMessage = nullptr);
+bool MoveMouseAbs(double x, double y, const std::string& mode, bool useAbsoluteMotion, std::string* errorMessage = nullptr);
 std::optional<smu::platform::PixelColor> GetPixelColor(double x, double y, const std::string& mode, std::string* errorMessage = nullptr);
 std::optional<std::vector<std::vector<smu::platform::PixelColor>>> GetPixelRect(
     double x1,

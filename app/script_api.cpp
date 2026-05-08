@@ -59,13 +59,13 @@ constexpr std::size_t kMaxTypeTextBytes = 4096;
 constexpr const char* kLogTruncateSuffix = "...(truncated)";
 constexpr const char* kRegistryMoveDegreesSettingsKey = "smu.moveDegreesSettings";
 constexpr const char* kMouseMotionModeRaw = "raw";
-constexpr const char* kMouseMotionModeScaled = "scaled";
+constexpr const char* kMouseMotionModeAbsolute = "absolute";
 
 const char* MouseMotionModeToString(ScriptInstance::MouseMotionMode mode)
 {
     switch (mode) {
-    case ScriptInstance::MouseMotionMode::Scaled:
-        return kMouseMotionModeScaled;
+    case ScriptInstance::MouseMotionMode::Absolute:
+        return kMouseMotionModeAbsolute;
     case ScriptInstance::MouseMotionMode::Raw:
     default:
         return kMouseMotionModeRaw;
@@ -82,10 +82,9 @@ bool ParseMouseMotionMode(const char* value, ScriptInstance::MouseMotionMode& mo
         mode = ScriptInstance::MouseMotionMode::Raw;
         return true;
     }
-    if (std::strcmp(value, kMouseMotionModeScaled) == 0 ||
-        std::strcmp(value, "desktop") == 0 ||
-        std::strcmp(value, "scaled_motion") == 0) {
-        mode = ScriptInstance::MouseMotionMode::Scaled;
+    if (std::strcmp(value, kMouseMotionModeAbsolute) == 0 ||
+        std::strcmp(value, "abs") == 0) {
+        mode = ScriptInstance::MouseMotionMode::Absolute;
         return true;
     }
     return false;
@@ -1124,10 +1123,17 @@ int LuaMoveMouse(lua_State* L)
     const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
 
     ScriptInstance& instance = RequireInstance(L);
-    if (instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Raw) {
+    const ScriptInstance::MouseMotionMode motionMode = instance.mouseMotionMode();
+    if (motionMode == ScriptInstance::MouseMotionMode::Raw) {
         MoveMouse(dx, dy);
     } else {
-        MoveMouseDesktop(dx, dy);
+        std::string error;
+        if (!MoveMouseAbsoluteDelta(dx, dy, &error)) {
+            if (error.empty()) {
+                error = "unknown failure";
+            }
+            return luaL_error(L, "moveMouse failed: %s", error.c_str());
+        }
     }
     return 0;
 }
@@ -1148,7 +1154,7 @@ int LuaMoveMouseAbs(lua_State* L)
     std::string error;
     ScriptInstance& instance = RequireInstance(L);
     if (!MoveMouseAbs(x, y, modeText ? modeText : "pixels",
-            instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Scaled,
+            instance.mouseMotionMode() != ScriptInstance::MouseMotionMode::Raw,
             &error)) {
         if (error.empty()) {
             error = "unknown failure";
@@ -1196,7 +1202,7 @@ int LuaSetMouseMotionMode(lua_State* L)
     const char* modeText = luaL_checkstring(L, 1);
     ScriptInstance::MouseMotionMode mode = ScriptInstance::MouseMotionMode::Raw;
     if (!ParseMouseMotionMode(modeText, mode)) {
-        return luaL_error(L, "mouse motion mode must be one of: raw, scaled");
+        return luaL_error(L, "mouse motion mode must be one of: raw, absolute");
     }
 
     instance.setMouseMotionMode(mode);
@@ -1259,10 +1265,17 @@ int LuaMoveDegrees(lua_State* L)
     // Positive degree values move upward, which is negative screen-space Y.
     const int dyPixels = RoundMouseDelta(L, -dyDegrees * pixelsPerDegree, "dy");
     ScriptInstance& instance = RequireInstance(L);
-    if (instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Raw) {
+    const ScriptInstance::MouseMotionMode motionMode = instance.mouseMotionMode();
+    if (motionMode == ScriptInstance::MouseMotionMode::Raw) {
         MoveMouse(dxPixels, dyPixels);
     } else {
-        MoveMouseDesktop(dxPixels, dyPixels);
+        std::string absoluteError;
+        if (!MoveMouseAbsoluteDelta(dxPixels, dyPixels, &absoluteError)) {
+            if (absoluteError.empty()) {
+                absoluteError = "unknown failure";
+            }
+            return luaL_error(L, "moveDegrees failed: %s", absoluteError.c_str());
+        }
     }
     return 0;
 }

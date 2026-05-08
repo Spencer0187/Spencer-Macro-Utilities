@@ -104,6 +104,7 @@ constexpr PlatformKeyCode kVkOem5 = 0xDC;
 constexpr PlatformKeyCode kVkOem6 = 0xDD;
 constexpr PlatformKeyCode kVkOem7 = 0xDE;
 
+std::string LinuxAbsolutePointerUnavailableReason();
 
 std::optional<CursorPosition> GetX11CursorPosition()
 {
@@ -129,6 +130,54 @@ std::optional<CursorPosition> GetX11CursorPosition()
     return CursorPosition{rootX, rootY};
 #else
     return std::nullopt;
+#endif
+}
+
+bool MoveMouseAbsoluteX11(int x, int y, std::string* errorMessage)
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        if (errorMessage) {
+            *errorMessage = LinuxAbsolutePointerUnavailableReason();
+        }
+        return false;
+    }
+
+    Window root = DefaultRootWindow(display);
+    const int screen = DefaultScreen(display);
+    const int width = DisplayWidth(display, screen);
+    const int height = DisplayHeight(display, screen);
+    if (width <= 0 || height <= 0) {
+        XCloseDisplay(display);
+        if (errorMessage) {
+            *errorMessage = "absolute screen coordinates are unavailable. X11 reported invalid screen bounds.";
+        }
+        return false;
+    }
+
+    const int clampedX = std::clamp(x, 0, width - 1);
+    const int clampedY = std::clamp(y, 0, height - 1);
+    const int ok = XWarpPointer(display, None, root, 0, 0, 0, 0, clampedX, clampedY);
+    XFlush(display);
+    XCloseDisplay(display);
+    if (!ok) {
+        if (errorMessage) {
+            *errorMessage = "absolute X11 cursor movement failed";
+        }
+        return false;
+    }
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return true;
+#else
+    if (errorMessage) {
+        *errorMessage = LinuxAbsolutePointerUnavailableReason();
+    }
+    (void)x;
+    (void)y;
+    return false;
 #endif
 }
 
@@ -880,6 +929,11 @@ void EvdevUinputInputBackend::moveMouseRaw(int dx, int dy)
     emit(EV_REL, REL_X, dx);
     emit(EV_REL, REL_Y, dy);
     emitSyn();
+}
+
+bool EvdevUinputInputBackend::moveMouseAbsolute(int x, int y, std::string* errorMessage)
+{
+    return MoveMouseAbsoluteX11(x, y, errorMessage);
 }
 
 std::optional<CursorPosition> EvdevUinputInputBackend::getCursorPosition() const
