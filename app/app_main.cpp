@@ -23,10 +23,12 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "../platform/logging.h"
 
@@ -39,10 +41,54 @@
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
+#elif defined(__linux__)
+#include <unistd.h>
 #endif
 
 namespace smu::app {
 namespace {
+
+std::filesystem::path GetExecutableDirectory()
+{
+#if defined(_WIN32)
+    std::vector<wchar_t> buffer(32768);
+
+    while (true) {
+        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (length == 0) {
+            return {};
+        }
+
+        if (length < buffer.size() - 1) {
+            break;
+        }
+
+        buffer.resize(buffer.size() * 2);
+    }
+
+    return std::filesystem::path(buffer.data()).parent_path();
+#elif defined(__linux__)
+    std::vector<char> buffer(4096);
+
+    while (true) {
+        const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+        if (length < 0) {
+            return {};
+        }
+
+        if (static_cast<std::size_t>(length) < buffer.size() - 1) {
+            buffer[static_cast<std::size_t>(length)] = '\0';
+            break;
+        }
+
+        buffer.resize(buffer.size() * 2);
+    }
+
+    return std::filesystem::path(buffer.data()).parent_path();
+#else
+    return {};
+#endif
+}
 
 constexpr const char kWindowIconWarningId[] = "window_icon_unavailable";
 constexpr const char kNativeDarkTitleBarWarningId[] = "native_dark_titlebar_unavailable";
@@ -135,6 +181,18 @@ void ApplyDarkTitleBar(SDL_Window* window)
 #endif
 
 } // namespace
+
+bool SetWorkingDirectoryToExecutablePath()
+{
+    const std::filesystem::path executableDirectory = GetExecutableDirectory();
+    if (executableDirectory.empty()) {
+        return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::current_path(executableDirectory, ec);
+    return !ec;
+}
 
 int RunSharedApp(AppContext& context, const AppMainConfig& config)
 {

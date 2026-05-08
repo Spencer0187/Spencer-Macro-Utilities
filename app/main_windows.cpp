@@ -105,7 +105,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     constexpr const char kWindowsInputBackendInitWarningId[] = "windows_input_backend_init_failed";
     constexpr const char kWindowsProcessBackendInitWarningId[] = "windows_process_backend_init_failed";
 
+    const bool workingDirectoryUpdated = smu::app::SetWorkingDirectoryToExecutablePath();
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
+    if (!workingDirectoryUpdated) {
+        LogWarning("Failed to set the working directory to the Windows executable path.");
+    }
     LogInfo("Starting Spencer Macro Utilities native Windows app.");
     ConfigureWindowsTiming();
 

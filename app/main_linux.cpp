@@ -295,7 +295,11 @@ void InitializeLinuxInputBackend(
 
 int main(int argc, char** argv)
 {
+    const bool workingDirectoryUpdated = smu::app::SetWorkingDirectoryToExecutablePath();
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
+    if (!workingDirectoryUpdated) {
+        LogWarning("Failed to set the working directory to the Linux executable path.");
+    }
     LogInfo("Starting Spencer Macro Utilities native Linux app.");
     LogLinuxStartupDiagnostics();
     (void)argc;

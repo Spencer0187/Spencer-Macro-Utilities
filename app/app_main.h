@@ -10,6 +10,8 @@ struct AppMainConfig {
     int defaultHeight = 800;
 };
 
+bool SetWorkingDirectoryToExecutablePath();
+
 int RunSharedApp(AppContext& context, const AppMainConfig& config = {});
 
 } // namespace smu::app
