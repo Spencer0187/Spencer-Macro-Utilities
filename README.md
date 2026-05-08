@@ -2,7 +2,7 @@
 An open-source, Cross-Platform Windows + Linux C++ Roblox ImGui Macro with many features.
 
 ### Is this A CHEAT???
-No, it's a macro, it doesn't communicate with Roblox memory in any way.
+No, it's a macro; it doesn't communicate with Roblox memory in any way.
 
 ### Known Issues
 - If it doesn't launch at all in Windows, go into properties and select "Unblock" on the file.
@@ -20,26 +20,27 @@ https://discord.gg/roblox-glitching-community-998572881892094012
 
 # Current Features (Fully explained in-program):
 
-1. Anti-AFK at all times (even if Roblox isn't shown)
+1. Anti-AFK at all times (even if Roblox isn't shown) - Windows Only
 2. Customizable UI buttons (Drag to Swap Locations)
-3. Wall Helicopter High Jump
-4. Speedglitch
-5. Automatic Ledge Bouncing
-6. Automatic Laugh Clipping
-7. Dropless Item Desync Hitboxes
-8. Freeze Macro
-9. Unequip Speedglitch (Deprecated, Roblox patched)
-10. Wallhop/Mouse-Move Macro (Supports multiple instances natively in the GUI)
-11. Walless Lag High Jump (14 Studs)
-12. Press a Key for One Frame
-13. Wall-Walk
-14. Item-Clip
-15. Spam a Key/Button (Supports multiple instances natively in the GUI)
-16. Intelligent Bhop/Bunnyhop
+3. Custom Lua Macro Scripts
+4. Wall Helicopter High Jump
+5. Speedglitch
+6. Automatic Ledge Bouncing
+7. Automatic Laugh Clipping
+8. Dropless Item Desync Hitboxes
+9. Freeze Macro
+10. Unequip Speedglitch (Deprecated, Roblox patched)
+11. Wallhop/Mouse-Move Macro (Supports multiple instances natively in the GUI)
+12. Walless Lag High Jump (14 Studs)
+13. Press a Key for One Frame
+14. Wall-Walk
+15. Item-Clip
+16. Spam a Key/Button (Supports multiple instances natively in the GUI)
+17. Intelligent Bhop/Bunnyhop
 
 ## Lua Macro Scripts
 
-Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, `.lua`, or `.txt` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. The scripting API includes `getSavedValue(name)`, which reads the current in-memory value of a setting that is persisted in the save file. Scripts can also define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
+Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, `.lua`, or `.txt` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. Scripts can define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
 
 # AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
 
@@ -61,14 +62,14 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
 |----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
 
 ## Debugging Instructions
-  (To show printed messages)
+  (To receive generated logs)
   - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
   - Linux: Run using `DEBUG=1 ./suspend`.
 
 ## Compilation
 
 ### Windows CMake:
-Open the repository folder directly in Visual Studio 2022 as a CMake project, or use VS Code with CMake Tools. The legacy `.sln`/`.vcxproj` files were removed intentionally.
+Open the repository folder directly in Visual Studio 2022 as a CMake project, or use VS Code with CMake Tools.
 
 ```powershell
 cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
@@ -76,7 +77,6 @@ cmake --build build/windows --config Release --target suspend
 ```
 
 ### Linux Native Backend:
-The Linux build now produces the native `suspend` executable. SDL3 is built from the vendored source tree in `third_party/SDL`, so you do not need a system `libsdl3-dev` package.
 
 Install dependencies on Ubuntu/Debian:
 ```bash
@@ -101,16 +101,17 @@ Runtime notes for the native Linux backend:
 - Input state reading uses `/dev/input/event*`.
 - The backend needs group-based access to those devices. Run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot if access is still missing.
 - The app may launch the setup script with `pkexec`, but it does not relaunch the whole GUI as root and does not read your password.
-- Runtime assets are loaded from `assets/` next to the executable; developer builds fall back to the source tree assets.
-- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior.
+- Runtime assets are loaded from `assets/` next to the executable.
+- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior. Wayland support is currently in development.
 - Wayland foreground process detection is intentionally unsupported.
-- Linux network lagswitch support is not part of the native backend target.
+- Linux network lagswitch support is not part of the native backend target yet; we're working on it.
 
 ---
 
 ### Team Roles
 - **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/) | [Discord](https://discord.com/users/618407079622737931)
 - **Linux Maintainer**: [quuut](https://github.com/quuuut) | [Discord](https://discord.com/users/750631921079287839)
+- **Maintainer and Packager**: [Floofy](https://github.com/FloofyIV) | [Discord](https://discord.com/users/966112150915518474)
 
 ### Privacy Policy
 This application makes client-side HTTP requests solely for version checking and updates. No user data is collected or transmitted to any servers.
