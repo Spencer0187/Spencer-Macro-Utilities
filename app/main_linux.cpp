@@ -308,6 +308,7 @@ int main(int argc, char** argv)
     smu::core::InitializeMacroSections(false);
     std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
     Globals::g_isLinuxWine = true;
+    Globals::antiafktoggle = false;
     std::snprintf(Globals::settingsBuffer, sizeof(Globals::settingsBuffer), "sober");
 
     smu::app::AppContext context = smu::app::CreateAppContext();

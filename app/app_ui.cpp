@@ -1508,6 +1508,7 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     ImGui::SetCursorScreenPos(ImVec2(tooltipCursorPos.x + textSizeCalc.x, tooltipCursorPos.y));
     ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
 #if defined(__linux__)
+    antiafktoggle = false;
     ImGui::BeginDisabled(true);
 #endif
     ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
