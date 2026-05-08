@@ -322,21 +322,21 @@ end
 | `isKeyPressed(key)` | Return whether a key is currently pressed |
 | `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind`) |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
-| `moveMouse(dx, dy)` | Move the mouse relative to its current position. In `"raw"` mode on Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent |
-| `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor by calculating the needed relative delta from the current cursor position. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"` |
-| `setMouseMotionMode(mode)` | Set how Lua mouse movement calls are dispatched. `mode` must be `"raw"` or `"scaled"`; `"raw"` keeps the legacy `display_scale` path, while `"scaled"` uses the cached desktop mouse speed/acceleration settings for best-effort compensation |
-| `getMouseMotionMode()` | Return the current Lua mouse motion mode as `"raw"` or `"scaled"` |
+| `moveMouse(dx, dy)` | Move the mouse relative to its current position. In `"raw"` mode on Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent. In `"absolute"` mode, the target cursor position is calculated and sent through the platform absolute-pointer API |
+| `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"` |
+| `setMouseMotionMode(mode)` | Set how Lua mouse movement calls are dispatched. `mode` must be `"raw"` or `"absolute"`. `"raw"` keeps the legacy `display_scale` path for games/raw-input use. `"absolute"` uses platform absolute-pointer injection and reports an error if it is unavailable |
+| `getMouseMotionMode()` | Return the current Lua mouse motion mode as `"raw"` or `"absolute"` |
 | `getPixelColor(x, y, mode, format)` | Return the pixel color at a position on the monitor containing the cursor. `mode` is optional and defaults to `"pixels"`. `format` is optional and defaults to `"hex"`; use `"rgb"` to get a table like `{ r = 255, g = 0, b = 0 }`. Not available while rendering `onSettings()` |
 | `getPixelRect(x1, y1, x2, y2, mode, format)` | Return a row-major 2D table of pixels covering the rectangle between two corner points. `mode` is optional and defaults to `"pixels"`. Same-line rectangles still have width and height `1`, not `0`. `format` works the same as `getPixelColor()` |
 | `moveDegrees(dx, dy)` | Move the mouse using degree units derived from saved Roblox sensitivity and Cam-Fix settings. `dx` and `dy` may be integers or floats. Positive `dy` moves upward |
 | `mouseWheel(delta)` | Scroll the mouse wheel |
 
-By default, Lua scripts start in `"raw"` mouse motion mode. If a script wants desktop-style compensation for mouse speed and acceleration, it should call `setMouseMotionMode("scaled")` before issuing mouse movement commands.
+By default, Lua scripts start in `"raw"` mouse motion mode. If a script wants desktop-style cursor positioning outside raw-input games, it should call `setMouseMotionMode("absolute")` before issuing mouse movement commands.
 This mode affects `moveMouse()`, `moveMouseAbs()`, and `moveDegrees()`.
-On Windows, the scaled mode uses the system mouse settings exposed through `SystemParametersInfo(SPI_GETMOUSE)`. On Linux, there is no single registry-equivalent desktop mouse API, so the scaled mode currently falls back to the native backend's relative motion path.
+On Windows, relative `SendInput` mouse motion is still affected by pointer speed and acceleration, so desktop coordinate targeting uses normalized absolute `SendInput` with virtual-desktop coordinates instead of trying to reverse the system pointer curve. On Linux/X11, desktop coordinate targeting uses `XWarpPointer()`. Native Wayland sessions without usable X11 access cannot provide this global absolute-pointer path.
 
 
-`moveMouseAbs(x, y, mode)`, `getPixelColor(x, y, mode, format)`, and `getPixelRect(x1, y1, x2, y2, mode, format)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size. `moveMouseAbs()` also follows the current Lua mouse motion mode: `"raw"` uses the legacy `display_scale` path, while `"scaled"` uses a best-effort desktop compensation path based on the current mouse speed/acceleration settings.
+`moveMouseAbs(x, y, mode)`, `getPixelColor(x, y, mode, format)`, and `getPixelRect(x1, y1, x2, y2, mode, format)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled coordinate modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size. `moveMouseAbs()` also follows the current Lua mouse motion mode: `"raw"` calculates a relative delta and uses the legacy `display_scale` path, while `"absolute"` uses platform absolute-pointer injection.
 
 Examples:
 
@@ -364,7 +364,7 @@ Windows: `getPixelColor()` reuses a cached monitor frame when possible and refre
 
 Linux: `getPixelColor()` still uses the X11/XWayland screen-read path. Native Wayland sessions without usable X11 access remain unsupported for arbitrary global screen reads.
 
-Linux note: absolute-coordinate APIs currently need X11/XWayland cursor-position and screen-read access. `moveMouseAbs()` still injects movement through the existing relative `uinput` path. Native Wayland sessions without usable X11 access report descriptive `moveMouseAbs failed: ...` or `getPixelColor failed: ...` script errors in the selected script status panel, explaining that global cursor/screen position or arbitrary screen reads are unavailable.
+Linux note: absolute-coordinate APIs currently need X11/XWayland cursor-position and screen-read access. `moveMouseAbs()` uses X11 absolute pointer warping in `"absolute"` motion mode, and still uses the existing relative `uinput` path in `"raw"` mode. Native Wayland sessions without usable X11 access report descriptive `moveMouseAbs failed: ...` or `getPixelColor failed: ...` script errors in the selected script status panel, explaining that global cursor/screen position or arbitrary screen reads are unavailable.
 
 `moveDegrees(dx, dy)` caches its conversion settings once when the script instance starts. It uses `RobloxSensValue` and `camfixtoggle` to convert degrees into pixels with the same formula used by the built-in wallhop/rotation UI.
 

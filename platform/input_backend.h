@@ -26,6 +26,15 @@ public:
     {
         moveMouse(dx, dy);
     }
+    virtual bool moveMouseAbsolute(int x, int y, std::string* errorMessage = nullptr)
+    {
+        if (errorMessage) {
+            *errorMessage = absolutePointerUnavailableReason();
+        }
+        (void)x;
+        (void)y;
+        return false;
+    }
     virtual void mouseWheel(int delta) = 0;
 
     virtual std::optional<CursorPosition> getCursorPosition() const

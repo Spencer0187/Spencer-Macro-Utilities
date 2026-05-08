@@ -28,6 +28,7 @@ public:
     void releaseKeyChord(PlatformKeyCode combinedKey) override;
     void moveMouse(int dx, int dy) override;
     void moveMouseRaw(int dx, int dy) override;
+    bool moveMouseAbsolute(int x, int y, std::string* errorMessage = nullptr) override;
     void mouseWheel(int delta) override;
 
     std::optional<CursorPosition> getCursorPosition() const override;

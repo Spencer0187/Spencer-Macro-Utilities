@@ -37,7 +37,7 @@ class ScriptInstance {
 public:
     enum class MouseMotionMode {
         Raw,
-        Scaled
+        Absolute
     };
 
     using UiStringBuffer = std::array<char, kMaxUiStateStringBytes + 1>;

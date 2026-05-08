@@ -12,6 +12,7 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
@@ -600,6 +601,41 @@ void MoveMouseNative(int dx, int dy)
     MoveMouseNativeRaw(dx, dy);
 }
 
+bool MoveMouseAbsoluteNative(int x, int y, std::string* errorMessage)
+{
+    const int left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int top = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    const int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (width <= 0 || height <= 0) {
+        if (errorMessage) {
+            *errorMessage = "virtual desktop bounds are not available in the current Windows session";
+        }
+        return false;
+    }
+
+    const int clampedX = std::clamp(x, left, left + width - 1);
+    const int clampedY = std::clamp(y, top, top + height - 1);
+    const int widthDenominator = std::max(width - 1, 1);
+    const int heightDenominator = std::max(height - 1, 1);
+    const LONG normalizedX = static_cast<LONG>(
+        std::llround((static_cast<double>(clampedX - left) * 65535.0) / static_cast<double>(widthDenominator)));
+    const LONG normalizedY = static_cast<LONG>(
+        std::llround((static_cast<double>(clampedY - top) * 65535.0) / static_cast<double>(heightDenominator)));
+
+    INPUT input = {};
+    input.type = INPUT_MOUSE;
+    input.mi.dx = normalizedX;
+    input.mi.dy = normalizedY;
+    input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+    TagInjectedInput(input);
+    DispatchTaggedInputs(&input, 1);
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return true;
+}
+
 std::optional<CursorPosition> GetCursorPositionNative()
 {
     POINT point = {};
@@ -958,6 +994,11 @@ public:
     void moveMouseRaw(int dx, int dy) override
     {
         MoveMouseNativeRaw(dx, dy);
+    }
+
+    bool moveMouseAbsolute(int x, int y, std::string* errorMessage = nullptr) override
+    {
+        return MoveMouseAbsoluteNative(x, y, errorMessage);
     }
 
     std::optional<CursorPosition> getCursorPosition() const override
