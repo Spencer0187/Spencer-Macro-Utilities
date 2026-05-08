@@ -336,7 +336,7 @@ This mode affects `moveMouse()`, `moveMouseAbs()`, and `moveDegrees()`.
 On Windows, relative `SendInput` mouse motion is still affected by pointer speed and acceleration, so desktop coordinate targeting uses normalized absolute `SendInput` with virtual-desktop coordinates instead of trying to reverse the system pointer curve. On Linux/X11, desktop coordinate targeting uses `XWarpPointer()`. Native Wayland sessions without usable X11 access cannot provide this global absolute-pointer path.
 
 
-`moveMouseAbs(x, y, mode)`, `getPixelColor(x, y, mode, format)`, and `getPixelRect(x1, y1, x2, y2, mode, format)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled coordinate modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size. `moveMouseAbs()` also follows the current Lua mouse motion mode: `"raw"` calculates a relative delta and uses the legacy `display_scale` path, while `"absolute"` uses platform absolute-pointer injection.
+`moveMouseAbs(x, y, mode)`, `getPixelColor(x, y, mode, format)`, and `getPixelRect(x1, y1, x2, y2, mode, format)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled coordinate modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size. `moveMouseAbs()` also follows the current Lua mouse motion mode: `"raw"` calculates a relative delta and uses the legacy `display_scale` path, while `"absolute"` uses platform absolute-pointer injection, of which is not recommended for games, they do not like absolute input.
 
 Examples:
 
@@ -353,7 +353,7 @@ end
 
 local rgb = getPixelColor(50, 50, "percent", "rgb")
 if rgb.r == 255 and rgb.g == 0 and rgb.b == 0 then
-    log("center pixel is red in RGB form")
+    log("center pixel is red, but in RGB form")
 end
 
 local block = getPixelRect(10, 10, 12, 12, "pixels", "rgb")
