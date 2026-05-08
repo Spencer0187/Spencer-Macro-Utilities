@@ -1926,6 +1926,17 @@ void RenderSelectedImportedScript(AppContext& context)
         ImGui::EndDisabled();
     }
 
+    if (!running) {
+        ImGui::BeginDisabled();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Force Stop")) {
+        manager.forceStopScript(static_cast<std::size_t>(g_selected_imported_script));
+    }
+    if (!running) {
+        ImGui::EndDisabled();
+    }
+
     ImGui::Separator();
     const char* status = "Loaded";
     ImVec4 statusColor = GetCurrentTheme().success_color;

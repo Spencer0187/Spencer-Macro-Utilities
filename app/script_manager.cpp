@@ -285,6 +285,25 @@ bool ScriptManager::executeScript(std::size_t index)
     return ok;
 }
 
+bool ScriptManager::forceStopScript(std::size_t index)
+{
+    RecordPtr record;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (index >= scripts_.size()) {
+            return false;
+        }
+        record = scripts_[index];
+        if (!record || !record->running.load(std::memory_order_acquire) || !record->instance) {
+            return false;
+        }
+    }
+
+    LogInfo("Imported script cancel requested via Force Stop: " + record->metadata.name);
+    record->instance->requestCancel();
+    return true;
+}
+
 void ScriptManager::clear()
 {
     {

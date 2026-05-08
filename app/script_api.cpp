@@ -58,6 +58,38 @@ constexpr std::size_t kMaxLogMessageBytes = 4096;
 constexpr std::size_t kMaxTypeTextBytes = 4096;
 constexpr const char* kLogTruncateSuffix = "...(truncated)";
 constexpr const char* kRegistryMoveDegreesSettingsKey = "smu.moveDegreesSettings";
+constexpr const char* kMouseMotionModeRaw = "raw";
+constexpr const char* kMouseMotionModeScaled = "scaled";
+
+const char* MouseMotionModeToString(ScriptInstance::MouseMotionMode mode)
+{
+    switch (mode) {
+    case ScriptInstance::MouseMotionMode::Scaled:
+        return kMouseMotionModeScaled;
+    case ScriptInstance::MouseMotionMode::Raw:
+    default:
+        return kMouseMotionModeRaw;
+    }
+}
+
+bool ParseMouseMotionMode(const char* value, ScriptInstance::MouseMotionMode& mode)
+{
+    if (!value) {
+        return false;
+    }
+
+    if (std::strcmp(value, kMouseMotionModeRaw) == 0) {
+        mode = ScriptInstance::MouseMotionMode::Raw;
+        return true;
+    }
+    if (std::strcmp(value, kMouseMotionModeScaled) == 0 ||
+        std::strcmp(value, "desktop") == 0 ||
+        std::strcmp(value, "scaled_motion") == 0) {
+        mode = ScriptInstance::MouseMotionMode::Scaled;
+        return true;
+    }
+    return false;
+}
 
 int CheckLuaInt(lua_State* L, int index, int minValue, int maxValue, const char* name)
 {
@@ -210,6 +242,105 @@ smu::core::KeyCode CheckKey(lua_State* L, int index)
     return static_cast<smu::core::KeyCode>(luaL_error(L, "invalid key: %s", keyName ? keyName : "<null>"));
 }
 
+bool IsMouseRelatedKey(smu::core::KeyCode key)
+{
+    switch (key) {
+    case smu::core::SMU_VK_LBUTTON:
+    case smu::core::SMU_VK_RBUTTON:
+    case smu::core::SMU_VK_MBUTTON:
+    case smu::core::SMU_VK_XBUTTON1:
+    case smu::core::SMU_VK_XBUTTON2:
+    case smu::core::SMU_VK_MOUSE_WHEEL_UP:
+    case smu::core::SMU_VK_MOUSE_WHEEL_DOWN:
+        return true;
+    default:
+        return false;
+    }
+}
+
+enum class PixelOutputFormat {
+    Hex,
+    Rgb,
+};
+
+PixelOutputFormat CheckPixelOutputFormat(lua_State* L, int index)
+{
+    if (lua_gettop(L) < index || lua_isnil(L, index)) {
+        return PixelOutputFormat::Hex;
+    }
+
+    const char* format = luaL_checkstring(L, index);
+    if (format && std::strcmp(format, "hex") == 0) {
+        return PixelOutputFormat::Hex;
+    }
+    if (format && std::strcmp(format, "rgb") == 0) {
+        return PixelOutputFormat::Rgb;
+    }
+    return static_cast<PixelOutputFormat>(luaL_error(L, "pixel format must be \"hex\" or \"rgb\""));
+}
+
+void PushPixelColor(lua_State* L, const smu::platform::PixelColor& color, PixelOutputFormat format)
+{
+    if (format == PixelOutputFormat::Rgb) {
+        lua_createtable(L, 0, 3);
+        lua_pushinteger(L, color.r);
+        lua_setfield(L, -2, "r");
+        lua_pushinteger(L, color.g);
+        lua_setfield(L, -2, "g");
+        lua_pushinteger(L, color.b);
+        lua_setfield(L, -2, "b");
+        return;
+    }
+
+    char buffer[8] = {};
+    std::snprintf(buffer, sizeof(buffer), "#%02X%02X%02X",
+        static_cast<unsigned int>(color.r),
+        static_cast<unsigned int>(color.g),
+        static_cast<unsigned int>(color.b));
+    lua_pushstring(L, buffer);
+}
+
+void PushPixelRect(lua_State* L, const std::vector<std::vector<smu::platform::PixelColor>>& pixels, PixelOutputFormat format)
+{
+    lua_createtable(L, static_cast<int>(pixels.size()), 0);
+    int rowIndex = 1;
+    for (const auto& row : pixels) {
+        lua_createtable(L, static_cast<int>(row.size()), 0);
+        int colIndex = 1;
+        for (const auto& color : row) {
+            PushPixelColor(L, color, format);
+            lua_rawseti(L, -2, colIndex++);
+        }
+        lua_rawseti(L, -2, rowIndex++);
+    }
+}
+
+int LuaPressKeyImpl(lua_State* L, bool mouseOnly, const char* functionName)
+{
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isSettingsRenderMode()) {
+        return luaL_error(L, "%s is not available while rendering script settings", functionName);
+    }
+    instance.throwStopIfRequested(L);
+    const smu::core::KeyCode key = CheckKey(L, 1);
+    if (mouseOnly && !IsMouseRelatedKey(key)) {
+        return luaL_error(L, "%s only accepts mouse buttons or mouse wheel actions", functionName);
+    }
+    const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 50;
+    auto backend = smu::platform::GetInputBackend();
+    if (!backend) {
+        LogWarning("Imported script tried to press a key, but the input backend is not available.");
+        return 0;
+    }
+    backend->holdKey(key);
+    if (!instance.waitFor(std::chrono::milliseconds(delay))) {
+        backend->releaseKey(key);
+        instance.throwStopIfRequested(L);
+    }
+    backend->releaseKey(key);
+    return 0;
+}
+
 void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
 {
     std::visit([L](const auto& storedValue) {
@@ -225,6 +356,8 @@ void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
         }
     }, value);
 }
+
+bool IsSettingsRenderMode(lua_State* L);
 
 std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
 {
@@ -850,24 +983,40 @@ int LuaSleep(lua_State* L)
 
 int LuaPressKey(lua_State* L)
 {
+    return LuaPressKeyImpl(L, false, "pressKey");
+}
+
+int LuaClickMouse(lua_State* L)
+{
+    return LuaPressKeyImpl(L, true, "clickMouse");
+}
+
+int LuaIsCancelled(lua_State* L)
+{
+    lua_pushboolean(L, RequireInstance(L).isStopRequested());
+    return 1;
+}
+
+int LuaSleepUntilCancelled(lua_State* L)
+{
     if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "pressKey is not available while rendering script settings");
+        return luaL_error(L, "sleepUntilCancelled is not available while rendering script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
+    const std::int64_t ms = CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMs, "sleep duration");
+    if (instance.isStopRequested()) {
+        lua_pushboolean(L, 1);
+        return 1;
+    }
+    const bool completed = instance.waitFor(std::chrono::milliseconds(ms));
+    lua_pushboolean(L, completed ? 0 : 1);
+    return 1;
+}
+
+int LuaThrowIfCancelled(lua_State* L)
+{
+    ScriptInstance& instance = RequireInstance(L);
     instance.throwStopIfRequested(L);
-    const smu::core::KeyCode key = CheckKey(L, 1);
-    const int delay = lua_gettop(L) >= 2 ? CheckLuaIntClamped(L, 2, 0, kMaxInputDelayMs, "delay") : 50;
-    auto backend = smu::platform::GetInputBackend();
-    if (!backend) {
-        LogWarning("Imported script tried to press a key, but the input backend is not available.");
-        return 0;
-    }
-    backend->holdKey(key);
-    if (!instance.waitFor(std::chrono::milliseconds(delay))) {
-        backend->releaseKey(key);
-        instance.throwStopIfRequested(L);
-    }
-    backend->releaseKey(key);
     return 0;
 }
 
@@ -973,7 +1122,13 @@ int LuaMoveMouse(lua_State* L)
     }
     const int dx = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dx");
     const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
-    MoveMouse(dx, dy);
+
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Raw) {
+        MoveMouse(dx, dy);
+    } else {
+        MoveMouseDesktop(dx, dy);
+    }
     return 0;
 }
 
@@ -991,7 +1146,10 @@ int LuaMoveMouseAbs(lua_State* L)
     }
 
     std::string error;
-    if (!MoveMouseAbs(x, y, modeText ? modeText : "pixels", &error)) {
+    ScriptInstance& instance = RequireInstance(L);
+    if (!MoveMouseAbs(x, y, modeText ? modeText : "pixels",
+            instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Scaled,
+            &error)) {
         if (error.empty()) {
             error = "unknown failure";
         }
@@ -1013,9 +1171,10 @@ int LuaGetPixelColor(lua_State* L)
     if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
         modeText = luaL_checkstring(L, 3);
     }
+    const PixelOutputFormat format = CheckPixelOutputFormat(L, 4);
 
     std::string error;
-    const auto color = GetPixelColorHex(x, y, modeText ? modeText : "pixels", &error);
+    const auto color = GetPixelColor(x, y, modeText ? modeText : "pixels", &error);
     if (!color) {
         if (error.empty()) {
             error = "unknown failure";
@@ -1023,7 +1182,61 @@ int LuaGetPixelColor(lua_State* L)
         return luaL_error(L, "getPixelColor failed: %s", error.c_str());
     }
 
-    lua_pushlstring(L, color->c_str(), color->size());
+    PushPixelColor(L, *color, format);
+    return 1;
+}
+
+int LuaSetMouseMotionMode(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "setMouseMotionMode is not available while rendering script settings");
+    }
+
+    ScriptInstance& instance = RequireInstance(L);
+    const char* modeText = luaL_checkstring(L, 1);
+    ScriptInstance::MouseMotionMode mode = ScriptInstance::MouseMotionMode::Raw;
+    if (!ParseMouseMotionMode(modeText, mode)) {
+        return luaL_error(L, "mouse motion mode must be one of: raw, scaled");
+    }
+
+    instance.setMouseMotionMode(mode);
+    lua_pushstring(L, MouseMotionModeToString(mode));
+    return 1;
+}
+
+int LuaGetMouseMotionMode(lua_State* L)
+{
+    ScriptInstance& instance = RequireInstance(L);
+    lua_pushstring(L, MouseMotionModeToString(instance.mouseMotionMode()));
+    return 1;
+}
+
+int LuaGetPixelRect(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "getPixelRect is not available while rendering script settings");
+    }
+
+    const double x1 = CheckLuaFiniteNumber(L, 1, "x1");
+    const double y1 = CheckLuaFiniteNumber(L, 2, "y1");
+    const double x2 = CheckLuaFiniteNumber(L, 3, "x2");
+    const double y2 = CheckLuaFiniteNumber(L, 4, "y2");
+    const char* modeText = "pixels";
+    if (lua_gettop(L) >= 5 && !lua_isnil(L, 5)) {
+        modeText = luaL_checkstring(L, 5);
+    }
+    const PixelOutputFormat format = CheckPixelOutputFormat(L, 6);
+
+    std::string error;
+    const auto pixels = GetPixelRect(x1, y1, x2, y2, modeText ? modeText : "pixels", &error);
+    if (!pixels) {
+        if (error.empty()) {
+            error = "unknown failure";
+        }
+        return luaL_error(L, "getPixelRect failed: %s", error.c_str());
+    }
+
+    PushPixelRect(L, *pixels, format);
     return 1;
 }
 
@@ -1045,7 +1258,12 @@ int LuaMoveDegrees(lua_State* L)
     const int dxPixels = RoundMouseDelta(L, dxDegrees * pixelsPerDegree, "dx");
     // Positive degree values move upward, which is negative screen-space Y.
     const int dyPixels = RoundMouseDelta(L, -dyDegrees * pixelsPerDegree, "dy");
-    MoveMouse(dxPixels, dyPixels);
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.mouseMotionMode() == ScriptInstance::MouseMotionMode::Raw) {
+        MoveMouse(dxPixels, dyPixels);
+    } else {
+        MoveMouseDesktop(dxPixels, dyPixels);
+    }
     return 0;
 }
 
@@ -1507,7 +1725,6 @@ int LuaUiDynamicTextbox(lua_State* L)
 int LuaUiSetDynamicText(lua_State* L)
 {
     ScriptInstance& instance = RequireInstance(L);
-    CheckUiControlBudget(L, instance);
     std::size_t idLength = 0;
     const char* idText = CheckUiId(L, 1, idLength);
     std::size_t textLength = 0;
@@ -1643,14 +1860,21 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "nowMicros", LuaNowMicros);
     Register(L, "sleep", LuaSleep);
     Register(L, "pressKey", LuaPressKey);
+    Register(L, "clickMouse", LuaClickMouse);
     Register(L, "holdKey", LuaHoldKey);
     Register(L, "releaseKey", LuaReleaseKey);
     Register(L, "isKeyPressed", LuaIsKeyPressed);
     Register(L, "isHotkeyPressed", LuaIsHotkeyPressed);
+    Register(L, "isCancelled", LuaIsCancelled);
+    Register(L, "sleepUntilCancelled", LuaSleepUntilCancelled);
+    Register(L, "throwIfCancelled", LuaThrowIfCancelled);
     Register(L, "typeText", LuaTypeText);
     Register(L, "moveMouse", LuaMoveMouse);
     Register(L, "moveMouseAbs", LuaMoveMouseAbs);
+    Register(L, "setMouseMotionMode", LuaSetMouseMotionMode);
+    Register(L, "getMouseMotionMode", LuaGetMouseMotionMode);
     Register(L, "getPixelColor", LuaGetPixelColor);
+    Register(L, "getPixelRect", LuaGetPixelRect);
     Register(L, "moveDegrees", LuaMoveDegrees);
     Register(L, "mouseWheel", LuaMouseWheel);
     Register(L, "freeze", LuaFreeze);

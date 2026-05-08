@@ -89,6 +89,7 @@ public:
     bool reloadScript(std::size_t index);
     bool removeScript(std::size_t index);
     bool executeScript(std::size_t index);
+    bool forceStopScript(std::size_t index);
     void clear();
     std::size_t count() const;
     RecordPtr get(std::size_t index);

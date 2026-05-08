@@ -280,6 +280,7 @@ namespace Globals {
     inline std::vector<HANDLE> hProcess;
     inline int screen_width = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CXSCREEN)) / 1.5);
     inline int screen_height = static_cast<int>(static_cast<double>(GetSystemMetrics(SM_CYSCREEN)) / 1.5 + 10);
+    inline int active_monitor_hz = 0;
     inline int raw_window_width = 0;
     inline int raw_window_height = 0;
     inline int WindowPosX = 0;

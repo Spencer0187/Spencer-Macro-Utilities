@@ -3,7 +3,7 @@
 Custom macros can be written as Lua scripts and imported into Spencer Macro Client. The scripting system supports `.smus`, `.hss`, `.lua`, and `.txt` files. Scripts run inside the macro runtime and can automate keyboard input, mouse movement, text entry, timing, freeze behavior, and lag-switch controls.
 
 Imported scripts can also define their own custom ImGui settings by implementing `onSettings()`. The app runs that callback once in a non-rendering initialization pass when the script loads, then again in the selected-script panel to render the controls.
-`onSettings()` should only call `ui.*` helpers. Input, mouse, process, sleep, and lag-switch APIs are blocked while settings are being rendered.
+`onSettings()` should use the control-building `ui.*` helpers to define persistent settings. `ui.setDynamicText()` is execution-safe and may be called from `onExecute()` to update an existing dynamic textbox. Input, mouse, process, sleep, and lag-switch APIs are blocked while settings are being rendered.
 `onSettings()` has a 5-second hard timeout.
 `onSettings()` is optional. If it is not defined, only the built-in script controls appear.
 While a script is running, custom settings stay visible using the last cached `onSettings()` layout. Interactive controls become read-only, while `ui.dynamicTextbox()` remains live and copyable.
@@ -14,7 +14,8 @@ Only import scripts from sources you trust. Lua scripts can simulate input and c
 
 Each script runs with a per-script Lua memory cap. The default is 64 MiB. Scripts can request a different cap with `-- @memoryLimitMB:`, clamped between 16 MiB and 256 MiB.
 `onExecute()` and script load calls are timed based on active execution time. `sleep()` and input delays do not count against that timeout, so long-lived scripts can wait without being terminated. Timeout and cancellation errors cannot be suppressed with `pcall()` or `xpcall()`.
-The sandbox opens the base, table, string, math, utf8, and coroutine libraries. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
+The sandbox opens the base, table, string, math, utf8, and coroutine libraries. Coroutines are fully supported, including `coroutine.resume()`, `coroutine.wrap()`, and yielding through `sleep()` from a coroutine. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
+A running imported script can be asked to stop by pressing the same activation hotkey again, or by using the Force Stop button in the app. Scripts that poll `isCancelled()`, `sleepUntilCancelled()`, or `throwIfCancelled()` can clean up cooperatively before exiting.
 
 ## Script Structure
 
@@ -64,6 +65,26 @@ You can import scripts with the in-app import button or place script files in th
 | `getPlatform()` | Return `windows`, `linux`, or `unknown` |
 | `getSavedValue(name)` | Return the current in-memory value of a setting persisted in the save file. Returns `nil` if the name is not exposed |
 
+### Execution Control
+
+| Function | Description |
+| --- | --- |
+| `isCancelled()` | Return whether the script has been stopped by the host app, by a timeout, or by a hotkey cancel request |
+| `sleepUntilCancelled(ms)` | Wait up to `ms` milliseconds and return `true` if the script was stopped before the wait finished |
+| `throwIfCancelled()` | Throw the same stop error used by `sleep()` and other interruptible runtime calls |
+
+These helpers are useful for cooperative loops that want to poll for host-driven stops, timeout, and hotkey cancel requests without having to build a coroutine around every wait.
+
+```lua
+while not isCancelled() do
+    if sleepUntilCancelled(250) then
+        break
+    end
+    throwIfCancelled()
+    log("still running")
+end
+```
+
 ### Script Settings
 
 The `ui` table is available inside scripts that define `onSettings()`. These functions update a persistent per-script `settings` table and render the controls in the script details panel.
@@ -85,6 +106,7 @@ Most controls accept optional size arguments at the end of the parameter list. W
 The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly.
 Script settings are stored in the save file under imported script data, separate from the main app settings.
 Dynamic text boxes are saved with imported script UI state. After restarting SMU, the last dynamic text value may still be visible as a "ghost" until the script writes a new value. Scripts still start from a fresh Lua state, so previous dynamic text is not automatically appended unless the script preserves its own history.
+`ui.setDynamicText()` may be called during `onExecute()` to update a dynamic textbox while a script is running. The other `ui.*` helpers are intended for `onSettings()` layout construction.
 UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited to 128 bytes. A single `onSettings()` call may create up to 512 UI controls, and each script is capped at 4096 total unique UI IDs. Stored script UI strings are clamped to 4096 bytes.
 
 ### Input
@@ -186,6 +208,8 @@ The Lua API supports the following named keys.
 | `MMB` | `MouseMiddle`, `MiddleMouse` |
 | `Mouse4` | `XButton1` |
 | `Mouse5` | `XButton2` |
+| `MouseWheelUp` | `WheelUp` |
+| `MouseWheelDown` | `WheelDown` |
 
 ###### Modifier keys
 
@@ -291,20 +315,28 @@ end
 
 | Function | Description |
 | --- | --- |
-| `pressKey(key, delay)` | Press and release a key. `delay` defaults to 50 ms |
+| `pressKey(key, delay)` | Press and release a key or mouse-related action. `delay` defaults to 50 ms |
+| `clickMouse(key, delay)` | Semantic alias for `pressKey()` that only accepts mouse buttons and mouse wheel actions |
 | `holdKey(key)` | Hold a key down |
 | `releaseKey(key)` | Release a held key |
 | `isKeyPressed(key)` | Return whether a key is currently pressed |
 | `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind`) |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
-| `moveMouse(dx, dy)` | Move the mouse relative to its current position. On Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent |
-| `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor by calculating the needed relative delta from the current cursor position. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"`. Unlike `moveMouse`, this function uses a raw relative move internally and does not apply `display_scale` |
-| `getPixelColor(x, y, mode)` | Return the pixel color at a position on the monitor containing the cursor as a `"#RRGGBB"` string. Uses the same coordinate modes as `moveMouseAbs`. Not available while rendering `onSettings()` |
+| `moveMouse(dx, dy)` | Move the mouse relative to its current position. In `"raw"` mode on Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent |
+| `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor by calculating the needed relative delta from the current cursor position. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"` |
+| `setMouseMotionMode(mode)` | Set how Lua mouse movement calls are dispatched. `mode` must be `"raw"` or `"scaled"`; `"raw"` keeps the legacy `display_scale` path, while `"scaled"` uses the cached desktop mouse speed/acceleration settings for best-effort compensation |
+| `getMouseMotionMode()` | Return the current Lua mouse motion mode as `"raw"` or `"scaled"` |
+| `getPixelColor(x, y, mode, format)` | Return the pixel color at a position on the monitor containing the cursor. `mode` is optional and defaults to `"pixels"`. `format` is optional and defaults to `"hex"`; use `"rgb"` to get a table like `{ r = 255, g = 0, b = 0 }`. Not available while rendering `onSettings()` |
+| `getPixelRect(x1, y1, x2, y2, mode, format)` | Return a row-major 2D table of pixels covering the rectangle between two corner points. `mode` is optional and defaults to `"pixels"`. Same-line rectangles still have width and height `1`, not `0`. `format` works the same as `getPixelColor()` |
 | `moveDegrees(dx, dy)` | Move the mouse using degree units derived from saved Roblox sensitivity and Cam-Fix settings. `dx` and `dy` may be integers or floats. Positive `dy` moves upward |
 | `mouseWheel(delta)` | Scroll the mouse wheel |
 
+By default, Lua scripts start in `"raw"` mouse motion mode. If a script wants desktop-style compensation for mouse speed and acceleration, it should call `setMouseMotionMode("scaled")` before issuing mouse movement commands.
+This mode affects `moveMouse()`, `moveMouseAbs()`, and `moveDegrees()`.
+On Windows, the scaled mode uses the system mouse settings exposed through `SystemParametersInfo(SPI_GETMOUSE)`. On Linux, there is no single registry-equivalent desktop mouse API, so the scaled mode currently falls back to the native backend's relative motion path.
 
-`moveMouseAbs(x, y, mode)` and `getPixelColor(x, y, mode)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size.
+
+`moveMouseAbs(x, y, mode)`, `getPixelColor(x, y, mode, format)`, and `getPixelRect(x1, y1, x2, y2, mode, format)` target the monitor containing the current cursor, not the full virtual desktop and not the saved `screen_width` / `screen_height` settings. Those saved settings are the SMU application window size. In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor. In `"percent"` mode, `x` and `y` must be between `0` and `100`. In scaled modes, the coordinate pair is treated as if it was authored for the named base resolution and then scaled to the active monitor size. `moveMouseAbs()` also follows the current Lua mouse motion mode: `"raw"` uses the legacy `display_scale` path, while `"scaled"` uses a best-effort desktop compensation path based on the current mouse speed/acceleration settings.
 
 Examples:
 
@@ -318,6 +350,14 @@ local color = getPixelColor(50, 50, "percent")
 if color == "#FF0000" then
     log("center pixel is red")
 end
+
+local rgb = getPixelColor(50, 50, "percent", "rgb")
+if rgb.r == 255 and rgb.g == 0 and rgb.b == 0 then
+    log("center pixel is red in RGB form")
+end
+
+local block = getPixelRect(10, 10, 12, 12, "pixels", "rgb")
+log("sampled " .. tostring(#block) .. " rows of pixels")
 ```
 
 Windows: `getPixelColor()` reuses a cached monitor frame when possible and refreshes that cache approximately once per monitor refresh interval. Repeated polling is efficient and suitable for high-frequency color checks, state detection, and moderate real-time scanning up to 136,000 pixels per second.
@@ -538,7 +578,7 @@ Scripts also receive the global `settings` table for per-script UI state created
 | `PreviousSensValue` | number | Cached Roblox sensitivity value last used to recalculate sensitivity-derived pixel values. |
 | `windowOpacityPercent` | number | Main window opacity percentage. |
 | `AntiAFKTime` | number | Anti-AFK interval in minutes. |
-| `display_scale` | number | Windows mouse movement scale percentage. It affects `moveMouse()` and other scaled relative movement paths, but `moveMouseAbs()` bypasses it so absolute targeting can use raw relative deltas. `getPixelColor()` only reads screen pixels and is not affected by `display_scale`. |
+| `display_scale` | number | Windows mouse movement scale percentage. It affects `moveMouse()` and other relative movement paths when Lua is in `"raw"` mouse motion mode. `getPixelColor()` only reads screen pixels and is not affected by `display_scale`. |
 | `WindowPosX` | number | Saved main window X position. |
 | `WindowPosY` | number | Saved main window Y position. |
 | `lagswitch_max_duration` | number | Lag Switch auto-unlag timeout in seconds. |
@@ -554,6 +594,7 @@ Scripts also receive the global `settings` table for per-script UI state created
 | `screen_height` | number | Saved/calculated application window height value. |
 | `active_monitor_width` | number | Current monitor width in pixels for the monitor containing the cursor (transient; not saved to disk). |
 | `active_monitor_height` | number | Current monitor height in pixels for the monitor containing the cursor (transient; not saved to disk). |
+| `active_monitor_hz` | number | Current monitor refresh rate in Hz for the monitor containing the cursor (transient; not saved to disk). |
 
 #### String values
 

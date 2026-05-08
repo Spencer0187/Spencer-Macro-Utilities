@@ -35,6 +35,11 @@ inline constexpr std::size_t kMaxUiStateEntries = 4096;
 
 class ScriptInstance {
 public:
+    enum class MouseMotionMode {
+        Raw,
+        Scaled
+    };
+
     using UiStringBuffer = std::array<char, kMaxUiStateStringBytes + 1>;
     struct SettingsUiControl {
         enum class Kind {
@@ -91,6 +96,7 @@ public:
     void sleepWithDeadline(std::int64_t ms);
     void scheduleCoroutineSleep(lua_State* thread, std::int64_t ms);
     void requestCancel();
+    bool isStopRequested() const { return stopReason_.load(std::memory_order_acquire) != StopReason::None; }
     void throwStopIfRequested(lua_State* L);
     void pauseExecutionBudget();
     bool waitFor(std::chrono::milliseconds duration);
@@ -100,6 +106,8 @@ public:
     void clearLagSwitchConfig();
     smu::platform::LagSwitchConfig lagSwitchConfig() const;
     std::uintptr_t lagSwitchOwnerToken() const;
+    void setMouseMotionMode(MouseMotionMode mode) { mouseMotionMode_ = mode; }
+    MouseMotionMode mouseMotionMode() const { return mouseMotionMode_; }
     void setSettingsRenderMode(bool enabled) { settingsRenderMode_ = enabled; }
     bool isSettingsRenderMode() const { return settingsRenderMode_; }
     void resetSettingsUiControlCount() { settingsUiControlCount_ = 0; }
@@ -170,6 +178,7 @@ private:
     bool hasSettingsCallback_ = false;
     bool settingsUiCaptureActive_ = false;
     bool settingsRenderMode_ = false;
+    MouseMotionMode mouseMotionMode_ = MouseMotionMode::Raw;
     bool budgetActive_ = false;
     bool touchedLagSwitch_ = false;
     std::condition_variable sleepCv_;
