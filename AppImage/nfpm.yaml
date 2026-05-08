@@ -1,7 +1,7 @@
 name: spencer-macro-utilities
 arch: amd64
 platform: linux
-version: 3.2.2
+version: 3.2.1
 section: default
 priority: optional
 maintainer: FloofyIV <floofyiv9@proton.me>
