@@ -42,6 +42,11 @@ public:
         return getScreenBounds();
     }
 
+    virtual std::optional<int> getActiveMonitorRefreshRateHz() const
+    {
+        return std::nullopt;
+    }
+
     virtual std::string absolutePointerUnavailableReason() const
     {
         return "cursor/screen position is not available on this platform/session";

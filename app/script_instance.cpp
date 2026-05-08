@@ -587,14 +587,21 @@ bool ScriptInstance::callOnExecute()
     const int status = lua_pcall(L_, 0, 0, 0);
     if (status != LUA_OK) {
         endTimedCall();
-        const char* message = stopReason_.load(std::memory_order_acquire) != StopReason::None
+        const StopReason stopReason = stopReason_.load(std::memory_order_acquire);
+        const char* message = stopReason != StopReason::None
             ? stopReasonMessage()
             : lua_tostring(L_, -1);
-        owner_->setLastError(message ? message : "Lua call failed.");
+        if (stopReason == StopReason::Cancelled) {
+            owner_->clearLastError();
+        } else {
+            owner_->setLastError(message ? message : "Lua call failed.");
+        }
         lua_pop(L_, 1);
         releaseAllSleepingCoroutines();
         releaseLagSwitchControls();
-        LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
+        if (stopReason != StopReason::Cancelled) {
+            LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
+        }
         return false;
     }
 
@@ -605,9 +612,14 @@ bool ScriptInstance::callOnExecute()
     }
 
     endTimedCall();
-    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
-        owner_->setLastError(stopReasonMessage());
-        LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
+    const StopReason stopReason = stopReason_.load(std::memory_order_acquire);
+    if (stopReason != StopReason::None) {
+        if (stopReason == StopReason::Cancelled) {
+            owner_->clearLastError();
+        } else {
+            owner_->setLastError(stopReasonMessage());
+            LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
+        }
         releaseAllSleepingCoroutines();
         releaseLagSwitchControls();
         return false;
@@ -1111,6 +1123,7 @@ void ScriptInstance::cleanup()
     hasSettingsCallback_ = false;
     settingsUiCaptureActive_ = false;
     settingsRenderMode_ = false;
+    mouseMotionMode_ = MouseMotionMode::Raw;
     settingsUiControlCount_ = 0;
     transientUi_.clear();
     textboxBuffers_.clear();

@@ -1054,8 +1054,18 @@ void MacroRuntime::processImportedScripts()
         const bool disableOutside = script->disableOutsideRoblox.load(std::memory_order_acquire);
         const unsigned int hotkey = script->hotkey.load(std::memory_order_acquire);
 
-        if (!enabled || !loaded || missing || !IsScriptHotkeyBound(hotkey) || running) {
+        if (!loaded || missing || !IsScriptHotkeyBound(hotkey)) {
             importedScriptWasPressed_[index] = false;
+            continue;
+        }
+
+        const bool pressed = isHotkeyPressed(hotkey);
+        const bool edge = pressed && !importedScriptWasPressed_[index];
+        importedScriptWasPressed_[index] = pressed;
+        if (running) {
+            if (edge) {
+                ScriptManager::Get().forceStopScript(index);
+            }
             continue;
         }
 
@@ -1064,9 +1074,9 @@ void MacroRuntime::processImportedScripts()
             continue;
         }
 
-        const bool pressed = isHotkeyPressed(hotkey);
-        const bool edge = pressed && !importedScriptWasPressed_[index];
-        importedScriptWasPressed_[index] = pressed;
+        if (!enabled) {
+            continue;
+        }
         if (!edge) {
             continue;
         }

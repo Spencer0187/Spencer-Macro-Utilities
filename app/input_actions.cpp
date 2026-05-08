@@ -9,6 +9,12 @@
 #include <optional>
 #include <string>
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace smu::app {
 namespace {
 
@@ -181,7 +187,74 @@ void MoveMouse(int dx, int dy)
     }
 }
 
-bool MoveMouseAbs(double x, double y, const std::string& mode, std::string* errorMessage)
+namespace {
+
+#if defined(_WIN32)
+struct WindowsMouseMotionSettings {
+    int threshold1 = 0;
+    int threshold2 = 0;
+    int speed = 0;
+};
+
+std::optional<WindowsMouseMotionSettings> GetWindowsMouseMotionSettings()
+{
+    static std::optional<WindowsMouseMotionSettings> cachedSettings;
+    static bool cached = false;
+    if (!cached) {
+        int values[3] = {};
+        if (SystemParametersInfoA(SPI_GETMOUSE, 0, values, 0)) {
+            cachedSettings = WindowsMouseMotionSettings{values[0], values[1], values[2]};
+        } else {
+            cachedSettings = std::nullopt;
+        }
+        cached = true;
+    }
+    return cachedSettings;
+}
+
+int CompensateWindowsMouseAxis(int value, const WindowsMouseMotionSettings& settings)
+{
+    const int magnitude = std::abs(value);
+    if (magnitude == 0) {
+        return 0;
+    }
+
+    // This mirrors the inverse of the classic Control Panel relative-mouse path.
+    // It is a best-effort compensation for desktop motion, not an exact inversion
+    // of every custom accessibility or driver-level curve.
+    double compensated = static_cast<double>(value);
+    if (settings.speed >= 2 && magnitude > settings.threshold2 * 2) {
+        compensated = static_cast<double>(value) / 4.0;
+    } else if (settings.speed >= 1 && magnitude > settings.threshold1) {
+        compensated = static_cast<double>(value) / 2.0;
+    }
+
+    const double rounded = std::round(compensated);
+    if (rounded < static_cast<double>(std::numeric_limits<int>::min()) ||
+        rounded > static_cast<double>(std::numeric_limits<int>::max())) {
+        return value;
+    }
+    return static_cast<int>(rounded);
+}
+#endif
+
+} // namespace
+
+void MoveMouseDesktop(int dx, int dy)
+{
+    if (auto backend = platform::GetInputBackend()) {
+#if defined(_WIN32)
+        const auto settings = GetWindowsMouseMotionSettings();
+        if (settings) {
+            backend->moveMouseRaw(CompensateWindowsMouseAxis(dx, *settings), CompensateWindowsMouseAxis(dy, *settings));
+            return;
+        }
+#endif
+        backend->moveMouseRaw(dx, dy);
+    }
+}
+
+bool MoveMouseAbs(double x, double y, const std::string& mode, bool useDesktopMotion, std::string* errorMessage)
 {
     if (errorMessage) {
         errorMessage->clear();
@@ -221,11 +294,15 @@ bool MoveMouseAbs(double x, double y, const std::string& mode, std::string* erro
         return false;
     }
 
-    backend->moveMouseRaw(static_cast<int>(deltaX), static_cast<int>(deltaY));
+    if (useDesktopMotion) {
+        MoveMouseDesktop(static_cast<int>(deltaX), static_cast<int>(deltaY));
+    } else {
+        backend->moveMouse(static_cast<int>(deltaX), static_cast<int>(deltaY));
+    }
     return true;
 }
 
-std::optional<std::string> GetPixelColorHex(double x, double y, const std::string& mode, std::string* errorMessage)
+std::optional<smu::platform::PixelColor> GetPixelColor(double x, double y, const std::string& mode, std::string* errorMessage)
 {
     if (errorMessage) {
         errorMessage->clear();
@@ -261,7 +338,77 @@ std::optional<std::string> GetPixelColorHex(double x, double y, const std::strin
         return std::nullopt;
     }
 
-    return FormatColorHex(*color);
+    return color;
+}
+
+std::optional<std::vector<std::vector<smu::platform::PixelColor>>> GetPixelRect(
+    double x1,
+    double y1,
+    double x2,
+    double y2,
+    const std::string& mode,
+    std::string* errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+
+    auto backend = platform::GetInputBackend();
+    if (!backend) {
+        SetError(errorMessage, "input backend is not available");
+        return std::nullopt;
+    }
+
+    const auto bounds = GetActiveMonitorBounds(*backend, errorMessage);
+    if (!bounds) {
+        return std::nullopt;
+    }
+
+    int left = 0;
+    int top = 0;
+    int right = 0;
+    int bottom = 0;
+    if (!ResolveAbsolutePoint(*bounds, x1, y1, mode, left, top, errorMessage)) {
+        return std::nullopt;
+    }
+    if (!ResolveAbsolutePoint(*bounds, x2, y2, mode, right, bottom, errorMessage)) {
+        return std::nullopt;
+    }
+
+    if (left > right) {
+        std::swap(left, right);
+    }
+    if (top > bottom) {
+        std::swap(top, bottom);
+    }
+
+    const int width = std::max(1, right - left + 1);
+    const int height = std::max(1, bottom - top + 1);
+
+    std::vector<std::vector<smu::platform::PixelColor>> pixels;
+    pixels.reserve(static_cast<std::size_t>(height));
+    for (int row = 0; row < height; ++row) {
+        std::vector<smu::platform::PixelColor> values;
+        values.reserve(static_cast<std::size_t>(width));
+        for (int col = 0; col < width; ++col) {
+            std::string sampleError;
+            const auto color = backend->getPixelColor(left + col, top + row, &sampleError);
+            if (!color) {
+                if (sampleError.empty()) {
+                    sampleError = backend->screenReadUnavailableReason();
+                }
+                if (sampleError.empty()) {
+                    sampleError = "screen pixel color sampling failed";
+                }
+                SetError(errorMessage, sampleError);
+                return std::nullopt;
+            }
+            values.push_back(*color);
+        }
+        pixels.push_back(std::move(values));
+    }
+
+    return pixels;
 }
 
 void MouseWheel(int delta)

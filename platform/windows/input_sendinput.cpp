@@ -37,6 +37,7 @@ struct MonitorCaptureInfo {
     HMONITOR monitor = nullptr;
     ScreenBounds bounds {};
     std::chrono::microseconds refreshInterval {16666};
+    std::optional<int> refreshRateHz;
 };
 
 std::chrono::microseconds RefreshIntervalForMonitor(HMONITOR monitor)
@@ -70,6 +71,35 @@ std::chrono::microseconds RefreshIntervalForMonitor(HMONITOR monitor)
     }
 
     return kDefaultRefreshInterval;
+}
+
+std::optional<int> RefreshRateForMonitor(HMONITOR monitor)
+{
+    if (!monitor) {
+        return std::nullopt;
+    }
+
+    MONITORINFOEXA monitorInfo = {};
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    if (GetMonitorInfoA(monitor, &monitorInfo)) {
+        DEVMODEA mode = {};
+        mode.dmSize = sizeof(mode);
+        if (EnumDisplaySettingsA(monitorInfo.szDevice, ENUM_CURRENT_SETTINGS, &mode) &&
+            mode.dmDisplayFrequency > 1) {
+            return static_cast<int>(mode.dmDisplayFrequency);
+        }
+    }
+
+    HDC screenDc = GetDC(nullptr);
+    if (screenDc) {
+        const int refresh = GetDeviceCaps(screenDc, VREFRESH);
+        ReleaseDC(nullptr, screenDc);
+        if (refresh > 1) {
+            return refresh;
+        }
+    }
+
+    return std::nullopt;
 }
 
 bool ResolveMonitorCaptureInfo(int x, int y, MonitorCaptureInfo& info, std::string* errorMessage)
@@ -108,6 +138,7 @@ bool ResolveMonitorCaptureInfo(int x, int y, MonitorCaptureInfo& info, std::stri
 
     info.bounds = ScreenBounds{left, top, width, height};
     info.refreshInterval = RefreshIntervalForMonitor(info.monitor);
+    info.refreshRateHz = RefreshRateForMonitor(info.monitor);
     return true;
 }
 
@@ -618,6 +649,21 @@ std::optional<ScreenBounds> GetActiveMonitorBoundsNative()
     return ScreenBounds{x, y, width, height};
 }
 
+std::optional<int> GetActiveMonitorRefreshRateHzNative()
+{
+    POINT point = {};
+    if (!GetCursorPos(&point)) {
+        return std::nullopt;
+    }
+
+    HMONITOR monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
+    if (!monitor) {
+        return std::nullopt;
+    }
+
+    return RefreshRateForMonitor(monitor);
+}
+
 class ScreenPixelSamplerNative {
 public:
     ScreenPixelSamplerNative() = default;
@@ -927,6 +973,11 @@ public:
     std::optional<ScreenBounds> getActiveMonitorBounds() const override
     {
         return GetActiveMonitorBoundsNative();
+    }
+
+    std::optional<int> getActiveMonitorRefreshRateHz() const override
+    {
+        return GetActiveMonitorRefreshRateHzNative();
     }
 
     std::optional<PixelColor> getPixelColor(int x, int y, std::string* errorMessage = nullptr) const override

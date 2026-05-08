@@ -683,9 +683,15 @@ std::optional<SavedSettingValue> TryGetSavedSettingValue(const std::string& name
 
 	// Transient: active monitor dimensions for the monitor currently containing the cursor.
 	// These values are not persisted to disk and reflect the monitor that contains the mouse.
-	if (name == "active_monitor_width" || name == "active_monitor_height") {
+	if (name == "active_monitor_width" || name == "active_monitor_height" || name == "active_monitor_hz") {
 		auto backend = smu::platform::GetInputBackend();
 		if (!backend) return std::nullopt;
+		if (name == "active_monitor_hz") {
+			if (const auto hz = backend->getActiveMonitorRefreshRateHz()) {
+				return SavedSettingValue{static_cast<std::int64_t>(*hz)};
+			}
+			return std::nullopt;
+		}
 		const auto bounds = backend->getActiveMonitorBounds();
 		if (!bounds || !bounds->valid()) return std::nullopt;
 		if (name == "active_monitor_width") {
