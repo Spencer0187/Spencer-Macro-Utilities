@@ -383,15 +383,14 @@ FodyWeavers.xsd
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/c_cpp_properties.json
-!.vscode/find_system_text_json.ps1
-!.vscode/msbuild.ps1
-!.vscode/fast-build.ps1
+!.vscode/build-windows-msvc.sh
 *.code-workspace
 
 # Build Artifacts from CMake
 build/*
 out/*
 build_diag.log
+build-windows*/
 
 # Local History for Visual Studio Code
 .history/

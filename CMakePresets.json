@@ -9,7 +9,7 @@
     {
       "name": "windows-msvc-debug",
       "displayName": "Windows MSVC Debug",
-      "description": "Configure the existing Windows implementation with MSVC.",
+      "description": "Native Windows MSVC Debug build.",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -25,7 +25,7 @@
     {
       "name": "windows-msvc-release",
       "displayName": "Windows MSVC Release",
-      "description": "Configure the existing Windows implementation with MSVC.",
+      "description": "Native Windows MSVC Release build.",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -39,11 +39,28 @@
       }
     },
     {
+      "name": "windows-msvc-relwithdebinfo",
+      "displayName": "Windows MSVC RelWithDebInfo",
+      "description": "Native Windows MSVC optimized build with debug symbols.",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "RelWithDebInfo"
+      }
+    },
+    {
       "name": "linux-debug",
       "displayName": "Linux Debug",
-      "description": "Scaffold for the future Linux implementation.",
-      "generator": "Unix Makefiles",
+      "description": "Linux Debug build.",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -56,9 +73,10 @@
     {
       "name": "linux-release",
       "displayName": "Linux Release",
-      "description": "Scaffold for the future Linux implementation.",
-      "generator": "Unix Makefiles",
+      "description": "Linux optimized Release build.",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -69,21 +87,21 @@
       }
     },
     {
-    "name": "windows-msvc-relwithdebinfo",
-    "displayName": "Windows MSVC RelWithDebInfo",
-    "description": "Release-like Windows build with debug symbols.",
-    "generator": "Visual Studio 17 2022",
-    "architecture": "x64",
-    "binaryDir": "${sourceDir}/out/build/${presetName}",
-    "condition": {
-      "type": "equals",
-      "lhs": "${hostSystemName}",
-      "rhs": "Windows"
-    },
-    "cacheVariables": {
-      "CMAKE_CONFIGURATION_TYPES": "RelWithDebInfo"
+      "name": "linux-relwithdebinfo",
+      "displayName": "Linux RelWithDebInfo",
+      "description": "Linux optimized build with debug symbols.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
     }
-  }
   ],
   "buildPresets": [
     {
@@ -97,6 +115,11 @@
       "configuration": "Release"
     },
     {
+      "name": "windows-msvc-relwithdebinfo",
+      "configurePreset": "windows-msvc-relwithdebinfo",
+      "configuration": "RelWithDebInfo"
+    },
+    {
       "name": "linux-debug",
       "configurePreset": "linux-debug"
     },
@@ -105,9 +128,8 @@
       "configurePreset": "linux-release"
     },
     {
-      "name": "windows-msvc-relwithdebinfo",
-      "configurePreset": "windows-msvc-relwithdebinfo",
-      "configuration": "RelWithDebInfo"
+      "name": "linux-relwithdebinfo",
+      "configurePreset": "linux-relwithdebinfo"
     }
   ]
 }
