@@ -29,12 +29,14 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <optional>
 #include <sstream>
@@ -147,9 +149,289 @@ bool g_hasStoredSettingsWindowPos = false;
 ImVec2 g_storedSettingsWindowPos{};
 int g_selected_imported_script = -1;
 std::optional<std::filesystem::path> g_pending_import_path;
+
+struct ImportPreviewState {
+    std::string content;
+    std::vector<std::size_t> lineOffsets;
+    std::string error;
+};
+
+struct ImportPreviewPalette {
+    ImU32 normal = 0;
+    ImU32 keyword = 0;
+    ImU32 stringLiteral = 0;
+    ImU32 comment = 0;
+    ImU32 functionCall = 0;
+    ImU32 riskyFunctionCall = 0;
+    ImU32 metadataTag = 0;
+};
+
+ImportPreviewState g_import_preview;
 bool g_open_import_trust_modal = false;
 bool g_script_file_dialog_open = false;
 std::string g_import_error;
+
+constexpr std::array<const char*, 22> kLuaKeywords = {{
+    "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+    "goto", "if", "in", "local", "nil", "not", "or", "repeat", "return",
+    "then", "true", "until", "while"
+}};
+
+constexpr std::array<const char*, 16> kRiskyLuaFunctions = {{
+    "pressKey", "clickMouse", "holdKey", "releaseKey", "typeText", "moveMouse",
+    "moveMouseAbs", "moveDegrees", "mouseWheel", "freeze", "lagSwitch",
+    "setLagSwitchConfig", "clearLagSwitchConfig", "robloxFreeze", "roblox_freeze",
+    "lagswitch"
+}};
+
+void ClearImportPreview()
+{
+    g_import_preview = {};
+}
+
+bool IsLuaIdentifierStart(char ch)
+{
+    const unsigned char value = static_cast<unsigned char>(ch);
+    return std::isalpha(value) != 0 || ch == '_';
+}
+
+bool IsLuaIdentifierChar(char ch)
+{
+    const unsigned char value = static_cast<unsigned char>(ch);
+    return std::isalnum(value) != 0 || ch == '_';
+}
+
+bool IsHorizontalWhitespace(char ch)
+{
+    return ch == ' ' || ch == '\t';
+}
+
+template <std::size_t N>
+bool MatchesWord(const std::array<const char*, N>& words, const char* begin, std::size_t length)
+{
+    for (const char* word : words) {
+        if (std::strlen(word) != length) {
+            continue;
+        }
+        if (std::memcmp(begin, word, length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void BuildImportPreviewLineOffsets(ImportPreviewState& preview)
+{
+    preview.lineOffsets.clear();
+    preview.lineOffsets.push_back(0);
+    for (std::size_t index = 0; index < preview.content.size(); ++index) {
+        if (preview.content[index] == '\n') {
+            preview.lineOffsets.push_back(index + 1);
+        }
+    }
+}
+
+ImportPreviewState LoadImportPreview(const std::filesystem::path& path)
+{
+    ImportPreviewState preview;
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        preview.error = "Preview unavailable: could not read the selected file.";
+        return preview;
+    }
+
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    if (!file.good() && !file.eof()) {
+        preview.error = "Preview unavailable: file read failed before the preview could be loaded.";
+        return preview;
+    }
+
+    preview.content = buffer.str();
+    if (!preview.content.empty() && std::memchr(preview.content.data(), '\0', preview.content.size()) != nullptr) {
+        preview.error = "Preview unavailable: the selected file contains embedded NUL bytes.";
+        return preview;
+    }
+
+    BuildImportPreviewLineOffsets(preview);
+    return preview;
+}
+
+float DrawImportPreviewSegment(float x, float y, ImU32 color, const char* begin, const char* end)
+{
+    if (!begin || !end || begin >= end) {
+        return x;
+    }
+
+    ImGui::GetWindowDrawList()->AddText(ImVec2(x, y), color, begin, end);
+    return x + ImGui::CalcTextSize(begin, end).x;
+}
+
+void RenderImportPreviewLine(const char* begin, const char* end, const ImportPreviewPalette& palette)
+{
+    if (!begin || !end || begin > end) {
+        ImGui::Dummy(ImVec2(1.0f, ImGui::GetTextLineHeightWithSpacing()));
+        return;
+    }
+
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    float x = cursor.x;
+    const float y = cursor.y;
+    const char* current = begin;
+
+    while (current < end) {
+        if (current + 1 < end && current[0] == '-' && current[1] == '-') {
+            const char* afterPrefix = current + 2;
+            while (afterPrefix < end && IsHorizontalWhitespace(*afterPrefix)) {
+                ++afterPrefix;
+            }
+
+            if (afterPrefix < end && *afterPrefix == '@') {
+                const char* tagEnd = afterPrefix + 1;
+                while (tagEnd < end && (IsLuaIdentifierChar(*tagEnd) || *tagEnd == '-')) {
+                    ++tagEnd;
+                }
+                if (tagEnd < end && *tagEnd == ':') {
+                    x = DrawImportPreviewSegment(x, y, palette.comment, current, afterPrefix);
+                    x = DrawImportPreviewSegment(x, y, palette.metadataTag, afterPrefix, tagEnd + 1);
+                    DrawImportPreviewSegment(x, y, palette.comment, tagEnd + 1, end);
+                    ImGui::Dummy(ImVec2(std::max(1.0f, x - cursor.x + ImGui::CalcTextSize(tagEnd + 1, end).x), ImGui::GetTextLineHeightWithSpacing()));
+                    return;
+                }
+            }
+
+            x = DrawImportPreviewSegment(x, y, palette.comment, current, end);
+            ImGui::Dummy(ImVec2(std::max(1.0f, x - cursor.x), ImGui::GetTextLineHeightWithSpacing()));
+            return;
+        }
+
+        if (*current == '"' || *current == '\'') {
+            const char quote = *current;
+            const char* tokenStart = current++;
+            bool escaped = false;
+            while (current < end) {
+                if (escaped) {
+                    escaped = false;
+                    ++current;
+                    continue;
+                }
+                if (*current == '\\') {
+                    escaped = true;
+                    ++current;
+                    continue;
+                }
+                const char value = *current++;
+                if (value == quote) {
+                    break;
+                }
+            }
+            x = DrawImportPreviewSegment(x, y, palette.stringLiteral, tokenStart, current);
+            continue;
+        }
+
+        if (IsLuaIdentifierStart(*current)) {
+            const char* tokenStart = current++;
+            while (current < end && IsLuaIdentifierChar(*current)) {
+                ++current;
+            }
+
+            const std::size_t tokenLength = static_cast<std::size_t>(current - tokenStart);
+            const char* lookahead = current;
+            while (lookahead < end && IsHorizontalWhitespace(*lookahead)) {
+                ++lookahead;
+            }
+
+            ImU32 color = palette.normal;
+            if (MatchesWord(kLuaKeywords, tokenStart, tokenLength)) {
+                color = palette.keyword;
+            } else if (lookahead < end && *lookahead == '(') {
+                color = MatchesWord(kRiskyLuaFunctions, tokenStart, tokenLength)
+                    ? palette.riskyFunctionCall
+                    : palette.functionCall;
+            }
+
+            x = DrawImportPreviewSegment(x, y, color, tokenStart, current);
+            continue;
+        }
+
+        const char* tokenStart = current++;
+        while (current < end) {
+            if ((current + 1 < end && current[0] == '-' && current[1] == '-') ||
+                *current == '"' || *current == '\'' || IsLuaIdentifierStart(*current)) {
+                break;
+            }
+            ++current;
+        }
+        x = DrawImportPreviewSegment(x, y, palette.normal, tokenStart, current);
+    }
+
+    ImGui::Dummy(ImVec2(std::max(1.0f, x - cursor.x), ImGui::GetTextLineHeightWithSpacing()));
+}
+
+void RenderImportPreview(const ImportPreviewState& preview)
+{
+    if (!preview.error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().error_color);
+        ImGui::TextWrapped("%s", preview.error.c_str());
+        ImGui::PopStyleColor();
+        return;
+    }
+
+    if (preview.content.empty()) {
+        ImGui::TextDisabled("The selected file is empty.");
+    }
+
+    const Theme& theme = GetCurrentTheme();
+    const auto brighten = [](ImVec4 color, float factor) {
+        return ImVec4(std::min(color.x * factor, 1.0f),
+            std::min(color.y * factor, 1.0f),
+            std::min(color.z * factor, 1.0f),
+            color.w);
+    };
+    const ImportPreviewPalette palette{
+        ImGui::ColorConvertFloat4ToU32(theme.text_primary),
+        ImGui::ColorConvertFloat4ToU32(brighten(theme.accent_primary, 1.15f)),
+        ImGui::ColorConvertFloat4ToU32(theme.success_color),
+        ImGui::ColorConvertFloat4ToU32(theme.disabled_color),
+        ImGui::ColorConvertFloat4ToU32(brighten(theme.accent_secondary, 1.15f)),
+        ImGui::ColorConvertFloat4ToU32(brighten(theme.warning_color, 1.1f)),
+        ImGui::ColorConvertFloat4ToU32(brighten(theme.accent_primary, 1.35f))
+    };
+
+    const float previewHeight = std::max(0.0f, ImGui::GetContentRegionAvail().y);
+    ImGui::BeginChild("ImportScriptPreview", ImVec2(0.0f, previewHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+
+    const std::size_t lineCount = std::max<std::size_t>(preview.lineOffsets.size(), 1);
+    ImGuiListClipper clipper;
+    clipper.Begin(static_cast<int>(lineCount), ImGui::GetTextLineHeightWithSpacing());
+    while (clipper.Step()) {
+        for (int lineIndex = clipper.DisplayStart; lineIndex < clipper.DisplayEnd; ++lineIndex) {
+            const std::size_t beginOffset = preview.lineOffsets.empty()
+                ? 0
+                : preview.lineOffsets[static_cast<std::size_t>(lineIndex)];
+            std::size_t endOffset = preview.content.size();
+            if (!preview.lineOffsets.empty() && static_cast<std::size_t>(lineIndex + 1) < preview.lineOffsets.size()) {
+                endOffset = preview.lineOffsets[static_cast<std::size_t>(lineIndex + 1)];
+            }
+
+            if (endOffset > beginOffset && preview.content[endOffset - 1] == '\n') {
+                --endOffset;
+            }
+            if (endOffset > beginOffset && preview.content[endOffset - 1] == '\r') {
+                --endOffset;
+            }
+
+            const char* lineBegin = preview.content.empty() ? "" : preview.content.data() + beginOffset;
+            const char* lineEnd = preview.content.empty() ? lineBegin : preview.content.data() + endOffset;
+            RenderImportPreviewLine(lineBegin, lineEnd, palette);
+        }
+    }
+
+    ImGui::PopStyleVar();
+    ImGui::EndChild();
+}
 
 bool AnyPhysicalKeyOrMouseButtonPressedForBinding()
 {
@@ -908,6 +1190,7 @@ void EndModalInputCapture()
 void QueueScriptImportTrustModal(const std::filesystem::path& path)
 {
     g_pending_import_path = path;
+    g_import_preview = LoadImportPreview(path);
     g_open_import_trust_modal = true;
     g_import_error.clear();
 }
@@ -970,15 +1253,23 @@ void RenderImportTrustModal()
         g_open_import_trust_modal = false;
     }
 
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImVec2 center = viewport->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(520.0f, 0.0f), ImGuiCond_Appearing);
+    const ImVec2 initialSize(
+        std::min(760.0f, viewport->Size.x * 0.92f),
+        std::min(560.0f, viewport->Size.y * 0.88f));
+    const ImVec2 minSize(560.0f, 420.0f);
+    const ImVec2 maxSize(viewport->Size.x * 0.96f, viewport->Size.y * 0.94f);
+    ImGui::SetNextWindowSizeConstraints(minSize, maxSize);
+    ImGui::SetNextWindowSize(initialSize, ImGuiCond_Appearing);
 
-    if (ImGui::BeginPopupModal("Import Script?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("Import Script?", nullptr)) {
         ImGui::TextWrapped("Imported scripts can control keyboard and mouse input and interact with Roblox-related SMU features. Only import scripts from people you trust.");
         ImGui::Spacing();
         if (g_pending_import_path) {
-            ImGui::TextWrapped("File: %s", g_pending_import_path->string().c_str());
+            const std::string displayPath = SanitizePathForDisplay(*g_pending_import_path);
+            ImGui::TextWrapped("File: %s", displayPath.c_str());
         }
         ImGui::Separator();
 
@@ -1002,14 +1293,21 @@ void RenderImportTrustModal()
                 }
             }
             g_pending_import_path.reset();
+            ClearImportPreview();
             ImGui::CloseCurrentPopup();
         }
 
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(90.0f, 0.0f))) {
             g_pending_import_path.reset();
+            ClearImportPreview();
             ImGui::CloseCurrentPopup();
         }
+
+        ImGui::Spacing();
+        ImGui::SeparatorText("Preview");
+        ImGui::TextDisabled("Read-only source preview. If the script is malicious, it's your fault.");
+        RenderImportPreview(g_import_preview);
 
         ImGui::EndPopup();
     }
