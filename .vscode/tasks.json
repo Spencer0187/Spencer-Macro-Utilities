@@ -1,0 +1,167 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build and Run Windows MSVC",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/build-windows-msvc.sh",
+      "args": [
+        "${input:windowsMsvcConfig}",
+        "--run"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Build Windows MSVC",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/build-windows-msvc.sh",
+      "args": [
+        "${input:windowsMsvcConfig}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Build Windows MSVC Debug",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/build-windows-msvc.sh",
+      "args": [
+        "Debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Build Windows MSVC Release",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/build-windows-msvc.sh",
+      "args": [
+        "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Build Windows MSVC RelWithDebInfo",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/build-windows-msvc.sh",
+      "args": [
+        "RelWithDebInfo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "Configure Linux Debug",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "linux-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Linux Debug",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "linux-debug"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Configure Linux Debug",
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Configure Linux Release",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "linux-release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Linux Release",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "linux-release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Configure Linux Release",
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "Configure Linux RelWithDebInfo",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--preset",
+        "linux-relwithdebinfo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Linux RelWithDebInfo",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "--preset",
+        "linux-relwithdebinfo"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Configure Linux RelWithDebInfo",
+      "problemMatcher": "$gcc"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "windowsMsvcConfig",
+      "type": "pickString",
+      "description": "Windows MSVC configuration",
+      "options": [
+        "Debug",
+        "Release",
+        "RelWithDebInfo"
+      ],
+      "default": "Debug"
+    }
+  ]
+}
