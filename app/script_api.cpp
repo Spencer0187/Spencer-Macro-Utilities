@@ -1069,6 +1069,18 @@ int LuaIsHotkeyPressed(lua_State* L)
     return 1;
 }
 
+int LuaGetScriptHotkey(lua_State* L)
+{
+    const unsigned int hotkey = RequireInstance(L).owner().hotkey.load(std::memory_order_acquire);
+    if (!IsScriptHotkeyBound(hotkey)) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushinteger(L, static_cast<lua_Integer>(hotkey));
+    return 1;
+}
+
 int LuaTypeText(lua_State* L)
 {
     if (IsSettingsRenderMode(L)) {
@@ -1878,6 +1890,7 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "releaseKey", LuaReleaseKey);
     Register(L, "isKeyPressed", LuaIsKeyPressed);
     Register(L, "isHotkeyPressed", LuaIsHotkeyPressed);
+    Register(L, "getScriptHotkey", LuaGetScriptHotkey);
     Register(L, "isCancelled", LuaIsCancelled);
     Register(L, "sleepUntilCancelled", LuaSleepUntilCancelled);
     Register(L, "throwIfCancelled", LuaThrowIfCancelled);

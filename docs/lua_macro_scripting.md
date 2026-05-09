@@ -63,6 +63,7 @@ You can import scripts with the in-app import button or place script files in th
 | `nowMicros()` | Return the current monotonic time in microseconds |
 | `getSMUVersion()` | Return the current application version |
 | `getPlatform()` | Return `windows`, `linux`, or `unknown` |
+| `getScriptHotkey()` | Return this script's current activation hotkey as a combined hotkey value, or `nil` if it is unbound | 
 | `getSavedValue(name)` | Return the current in-memory value of a setting persisted in the save file. Returns `nil` if the name is not exposed |
 
 ### Execution Control
@@ -292,6 +293,15 @@ if isHotkeyPressed(hotkey) then
 end
 ```
 
+Use `getScriptHotkey()` when you need the script's own activation binding:
+
+```lua
+local scriptHotkey = getScriptHotkey()
+if scriptHotkey and isHotkeyPressed(scriptHotkey) then
+    log("Script hotkey is currently pressed")
+end
+```
+
 Use `@keybind:` to define the script's default activation hotkey (the same as the "Keybind" field shown in the app's script list):
 
 ```lua
@@ -320,7 +330,7 @@ end
 | `holdKey(key)` | Hold a key down |
 | `releaseKey(key)` | Release a held key |
 | `isKeyPressed(key)` | Return whether a key is currently pressed |
-| `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind`) |
+| `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind` or `getScriptHotkey()`) |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
 | `moveMouse(dx, dy)` | Move the mouse relative to its current position. In `"raw"` mode on Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent. In `"absolute"` mode, the target cursor position is calculated and sent through the platform absolute-pointer API |
 | `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"` |
