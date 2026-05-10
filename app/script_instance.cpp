@@ -430,6 +430,39 @@ std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
     return std::nullopt;
 }
 
+bool IsSafeUiStateKey(const std::string& key)
+{
+    return !key.empty() &&
+        key.size() <= kMaxUiIdBytes &&
+        std::memchr(key.data(), '\0', key.size()) == nullptr;
+}
+
+std::optional<nlohmann::json> LuaSettingToJson(lua_State* L, int index)
+{
+    switch (lua_type(L, index)) {
+    case LUA_TBOOLEAN:
+        return nlohmann::json(lua_toboolean(L, index) != 0);
+    case LUA_TNUMBER:
+        if (lua_isinteger(L, index)) {
+            return nlohmann::json(static_cast<std::int64_t>(lua_tointeger(L, index)));
+        } else {
+            const double value = static_cast<double>(lua_tonumber(L, index));
+            if (std::isfinite(value)) {
+                return nlohmann::json(value);
+            }
+        }
+        break;
+    case LUA_TSTRING: {
+        std::size_t length = 0;
+        const char* text = lua_tolstring(L, index, &length);
+        return nlohmann::json(ClampStoredUiText(std::string(text ? text : "", length)));
+    }
+    default:
+        break;
+    }
+    return std::nullopt;
+}
+
 void SyncLuaSettingsTable(lua_State* L, const nlohmann::json& state)
 {
     lua_newtable(L);
@@ -442,6 +475,44 @@ void SyncLuaSettingsTable(lua_State* L, const nlohmann::json& state)
         }
     }
     lua_setglobal(L, "settings");
+}
+
+void SyncUiStateFromLuaSettings(lua_State* L, ImportedScriptRecord& owner)
+{
+    lua_getglobal(L, "settings");
+    if (!lua_istable(L, -1)) {
+        lua_pop(L, 1);
+        return;
+    }
+
+    nlohmann::json updates = nlohmann::json::object();
+    lua_pushnil(L);
+    while (lua_next(L, -2) != 0) {
+        std::size_t keyLength = 0;
+        const char* keyText = lua_tolstring(L, -2, &keyLength);
+        if (keyText) {
+            std::string key(keyText, keyLength);
+            if (IsSafeUiStateKey(key) && updates.size() < kMaxUiStateEntries) {
+                if (auto value = LuaSettingToJson(L, -1)) {
+                    updates[key] = std::move(*value);
+                }
+            }
+        }
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+
+    if (updates.empty()) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> uiLock(owner.uiStateMutex);
+    if (!owner.uiState.is_object()) {
+        owner.uiState = nlohmann::json::object();
+    }
+    for (auto& [key, value] : updates.items()) {
+        owner.uiState[key] = std::move(value);
+    }
 }
 
 bool HasSettingsCallback(lua_State* L)
@@ -1168,6 +1239,10 @@ bool ScriptInstance::callOnSettings(bool renderMode)
         LogWarning(std::string("Imported script failed during onSettings: ") + owner_->lastErrorCopy());
         releaseAllSleepingCoroutines();
         return false;
+    }
+
+    if (owner_) {
+        SyncUiStateFromLuaSettings(L_, *owner_);
     }
 
     return true;
