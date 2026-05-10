@@ -1780,9 +1780,7 @@ int LuaUiTextbox(lua_State* L)
     }
 
     auto& buffer = instance.textboxBuffer(id);
-    if (buffer[0] == '\0') {
-        CopyToBuffer(buffer, stored);
-    }
+    CopyToBuffer(buffer, stored);
 
     if (instance.isSettingsRenderMode()) {
         ImGui::PushID(id.c_str());

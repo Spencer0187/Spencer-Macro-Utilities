@@ -124,7 +124,7 @@ Most controls accept optional size arguments at the end of the parameter list. W
 | `ui.button(id, label, width, height)` | Render a button and return `true` only on the frame it is pressed |
 | `ui.button(id, label, callback, width, height)` | Render a button and call `callback(id)` when pressed. `callback` may be a Lua function or a dot-separated function path such as `"actions.reset"` |
 
-The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly.
+The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly. Assignments to supported `settings` values from `onSettings()` are synced back to the script UI state after the callback finishes.
 Script settings are stored in the save file under imported script data, separate from the main app settings.
 Dynamic text boxes are saved with imported script UI state. After restarting SMU, the last dynamic text value may still be visible as a "ghost" until the script writes a new value. Scripts still start from a fresh Lua state, so previous dynamic text is not automatically appended unless the script preserves its own history.
 `ui.setDynamicText()` may be called during `onExecute()` to update a dynamic textbox while a script is running. The other `ui.*` helpers are intended for `onSettings()` layout construction.
@@ -138,8 +138,14 @@ function actions.clearLog(id)
     ui.setDynamicText("status", "Cleared by " .. id)
 end
 
+function actions.resetSpeed()
+    settings.speed = 50
+end
+
 function onSettings()
     ui.dynamicTextbox("status", "Status", "Ready", 360, 90)
+    ui.sliderInt("speed", "Speed", 50, 0, 100, 260)
+    ui.button("reset-speed", "Reset Speed", "actions.resetSpeed", 140, 0)
 
     if ui.button("mark-ready", "Mark Ready", 140, 0) then
         ui.setDynamicText("status", "Ready")
