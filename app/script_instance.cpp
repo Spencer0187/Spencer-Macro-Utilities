@@ -1125,6 +1125,7 @@ void ScriptInstance::cleanup()
     hasSettingsCallback_ = false;
     settingsUiCaptureActive_ = false;
     settingsRenderMode_ = false;
+    settingsCallbackActive_ = false;
     mouseMotionMode_ = MouseMotionMode::Raw;
     settingsUiControlCount_ = 0;
     transientUi_.clear();
