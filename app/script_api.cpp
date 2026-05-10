@@ -319,8 +319,8 @@ void PushPixelRect(lua_State* L, const std::vector<std::vector<smu::platform::Pi
 int LuaPressKeyImpl(lua_State* L, bool mouseOnly, const char* functionName)
 {
     ScriptInstance& instance = RequireInstance(L);
-    if (instance.isSettingsRenderMode()) {
-        return luaL_error(L, "%s is not available while rendering script settings", functionName);
+    if (instance.isSettingsRenderMode() || instance.isSettingsCallbackActive()) {
+        return luaL_error(L, "%s is not available inside script settings", functionName);
     }
     instance.throwStopIfRequested(L);
     const smu::core::KeyCode key = CheckKey(L, 1);
@@ -359,6 +359,7 @@ void PushLuaSettingValue(lua_State* L, const SavedSettingValue& value)
 }
 
 bool IsSettingsRenderMode(lua_State* L);
+bool IsSettingsCallbackActive(lua_State* L);
 
 std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
 {
@@ -931,6 +932,11 @@ std::string ClampDynamicText(std::string text)
 
 bool IsSettingsRenderMode(lua_State* L)
 {
+    return RequireInstance(L).isSettingsRenderMode();
+}
+
+bool IsSettingsCallbackActive(lua_State* L)
+{
     const ScriptInstance& instance = RequireInstance(L);
     return instance.isSettingsRenderMode() || instance.isSettingsCallbackActive();
 }
@@ -968,8 +974,8 @@ int LuaNowMicros(lua_State* L)
 
 int LuaSleep(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "sleep is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "sleep is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     instance.throwStopIfRequested(L);
@@ -985,8 +991,8 @@ int LuaSleep(lua_State* L)
 
 int LuaSleepMicros(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "sleepMicros is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "sleepMicros is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     instance.throwStopIfRequested(L);
@@ -1002,8 +1008,8 @@ int LuaSleepMicros(lua_State* L)
 
 int LuaCheckpoint(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "checkpoint is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "checkpoint is not available inside script settings");
     }
     RequireInstance(L).checkpoint(L);
     return 0;
@@ -1011,6 +1017,9 @@ int LuaCheckpoint(lua_State* L)
 
 int LuaShouldYield(lua_State* L)
 {
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "shouldYield is not available inside script settings");
+    }
     ScriptInstance& instance = RequireInstance(L);
     const std::int64_t threshold = lua_gettop(L) >= 1 && !lua_isnil(L, 1)
         ? CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMicros, "threshold")
@@ -1037,8 +1046,8 @@ int LuaIsCancelled(lua_State* L)
 
 int LuaSleepUntilCancelled(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "sleepUntilCancelled is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "sleepUntilCancelled is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     const std::int64_t ms = CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMs, "sleep duration");
@@ -1060,8 +1069,8 @@ int LuaThrowIfCancelled(lua_State* L)
 
 int LuaHoldKey(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "holdKey is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "holdKey is not available inside script settings");
     }
     HoldKey(CheckKey(L, 1));
     return 0;
@@ -1069,8 +1078,8 @@ int LuaHoldKey(lua_State* L)
 
 int LuaReleaseKey(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "releaseKey is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "releaseKey is not available inside script settings");
     }
     ReleaseKey(CheckKey(L, 1));
     return 0;
@@ -1078,8 +1087,8 @@ int LuaReleaseKey(lua_State* L)
 
 int LuaIsKeyPressed(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "isKeyPressed is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "isKeyPressed is not available inside script settings");
     }
     lua_pushboolean(L, IsKeyPressed(CheckKey(L, 1)));
     return 1;
@@ -1087,8 +1096,8 @@ int LuaIsKeyPressed(lua_State* L)
 
 int LuaIsHotkeyPressed(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "isHotkeyPressed is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "isHotkeyPressed is not available inside script settings");
     }
 
     unsigned int combinedKey = 0;
@@ -1122,8 +1131,8 @@ int LuaGetScriptHotkey(lua_State* L)
 
 int LuaTypeText(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "typeText is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "typeText is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     instance.throwStopIfRequested(L);
@@ -1167,8 +1176,8 @@ int LuaTypeText(lua_State* L)
 
 int LuaMoveMouse(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "moveMouse is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "moveMouse is not available inside script settings");
     }
     const int dx = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dx");
     const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
@@ -1191,8 +1200,8 @@ int LuaMoveMouse(lua_State* L)
 
 int LuaMoveMouseAbs(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "moveMouseAbs is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "moveMouseAbs is not available inside script settings");
     }
 
     const double x = CheckLuaFiniteNumber(L, 1, "x");
@@ -1218,8 +1227,8 @@ int LuaMoveMouseAbs(lua_State* L)
 
 int LuaGetPixelColor(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "getPixelColor is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "getPixelColor is not available inside script settings");
     }
 
     const double x = CheckLuaFiniteNumber(L, 1, "x");
@@ -1245,8 +1254,8 @@ int LuaGetPixelColor(lua_State* L)
 
 int LuaSetMouseMotionMode(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "setMouseMotionMode is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "setMouseMotionMode is not available inside script settings");
     }
 
     ScriptInstance& instance = RequireInstance(L);
@@ -1270,8 +1279,8 @@ int LuaGetMouseMotionMode(lua_State* L)
 
 int LuaGetPixelRect(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "getPixelRect is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "getPixelRect is not available inside script settings");
     }
 
     const double x1 = CheckLuaFiniteNumber(L, 1, "x1");
@@ -1299,8 +1308,8 @@ int LuaGetPixelRect(lua_State* L)
 
 int LuaMoveDegrees(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "moveDegrees is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "moveDegrees is not available inside script settings");
     }
 
     const double dxDegrees = CheckLuaFiniteNumber(L, 1, "dx");
@@ -1333,8 +1342,8 @@ int LuaMoveDegrees(lua_State* L)
 
 int LuaMouseWheel(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "mouseWheel is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "mouseWheel is not available inside script settings");
     }
     const int delta = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "delta");
     MouseWheel(delta);
@@ -1343,8 +1352,8 @@ int LuaMouseWheel(lua_State* L)
 
 int LuaFreeze(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "freeze is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "freeze is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     instance.setFreeze(lua_toboolean(L, 1) != 0);
@@ -1353,8 +1362,8 @@ int LuaFreeze(lua_State* L)
 
 int LuaLagSwitch(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "lagSwitch is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "lagSwitch is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     if (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) {
@@ -1367,8 +1376,8 @@ int LuaLagSwitch(lua_State* L)
 
 int LuaGetLagSwitchConfig(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "getLagSwitchConfig is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "getLagSwitchConfig is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     PushLagSwitchConfig(L, instance.lagSwitchConfig());
@@ -1377,8 +1386,8 @@ int LuaGetLagSwitchConfig(lua_State* L)
 
 int LuaSetLagSwitchConfig(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "setLagSwitchConfig is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "setLagSwitchConfig is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     const smu::platform::LagSwitchConfig config = CheckLagSwitchConfigTable(L, 1, instance.lagSwitchConfig());
@@ -1388,8 +1397,8 @@ int LuaSetLagSwitchConfig(lua_State* L)
 
 int LuaClearLagSwitchConfig(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "clearLagSwitchConfig is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "clearLagSwitchConfig is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
     instance.clearLagSwitchConfig();
@@ -1398,8 +1407,8 @@ int LuaClearLagSwitchConfig(lua_State* L)
 
 int LuaGetLagSwitchStatus(lua_State* L)
 {
-    if (IsSettingsRenderMode(L)) {
-        return luaL_error(L, "getLagSwitchStatus is not available while rendering script settings");
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "getLagSwitchStatus is not available inside script settings");
     }
 
     auto backend = smu::platform::GetNetworkLagBackend();
