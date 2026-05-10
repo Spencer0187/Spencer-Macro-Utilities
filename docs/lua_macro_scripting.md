@@ -3,7 +3,7 @@
 Custom macros can be written as Lua scripts and imported into Spencer Macro Client. The scripting system supports `.smus`, `.hss`, `.lua`, and `.txt` files. Scripts run inside the macro runtime and can automate keyboard input, mouse movement, text entry, timing, freeze behavior, and lag-switch controls.
 
 Imported scripts can also define their own custom ImGui settings by implementing `onSettings()`. The app runs that callback once in a non-rendering initialization pass when the script loads, then again in the selected-script panel to render the controls.
-`onSettings()` should use the control-building `ui.*` helpers to define persistent settings. `ui.setDynamicText()` is execution-safe and may be called from `onExecute()` to update an existing dynamic textbox. Input, mouse, process, timing, checkpoint, and lag-switch APIs are blocked inside `onSettings()`.
+`onSettings()` should use the control-building `ui.*` helpers to define persistent settings and actions. `ui.button()` can trigger per-button Lua code paths from the settings panel, and `ui.setDynamicText()` is execution-safe and may be called from `onExecute()` to update an existing dynamic textbox. Input, mouse, process, timing, checkpoint, and lag-switch APIs are blocked inside `onSettings()`.
 `onSettings()` has a 5-second hard timeout.
 `onSettings()` is optional. If it is not defined, only the built-in script controls appear.
 While a script is running, custom settings stay visible using the last cached `onSettings()` layout. Interactive controls become read-only, while `ui.dynamicTextbox()` remains live and copyable.
@@ -121,12 +121,33 @@ Most controls accept optional size arguments at the end of the parameter list. W
 | `ui.dynamicTextbox(id, label, defaultValue, width, height)` | Render a read-only multi-line text box backed by a script-updated value |
 | `ui.setDynamicText(id, text)` | Update a dynamic text box value (clamped to 4096 characters) |
 | `ui.keybind(id, label, defaultValue, width)` | Render the standard SMU keybind picker (with hex display) and persist the combo as a hotkey value |
+| `ui.button(id, label, width, height)` | Render a button and return `true` only on the frame it is pressed |
+| `ui.button(id, label, callback, width, height)` | Render a button and call `callback(id)` when pressed. `callback` may be a Lua function or a dot-separated function path such as `"actions.reset"` |
 
 The current values are mirrored into a global `settings` table, so `onExecute()` can read them directly.
 Script settings are stored in the save file under imported script data, separate from the main app settings.
 Dynamic text boxes are saved with imported script UI state. After restarting SMU, the last dynamic text value may still be visible as a "ghost" until the script writes a new value. Scripts still start from a fresh Lua state, so previous dynamic text is not automatically appended unless the script preserves its own history.
 `ui.setDynamicText()` may be called during `onExecute()` to update a dynamic textbox while a script is running. The other `ui.*` helpers are intended for `onSettings()` layout construction.
+Buttons are not persisted as settings. Use distinct button IDs for distinct actions; multiple buttons can share the same visible label because the ID gives each button its own ImGui path. While a script is running, cached buttons are shown disabled with the other interactive controls.
 UI IDs must be non-empty, must not contain embedded NUL bytes, and are limited to 128 bytes. A single `onSettings()` call may create up to 512 UI controls, and each script is capped at 4096 total unique UI IDs. Stored script UI strings are clamped to 4096 bytes.
+
+```lua
+actions = {}
+
+function actions.clearLog(id)
+    ui.setDynamicText("status", "Cleared by " .. id)
+end
+
+function onSettings()
+    ui.dynamicTextbox("status", "Status", "Ready", 360, 90)
+
+    if ui.button("mark-ready", "Mark Ready", 140, 0) then
+        ui.setDynamicText("status", "Ready")
+    end
+
+    ui.button("clear-status", "Clear Status", "actions.clearLog", 140, 0)
+end
+```
 
 ### Input
 

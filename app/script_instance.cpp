@@ -901,6 +901,21 @@ void ScriptInstance::recordSettingsKeybind(std::string id, std::string label, un
     pendingSettingsUiControls_.push_back(std::move(control));
 }
 
+void ScriptInstance::recordSettingsButton(std::string id, std::string label, float width, float height)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Button;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.width = width;
+    control.height = height;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
 void ScriptInstance::renderCachedSettings(bool readOnly)
 {
     std::vector<SettingsUiControl> controls;
@@ -1085,6 +1100,16 @@ void ScriptInstance::renderCachedSettings(bool readOnly)
             const float humanWidth = control.width > 0.0f ? control.width * 0.55f : 170.0f;
             const float hexWidth = control.width > 0.0f ? control.width * 0.35f : 130.0f;
             DrawKeyBindControlShared("##ScriptKeybind", value, -1, humanWidth, hexWidth, true);
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::Button: {
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            ImGui::Button(control.label.c_str(), ImVec2(control.width, control.height));
             if (readOnly) {
                 ImGui::EndDisabled();
             }

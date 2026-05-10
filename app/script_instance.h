@@ -50,7 +50,8 @@ public:
             SliderFloat,
             Textbox,
             DynamicTextbox,
-            Keybind
+            Keybind,
+            Button
         };
 
         Kind kind = Kind::Text;
@@ -138,6 +139,7 @@ public:
     void recordSettingsTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
     void recordSettingsDynamicTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
     void recordSettingsKeybind(std::string id, std::string label, unsigned int defaultValue, float width);
+    void recordSettingsButton(std::string id, std::string label, float width, float height);
     bool tryGetTransientUiValue(const std::string& key, std::string& out) const;
     void setTransientUiValue(const std::string& key, std::string value);
 
