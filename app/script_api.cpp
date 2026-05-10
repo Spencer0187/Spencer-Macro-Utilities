@@ -52,6 +52,8 @@ ScriptInstance& RequireInstance(lua_State* L)
 
 // Allow effectively infinite sleeps; the scheduler clamps to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
+constexpr std::int64_t kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
+constexpr std::int64_t kDefaultShouldYieldMicros = 1000;
 constexpr int kMaxInputDelayMs = 300000;
 constexpr float kMaxUiDimension = 10000.0f;
 constexpr std::size_t kMaxLogMessageBytes = 4096;
@@ -929,7 +931,8 @@ std::string ClampDynamicText(std::string text)
 
 bool IsSettingsRenderMode(lua_State* L)
 {
-    return RequireInstance(L).isSettingsRenderMode();
+    const ScriptInstance& instance = RequireInstance(L);
+    return instance.isSettingsRenderMode() || instance.isSettingsCallbackActive();
 }
 
 int LuaLog(lua_State* L)
@@ -978,6 +981,42 @@ int LuaSleep(lua_State* L)
     }
     instance.sleepWithDeadline(ms);
     return 0;
+}
+
+int LuaSleepMicros(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "sleepMicros is not available while rendering script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    instance.throwStopIfRequested(L);
+    const std::int64_t us = CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMicros, "sleep duration");
+    if (lua_isyieldable(L)) {
+        instance.pauseExecutionBudget();
+        instance.scheduleCoroutineSleepMicros(L, us);
+        return lua_yield(L, 0);
+    }
+    instance.sleepMicrosWithDeadline(us);
+    return 0;
+}
+
+int LuaCheckpoint(lua_State* L)
+{
+    if (IsSettingsRenderMode(L)) {
+        return luaL_error(L, "checkpoint is not available while rendering script settings");
+    }
+    RequireInstance(L).checkpoint(L);
+    return 0;
+}
+
+int LuaShouldYield(lua_State* L)
+{
+    ScriptInstance& instance = RequireInstance(L);
+    const std::int64_t threshold = lua_gettop(L) >= 1 && !lua_isnil(L, 1)
+        ? CheckLuaInt64Clamped(L, 1, 0, kMaxSingleSleepMicros, "threshold")
+        : kDefaultShouldYieldMicros;
+    lua_pushboolean(L, instance.shouldYield(std::chrono::microseconds(threshold)));
+    return 1;
 }
 
 int LuaPressKey(lua_State* L)
@@ -1884,6 +1923,9 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "log", LuaLog);
     Register(L, "nowMicros", LuaNowMicros);
     Register(L, "sleep", LuaSleep);
+    Register(L, "sleepMicros", LuaSleepMicros);
+    Register(L, "checkpoint", LuaCheckpoint);
+    Register(L, "shouldYield", LuaShouldYield);
     Register(L, "pressKey", LuaPressKey);
     Register(L, "clickMouse", LuaClickMouse);
     Register(L, "holdKey", LuaHoldKey);

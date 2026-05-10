@@ -1082,9 +1082,11 @@ bool ScriptInstance::callOnSettings(bool renderMode)
     beginSettingsUiCapture();
     resetSettingsUiControlCount();
     setSettingsRenderMode(renderMode);
+    setSettingsCallbackActive(true);
     beginTimedCall(kMaxSettingsRuntime);
     const int status = lua_pcall(L_, 0, 0, 0);
     endTimedCall();
+    setSettingsCallbackActive(false);
     setSettingsRenderMode(false);
     const bool committed = status == LUA_OK && stopReason_.load(std::memory_order_acquire) == StopReason::None;
     finishSettingsUiCapture(committed);
@@ -1196,14 +1198,12 @@ void ScriptInstance::pauseExecutionBudget()
     if (!budgetActive_) {
         return;
     }
+
     const auto now = std::chrono::steady_clock::now();
-    const auto elapsed = now - activeBudgetStart_;
-    if (elapsed >= remainingBudget_) {
-        remainingBudget_ = std::chrono::steady_clock::duration::zero();
+    if (deadline_ != std::chrono::steady_clock::time_point{} && now > deadline_) {
         setStopReason(StopReason::Timeout);
-    } else {
-        remainingBudget_ -= elapsed;
     }
+
     budgetActive_ = false;
     deadline_ = {};
 }
@@ -1214,25 +1214,44 @@ bool ScriptInstance::resumeExecutionBudget()
     if (budgetActive_) {
         return true;
     }
-    if (remainingBudget_ <= std::chrono::steady_clock::duration::zero()) {
-        setStopReason(StopReason::Timeout);
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
         return false;
     }
+
+    const auto limit = activeBudgetLimit_ > std::chrono::steady_clock::duration::zero()
+        ? activeBudgetLimit_
+        : kMaxScriptRuntime;
     budgetActive_ = true;
     activeBudgetStart_ = std::chrono::steady_clock::now();
-    deadline_ = activeBudgetStart_ + remainingBudget_;
+    deadline_ = activeBudgetStart_ + limit;
     return true;
 }
 
-std::chrono::steady_clock::time_point ScriptInstance::computeWakeTime(std::int64_t ms) const
+std::chrono::steady_clock::time_point ScriptInstance::computeWakeTime(std::chrono::milliseconds duration) const
 {
     const auto now = std::chrono::steady_clock::now();
-    if (ms <= 0) {
+    if (duration <= std::chrono::milliseconds::zero()) {
         return now;
     }
-    const auto duration = std::chrono::milliseconds(ms);
+
     const auto maxTime = std::chrono::steady_clock::time_point::max();
-    if (duration >= (maxTime - now)) {
+    const auto maxDuration = std::chrono::duration_cast<std::chrono::milliseconds>(maxTime - now);
+    if (duration >= maxDuration) {
+        return maxTime;
+    }
+    return now + duration;
+}
+
+std::chrono::steady_clock::time_point ScriptInstance::computeWakeTime(std::chrono::microseconds duration) const
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (duration <= std::chrono::microseconds::zero()) {
+        return now;
+    }
+
+    const auto maxTime = std::chrono::steady_clock::time_point::max();
+    const auto maxDuration = std::chrono::duration_cast<std::chrono::microseconds>(maxTime - now);
+    if (duration >= maxDuration) {
         return maxTime;
     }
     return now + duration;
@@ -1261,7 +1280,18 @@ bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
 bool ScriptInstance::waitFor(std::chrono::milliseconds duration)
 {
     pauseExecutionBudget();
-    const auto wakeTime = computeWakeTime(duration.count());
+    const auto wakeTime = computeWakeTime(duration);
+    const bool ok = waitUntil(wakeTime);
+    if (!ok) {
+        return false;
+    }
+    return resumeExecutionBudget();
+}
+
+bool ScriptInstance::waitFor(std::chrono::microseconds duration)
+{
+    pauseExecutionBudget();
+    const auto wakeTime = computeWakeTime(duration);
     const bool ok = waitUntil(wakeTime);
     if (!ok) {
         return false;
@@ -1277,10 +1307,19 @@ void ScriptInstance::sleepWithDeadline(std::int64_t ms)
     }
 }
 
+void ScriptInstance::sleepMicrosWithDeadline(std::int64_t us)
+{
+    constexpr auto kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
+    const std::int64_t clamped = std::clamp<std::int64_t>(us, 0, kMaxSingleSleepMicros);
+    if (!waitFor(std::chrono::microseconds(clamped))) {
+        throwStopIfRequested(L_);
+    }
+}
+
 void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, std::int64_t ms)
 {
     const std::int64_t clampedMs = std::clamp<std::int64_t>(ms, 0, kMaxSingleSleepMs);
-    const auto wakeTime = computeWakeTime(clampedMs);
+    const auto wakeTime = computeWakeTime(std::chrono::milliseconds(clampedMs));
     for (auto& coroutine : sleepingCoroutines_) {
         if (coroutine.thread == thread) {
             coroutine.wakeTime = wakeTime;
@@ -1292,6 +1331,46 @@ void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, std::int64_t ms)
     lua_pushthread(thread);
     const int registryRef = luaL_ref(thread, LUA_REGISTRYINDEX);
     sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime});
+}
+
+void ScriptInstance::scheduleCoroutineSleepMicros(lua_State* thread, std::int64_t us)
+{
+    constexpr auto kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
+    const std::int64_t clampedUs = std::clamp<std::int64_t>(us, 0, kMaxSingleSleepMicros);
+    const auto wakeTime = computeWakeTime(std::chrono::microseconds(clampedUs));
+    for (auto& coroutine : sleepingCoroutines_) {
+        if (coroutine.thread == thread) {
+            coroutine.wakeTime = wakeTime;
+            return;
+        }
+    }
+
+    sleepingCoroutines_.reserve(sleepingCoroutines_.size() + 1);
+    lua_pushthread(thread);
+    const int registryRef = luaL_ref(thread, LUA_REGISTRYINDEX);
+    sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime});
+}
+
+void ScriptInstance::checkpoint(lua_State* L)
+{
+    throwStopIfRequested(L);
+    pauseExecutionBudget();
+    std::this_thread::yield();
+    if (!resumeExecutionBudget()) {
+        throwStopIfRequested(L);
+    }
+}
+
+bool ScriptInstance::shouldYield(std::chrono::microseconds threshold)
+{
+    if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+        return true;
+    }
+    std::lock_guard<std::mutex> lock(sleepMutex_);
+    if (!budgetActive_) {
+        return false;
+    }
+    return std::chrono::steady_clock::now() - activeBudgetStart_ >= threshold;
 }
 
 void ScriptInstance::releaseSleepingCoroutine(SleepingCoroutine& coroutine)
@@ -1551,10 +1630,10 @@ void ScriptInstance::beginTimedCall(std::chrono::steady_clock::duration maxRunti
         ResetEvent(static_cast<HANDLE>(cancelEvent_));
     }
 #endif
-    remainingBudget_ = maxRuntime;
+    activeBudgetLimit_ = maxRuntime;
     budgetActive_ = true;
     activeBudgetStart_ = std::chrono::steady_clock::now();
-    deadline_ = activeBudgetStart_ + remainingBudget_;
+    deadline_ = activeBudgetStart_ + activeBudgetLimit_;
     InstallTimeoutHook(L_);
 }
 
