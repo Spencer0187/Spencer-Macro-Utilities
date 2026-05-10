@@ -103,8 +103,12 @@ public:
     bool isStopRequested() const { return stopReason_.load(std::memory_order_acquire) != StopReason::None; }
     void throwStopIfRequested(lua_State* L);
     void pauseExecutionBudget();
+    enum class WaitPrecision {
+        Coarse,
+        Precise
+    };
     bool waitFor(std::chrono::milliseconds duration);
-    bool waitFor(std::chrono::microseconds duration);
+    bool waitFor(std::chrono::microseconds duration, WaitPrecision precision = WaitPrecision::Coarse);
     void setFreeze(bool enabled);
     void setLagSwitch(bool enabled);
     void setLagSwitchConfig(const smu::platform::LagSwitchConfig& config);
@@ -152,7 +156,8 @@ private:
     bool resumeExecutionBudget();
     std::chrono::steady_clock::time_point computeWakeTime(std::chrono::milliseconds duration) const;
     std::chrono::steady_clock::time_point computeWakeTime(std::chrono::microseconds duration) const;
-    bool waitUntil(std::chrono::steady_clock::time_point wakeTime);
+    bool waitUntil(std::chrono::steady_clock::time_point wakeTime, WaitPrecision precision = WaitPrecision::Coarse);
+    bool spinUntil(std::chrono::steady_clock::time_point wakeTime);
     void setStopReason(StopReason reason);
     const char* stopReasonMessage() const;
     void configureMemoryLimit();
@@ -168,6 +173,7 @@ private:
         lua_State* thread = nullptr;
         int registryRef = LUA_NOREF;
         std::chrono::steady_clock::time_point wakeTime{};
+        WaitPrecision precision = WaitPrecision::Coarse;
     };
     void releaseSleepingCoroutine(SleepingCoroutine& coroutine);
     void releaseAllSleepingCoroutines();

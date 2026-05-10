@@ -60,7 +60,7 @@ You can import scripts with the in-app import button or place script files in th
 | --- | --- |
 | `log(message)` | Write a message to the log console (messages are truncated at 4096 bytes) |
 | `sleep(ms)` | Pause the script for the specified number of milliseconds. Long sleeps are allowed and do not count against the execution watchdog |
-| `sleepMicros(us)` | Pause the script for the specified number of microseconds, clamped to a 24-hour maximum. This uses the native host wait path and is intended for sub-millisecond pacing, but OS scheduling and input backends may still limit practical precision |
+| `sleepMicros(us)` | Pause the script for the specified number of microseconds, clamped to a 24-hour maximum. This uses a native cancellable high-precision wait path: coarse OS waiting first, then a bounded native spin for the final short interval. It is intended for sub-millisecond pacing, but OS scheduling, CPU load, and input backends may still limit practical precision |
 | `nowMicros()` | Return the current monotonic time in microseconds |
 | `getSMUVersion()` | Return the current application version |
 | `getPlatform()` | Return `windows`, `linux`, or `unknown` |
@@ -102,7 +102,7 @@ for y = 1, height do
 end
 ```
 
-For high-frequency pacing below 1 ms, use `sleepMicros()` instead of a `nowMicros()` busy-wait. Busy-wait loops consume active execution time and can still trip the watchdog, while `sleepMicros()` waits through the host runtime and remains cancellable.
+For high-frequency pacing below 1 ms, use `sleepMicros()` instead of a Lua `nowMicros()` busy-wait. Lua busy-wait loops consume active execution time and can still trip the watchdog. `sleepMicros()` pauses the script execution budget, remains cancellable, and uses a native hybrid wait that spins only for the final short interval. Very small waits may still consume CPU during that final spin, so avoid using `sleepMicros()` as an unbounded tight-loop throttle when ordinary millisecond pacing is enough.
 
 ### Script Settings
 

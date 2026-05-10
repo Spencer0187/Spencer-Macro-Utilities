@@ -40,6 +40,19 @@ extern "C" {
 namespace smu::app {
 namespace {
 
+constexpr auto kPreciseSleepSpinThreshold = std::chrono::microseconds(800);
+
+void CpuRelax()
+{
+#if defined(_WIN32)
+    YieldProcessor();
+#elif defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#else
+    std::atomic_signal_fence(std::memory_order_seq_cst);
+#endif
+}
+
 #if defined(_WIN32)
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
 constexpr DWORD kCreateWaitableTimerHighResolution = 0x00000002;
@@ -56,9 +69,26 @@ HANDLE CreateScriptSleepTimer()
     return timer;
 }
 
-bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, HANDLE cancelEvent)
+bool IsCancelEventSet(HANDLE cancelEvent)
 {
-    if (cancelEvent && WaitForSingleObject(cancelEvent, 0) == WAIT_OBJECT_0) {
+    return cancelEvent && WaitForSingleObject(cancelEvent, 0) == WAIT_OBJECT_0;
+}
+
+bool SpinUntilWithWindowsCancel(std::chrono::steady_clock::time_point wakeTime, HANDLE cancelEvent)
+{
+    unsigned int pollCounter = 0;
+    while (std::chrono::steady_clock::now() < wakeTime) {
+        if ((++pollCounter & 0x3fu) == 0u && IsCancelEventSet(cancelEvent)) {
+            return false;
+        }
+        CpuRelax();
+    }
+    return !IsCancelEventSet(cancelEvent);
+}
+
+bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, HANDLE cancelEvent, bool precise)
+{
+    if (IsCancelEventSet(cancelEvent)) {
         return false;
     }
 
@@ -73,7 +103,7 @@ bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, H
 
     HANDLE timer = CreateScriptSleepTimer();
     if (!timer) {
-        return false;
+        return precise ? SpinUntilWithWindowsCancel(wakeTime, cancelEvent) : false;
     }
 
     constexpr LONGLONG kHundredNanosecondsPerSecond = 10000000LL;
@@ -81,7 +111,7 @@ bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, H
 
     bool reachedWakeTime = false;
     while (true) {
-        if (cancelEvent && WaitForSingleObject(cancelEvent, 0) == WAIT_OBJECT_0) {
+        if (IsCancelEventSet(cancelEvent)) {
             break;
         }
 
@@ -91,7 +121,16 @@ bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, H
             break;
         }
 
-        const auto remaining = wakeTime - now;
+        auto remaining = wakeTime - now;
+        if (precise && remaining <= kPreciseSleepSpinThreshold) {
+            reachedWakeTime = SpinUntilWithWindowsCancel(wakeTime, cancelEvent);
+            break;
+        }
+
+        if (precise && remaining > kPreciseSleepSpinThreshold) {
+            remaining -= kPreciseSleepSpinThreshold;
+        }
+
         const auto remainingHundredNs = std::chrono::duration_cast<std::chrono::nanoseconds>(remaining).count() / 100;
         const LONGLONG chunkHundredNs = std::clamp<LONGLONG>(remainingHundredNs, 1, kMaxSingleTimerChunk);
 
@@ -126,7 +165,6 @@ constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr int kLuaHookInstructionCount = 10000;
 // Allow effectively infinite sleeps; wake times are clamped to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
-
 void TimeoutHook(lua_State* L, lua_Debug*);
 
 void* LuaAllocator(void* userdata, void* ptr, std::size_t osize, std::size_t nsize)
@@ -1258,7 +1296,18 @@ std::chrono::steady_clock::time_point ScriptInstance::computeWakeTime(std::chron
     return now + duration;
 }
 
-bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
+bool ScriptInstance::spinUntil(std::chrono::steady_clock::time_point wakeTime)
+{
+    while (std::chrono::steady_clock::now() < wakeTime) {
+        if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+            return false;
+        }
+        CpuRelax();
+    }
+    return stopReason_.load(std::memory_order_acquire) == StopReason::None;
+}
+
+bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime, WaitPrecision precision)
 {
     if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
         return false;
@@ -1266,10 +1315,34 @@ bool ScriptInstance::waitUntil(std::chrono::steady_clock::time_point wakeTime)
 
 #if defined(_WIN32)
     if (cancelEvent_) {
-        const bool ok = WaitUntilWithWindowsTimer(wakeTime, static_cast<HANDLE>(cancelEvent_));
+        const bool ok = WaitUntilWithWindowsTimer(wakeTime, static_cast<HANDLE>(cancelEvent_), precision == WaitPrecision::Precise);
         return ok && stopReason_.load(std::memory_order_acquire) == StopReason::None;
     }
 #endif
+
+    if (precision == WaitPrecision::Precise && wakeTime != std::chrono::steady_clock::time_point::max()) {
+        while (true) {
+            if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+                return false;
+            }
+
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= wakeTime) {
+                return true;
+            }
+
+            const auto remaining = wakeTime - now;
+            if (remaining <= kPreciseSleepSpinThreshold) {
+                return spinUntil(wakeTime);
+            }
+
+            const auto coarseWakeTime = wakeTime - kPreciseSleepSpinThreshold;
+            std::unique_lock<std::mutex> lock(sleepMutex_);
+            sleepCv_.wait_until(lock, coarseWakeTime, [this] {
+                return stopReason_.load(std::memory_order_acquire) != StopReason::None;
+            });
+        }
+    }
 
     std::unique_lock<std::mutex> lock(sleepMutex_);
     sleepCv_.wait_until(lock, wakeTime, [this] {
@@ -1282,18 +1355,18 @@ bool ScriptInstance::waitFor(std::chrono::milliseconds duration)
 {
     pauseExecutionBudget();
     const auto wakeTime = computeWakeTime(duration);
-    const bool ok = waitUntil(wakeTime);
+    const bool ok = waitUntil(wakeTime, WaitPrecision::Coarse);
     if (!ok) {
         return false;
     }
     return resumeExecutionBudget();
 }
 
-bool ScriptInstance::waitFor(std::chrono::microseconds duration)
+bool ScriptInstance::waitFor(std::chrono::microseconds duration, WaitPrecision precision)
 {
     pauseExecutionBudget();
     const auto wakeTime = computeWakeTime(duration);
-    const bool ok = waitUntil(wakeTime);
+    const bool ok = waitUntil(wakeTime, precision);
     if (!ok) {
         return false;
     }
@@ -1312,7 +1385,7 @@ void ScriptInstance::sleepMicrosWithDeadline(std::int64_t us)
 {
     constexpr auto kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
     const std::int64_t clamped = std::clamp<std::int64_t>(us, 0, kMaxSingleSleepMicros);
-    if (!waitFor(std::chrono::microseconds(clamped))) {
+    if (!waitFor(std::chrono::microseconds(clamped), WaitPrecision::Precise)) {
         throwStopIfRequested(L_);
     }
 }
@@ -1324,6 +1397,7 @@ void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, std::int64_t ms)
     for (auto& coroutine : sleepingCoroutines_) {
         if (coroutine.thread == thread) {
             coroutine.wakeTime = wakeTime;
+            coroutine.precision = WaitPrecision::Coarse;
             return;
         }
     }
@@ -1331,7 +1405,7 @@ void ScriptInstance::scheduleCoroutineSleep(lua_State* thread, std::int64_t ms)
     sleepingCoroutines_.reserve(sleepingCoroutines_.size() + 1);
     lua_pushthread(thread);
     const int registryRef = luaL_ref(thread, LUA_REGISTRYINDEX);
-    sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime});
+    sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime, WaitPrecision::Coarse});
 }
 
 void ScriptInstance::scheduleCoroutineSleepMicros(lua_State* thread, std::int64_t us)
@@ -1342,6 +1416,7 @@ void ScriptInstance::scheduleCoroutineSleepMicros(lua_State* thread, std::int64_
     for (auto& coroutine : sleepingCoroutines_) {
         if (coroutine.thread == thread) {
             coroutine.wakeTime = wakeTime;
+            coroutine.precision = WaitPrecision::Precise;
             return;
         }
     }
@@ -1349,7 +1424,7 @@ void ScriptInstance::scheduleCoroutineSleepMicros(lua_State* thread, std::int64_
     sleepingCoroutines_.reserve(sleepingCoroutines_.size() + 1);
     lua_pushthread(thread);
     const int registryRef = luaL_ref(thread, LUA_REGISTRYINDEX);
-    sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime});
+    sleepingCoroutines_.push_back(SleepingCoroutine{thread, registryRef, wakeTime, WaitPrecision::Precise});
 }
 
 void ScriptInstance::checkpoint(lua_State* L)
@@ -1396,13 +1471,19 @@ bool ScriptInstance::drainSleepingCoroutines()
     while (!sleepingCoroutines_.empty()) {
         const auto now = std::chrono::steady_clock::now();
         auto nextWake = sleepingCoroutines_.front().wakeTime;
+        auto nextWakePrecision = sleepingCoroutines_.front().precision;
         for (const auto& coroutine : sleepingCoroutines_) {
-            nextWake = std::min(nextWake, coroutine.wakeTime);
+            if (coroutine.wakeTime < nextWake) {
+                nextWake = coroutine.wakeTime;
+                nextWakePrecision = coroutine.precision;
+            } else if (coroutine.wakeTime == nextWake && coroutine.precision == WaitPrecision::Precise) {
+                nextWakePrecision = WaitPrecision::Precise;
+            }
         }
 
         pauseExecutionBudget();
         if (nextWake > now) {
-            if (!waitUntil(nextWake)) {
+            if (!waitUntil(nextWake, nextWakePrecision)) {
                 owner_->setLastError(stopReasonMessage());
                 LogWarning("Imported script failed during coroutine sleep resume: " + owner_->lastErrorCopy());
                 releaseAllSleepingCoroutines();
