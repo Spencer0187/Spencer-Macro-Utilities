@@ -254,7 +254,9 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         return 1;
     }
 
-    SDL_GL_SetSwapInterval(0);
+    if (!SDL_GL_SetSwapInterval(1)) {
+        LogWarning(std::string("SDL adaptive frame pacing: vsync could not be enabled: ") + SDL_GetError());
+    }
     UpdateWindowMetrics(window);
 
     const float opacity = std::clamp(state.windowOpacityPercent / 100.0f, 0.2f, 1.0f);
@@ -297,35 +299,99 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     }
     LoadMacroTutorialTextures();
 
-    constexpr int targetFps = 60;
-    const auto targetFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-        std::chrono::duration<double>(1.0 / static_cast<double>(targetFps)));
-    auto nextFrameTime = std::chrono::steady_clock::now();
+    constexpr int kActiveFps = 60;
+    constexpr int kIdleFps = 8;
+    const auto activeFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(1.0 / static_cast<double>(kActiveFps)));
+    const auto idleFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+        std::chrono::duration<double>(1.0 / static_cast<double>(kIdleFps)));
+    const auto inputBurstDuration = std::chrono::milliseconds(250);
+
+    auto nextActiveFrameTime = std::chrono::steady_clock::now();
+    auto nextIdleFrameTime = nextActiveFrameTime;
+    auto activeUntil = nextActiveFrameTime;
+    bool redrawRequested = true;
+
+    auto millisecondsUntil = [](std::chrono::steady_clock::time_point deadline) {
+        const auto now = std::chrono::steady_clock::now();
+        if (deadline <= now) {
+            return 0;
+        }
+
+        const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+        return static_cast<int>(std::clamp<long long>(milliseconds, 1, 1000));
+    };
+
+    auto requestActiveRedraw = [&] {
+        redrawRequested = true;
+        activeUntil = std::chrono::steady_clock::now() + inputBurstDuration;
+    };
+
+    auto processEvent = [&](const SDL_Event& event) {
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        requestActiveRedraw();
+
+        if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+            state.done.store(true, std::memory_order_release);
+            state.running.store(false, std::memory_order_release);
+            Globals::done.store(true, std::memory_order_release);
+            Globals::running.store(false, std::memory_order_release);
+#if defined(_WIN32)
+            // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
+            smu::platform::windows::CleanupLagswitchOverlay();
+#endif
+            return true;
+        }
+
+        if (event.type == SDL_EVENT_WINDOW_RESIZED ||
+            event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+            event.type == SDL_EVENT_WINDOW_MOVED) {
+            UpdateWindowMetrics(window);
+        }
+        return false;
+    };
 
     while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
         SDL_Event event;
         bool quitRequested = false;
         while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-                state.done.store(true, std::memory_order_release);
-                state.running.store(false, std::memory_order_release);
-                Globals::done.store(true, std::memory_order_release);
-                Globals::running.store(false, std::memory_order_release);
-#if defined(_WIN32)
-                // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
-                smu::platform::windows::CleanupLagswitchOverlay();
-#endif
+            if (processEvent(event)) {
                 quitRequested = true;
-            }
-            if (event.type == SDL_EVENT_WINDOW_RESIZED ||
-                event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-                event.type == SDL_EVENT_WINDOW_MOVED) {
-                UpdateWindowMetrics(window);
             }
         }
         if (quitRequested) {
             break;
+        }
+
+        auto now = std::chrono::steady_clock::now();
+        const bool activeFrameDue = now < activeUntil && now >= nextActiveFrameTime;
+        const bool idleFrameDue = now >= nextIdleFrameTime;
+
+        if (!redrawRequested && !activeFrameDue && !idleFrameDue) {
+            const auto wakeDeadline = (now < activeUntil)
+                ? std::min(nextActiveFrameTime, nextIdleFrameTime)
+                : nextIdleFrameTime;
+            if (SDL_WaitEventTimeout(&event, millisecondsUntil(wakeDeadline))) {
+                if (processEvent(event)) {
+                    quitRequested = true;
+                }
+                while (SDL_PollEvent(&event)) {
+                    if (processEvent(event)) {
+                        quitRequested = true;
+                    }
+                }
+            }
+            if (quitRequested) {
+                break;
+            }
+        }
+
+        now = std::chrono::steady_clock::now();
+        if (!redrawRequested && now >= activeUntil && now < nextIdleFrameTime) {
+            continue;
+        }
+        if (!redrawRequested && now < activeUntil && now < nextActiveFrameTime && now < nextIdleFrameTime) {
+            continue;
         }
 
         ImGui_ImplOpenGL3_NewFrame();
@@ -333,6 +399,11 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         ImGui::NewFrame();
 
         RenderAppUi(context);
+
+        const ImGuiIO& frameIo = ImGui::GetIO();
+        const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
+            frameIo.MouseDown[3] || frameIo.MouseDown[4];
+        const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
 
         ImGui::Render();
         UpdateWindowMetrics(window);
@@ -342,12 +413,13 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
 
-        nextFrameTime += targetFrameDuration;
         const auto nowAfterRender = std::chrono::steady_clock::now();
-        if (nextFrameTime <= nowAfterRender) {
-            nextFrameTime = nowAfterRender + targetFrameDuration;
+        if (uiInteractionActive) {
+            activeUntil = std::max(activeUntil, nowAfterRender + activeFrameDuration);
         }
-        std::this_thread::sleep_until(nextFrameTime);
+        nextActiveFrameTime = nowAfterRender + activeFrameDuration;
+        nextIdleFrameTime = nowAfterRender + idleFrameDuration;
+        redrawRequested = false;
     }
 
     UpdateWindowMetrics(window);
