@@ -205,6 +205,66 @@ const char* CheckUiId(lua_State* L, int index, std::size_t& length)
     return id;
 }
 
+void PushLuaFunctionPath(lua_State* L, const char* path, std::size_t pathLength)
+{
+    if (!path || pathLength == 0) {
+        luaL_error(L, "button callback path must not be empty");
+    }
+    if (std::memchr(path, '\0', pathLength)) {
+        luaL_error(L, "button callback path must not contain embedded NUL bytes");
+    }
+
+    const std::string pathText(path, pathLength);
+    std::size_t start = 0;
+    std::size_t dot = pathText.find('.');
+    if (dot == 0) {
+        luaL_error(L, "button callback path must use non-empty dot-separated names");
+    }
+
+    lua_getglobal(L, pathText.substr(0, dot).c_str());
+    while (dot != std::string::npos) {
+        start = dot + 1;
+        dot = pathText.find('.', start);
+        const std::size_t segmentLength = (dot == std::string::npos ? pathText.size() : dot) - start;
+        if (segmentLength == 0) {
+            lua_pop(L, 1);
+            luaL_error(L, "button callback path must use non-empty dot-separated names");
+        }
+        if (!lua_istable(L, -1)) {
+            lua_pop(L, 1);
+            luaL_error(L, "button callback path '%s' does not resolve to a function", pathText.c_str());
+        }
+        lua_getfield(L, -1, pathText.substr(start, segmentLength).c_str());
+        lua_remove(L, -2);
+    }
+
+    if (!lua_isfunction(L, -1)) {
+        lua_pop(L, 1);
+        luaL_error(L, "button callback path '%s' does not resolve to a function", pathText.c_str());
+    }
+}
+
+void PushLuaButtonCallback(lua_State* L, int callbackIndex)
+{
+    if (lua_isfunction(L, callbackIndex)) {
+        lua_pushvalue(L, callbackIndex);
+        return;
+    }
+
+    std::size_t pathLength = 0;
+    const char* path = luaL_checklstring(L, callbackIndex, &pathLength);
+    PushLuaFunctionPath(L, path, pathLength);
+}
+
+void CallLuaButtonCallback(lua_State* L, int callbackIndex, const std::string& id)
+{
+    PushLuaButtonCallback(L, callbackIndex);
+    lua_pushlstring(L, id.c_str(), id.size());
+    if (lua_pcall(L, 1, 0, 0) != LUA_OK) {
+        lua_error(L);
+    }
+}
+
 void CheckUiControlBudget(lua_State* L, ScriptInstance& instance)
 {
     if (!instance.tryConsumeSettingsUiControl()) {
@@ -1894,6 +1954,49 @@ int LuaUiKeybind(lua_State* L)
     return 1;
 }
 
+int LuaUiButton(lua_State* L)
+{
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+
+    int callbackIndex = 0;
+    int widthIndex = 3;
+    int heightIndex = 4;
+    const int top = lua_gettop(L);
+    if (top >= 3 && !lua_isnil(L, 3) && (lua_isfunction(L, 3) || lua_type(L, 3) == LUA_TSTRING)) {
+        callbackIndex = 3;
+        widthIndex = 4;
+        heightIndex = 5;
+    } else if (top >= 5 && lua_isnil(L, 3)) {
+        widthIndex = 4;
+        heightIndex = 5;
+    }
+
+    const float width = CheckOptionalNonNegativeFloat(L, widthIndex, 0.0f, "width");
+    const float height = CheckOptionalNonNegativeFloat(L, heightIndex, 0.0f, "height");
+    const std::string id(idText, idLength);
+
+    instance.recordSettingsButton(id, label, width, height);
+    CheckUiIdBudget(L, instance, id);
+
+    bool pressed = false;
+    if (instance.isSettingsRenderMode()) {
+        ImGui::PushID(id.c_str());
+        pressed = ImGui::Button(label, ImVec2(width, height));
+        ImGui::PopID();
+    }
+
+    if (pressed && callbackIndex != 0) {
+        CallLuaButtonCallback(L, callbackIndex, id);
+    }
+
+    lua_pushboolean(L, pressed);
+    return 1;
+}
+
 void RegisterUiTable(lua_State* L)
 {
     lua_newtable(L);
@@ -1915,6 +2018,8 @@ void RegisterUiTable(lua_State* L)
     lua_setfield(L, -2, "setDynamicText");
     lua_pushcfunction(L, LuaUiKeybind);
     lua_setfield(L, -2, "keybind");
+    lua_pushcfunction(L, LuaUiButton);
+    lua_setfield(L, -2, "button");
     lua_setglobal(L, "ui");
 }
 
