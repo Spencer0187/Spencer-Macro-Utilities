@@ -94,12 +94,17 @@ public:
 
     bool checkDeadline();
     void sleepWithDeadline(std::int64_t ms);
+    void sleepMicrosWithDeadline(std::int64_t us);
     void scheduleCoroutineSleep(lua_State* thread, std::int64_t ms);
+    void scheduleCoroutineSleepMicros(lua_State* thread, std::int64_t us);
+    void checkpoint(lua_State* L);
+    bool shouldYield(std::chrono::microseconds threshold);
     void requestCancel();
     bool isStopRequested() const { return stopReason_.load(std::memory_order_acquire) != StopReason::None; }
     void throwStopIfRequested(lua_State* L);
     void pauseExecutionBudget();
     bool waitFor(std::chrono::milliseconds duration);
+    bool waitFor(std::chrono::microseconds duration);
     void setFreeze(bool enabled);
     void setLagSwitch(bool enabled);
     void setLagSwitchConfig(const smu::platform::LagSwitchConfig& config);
@@ -110,6 +115,8 @@ public:
     MouseMotionMode mouseMotionMode() const { return mouseMotionMode_; }
     void setSettingsRenderMode(bool enabled) { settingsRenderMode_ = enabled; }
     bool isSettingsRenderMode() const { return settingsRenderMode_; }
+    void setSettingsCallbackActive(bool enabled) { settingsCallbackActive_ = enabled; }
+    bool isSettingsCallbackActive() const { return settingsCallbackActive_; }
     void resetSettingsUiControlCount() { settingsUiControlCount_ = 0; }
     bool tryConsumeSettingsUiControl();
     bool tryRegisterUiId(const std::string& id);
@@ -143,7 +150,8 @@ private:
     void endTimedCall();
     bool drainSleepingCoroutines();
     bool resumeExecutionBudget();
-    std::chrono::steady_clock::time_point computeWakeTime(std::int64_t ms) const;
+    std::chrono::steady_clock::time_point computeWakeTime(std::chrono::milliseconds duration) const;
+    std::chrono::steady_clock::time_point computeWakeTime(std::chrono::microseconds duration) const;
     bool waitUntil(std::chrono::steady_clock::time_point wakeTime);
     void setStopReason(StopReason reason);
     const char* stopReasonMessage() const;
@@ -153,7 +161,7 @@ private:
     lua_State* L_ = nullptr;
     ImportedScriptRecord* owner_ = nullptr;
     std::chrono::steady_clock::time_point deadline_{};
-    std::chrono::steady_clock::duration remainingBudget_{};
+    std::chrono::steady_clock::duration activeBudgetLimit_{};
     std::chrono::steady_clock::time_point activeBudgetStart_{};
     std::atomic<StopReason> stopReason_{StopReason::None};
     struct SleepingCoroutine {
@@ -178,6 +186,7 @@ private:
     bool hasSettingsCallback_ = false;
     bool settingsUiCaptureActive_ = false;
     bool settingsRenderMode_ = false;
+    bool settingsCallbackActive_ = false;
     MouseMotionMode mouseMotionMode_ = MouseMotionMode::Raw;
     bool budgetActive_ = false;
     bool touchedLagSwitch_ = false;

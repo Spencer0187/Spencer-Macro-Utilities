@@ -3,7 +3,7 @@
 Custom macros can be written as Lua scripts and imported into Spencer Macro Client. The scripting system supports `.smus`, `.hss`, `.lua`, and `.txt` files. Scripts run inside the macro runtime and can automate keyboard input, mouse movement, text entry, timing, freeze behavior, and lag-switch controls.
 
 Imported scripts can also define their own custom ImGui settings by implementing `onSettings()`. The app runs that callback once in a non-rendering initialization pass when the script loads, then again in the selected-script panel to render the controls.
-`onSettings()` should use the control-building `ui.*` helpers to define persistent settings. `ui.setDynamicText()` is execution-safe and may be called from `onExecute()` to update an existing dynamic textbox. Input, mouse, process, sleep, and lag-switch APIs are blocked while settings are being rendered.
+`onSettings()` should use the control-building `ui.*` helpers to define persistent settings. `ui.setDynamicText()` is execution-safe and may be called from `onExecute()` to update an existing dynamic textbox. Input, mouse, process, timing, checkpoint, and lag-switch APIs are blocked inside `onSettings()`.
 `onSettings()` has a 5-second hard timeout.
 `onSettings()` is optional. If it is not defined, only the built-in script controls appear.
 While a script is running, custom settings stay visible using the last cached `onSettings()` layout. Interactive controls become read-only, while `ui.dynamicTextbox()` remains live and copyable.
@@ -13,8 +13,8 @@ While a script is running, custom settings stay visible using the last cached `o
 Only import scripts from sources you trust. Lua scripts can simulate input and control process-related macro behavior.
 
 Each script runs with a per-script Lua memory cap. The default is 64 MiB. Scripts can request a different cap with `-- @memoryLimitMB:`, clamped between 16 MiB and 256 MiB.
-`onExecute()` and script load calls are timed based on active execution time. `sleep()` and input delays do not count against that timeout, so long-lived scripts can wait without being terminated. Timeout and cancellation errors cannot be suppressed with `pcall()` or `xpcall()`.
-The sandbox opens the base, table, string, math, utf8, and coroutine libraries. Coroutines are fully supported, including `coroutine.resume()`, `coroutine.wrap()`, and yielding through `sleep()` from a coroutine. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
+`onExecute()` and script load calls are protected by an active-execution watchdog. A script that continuously runs Lua code without yielding, sleeping, or checkpointing will time out, but cooperative scripts can run for a long time by periodically calling `checkpoint()`, `sleep()`, `sleepMicros()`, `sleepUntilCancelled()`, or host APIs that wait on input delays. `onSettings()` keeps its 5-second hard timeout. Timeout and cancellation errors cannot be suppressed with `pcall()` or `xpcall()`.
+The sandbox opens the base, table, string, math, utf8, and coroutine libraries. Coroutines are fully supported, including `coroutine.resume()`, `coroutine.wrap()`, and yielding through `sleep()` or `sleepMicros()` from a coroutine. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
 A running imported script can be asked to stop by pressing the same activation hotkey again, or by using the Force Stop button in the app. Scripts that poll `isCancelled()`, `sleepUntilCancelled()`, or `throwIfCancelled()` can clean up cooperatively before exiting.
 
 ## Script Structure
@@ -59,7 +59,8 @@ You can import scripts with the in-app import button or place script files in th
 | Function | Description |
 | --- | --- |
 | `log(message)` | Write a message to the log console (messages are truncated at 4096 bytes) |
-| `sleep(ms)` | Pause the script for the specified number of milliseconds. Long sleeps are allowed and do not count against the execution timeout |
+| `sleep(ms)` | Pause the script for the specified number of milliseconds. Long sleeps are allowed and do not count against the execution watchdog |
+| `sleepMicros(us)` | Pause the script for the specified number of microseconds, clamped to a 24-hour maximum. This uses the native host wait path and is intended for sub-millisecond pacing, but OS scheduling and input backends may still limit practical precision |
 | `nowMicros()` | Return the current monotonic time in microseconds |
 | `getSMUVersion()` | Return the current application version |
 | `getPlatform()` | Return `windows`, `linux`, or `unknown` |
@@ -73,6 +74,8 @@ You can import scripts with the in-app import button or place script files in th
 | `isCancelled()` | Return whether the script has been stopped by the host app, by a timeout, or by a hotkey cancel request |
 | `sleepUntilCancelled(ms)` | Wait up to `ms` milliseconds and return `true` if the script was stopped before the wait finished |
 | `throwIfCancelled()` | Throw the same stop error used by `sleep()` and other interruptible runtime calls |
+| `checkpoint()` | Cooperatively yield to the host, check for cancellation/timeout, and reset the active-execution watchdog window without sleeping for a full millisecond. Use it inside CPU-heavy loops |
+| `shouldYield(thresholdMicros)` | Return `true` when the current uninterrupted Lua execution slice has run for at least `thresholdMicros`; the default threshold is `1000` microseconds |
 
 These helpers are useful for cooperative loops that want to poll for host-driven stops, timeout, and hotkey cancel requests without having to build a coroutine around every wait.
 
@@ -85,6 +88,21 @@ while not isCancelled() do
     log("still running")
 end
 ```
+
+For CPU-heavy work, prefer checkpointing in bounded batches instead of spinning for many seconds at once:
+
+```lua
+for y = 1, height do
+    for x = 1, width do
+        renderPixel(x, y)
+        if shouldYield(1000) then
+            checkpoint()
+        end
+    end
+end
+```
+
+For high-frequency pacing below 1 ms, use `sleepMicros()` instead of a `nowMicros()` busy-wait. Busy-wait loops consume active execution time and can still trip the watchdog, while `sleepMicros()` waits through the host runtime and remains cancellable.
 
 ### Script Settings
 
