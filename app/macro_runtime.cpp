@@ -588,9 +588,14 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
         return;
     }
 
+    bool expected = false;
+    if (!itemUnequipWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
     const std::string customText = CustomTextChar;
     const std::string emoteText = text;
-    runWorker([customText, emoteText] {
+    runWorker([this, customText, emoteText] {
         HoldKeyBinded(vk_chatkey);
         std::this_thread::sleep_for(50ms);
         ReleaseKeyBinded(vk_chatkey);
@@ -604,6 +609,7 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
         ReleaseKeyBinded(vk_enterkey);
 
         if (custom) {
+            itemUnequipWorkerActive_.store(false, std::memory_order_release);
             return;
         }
 
@@ -629,6 +635,7 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
             HoldKey(slotKey);
         }
         ReleaseKey(slotKey);
+        itemUnequipWorkerActive_.store(false, std::memory_order_release);
     });
 }
 
@@ -686,7 +693,12 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
         return;
     }
 
-    runWorker([] {
+    bool expected = false;
+    if (!laughClipWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    runWorker([this] {
         HoldKeyBinded(vk_chatkey);
         std::this_thread::sleep_for(50ms);
         ReleaseKeyBinded(vk_chatkey);
@@ -718,6 +730,7 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
         if (!laughmoveswitch) {
             ReleaseKey(smu::core::SMU_VK_S);
         }
+        laughClipWorkerActive_.store(false, std::memory_order_release);
     });
 }
 
@@ -938,6 +951,7 @@ void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)
             isHHJ.store(true, std::memory_order_release);
             std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, FloorBounceDelay3)));
             isHHJ.store(false, std::memory_order_release);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
             ReleaseKeyBinded(vk_shiftkey);
         }
     });
