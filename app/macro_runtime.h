@@ -86,6 +86,8 @@ private:
     bool bunnyhopRunning_ = false;
     bool bunnyhopChatLocked_ = false;
     std::atomic<bool> bunnyhopWorkerActive_{false};
+    std::atomic<bool> itemUnequipWorkerActive_{false};
+    std::atomic<bool> laughClipWorkerActive_{false};
 };
 
 } // namespace smu::app
