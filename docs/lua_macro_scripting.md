@@ -553,7 +553,7 @@ Scripts also receive the global `settings` table for per-script UI state created
 | `bouncerealignsideways` | boolean | Ledge Bounce: use the horizontal realignment branch after the bounce. |
 | `bouncesidetoggle` | boolean | Ledge Bounce: use the left-sided bounce path instead of the default side. |
 | `laughmoveswitch` | boolean | Laugh Clip: disable the automatic `S` key hold during the clip sequence. |
-| `freezeoutsideroblox` | boolean | Legacy compatibility mirror for Freeze foreground restriction. `true` means Freeze is allowed outside Roblox; internally this is the inverse of section 0's Disable outside Roblox flag. |
+| `freezeoutsideroblox` | boolean | Legacy compatibility mirror for Freeze foreground restriction. `true` means Freeze is allowed outside Roblox; internally this is the inverse of section 0's Disable outside Target Application flag. |
 | `takeallprocessids` | boolean | Freeze/process control: target every matching process ID instead of only the newest/main matching process. |
 | `ontoptoggle` | boolean | Keep the main SMU window always on top. |
 | `bunnyhopsmart` | boolean | Smart Bunnyhop: temporarily suppress bunnyhop while chat is open until Enter or left-click closes it. |
