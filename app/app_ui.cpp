@@ -2190,7 +2190,7 @@ void RenderSelectedImportedScript(AppContext& context)
     ImGui::SameLine();
     RenderForegroundDependentCheckbox(
         context,
-        "Disable outside of Roblox:",
+        "Disable outside of Target Application:",
         ("##ImportedScriptDisableOutside" + std::to_string(g_selected_imported_script)).c_str(),
         &disableOutside);
     script->disableOutsideRoblox.store(disableOutside, std::memory_order_release);
@@ -2357,7 +2357,7 @@ void RenderSelectedSection(AppContext& context)
         else if (selected_section == 6) disableOutsideId += "_" + std::to_string(selected_wallhop_instance);
         else if (selected_section == 11) disableOutsideId += "_" + std::to_string(selected_spamkey_instance);
         ImGui::SameLine();
-        RenderForegroundDependentCheckbox(context, "Disable outside of Roblox:", disableOutsideId.c_str(), disableOutsidePtr);
+        RenderForegroundDependentCheckbox(context, "Disable outside of Target Application:", disableOutsideId.c_str(), disableOutsidePtr);
     }
 
     if (selected_section == 0) {
@@ -2402,7 +2402,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::TextWrapped("This macro allows you to desynchronize a held item from the client and server. It rapidly sends slot inputs until Roblox starts throttling the item state.");
         ImGui::TextWrapped("Use an item that does not make a server-side sound. Loud or server-driven gear can make the desync unstable and may stop your physics data from reaching the server cleanly.");
         ImGui::Separator();
-        ImGui::TextWrapped("If 'Disable outside of Roblox' is enabled, this module will only run while tabbed into Roblox. Turning it off allows use in other windows (use carefully).");
+        ImGui::TextWrapped("If 'Disable outside of Target Application' is enabled, this module will only run while tabbed into the target application. Turning it off allows use in other windows (use carefully).");
     }
 
     if (selected_section == 2) {
@@ -2723,7 +2723,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::TextWrapped("This macro allows you to clip through thin walls using item equip timing.");
         RenderCenteredMacroTutorialImage(MacroTutorialImage::GearClip, 248.0f, 140.0f);
         ImGui::TextWrapped("To use this macro, shiftlock near the wall, jump, hold W, and let the macro equip and unequip the selected item using your delay. This can be RNG; lower FPS may help.");
-        ImGui::TextWrapped("If 'Disable outside of Roblox' is enabled, item clip only runs while tabbed into Roblox.");
+        ImGui::TextWrapped("If 'Disable outside of Target Application' is enabled, item clip only runs while tabbed into the target application.");
     }
 
     if (selected_section == 9) {
@@ -2833,7 +2833,7 @@ void RenderSelectedSection(AppContext& context)
         ImGui::TextWrapped("Explanation:");
         ImGui::NewLine();
         ImGui::TextWrapped("This macro allows you to bunnyhop automatically while a movement key is held. It is a more practical spam-key setup for bhop, with smart toggling to avoid chat/input conflicts.");
-        ImGui::TextWrapped("This will only be restricted to Roblox when 'Disable outside of Roblox' is enabled.");
+        ImGui::TextWrapped("This will only be restricted to the target application when 'Disable outside of Target Application' is enabled.");
     }
 
     if (selected_section == 14) {
