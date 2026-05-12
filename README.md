@@ -13,7 +13,7 @@ No, it's a macro; it doesn't communicate with Roblox memory in any way.
 
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 - Windows Installation: Run the executable "suspend" file.
-- Linux Native Installation: Run the native `suspend` build. If the setup screen appears, run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot.
+- Linux Native Installation: Run the native `suspend` build. Follow the setup screens instructions.
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
