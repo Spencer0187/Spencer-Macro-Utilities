@@ -33,7 +33,9 @@ bool IsPidToken(const std::string& token, PlatformPid* pid)
     PlatformPid parsed = 0;
     const char* begin = token.data();
     const char* end = token.data() + token.size();
+
     auto [ptr, ec] = std::from_chars(begin, end, parsed);
+
     if (ec != std::errc() || ptr != end || parsed == 0) {
         return false;
     }
@@ -41,6 +43,7 @@ bool IsPidToken(const std::string& token, PlatformPid* pid)
     if (pid) {
         *pid = parsed;
     }
+
     return true;
 }
 
@@ -51,38 +54,48 @@ bool ProcessExists(PlatformPid pid)
     }
 
     errno = 0;
+
     return kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
 }
 
 std::optional<std::string> ReadFirstLine(const std::string& path)
 {
     std::ifstream file(path);
+
     if (!file) {
         return std::nullopt;
     }
 
     std::string line;
     std::getline(file, line);
+
     return line;
 }
 
 std::string Basename(const std::string& path)
 {
     const std::size_t slash = path.find_last_of('/');
+
     if (slash == std::string::npos) {
         return path;
     }
+
     return path.substr(slash + 1);
 }
 
 std::optional<std::string> ReadExeBasename(PlatformPid pid)
 {
     std::string linkPath = "/proc/" + std::to_string(pid) + "/exe";
+
     std::string buffer(4096, '\0');
-    const ssize_t length = readlink(linkPath.c_str(), buffer.data(), buffer.size() - 1);
+
+    const ssize_t length =
+        readlink(linkPath.c_str(), buffer.data(), buffer.size() - 1);
+
     if (length <= 0) {
         return std::nullopt;
     }
+
     buffer.resize(static_cast<std::size_t>(length));
     return Basename(buffer);
 }
@@ -90,54 +103,70 @@ std::optional<std::string> ReadExeBasename(PlatformPid pid)
 std::optional<PlatformPid> ParentPid(PlatformPid pid)
 {
     std::ifstream statFile("/proc/" + std::to_string(pid) + "/stat");
+
     if (!statFile) {
         return std::nullopt;
     }
 
     std::string line;
     std::getline(statFile, line);
+
     const std::size_t endName = line.rfind(')');
+
     if (endName == std::string::npos || endName + 4 >= line.size()) {
         return std::nullopt;
     }
 
     std::istringstream fields(line.substr(endName + 2));
+
     char state = '\0';
     PlatformPid ppid = 0;
+
     fields >> state >> ppid;
+
     if (!fields) {
         return std::nullopt;
     }
+
     return ppid;
 }
 
 std::vector<PlatformPid> ProcessTree(PlatformPid rootPid)
 {
     std::vector<PlatformPid> result;
+
     if (!ProcessExists(rootPid)) {
         return result;
     }
 
     result.push_back(rootPid);
+
     std::vector<PlatformPid> frontier{rootPid};
 
     while (!frontier.empty()) {
         const PlatformPid parent = frontier.back();
+
         frontier.pop_back();
 
         DIR* procDir = opendir("/proc");
+
         if (!procDir) {
             break;
         }
 
         while (dirent* entry = readdir(procDir)) {
             PlatformPid childPid = 0;
+
             if (!IsPidToken(entry->d_name, &childPid)) {
                 continue;
             }
 
             auto ppid = ParentPid(childPid);
-            if (ppid && *ppid == parent && std::find(result.begin(), result.end(), childPid) == result.end()) {
+
+            if (ppid &&
+                *ppid == parent &&
+                std::find(result.begin(), result.end(), childPid) == result.end()) {
+
                 result.push_back(childPid);
                 frontier.push_back(childPid);
             }
@@ -152,17 +181,20 @@ std::vector<PlatformPid> ProcessTree(PlatformPid rootPid)
 bool CgroupV2Available()
 {
     struct stat st {};
+
     return stat("/sys/fs/cgroup/cgroup.controllers", &st) == 0;
 }
 
 std::optional<std::string> CgroupV2Path(PlatformPid pid)
 {
     std::ifstream cgroupFile("/proc/" + std::to_string(pid) + "/cgroup");
+
     if (!cgroupFile) {
         return std::nullopt;
     }
 
     std::string line;
+
     while (std::getline(cgroupFile, line)) {
         if (line.rfind("0::/", 0) == 0) {
             return "/sys/fs/cgroup" + line.substr(3);
@@ -179,39 +211,150 @@ bool IsSafeAppCgroup(const std::string& path)
            path.find("/app.slice/") != std::string::npos;
 }
 
-bool WriteCgroupFreeze(const std::string& cgroupPath, bool freeze)
+bool WriteTextFile(const std::string& path, const std::string& text)
 {
-    const std::string freezePath = cgroupPath + "/cgroup.freeze";
-    std::ofstream freezeFile(freezePath);
-    if (!freezeFile) {
+    std::ofstream file(path);
+
+    if (!file) {
         return false;
     }
 
-    freezeFile << (freeze ? "1" : "0");
-    return !freezeFile.fail();
+    file << text;
+
+    return !file.fail();
+}
+
+bool CreateFrozenChildCgroup(
+    const std::string& currentCgroup,
+    PlatformPid pid,
+    bool freeze) // original freeze code here: https://github.com/3443e/sober-freeze
+{
+    static constexpr const char* kFreezeName = "smu_freeze";
+
+    std::string parentCgroup;
+    std::string childCgroup;
+
+    const std::string suffix =
+        std::string("/") + kFreezeName;
+
+    // already inside freeze group
+    if (currentCgroup.size() >= suffix.size() &&
+        currentCgroup.compare(
+            currentCgroup.size() - suffix.size(),
+            suffix.size(),
+            suffix) == 0) {
+
+        childCgroup = currentCgroup;
+
+        parentCgroup =
+            currentCgroup.substr(
+                0,
+                currentCgroup.size() - suffix.size());
+
+    } else {
+
+        parentCgroup = currentCgroup;
+        childCgroup = currentCgroup + suffix;
+    }
+
+    const std::string childProcs =
+        childCgroup + "/cgroup.procs";
+
+    const std::string childFreeze =
+        childCgroup + "/cgroup.freeze";
+
+    if (freeze) {
+
+        mkdir(childCgroup.c_str(), 0755);
+
+        // move process into child cgroup
+        if (!WriteTextFile(
+                childProcs,
+                std::to_string(pid))) {
+
+            smu::log::LogWarning(
+                "Failed to move PID into frozen cgroup.");
+
+            return false;
+        }
+
+        // freeze child cgroup
+        if (!WriteTextFile(
+                childFreeze,
+                "1")) {
+
+            smu::log::LogWarning(
+                "Failed to freeze cgroup.");
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // thaw before moving process back
+    if (!WriteTextFile(
+            childFreeze,
+            "0")) {
+
+        smu::log::LogWarning(
+            "Failed to unfreeze cgroup.");
+
+        return false;
+    }
+
+    const std::string parentProcs =
+        parentCgroup + "/cgroup.procs";
+
+    // move process back to parent
+    if (!WriteTextFile(
+            parentProcs,
+            std::to_string(pid))) {
+
+        smu::log::LogWarning(
+            "Failed to move PID back to parent cgroup.");
+
+        return false;
+    }
+
+    rmdir(childCgroup.c_str());
+
+    return true;
 }
 
 bool SetSuspended(PlatformPid pid, bool suspend)
 {
     if (!ProcessExists(pid)) {
-        smu::log::LogError("Linux process backend: PID " + std::to_string(pid) + " does not exist.");
+        smu::log::LogError(
+            "Linux process backend: PID " +
+            std::to_string(pid) +
+            " does not exist.");
+
         return false;
     }
 
     if (CgroupV2Available()) {
         auto cgroupPath = CgroupV2Path(pid);
+
         if (cgroupPath && IsSafeAppCgroup(*cgroupPath)) {
-            if (WriteCgroupFreeze(*cgroupPath, suspend)) {
+
+            if (CreateFrozenChildCgroup(
+                    *cgroupPath,
+                    pid,
+                    suspend)) {
+
                 return true;
             }
 
             smu::log::LogWarning(
-                "Linux process backend: could not write cgroup.freeze for " + *cgroupPath +
+                "Linux process backend: could not manipulate frozen child cgroup for " +
+                *cgroupPath +
                 "; falling back to SIGSTOP/SIGCONT.");
         }
     }
 
     std::vector<PlatformPid> tree = ProcessTree(pid);
+
     if (tree.empty()) {
         tree.push_back(pid);
     }
@@ -220,15 +363,26 @@ bool SetSuspended(PlatformPid pid, bool suspend)
         std::reverse(tree.begin(), tree.end());
     }
 
-    const int signalToSend = suspend ? SIGSTOP : SIGCONT;
+    const int signalToSend =
+        suspend ? SIGSTOP : SIGCONT;
+
     bool anySuccess = false;
+
     for (PlatformPid targetPid : tree) {
-        if (kill(static_cast<pid_t>(targetPid), signalToSend) == 0) {
+
+        if (kill(
+                static_cast<pid_t>(targetPid),
+                signalToSend) == 0) {
+
             anySuccess = true;
+
         } else {
+
             smu::log::LogWarning(
-                "Linux process backend: failed to signal PID " + std::to_string(targetPid) +
-                ": " + std::strerror(errno));
+                "Linux process backend: failed to signal PID " +
+                std::to_string(targetPid) +
+                ": " +
+                std::strerror(errno));
         }
     }
 
@@ -244,44 +398,65 @@ bool ProcCgroupProcessBackend::init(std::string* errorMessage)
     }
 
     DIR* procDir = opendir("/proc");
+
     if (!procDir) {
-        const std::string message = "Linux process backend failed to open /proc: " + std::string(std::strerror(errno));
+
+        const std::string message =
+            "Linux process backend failed to open /proc: " +
+            std::string(std::strerror(errno));
+
         if (errorMessage) {
             *errorMessage = message;
         }
+
         smu::log::LogCritical(message);
+
         return false;
     }
 
     closedir(procDir);
+
     return true;
 }
 
 void ProcCgroupProcessBackend::shutdown() {}
 
-std::optional<PlatformPid> ProcCgroupProcessBackend::findProcess(const std::string& executableName) const
+std::optional<PlatformPid>
+ProcCgroupProcessBackend::findProcess(
+    const std::string& executableName) const
 {
     auto pids = findAllProcesses(executableName);
+
     if (pids.empty()) {
         return std::nullopt;
     }
+
     return pids.front();
 }
 
-std::vector<PlatformPid> ProcCgroupProcessBackend::findAllProcesses(const std::string& executableName) const
+std::vector<PlatformPid>
+ProcCgroupProcessBackend::findAllProcesses(
+    const std::string& executableName) const
 {
     std::vector<PlatformPid> pids;
     std::vector<std::string> executableTokens;
 
     std::istringstream input(executableName);
+
     std::string token;
+
     while (input >> token) {
+
         PlatformPid pid = 0;
+
         if (IsPidToken(token, &pid)) {
+
             if (ProcessExists(pid)) {
                 pids.push_back(pid);
             }
+
         } else {
+
             executableTokens.push_back(token);
         }
     }
@@ -291,21 +466,40 @@ std::vector<PlatformPid> ProcCgroupProcessBackend::findAllProcesses(const std::s
     }
 
     DIR* procDir = opendir("/proc");
+
     if (!procDir) {
-        smu::log::LogError("Linux process backend failed to scan /proc: " + std::string(std::strerror(errno)));
+
+        smu::log::LogError(
+            "Linux process backend failed to scan /proc: " +
+            std::string(std::strerror(errno)));
+
         return pids;
     }
 
     while (dirent* entry = readdir(procDir)) {
+
         PlatformPid pid = 0;
+
         if (!IsPidToken(entry->d_name, &pid)) {
             continue;
         }
 
-        const auto comm = ReadFirstLine("/proc/" + std::to_string(pid) + "/comm");
-        const auto exe = ReadExeBasename(pid);
+        const auto comm =
+            ReadFirstLine(
+                "/proc/" +
+                std::to_string(pid) +
+                "/comm");
+
+	
+
+        const auto exe =
+            ReadExeBasename(pid);
+
         for (const std::string& executable : executableTokens) {
-            if ((comm && *comm == executable) || (exe && *exe == executable)) {
+
+            if ((comm && *comm == executable) ||
+                (exe && *exe == executable)) {
+
                 pids.push_back(pid);
                 break;
             }
@@ -313,14 +507,26 @@ std::vector<PlatformPid> ProcCgroupProcessBackend::findAllProcesses(const std::s
     }
 
     closedir(procDir);
+
     std::sort(pids.begin(), pids.end());
-    pids.erase(std::unique(pids.begin(), pids.end()), pids.end());
+
+    pids.erase(
+        std::unique(pids.begin(), pids.end()),
+        pids.end());
+
     return pids;
 }
 
-std::optional<PlatformPid> ProcCgroupProcessBackend::findMainProcess(const std::string& executableName) const
+std::optional<PlatformPid>
+ProcCgroupProcessBackend::findMainProcess(
+    const std::string& executableName) const
 {
-    std::vector<PlatformPid> pids = findAllProcesses(executableName);
+	std::vector<PlatformPid> pids;
+	if (executableName == "sober") {
+		pids = findAllProcesses("Main");
+	} else {
+		pids = findAllProcesses(executableName);
+	}
     if (pids.empty()) {
         return std::nullopt;
     }
@@ -329,15 +535,24 @@ std::optional<PlatformPid> ProcCgroupProcessBackend::findMainProcess(const std::
         return pids.front();
     }
 
-    const std::set<PlatformPid> pidSet(pids.begin(), pids.end());
+    const std::set<PlatformPid> pidSet(
+        pids.begin(),
+        pids.end());
+
     for (PlatformPid pid : pids) {
+
         auto ppid = ParentPid(pid);
-        if (!ppid || pidSet.find(*ppid) == pidSet.end()) {
+
+        if (!ppid ||
+            pidSet.find(*ppid) == pidSet.end()) {
+
             return pid;
         }
     }
 
-    return *std::min_element(pids.begin(), pids.end());
+    return *std::min_element(
+        pids.begin(),
+        pids.end());
 }
 
 bool ProcCgroupProcessBackend::suspend(PlatformPid pid)
@@ -350,9 +565,12 @@ bool ProcCgroupProcessBackend::resume(PlatformPid pid)
     return SetSuspended(pid, false);
 }
 
-bool ProcCgroupProcessBackend::isForegroundProcess(PlatformPid pid) const
+bool ProcCgroupProcessBackend::isForegroundProcess(
+    PlatformPid pid) const
 {
-    const DisplayServer displayServer = DetectDisplayServer();
+    const DisplayServer displayServer =
+        DetectDisplayServer();
+
     if (displayServer == DisplayServer::Wayland) {
         return false;
     }
@@ -361,22 +579,35 @@ bool ProcCgroupProcessBackend::isForegroundProcess(PlatformPid pid) const
         return false;
     }
 
-    std::vector<PlatformPid> candidates = ProcessTree(pid);
+    std::vector<PlatformPid> candidates =
+        ProcessTree(pid);
+
     if (candidates.empty()) {
         candidates.push_back(pid);
     }
 
     std::string error;
-    const bool foreground = IsX11ForegroundProcess(candidates, &error);
+
+    const bool foreground =
+        IsX11ForegroundProcess(
+            candidates,
+            &error);
+
     if (!foreground && !error.empty()) {
+
         if (DisableX11ForegroundDetection(error)) {
-            smu::log::LogWarning("Linux foreground detection disabled: " + error);
+
+            smu::log::LogWarning(
+                "Linux foreground detection disabled: " +
+                error);
         }
     }
+
     return foreground;
 }
 
-std::shared_ptr<ProcessBackend> CreateProcCgroupProcessBackend()
+std::shared_ptr<ProcessBackend>
+CreateProcCgroupProcessBackend()
 {
     return std::make_shared<ProcCgroupProcessBackend>();
 }
