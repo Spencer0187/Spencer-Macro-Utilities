@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../core/key_codes.h"
 #include "../platform/platform_types.h"
 #include "../platform/network_backend.h"
 
@@ -38,6 +39,12 @@ public:
     enum class MouseMotionMode {
         Raw,
         Absolute
+    };
+
+    enum class HotkeyCallbackKind {
+        Pressed,
+        Released,
+        Changed
     };
 
     using UiStringBuffer = std::array<char, kMaxUiStateStringBytes + 1>;
@@ -122,6 +129,10 @@ public:
     bool isSettingsRenderMode() const { return settingsRenderMode_; }
     void setSettingsCallbackActive(bool enabled) { settingsCallbackActive_ = enabled; }
     bool isSettingsCallbackActive() const { return settingsCallbackActive_; }
+    bool isCleanupMode() const { return cleanupMode_; }
+    bool isDispatchingHotkeyCallbacks() const { return dispatchingHotkeyCallbacks_; }
+    void setStrictHotkeyMatching(bool enabled) { strictHotkeyMatching_ = enabled; }
+    bool strictHotkeyMatching() const { return strictHotkeyMatching_; }
     void resetSettingsUiControlCount() { settingsUiControlCount_ = 0; }
     bool tryConsumeSettingsUiControl();
     bool tryRegisterUiId(const std::string& id);
@@ -142,6 +153,14 @@ public:
     void recordSettingsButton(std::string id, std::string label, float width, float height);
     bool tryGetTransientUiValue(const std::string& key, std::string& out) const;
     void setTransientUiValue(const std::string& key, std::string value);
+    void managedHoldHotkey(unsigned int hotkey);
+    void managedReleaseHotkey(unsigned int hotkey);
+    bool managedSetHotkeyHeld(unsigned int hotkey, bool down);
+    bool managedToggleHotkey(unsigned int hotkey);
+    void releaseAllManagedHotkeys();
+    bool registerHotkeyCallback(HotkeyCallbackKind kind, unsigned int hotkey, bool strict, int callbackRef);
+    void clearHotkeyCallbacks();
+    bool listenForHotkeyCallbacks(std::chrono::milliseconds scanDelay);
 
 private:
     enum class StopReason {
@@ -162,8 +181,20 @@ private:
     bool spinUntil(std::chrono::steady_clock::time_point wakeTime);
     void setStopReason(StopReason reason);
     const char* stopReasonMessage() const;
+    const char* cleanupReasonFor(StopReason reason, bool success) const;
+    void finishScriptExecution(const char* reason);
+    void callOnCleanup(const char* reason);
     void configureMemoryLimit();
     void releaseLagSwitchControls();
+
+    struct HotkeyCallback {
+        HotkeyCallbackKind kind = HotkeyCallbackKind::Pressed;
+        unsigned int hotkey = 0;
+        int luaRegistryRef = LUA_NOREF;
+        bool strict = false;
+        bool initialized = false;
+        bool lastDown = false;
+    };
 
     lua_State* L_ = nullptr;
     ImportedScriptRecord* owner_ = nullptr;
@@ -185,6 +216,9 @@ private:
     std::unordered_map<std::string, UiStringBuffer> textboxBuffers_;
     std::unordered_map<std::string, UiStringBuffer> dynamicTextboxBuffers_;
     std::unordered_map<std::string, unsigned int> keybindValues_;
+    std::unordered_map<smu::core::KeyCode, int> managedHeldKeys_;
+    std::unordered_map<unsigned int, bool> managedHotkeyStates_;
+    std::vector<HotkeyCallback> hotkeyCallbacks_;
     std::vector<SettingsUiControl> settingsUiControls_;
     std::vector<SettingsUiControl> pendingSettingsUiControls_;
     std::unordered_set<std::string> uiIdCache_;
@@ -195,6 +229,9 @@ private:
     bool settingsUiCaptureActive_ = false;
     bool settingsRenderMode_ = false;
     bool settingsCallbackActive_ = false;
+    bool cleanupMode_ = false;
+    bool dispatchingHotkeyCallbacks_ = false;
+    bool strictHotkeyMatching_ = false;
     MouseMotionMode mouseMotionMode_ = MouseMotionMode::Raw;
     bool budgetActive_ = false;
     bool touchedLagSwitch_ = false;

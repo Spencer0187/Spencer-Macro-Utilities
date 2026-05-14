@@ -1,0 +1,35 @@
+-- @name: Lock + Mirror Rebinder
+-- @desc: Demonstrates input callbacks, managed combo holds, and mirror rebinding.
+-- @keybind: F6
+
+function onSettings()
+    ui.hotkey("lock_trigger", "Lock trigger/input", "F7", 320)
+    ui.keyCombo("lock_target", "Lock target/output", "Ctrl+W", 320)
+
+    ui.checkbox("mirror_enabled", "Enable mirror rebinder", true, 320)
+    ui.hotkey("mirror_source", "Mirror source/input", "RMB", 320)
+    ui.keyCombo("mirror_target", "Mirror target/output", "G", 320)
+
+    ui.sliderInt("scan_ms", "Scan delay ms", 2, 1, 50, 320)
+    ui.dynamicTextbox("status", "Status", "Idle", 560, 140)
+end
+
+function onExecute()
+    ui.setDynamicText("status", "Active")
+
+    input.onPressed(settings.lock_trigger, function()
+        local held = input.toggleHeld(settings.lock_target)
+        ui.setDynamicText("status", held and "Lock active" or "Lock released")
+    end)
+
+    if settings.mirror_enabled then
+        input.mirror(settings.mirror_source, settings.mirror_target)
+    end
+
+    input.listenUntilCancelled(settings.scan_ms or 2)
+end
+
+function onCleanup(reason)
+    input.releaseAllManaged()
+    ui.setDynamicText("status", "Stopped: " .. tostring(reason))
+end

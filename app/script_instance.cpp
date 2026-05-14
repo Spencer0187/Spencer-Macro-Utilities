@@ -1,6 +1,7 @@
 #include "script_instance.h"
 
 #include "app_ui_controls.h"
+#include "input_actions.h"
 #include "script_api.h"
 #include "profile_manager.h"
 #include "script_manager.h"
@@ -162,7 +163,9 @@ constexpr const char* kLagSwitchRequiresAdminWarning =
     "Lag switch was requested, but SMU is not running as Administrator. The script continued, but lag-switch actions were skipped.";
 constexpr auto kMaxScriptRuntime = std::chrono::seconds(30);
 constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
+constexpr auto kMaxCleanupRuntime = std::chrono::seconds(2);
 constexpr int kLuaHookInstructionCount = 10000;
+constexpr std::size_t kMaxHotkeyCallbacksPerScript = 128;
 // Allow effectively infinite sleeps; wake times are clamped to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 void TimeoutHook(lua_State* L, lua_Debug*);
@@ -677,9 +680,21 @@ bool ScriptInstance::hasFunction(const char* name) const
 bool ScriptInstance::callOnExecute()
 {
     std::lock_guard<std::mutex> luaLock(luaMutex_);
+    const char* cleanupReason = "error";
+    bool cleanupDismissed = false;
+    auto finishExecution = [&]() {
+        if (!cleanupDismissed) {
+            finishScriptExecution(cleanupReason);
+            cleanupDismissed = true;
+        }
+    };
+    struct ExecutionCleanupGuard {
+        decltype(finishExecution)& finish;
+        ~ExecutionCleanupGuard() { finish(); }
+    } cleanupGuard{finishExecution};
+
     if (!L_) {
         owner_->setLastError("Script is not loaded.");
-        releaseLagSwitchControls();
         return false;
     }
 
@@ -687,7 +702,6 @@ bool ScriptInstance::callOnExecute()
     if (!lua_isfunction(L_, -1)) {
         lua_pop(L_, 1);
         owner_->setLastError("Script does not define onExecute().");
-        releaseLagSwitchControls();
         return false;
     }
 
@@ -706,8 +720,7 @@ bool ScriptInstance::callOnExecute()
             owner_->setLastError(message ? message : "Lua call failed.");
         }
         lua_pop(L_, 1);
-        releaseAllSleepingCoroutines();
-        releaseLagSwitchControls();
+        cleanupReason = cleanupReasonFor(stopReason, false);
         if (stopReason != StopReason::Cancelled) {
             LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
         }
@@ -716,7 +729,7 @@ bool ScriptInstance::callOnExecute()
 
     if (!drainSleepingCoroutines()) {
         endTimedCall();
-        releaseLagSwitchControls();
+        cleanupReason = cleanupReasonFor(stopReason_.load(std::memory_order_acquire), false);
         return false;
     }
 
@@ -729,12 +742,11 @@ bool ScriptInstance::callOnExecute()
             owner_->setLastError(stopReasonMessage());
             LogWarning(std::string("Imported script failed during run onExecute: ") + owner_->lastErrorCopy());
         }
-        releaseAllSleepingCoroutines();
-        releaseLagSwitchControls();
+        cleanupReason = cleanupReasonFor(stopReason, false);
         return false;
     }
     owner_->clearLastError();
-    releaseLagSwitchControls();
+    cleanupReason = "completed";
     return true;
 }
 
@@ -1252,6 +1264,8 @@ void ScriptInstance::cleanup()
 {
     requestCancel();
     std::lock_guard<std::mutex> luaLock(luaMutex_);
+    releaseAllManagedHotkeys();
+    clearHotkeyCallbacks();
     setFreeze(false);
     releaseLagSwitchControls();
     if (L_) {
@@ -1264,12 +1278,17 @@ void ScriptInstance::cleanup()
     settingsUiCaptureActive_ = false;
     settingsRenderMode_ = false;
     settingsCallbackActive_ = false;
+    cleanupMode_ = false;
+    dispatchingHotkeyCallbacks_ = false;
+    strictHotkeyMatching_ = false;
     mouseMotionMode_ = MouseMotionMode::Raw;
     settingsUiControlCount_ = 0;
     transientUi_.clear();
     textboxBuffers_.clear();
     dynamicTextboxBuffers_.clear();
     keybindValues_.clear();
+    managedHeldKeys_.clear();
+    managedHotkeyStates_.clear();
     {
         std::lock_guard<std::mutex> settingsUiLock(settingsUiMutex_);
         settingsUiControls_.clear();
@@ -1303,6 +1322,61 @@ const char* ScriptInstance::stopReasonMessage() const
         return "script execution cancelled";
     default:
         return "script execution failed";
+    }
+}
+
+const char* ScriptInstance::cleanupReasonFor(StopReason reason, bool success) const
+{
+    if (success) {
+        return "completed";
+    }
+    switch (reason) {
+    case StopReason::Cancelled:
+        return "cancelled";
+    case StopReason::Timeout:
+        return "timeout";
+    default:
+        return "error";
+    }
+}
+
+void ScriptInstance::finishScriptExecution(const char* reason)
+{
+    releaseAllManagedHotkeys();
+    clearHotkeyCallbacks();
+    releaseAllSleepingCoroutines();
+    callOnCleanup(reason ? reason : "error");
+    releaseLagSwitchControls();
+    if (owner_) {
+        owner_->running.store(false, std::memory_order_release);
+    }
+}
+
+void ScriptInstance::callOnCleanup(const char* reason)
+{
+    if (!L_) {
+        return;
+    }
+
+    lua_getglobal(L_, "onCleanup");
+    if (!lua_isfunction(L_, -1)) {
+        lua_pop(L_, 1);
+        return;
+    }
+
+    cleanupMode_ = true;
+    beginTimedCall(kMaxCleanupRuntime);
+    lua_pushstring(L_, reason ? reason : "error");
+    const int status = lua_pcall(L_, 1, 0, 0);
+    endTimedCall();
+    cleanupMode_ = false;
+
+    if (status != LUA_OK) {
+        const char* message = lua_tostring(L_, -1);
+        LogWarning(std::string("Imported script failed during onCleanup: ") + (message ? message : "Lua call failed."));
+        lua_pop(L_, 1);
+    } else if (stopReason_.load(std::memory_order_acquire) == StopReason::Timeout) {
+        LogWarning("Imported script onCleanup timed out.");
     }
 }
 
@@ -1666,6 +1740,181 @@ bool ScriptInstance::drainSleepingCoroutines()
         pauseExecutionBudget();
     }
 
+    return true;
+}
+
+void ScriptInstance::managedHoldHotkey(unsigned int hotkey)
+{
+    managedSetHotkeyHeld(hotkey, true);
+}
+
+void ScriptInstance::managedReleaseHotkey(unsigned int hotkey)
+{
+    managedSetHotkeyHeld(hotkey, false);
+}
+
+bool ScriptInstance::managedSetHotkeyHeld(unsigned int hotkey, bool down)
+{
+    if (!IsScriptHotkeyBound(hotkey)) {
+        return false;
+    }
+
+    hotkey = hotkey & (smu::core::HOTKEY_KEY_MASK |
+        smu::core::HOTKEY_MASK_WIN |
+        smu::core::HOTKEY_MASK_CTRL |
+        smu::core::HOTKEY_MASK_ALT |
+        smu::core::HOTKEY_MASK_SHIFT);
+
+    const bool wasDown = managedHotkeyStates_[hotkey];
+    if (wasDown == down) {
+        return wasDown;
+    }
+
+    std::vector<smu::core::KeyCode> keys = ExpandScriptHotkeyToKeys(hotkey);
+    if (down) {
+        for (smu::core::KeyCode key : keys) {
+            int& count = managedHeldKeys_[key];
+            if (count == 0) {
+                HoldKey(key);
+            }
+            ++count;
+        }
+        managedHotkeyStates_[hotkey] = true;
+        return true;
+    }
+
+    for (auto it = keys.rbegin(); it != keys.rend(); ++it) {
+        auto heldIt = managedHeldKeys_.find(*it);
+        if (heldIt == managedHeldKeys_.end()) {
+            continue;
+        }
+        if (--heldIt->second <= 0) {
+            ReleaseKey(*it);
+            managedHeldKeys_.erase(heldIt);
+        }
+    }
+    managedHotkeyStates_[hotkey] = false;
+    return false;
+}
+
+bool ScriptInstance::managedToggleHotkey(unsigned int hotkey)
+{
+    hotkey = hotkey & (smu::core::HOTKEY_KEY_MASK |
+        smu::core::HOTKEY_MASK_WIN |
+        smu::core::HOTKEY_MASK_CTRL |
+        smu::core::HOTKEY_MASK_ALT |
+        smu::core::HOTKEY_MASK_SHIFT);
+    const bool down = managedHotkeyStates_.find(hotkey) == managedHotkeyStates_.end() || !managedHotkeyStates_[hotkey];
+    return managedSetHotkeyHeld(hotkey, down);
+}
+
+void ScriptInstance::releaseAllManagedHotkeys()
+{
+    std::vector<unsigned int> heldHotkeys;
+    heldHotkeys.reserve(managedHotkeyStates_.size());
+    for (const auto& [hotkey, down] : managedHotkeyStates_) {
+        if (down) {
+            heldHotkeys.push_back(hotkey);
+        }
+    }
+
+    for (unsigned int hotkey : heldHotkeys) {
+        managedReleaseHotkey(hotkey);
+    }
+
+    for (auto it = managedHeldKeys_.begin(); it != managedHeldKeys_.end();) {
+        ReleaseKey(it->first);
+        it = managedHeldKeys_.erase(it);
+    }
+    managedHotkeyStates_.clear();
+}
+
+bool ScriptInstance::registerHotkeyCallback(HotkeyCallbackKind kind, unsigned int hotkey, bool strict, int callbackRef)
+{
+    if (hotkeyCallbacks_.size() >= kMaxHotkeyCallbacksPerScript) {
+        return false;
+    }
+
+    HotkeyCallback callback;
+    callback.kind = kind;
+    callback.hotkey = hotkey;
+    callback.strict = strict;
+    callback.luaRegistryRef = callbackRef;
+    hotkeyCallbacks_.push_back(callback);
+    return true;
+}
+
+void ScriptInstance::clearHotkeyCallbacks()
+{
+    if (L_) {
+        for (HotkeyCallback& callback : hotkeyCallbacks_) {
+            if (callback.luaRegistryRef != LUA_NOREF && callback.luaRegistryRef != LUA_REFNIL) {
+                luaL_unref(L_, LUA_REGISTRYINDEX, callback.luaRegistryRef);
+            }
+            callback.luaRegistryRef = LUA_NOREF;
+        }
+    }
+    hotkeyCallbacks_.clear();
+}
+
+bool ScriptInstance::listenForHotkeyCallbacks(std::chrono::milliseconds scanDelay)
+{
+    while (stopReason_.load(std::memory_order_acquire) == StopReason::None) {
+        for (HotkeyCallback& callback : hotkeyCallbacks_) {
+            const bool down = IsHotkeyPressed(callback.hotkey, callback.strict);
+            if (!callback.initialized) {
+                callback.initialized = true;
+                callback.lastDown = down;
+                continue;
+            }
+            if (down == callback.lastDown) {
+                continue;
+            }
+
+            const bool fire =
+                callback.kind == HotkeyCallbackKind::Changed ||
+                (callback.kind == HotkeyCallbackKind::Pressed && down) ||
+                (callback.kind == HotkeyCallbackKind::Released && !down);
+
+            callback.lastDown = down;
+            if (!fire) {
+                continue;
+            }
+
+            lua_rawgeti(L_, LUA_REGISTRYINDEX, callback.luaRegistryRef);
+            if (callback.kind == HotkeyCallbackKind::Changed) {
+                lua_pushboolean(L_, down);
+                lua_pushinteger(L_, static_cast<lua_Integer>(callback.hotkey));
+                dispatchingHotkeyCallbacks_ = true;
+                const int status = lua_pcall(L_, 2, 0, 0);
+                dispatchingHotkeyCallbacks_ = false;
+                if (status != LUA_OK) {
+                    const char* message = lua_tostring(L_, -1);
+                    owner_->setLastError(message ? message : "input callback failed");
+                    lua_pop(L_, 1);
+                    return false;
+                }
+            } else {
+                dispatchingHotkeyCallbacks_ = true;
+                const int status = lua_pcall(L_, 0, 0, 0);
+                dispatchingHotkeyCallbacks_ = false;
+                if (status != LUA_OK) {
+                    const char* message = lua_tostring(L_, -1);
+                    owner_->setLastError(message ? message : "input callback failed");
+                    lua_pop(L_, 1);
+                    return false;
+                }
+            }
+
+            if (stopReason_.load(std::memory_order_acquire) != StopReason::None) {
+                return true;
+            }
+        }
+
+        if (!waitFor(scanDelay)) {
+            return true;
+        }
+    }
     return true;
 }
 

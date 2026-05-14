@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -49,6 +50,28 @@
 
 namespace smu::app {
 namespace {
+
+using FrameClock = std::chrono::steady_clock;
+using FrameTimePoint = FrameClock::time_point;
+
+FrameTimePoint FrameTimePointFromTicks(std::int64_t ticks)
+{
+    return FrameTimePoint(FrameClock::duration(ticks));
+}
+
+std::int64_t FrameTimePointToTicks(FrameTimePoint timePoint)
+{
+    return static_cast<std::int64_t>(timePoint.time_since_epoch().count());
+}
+
+void ExtendAtomicDeadline(std::atomic<std::int64_t>& deadlineTicks, FrameTimePoint deadline)
+{
+    const std::int64_t desired = FrameTimePointToTicks(deadline);
+    std::int64_t current = deadlineTicks.load(std::memory_order_relaxed);
+    while (current < desired &&
+        !deadlineTicks.compare_exchange_weak(current, desired, std::memory_order_release, std::memory_order_relaxed)) {
+    }
+}
 
 std::filesystem::path GetExecutableDirectory()
 {
@@ -298,8 +321,12 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     std::atomic<bool> backendReady{false};
     std::atomic<int> renderWidth{state.screenWidth};
     std::atomic<int> renderHeight{state.screenHeight};
+    std::atomic<std::uint64_t> redrawGeneration{1};
+    std::atomic<std::int64_t> activeUntilTicks{FrameTimePointToTicks(FrameClock::now())};
     std::mutex backendMutex;
     std::condition_variable backendCv;
+    std::mutex framePacingMutex;
+    std::condition_variable framePacingCv;
     SDL_GLContext renderGlContext = nullptr;
 
     std::thread renderThread([&]() {
@@ -333,17 +360,54 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         backendReady.store(true);
         backendCv.notify_one();
 
-        constexpr int targetFps = 60;
-        const auto targetFrameDuration = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-            std::chrono::duration<double>(1.0 / static_cast<double>(targetFps)));
-        auto nextFrameTime = std::chrono::steady_clock::now();
+        constexpr int kActiveFps = 60;
+        constexpr int kIdleFps = 8;
+        constexpr auto inputBurstDuration = std::chrono::milliseconds(250);
+        const auto activeFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
+            std::chrono::duration<double>(1.0 / static_cast<double>(kActiveFps)));
+        const auto idleFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
+            std::chrono::duration<double>(1.0 / static_cast<double>(kIdleFps)));
+        auto nextActiveFrameTime = FrameClock::now();
+        auto nextIdleFrameTime = nextActiveFrameTime;
+        std::uint64_t handledRedrawGeneration = 0;
+
+        auto loadActiveUntil = [&]() {
+            return FrameTimePointFromTicks(activeUntilTicks.load(std::memory_order_acquire));
+        };
 
         while (renderRunning.load() && state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
+            const std::uint64_t observedRedrawGeneration = redrawGeneration.load(std::memory_order_acquire);
+            const auto now = FrameClock::now();
+            const auto activeUntil = loadActiveUntil();
+            const bool redrawRequested = observedRedrawGeneration != handledRedrawGeneration;
+            const bool activeFrameDue = now < activeUntil && now >= nextActiveFrameTime;
+            const bool idleFrameDue = now >= nextIdleFrameTime;
+
+            if (!redrawRequested && !activeFrameDue && !idleFrameDue) {
+                const auto wakeDeadline = (now < activeUntil)
+                    ? std::min(nextActiveFrameTime, nextIdleFrameTime)
+                    : nextIdleFrameTime;
+
+                std::unique_lock<std::mutex> lk(framePacingMutex);
+                framePacingCv.wait_until(lk, wakeDeadline, [&]() {
+                    return !renderRunning.load(std::memory_order_acquire) ||
+                        !state.running.load(std::memory_order_acquire) ||
+                        state.done.load(std::memory_order_acquire) ||
+                        redrawGeneration.load(std::memory_order_acquire) != handledRedrawGeneration;
+                });
+                continue;
+            }
+
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplSDL3_NewFrame();
             ImGui::NewFrame();
 
             RenderAppUi(context);
+
+            const ImGuiIO& frameIo = ImGui::GetIO();
+            const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
+                frameIo.MouseDown[3] || frameIo.MouseDown[4];
+            const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
 
             ImGui::Render();
 
@@ -355,12 +419,13 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
             SDL_GL_SwapWindow(window);
 
-            nextFrameTime += targetFrameDuration;
-            const auto nowAfterRender = std::chrono::steady_clock::now();
-            if (nextFrameTime <= nowAfterRender) {
-                nextFrameTime = nowAfterRender + targetFrameDuration;
+            handledRedrawGeneration = observedRedrawGeneration;
+            const auto nowAfterRender = FrameClock::now();
+            if (uiInteractionActive) {
+                ExtendAtomicDeadline(activeUntilTicks, nowAfterRender + inputBurstDuration);
             }
-            std::this_thread::sleep_until(nextFrameTime);
+            nextActiveFrameTime = nowAfterRender + activeFrameDuration;
+            nextIdleFrameTime = nowAfterRender + idleFrameDuration;
         }
 
         // Shutdown GL/ImGui resources on the render thread that owns the context.
@@ -381,42 +446,58 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         backendCv.wait(lk, [&]() { return backendReady.load() || !state.running.load(); });
     }
 
-    // Event loop runs on the main thread; update shared width/height atomics for the renderer.
+    constexpr auto inputBurstDuration = std::chrono::milliseconds(250);
+    auto requestActiveRedraw = [&]() {
+        redrawGeneration.fetch_add(1, std::memory_order_release);
+        ExtendAtomicDeadline(activeUntilTicks, FrameClock::now() + inputBurstDuration);
+        framePacingCv.notify_one();
+    };
+
+    auto processEvent = [&](const SDL_Event& event) {
+        // Forward to ImGui (backend initialized on render thread but ImGui context exists here).
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        requestActiveRedraw();
+
+        if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+            state.done.store(true, std::memory_order_release);
+            state.running.store(false, std::memory_order_release);
+            Globals::done.store(true, std::memory_order_release);
+            Globals::running.store(false, std::memory_order_release);
+#if defined(_WIN32)
+            // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
+            smu::platform::windows::CleanupLagswitchOverlay();
+#endif
+            return true;
+        }
+        if (event.type == SDL_EVENT_WINDOW_RESIZED ||
+            event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+            event.type == SDL_EVENT_WINDOW_MOVED) {
+            UpdateWindowMetrics(window);
+            renderWidth.store(state.screenWidth);
+            renderHeight.store(state.screenHeight);
+        }
+        return false;
+    };
+
+    // Event loop runs on the main thread; the render thread wakes when new work arrives.
     while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
         SDL_Event event;
-        bool quitRequested = false;
+        if (!SDL_WaitEventTimeout(&event, 1000)) {
+            continue;
+        }
+
+        bool quitRequested = processEvent(event);
         while (SDL_PollEvent(&event)) {
-            // Forward to ImGui (backend initialized on render thread but ImGui context exists here).
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-                state.done.store(true, std::memory_order_release);
-                state.running.store(false, std::memory_order_release);
-                Globals::done.store(true, std::memory_order_release);
-                Globals::running.store(false, std::memory_order_release);
-#if defined(_WIN32)
-                // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
-                smu::platform::windows::CleanupLagswitchOverlay();
-#endif
-                quitRequested = true;
-            }
-            if (event.type == SDL_EVENT_WINDOW_RESIZED ||
-                event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-                event.type == SDL_EVENT_WINDOW_MOVED) {
-                UpdateWindowMetrics(window);
-                renderWidth.store(state.screenWidth);
-                renderHeight.store(state.screenHeight);
-            }
+            quitRequested = processEvent(event) || quitRequested;
         }
         if (quitRequested) {
             break;
         }
-
-        // Small sleep to avoid busy polling; render thread handles frame pacing.
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     // Signal render thread to exit and join.
     renderRunning.store(false);
+    framePacingCv.notify_one();
     if (renderThread.joinable()) {
         renderThread.join();
     }
@@ -427,6 +508,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
     // ImGui context was created on main thread; destroy it here after render thread cleaned up backends.
     ImGui::DestroyContext();
+    SDL_GL_DestroyContext(glContext);
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
