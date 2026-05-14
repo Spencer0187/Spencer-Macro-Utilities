@@ -306,10 +306,10 @@ int main(int argc, char** argv)
     (void)argv;
 
     smu::core::InitializeMacroSections(false);
-    std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "sober");
+    std::snprintf(smu::core::GetAppState().settingsBuffer, sizeof(smu::core::GetAppState().settingsBuffer), "Main");
     Globals::g_isLinuxWine = true;
     Globals::antiafktoggle = false;
-    std::snprintf(Globals::settingsBuffer, sizeof(Globals::settingsBuffer), "sober");
+    std::snprintf(Globals::settingsBuffer, sizeof(Globals::settingsBuffer), "Main");
 
     smu::app::AppContext context = smu::app::CreateAppContext();
     context.linuxInputInstallerPath = ResolveLinuxSetupScriptPath();

@@ -521,12 +521,7 @@ std::optional<PlatformPid>
 ProcCgroupProcessBackend::findMainProcess(
     const std::string& executableName) const
 {
-	std::vector<PlatformPid> pids;
-	if (executableName == "sober") {
-		pids = findAllProcesses("Main");
-	} else {
-		pids = findAllProcesses(executableName);
-	}
+    std::vector<PlatformPid> pids = findAllProcesses(executableName);
     if (pids.empty()) {
         return std::nullopt;
     }
