@@ -215,15 +215,25 @@ const std::unordered_map<std::string, core::KeyCode>& KeyNameMap()
         {"numlock", core::SMU_VK_NUMLOCK},
         {"scrolllock", core::SMU_VK_SCROLL},
         {"lshift", core::SMU_VK_LSHIFT},
+        {"leftshift", core::SMU_VK_LSHIFT},
         {"rshift", core::SMU_VK_RSHIFT},
+        {"rightshift", core::SMU_VK_RSHIFT},
         {"shift", core::SMU_VK_SHIFT},
         {"lctrl", core::SMU_VK_LCONTROL},
+        {"leftctrl", core::SMU_VK_LCONTROL},
         {"rctrl", core::SMU_VK_RCONTROL},
+        {"rightctrl", core::SMU_VK_RCONTROL},
         {"ctrl", core::SMU_VK_CONTROL},
         {"control", core::SMU_VK_CONTROL},
         {"lalt", core::SMU_VK_LMENU},
+        {"leftalt", core::SMU_VK_LMENU},
         {"ralt", core::SMU_VK_RMENU},
+        {"rightalt", core::SMU_VK_RMENU},
         {"alt", core::SMU_VK_MENU},
+        {"lwin", core::SMU_VK_LWIN},
+        {"leftwin", core::SMU_VK_LWIN},
+        {"rwin", core::SMU_VK_RWIN},
+        {"rightwin", core::SMU_VK_RWIN},
         {"win", core::SMU_VK_LWIN},
         {"super", core::SMU_VK_LWIN},
         {"meta", core::SMU_VK_LWIN},
@@ -298,13 +308,19 @@ std::optional<unsigned int> ParseScriptHotkeyString(const std::string& text)
 
     for (const std::string& part : parts) {
         const std::string normalized = LowerNoSeparators(part);
-        if (normalized == "shift") {
+        if (normalized == "shift" || normalized == "lshift" || normalized == "leftshift" ||
+            normalized == "rshift" || normalized == "rightshift") {
             modifiers |= core::HOTKEY_MASK_SHIFT;
-        } else if (normalized == "ctrl" || normalized == "control") {
+        } else if (normalized == "ctrl" || normalized == "control" ||
+            normalized == "lctrl" || normalized == "leftctrl" ||
+            normalized == "rctrl" || normalized == "rightctrl") {
             modifiers |= core::HOTKEY_MASK_CTRL;
-        } else if (normalized == "alt") {
+        } else if (normalized == "alt" || normalized == "lalt" || normalized == "leftalt" ||
+            normalized == "ralt" || normalized == "rightalt") {
             modifiers |= core::HOTKEY_MASK_ALT;
-        } else if (normalized == "win" || normalized == "super" || normalized == "meta") {
+        } else if (normalized == "win" || normalized == "super" || normalized == "meta" ||
+            normalized == "lwin" || normalized == "leftwin" ||
+            normalized == "rwin" || normalized == "rightwin") {
             modifiers |= core::HOTKEY_MASK_WIN;
         } else if (auto key = ParseScriptKeyName(part)) {
             mainKey = key;

@@ -15,7 +15,7 @@ Only import scripts from sources you trust. Lua scripts can simulate input and c
 Each script runs with a per-script Lua memory cap. The default is 64 MiB. Scripts can request a different cap with `-- @memoryLimitMB:`, clamped between 16 MiB and 256 MiB.
 `onExecute()` and script load calls are protected by an active-execution watchdog. A script that continuously runs Lua code without yielding, sleeping, or checkpointing will time out, but cooperative scripts can run for a long time by periodically calling `checkpoint()`, `sleep()`, `sleepMicros()`, `sleepUntilCancelled()`, or host APIs that wait on input delays. `onSettings()` keeps its 5-second hard timeout. Timeout and cancellation errors cannot be suppressed with `pcall()` or `xpcall()`.
 The sandbox opens the base, table, string, math, utf8, and coroutine libraries. Coroutines are fully supported, including `coroutine.resume()`, `coroutine.wrap()`, and yielding through `sleep()` or `sleepMicros()` from a coroutine. It does not open `os`, `io`, `package`, or `debug`, and removes `dofile`, `loadfile`, `load`, and `collectgarbage`.
-A running imported script can be asked to stop by pressing the same activation hotkey again, or by using the Force Stop button in the app. Scripts that poll `isCancelled()`, `sleepUntilCancelled()`, or `throwIfCancelled()` can clean up cooperatively before exiting.
+A running imported script can be asked to stop by pressing the same activation hotkey again, or by using the Force Stop button in the app. Scripts that poll `isCancelled()`, `sleepUntilCancelled()`, or `throwIfCancelled()` can clean up cooperatively before exiting. Scripts can also define `onCleanup(reason)` for final cleanup; managed held hotkeys are released before that callback runs.
 
 ## Script Structure
 
@@ -76,6 +76,7 @@ You can import scripts with the in-app import button or place script files in th
 | `throwIfCancelled()` | Throw the same stop error used by `sleep()` and other interruptible runtime calls |
 | `checkpoint()` | Cooperatively yield to the host, check for cancellation/timeout, and reset the active-execution watchdog window without sleeping for a full millisecond. Use it inside CPU-heavy loops |
 | `shouldYield(thresholdMicros)` | Return `true` when the current uninterrupted Lua execution slice has run for at least `thresholdMicros`; the default threshold is `1000` microseconds |
+| `onCleanup(reason)` | Optional script function called after managed held hotkeys and input callbacks are released. Reasons are `"completed"`, `"cancelled"`, `"timeout"`, and `"error"` |
 
 These helpers are useful for cooperative loops that want to poll for host-driven stops, timeout, and hotkey cancel requests without having to build a coroutine around every wait.
 
@@ -120,7 +121,9 @@ Most controls accept optional size arguments at the end of the parameter list. W
 | `ui.textbox(id, label, defaultValue, width, height)` | Render a text box and persist the value |
 | `ui.dynamicTextbox(id, label, defaultValue, width, height)` | Render a read-only multi-line text box backed by a script-updated value |
 | `ui.setDynamicText(id, text)` | Update a dynamic text box value (clamped to 4096 characters) |
-| `ui.keybind(id, label, defaultValue, width)` | Render the standard SMU keybind picker (with hex display) and persist the combo as a hotkey value |
+| `ui.keybind(id, label, defaultValue, width)` | Render the standard SMU keybind picker (with hex display) and persist the combo as a hotkey value. Kept for compatibility |
+| `ui.hotkey(id, label, defaultValue, width)` | Semantic alias for input trigger hotkeys, such as `F7` or `RMB` |
+| `ui.keyCombo(id, label, defaultValue, width)` | Semantic alias for output combos that scripts may hold or release, such as `Ctrl+W` |
 | `ui.button(id, label, width, height)` | Render a button and return `true` only on the frame it is pressed |
 | `ui.button(id, label, callback, width, height)` | Render a button and call `callback(id)` when pressed. `callback` may be a Lua function or a dot-separated function path such as `"actions.reset"` |
 
@@ -164,7 +167,7 @@ The input functions use two related but different argument formats:
 | Argument kind | Used by | Meaning |
 | --- | --- | --- |
 | Single key | `pressKey()`, `holdKey()`, `releaseKey()`, `isKeyPressed()` | One physical keyboard key or mouse button. |
-| Hotkey | `isHotkeyPressed()`, `ui.keybind()`, `@keybind:` | A key combination, usually one or more modifiers plus a main key. |
+| Hotkey | `isHotkeyPressed()`, `input.*`, `ui.hotkey()`, `ui.keyCombo()`, `ui.keybind()`, `@keybind:` | A key combination, usually one or more modifiers plus a main key. |
 
 A single key is written as one key name:
 
@@ -262,15 +265,17 @@ The Lua API supports the following named keys.
 | Key name | Aliases |
 | --- | --- |
 | `Shift` | |
-| `LShift` | |
-| `RShift` | |
+| `LShift` | `LeftShift` |
+| `RShift` | `RightShift` |
 | `Ctrl` | `Control` |
-| `LCtrl` | |
-| `RCtrl` | |
+| `LCtrl` | `LeftCtrl` |
+| `RCtrl` | `RightCtrl` |
 | `Alt` | |
-| `LAlt` | |
-| `RAlt` | |
+| `LAlt` | `LeftAlt` |
+| `RAlt` | `RightAlt` |
 | `Win` | `Super`, `Meta` |
+| `LWin` | `LeftWin` |
+| `RWin` | `RightWin` |
 
 ###### Navigation and editing keys
 
@@ -318,7 +323,7 @@ The Lua API supports the following named keys.
 
 ##### Hotkey strings
 
-Hotkey strings combine modifiers and one main key with `+`:
+Hotkey strings combine modifiers and one main key with `+`. Side-specific modifier names normalize to the generic modifier bit in the stored hotkey value, so `LCtrl+K`, `RCtrl+K`, `LeftCtrl+K`, and `Ctrl+K` all detect generic Ctrl plus K.
 
 ```lua
 isHotkeyPressed("Ctrl+F")
@@ -328,12 +333,30 @@ isHotkeyPressed("LCtrl+K")
 
 Use `isHotkeyPressed()` when checking whether a combination is currently pressed.
 
-Use `ui.keybind()` when creating a configurable hotkey in a script UI:
+By default, script hotkeys use loose matching. A loose `S` match is true while `Ctrl+S` is held, and a loose `Ctrl+S` match is true while `Alt+Ctrl+S` is held. Strict matching requires the exact generic modifier set: strict `S` is false while any Ctrl/Alt/Shift/Win modifier is down, and strict `Ctrl+S` is false while Alt is also down.
 
 ```lua
-local hotkey = ui.keybind("Example hotkey", "LCtrl+K")
+if isHotkeyPressed("S", "strict") then
+    log("Only S is held")
+end
 
-if isHotkeyPressed(hotkey) then
+input.setHotkeyMode("strict")
+
+if input.isPressed("Ctrl+S") then
+    log("Exactly Ctrl+S is held because the script default is strict")
+end
+
+if input.isPressed("Ctrl+S", { strict = false }) then
+    log("Ctrl+S is held, extra modifiers allowed for this check")
+end
+```
+
+Use `ui.hotkey()` when creating a configurable input trigger in a script UI:
+
+```lua
+ui.hotkey("action_hotkey", "Action hotkey", "LCtrl+K", 320)
+
+if isHotkeyPressed(settings.action_hotkey) then
     log("Configured hotkey pressed")
 end
 ```
@@ -353,11 +376,11 @@ Use `@keybind:` to define the script's default activation hotkey (the same as th
 -- @keybind: LCtrl+K
 ```
 
-To expose a *configurable* keybind inside your script, create it in `onSettings()` with `ui.keybind()` and read the result from the global `settings` table:
+To expose a configurable input hotkey inside your script, create it in `onSettings()` with `ui.hotkey()` and read the result from the global `settings` table:
 
 ```lua
 function onSettings()
-    ui.keybind("actionHotkey", "Action hotkey", "LCtrl+K")
+    ui.hotkey("actionHotkey", "Action hotkey", "LCtrl+K")
 end
 
 function onExecute()
@@ -368,6 +391,96 @@ function onExecute()
 end
 ```
 
+#### Input hotkeys vs output combos
+
+Use `ui.hotkey()` for things the user physically presses to trigger script behavior. Use `ui.keyCombo()` for things the script sends as output. Both store the same numeric hotkey format; the names document intent.
+
+```lua
+function onSettings()
+    ui.hotkey("lock_trigger", "Lock trigger/input", "F7", 320)
+    ui.keyCombo("lock_target", "Lock target/output", "Ctrl+W", 320)
+end
+```
+
+`ui.keybind()` still exists as the older generic name. Prefer `ui.hotkey()` and `ui.keyCombo()` in new scripts because they make trigger-vs-output intent clear.
+
+#### Managed held hotkeys
+
+`holdKey()` and `releaseKey()` are low-level single-physical-key primitives. They are still useful when you intentionally want to manage one key yourself.
+
+For holding hotkey combinations, prefer the managed `input` API:
+
+```lua
+input.hold(settings.lock_target)
+sleep(1000)
+input.release(settings.lock_target)
+```
+
+Managed holds keep an internal per-key reference count. If a script holds `Ctrl+W` and `Ctrl+G`, releasing `Ctrl+W` does not release Ctrl while `Ctrl+G` is still managed-held. Managed holds are also released automatically when the script stops, errors, times out, or is cancelled.
+
+Mouse wheel values such as `MouseWheelUp` and `MouseWheelDown` are rejected for managed holds because wheel input is an action, not a key-down/key-up state.
+
+#### Event callbacks
+
+Input callbacks are script-scoped. They only run while the script is executing inside `input.listenUntilCancelled()`. They are not global hooks, and they are cleared when the script stops.
+
+```lua
+function onExecute()
+    input.setHotkeyMode("strict")
+
+    input.onPressed(settings.lock_trigger, function()
+        input.toggleHeld(settings.lock_target)
+    end)
+
+    input.onChanged(settings.mirror_source, function(down)
+        input.setHeld(settings.mirror_target, down)
+    end)
+
+    input.listenUntilCancelled(2)
+end
+```
+
+The first scan initializes each callback without firing it. After that, `input.onPressed()` fires once on the up-to-down edge, `input.onReleased()` fires once on the down-to-up edge, and `input.onChanged()` fires on either edge with `(isDown, hotkey)`.
+
+Callbacks use the script's current hotkey mode when registered. You can override that per callback:
+
+```lua
+input.onPressed(settings.lock_trigger, function()
+    input.toggleHeld(settings.lock_target)
+end, { strict = true })
+```
+
+`input.listenUntilCancelled(scanMs)` defaults to `2` ms. The scan delay is clamped from `1` to `50` ms. If a callback errors, listening stops and the script exits as an error so managed cleanup and `onCleanup("error")` still run.
+
+#### Mirror rebinding
+
+`input.mirror(sourceHotkey, targetHotkey, options)` is shorthand for registering an `onChanged` callback that mirrors the source state to a managed target hold.
+
+```lua
+input.mirror(settings.mirror_source, settings.mirror_target, { strict = true })
+input.listenUntilCancelled(2)
+```
+
+The optional options table supports `strict`, `sourceStrict`, and `allowScriptHotkeyTarget = false` by default. Mirroring onto the script activation hotkey is blocked unless this is explicitly set to `true`, because doing so can immediately cancel the running script or create confusing self-trigger behavior. Mirror targets reject mouse wheel values for the same reason managed holds do.
+
+#### Cleanup lifecycle
+
+Scripts may define `onCleanup(reason)`. It is called after managed held hotkeys are released and input callbacks are cleared, but before script-owned lag-switch controls are released. Reasons are `"completed"`, `"cancelled"`, `"timeout"`, and `"error"`.
+
+```lua
+function onCleanup(reason)
+    releaseKey("W")
+    input.releaseAllManaged()
+    ui.setDynamicText("status", "Stopped: " .. tostring(reason))
+end
+```
+
+Cleanup has a short runtime budget. Cleanup code may log, update dynamic text, release low-level keys, release managed input, disable freeze, disable lag switch, and clear lag-switch config. It cannot start new input or process actions such as `holdKey()`, `pressKey()`, `typeText()`, `moveMouse()`, `mouseWheel()`, `freeze(true)`, `lagSwitch(true)`, `input.hold()`, `input.setHeld(hotkey, true)`, `input.toggleHeld()`, input callback registration, or `input.listenUntilCancelled()`.
+
+#### Security notes
+
+Scripts can simulate input and affect process/network controls. The scripting runtime prevents cleanup code from starting new actions, automatically releases managed held hotkeys on every script exit path, and limits input callback registration to 128 callbacks per script. Event callbacks are not global hooks; they only scan while the script is actively running in `input.listenUntilCancelled()`.
+
 | Function | Description |
 | --- | --- |
 | `pressKey(key, delay)` | Press and release a key or mouse-related action. `delay` defaults to 50 ms |
@@ -375,7 +488,20 @@ end
 | `holdKey(key)` | Hold a key down |
 | `releaseKey(key)` | Release a held key |
 | `isKeyPressed(key)` | Return whether a key is currently pressed |
-| `isHotkeyPressed(hotkey)` | Return whether a hotkey combo is currently pressed (use values from `ui.keybind` or `getScriptHotkey()`) |
+| `isHotkeyPressed(hotkey, options)` | Return whether a hotkey combo is currently pressed. `options` may be `true`, `false`, `"strict"`, `"loose"`, or `{ strict = true/false }`. Also available as `input.isPressed(hotkey, options)` |
+| `input.hold(hotkey)` | Managed-hold a hotkey combo |
+| `input.release(hotkey)` | Release a managed-held hotkey combo |
+| `input.setHeld(hotkey, down)` | Set a managed hotkey held state and return the resulting held state |
+| `input.toggleHeld(hotkey)` | Toggle a managed hotkey held state and return the resulting held state |
+| `input.releaseAllManaged()` | Release all managed hotkey holds owned by this script |
+| `input.isPressed(hotkey, options)` | Return whether a hotkey combo is currently pressed |
+| `input.setHotkeyMode(mode)` | Set this script's default hotkey match mode to `"loose"` or `"strict"` and return the resolved mode |
+| `input.getHotkeyMode()` | Return this script's current default hotkey match mode |
+| `input.onPressed(hotkey, callback, options)` | Register a script-scoped callback for the up-to-down edge |
+| `input.onReleased(hotkey, callback, options)` | Register a script-scoped callback for the down-to-up edge |
+| `input.onChanged(hotkey, callback, options)` | Register a script-scoped callback for either edge. The callback receives `(isDown, hotkey)` |
+| `input.listenUntilCancelled(scanMs)` | Run registered callbacks until the script is cancelled, stopped, times out, or errors |
+| `input.mirror(sourceHotkey, targetHotkey, options)` | Mirror a source hotkey state to a managed target hotkey hold |
 | `typeText(text, delay)` | Type text with an optional per-character delay. `delay` defaults to 30 ms |
 | `moveMouse(dx, dy)` | Move the mouse relative to its current position. In `"raw"` mode on Windows, this relative movement is multiplied by the saved `display_scale` percentage before being sent. In `"absolute"` mode, the target cursor position is calculated and sent through the platform absolute-pointer API |
 | `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor. `mode` is optional and defaults to `"pixels"`; valid modes are `"pixels"`, `"percent"`, `"scaled720p"`, `"scaled1080p"`, `"scaled1440p"`, and `"scaled2160p"` |
@@ -699,6 +825,45 @@ local wallhopPixels = getSavedValue("WallhopPixels")
 
 If a key is not part of the persisted setting registry, `getSavedValue()` returns `nil`.
 Save-file settings are read-only from scripts. Scripts cannot modify the main app settings.
+
+## Lock + Mirror Example
+
+```lua
+-- @name: Lock + Mirror Example
+-- @desc: Toggle-hold one combo and mirror a source hotkey to another combo.
+-- @keybind: F6
+
+function onSettings()
+    ui.hotkey("lock_trigger", "Lock trigger/input", "F7", 320)
+    ui.keyCombo("lock_target", "Lock target/output", "Ctrl+W", 320)
+
+    ui.checkbox("mirror_enabled", "Enable mirror", true, 320)
+    ui.hotkey("mirror_source", "Mirror source/input", "RMB", 320)
+    ui.keyCombo("mirror_target", "Mirror target/output", "G", 320)
+
+    ui.dynamicTextbox("status", "Status", "Idle", 560, 120)
+end
+
+function onExecute()
+    ui.setDynamicText("status", "Active")
+
+    input.onPressed(settings.lock_trigger, function()
+        local down = input.toggleHeld(settings.lock_target)
+        ui.setDynamicText("status", down and "Locked" or "Unlocked")
+    end)
+
+    if settings.mirror_enabled then
+        input.mirror(settings.mirror_source, settings.mirror_target)
+    end
+
+    input.listenUntilCancelled(2)
+end
+
+function onCleanup(reason)
+    input.releaseAllManaged()
+    ui.setDynamicText("status", "Stopped: " .. tostring(reason))
+end
+```
 
 ## Example Script
 

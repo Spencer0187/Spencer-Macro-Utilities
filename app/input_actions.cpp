@@ -135,6 +135,43 @@ std::string FormatColorHex(const smu::platform::PixelColor& color)
     return std::string(buffer);
 }
 
+bool IsModifierPressed(const smu::platform::InputBackend& input, core::KeyCode key)
+{
+    switch (key) {
+    case core::SMU_VK_SHIFT:
+        return input.isKeyPressed(core::SMU_VK_SHIFT) || input.isKeyPressed(core::SMU_VK_LSHIFT) ||
+            input.isKeyPressed(core::SMU_VK_RSHIFT);
+    case core::SMU_VK_CONTROL:
+        return input.isKeyPressed(core::SMU_VK_CONTROL) || input.isKeyPressed(core::SMU_VK_LCONTROL) ||
+            input.isKeyPressed(core::SMU_VK_RCONTROL);
+    case core::SMU_VK_MENU:
+        return input.isKeyPressed(core::SMU_VK_MENU) || input.isKeyPressed(core::SMU_VK_LMENU) ||
+            input.isKeyPressed(core::SMU_VK_RMENU);
+    case core::SMU_VK_LWIN:
+        return input.isKeyPressed(core::SMU_VK_LWIN) || input.isKeyPressed(core::SMU_VK_RWIN);
+    default:
+        return input.isKeyPressed(key);
+    }
+}
+
+bool IsHotkeyModifierStateExact(const smu::platform::InputBackend& input, unsigned int combinedKey)
+{
+    const auto key = static_cast<core::KeyCode>(combinedKey & core::HOTKEY_KEY_MASK);
+    const bool wantsWin = (combinedKey & core::HOTKEY_MASK_WIN) != 0 ||
+        key == core::SMU_VK_LWIN || key == core::SMU_VK_RWIN;
+    const bool wantsCtrl = (combinedKey & core::HOTKEY_MASK_CTRL) != 0 ||
+        key == core::SMU_VK_CONTROL || key == core::SMU_VK_LCONTROL || key == core::SMU_VK_RCONTROL;
+    const bool wantsAlt = (combinedKey & core::HOTKEY_MASK_ALT) != 0 ||
+        key == core::SMU_VK_MENU || key == core::SMU_VK_LMENU || key == core::SMU_VK_RMENU;
+    const bool wantsShift = (combinedKey & core::HOTKEY_MASK_SHIFT) != 0 ||
+        key == core::SMU_VK_SHIFT || key == core::SMU_VK_LSHIFT || key == core::SMU_VK_RSHIFT;
+
+    return IsModifierPressed(input, core::SMU_VK_LWIN) == wantsWin &&
+        IsModifierPressed(input, core::SMU_VK_CONTROL) == wantsCtrl &&
+        IsModifierPressed(input, core::SMU_VK_MENU) == wantsAlt &&
+        IsModifierPressed(input, core::SMU_VK_SHIFT) == wantsShift;
+}
+
 } // namespace
 
 bool IsKeyPressed(core::KeyCode key)
@@ -143,6 +180,37 @@ bool IsKeyPressed(core::KeyCode key)
         return backend->isKeyPressed(key);
     }
     return false;
+}
+
+bool IsHotkeyPressed(unsigned int combinedKey, bool strict)
+{
+    const unsigned int key = combinedKey & core::HOTKEY_KEY_MASK;
+    if (key == 0) {
+        return false;
+    }
+
+    auto backend = platform::GetInputBackend();
+    if (!backend) {
+        return false;
+    }
+
+    if ((combinedKey & core::HOTKEY_MASK_WIN) && !IsModifierPressed(*backend, core::SMU_VK_LWIN)) {
+        return false;
+    }
+    if ((combinedKey & core::HOTKEY_MASK_CTRL) && !IsModifierPressed(*backend, core::SMU_VK_CONTROL)) {
+        return false;
+    }
+    if ((combinedKey & core::HOTKEY_MASK_ALT) && !IsModifierPressed(*backend, core::SMU_VK_MENU)) {
+        return false;
+    }
+    if ((combinedKey & core::HOTKEY_MASK_SHIFT) && !IsModifierPressed(*backend, core::SMU_VK_SHIFT)) {
+        return false;
+    }
+    if (strict && !IsHotkeyModifierStateExact(*backend, combinedKey)) {
+        return false;
+    }
+
+    return IsModifierPressed(*backend, static_cast<core::KeyCode>(key));
 }
 
 void HoldKey(core::KeyCode key, bool extended)
@@ -178,6 +246,29 @@ void ReleaseKeyBinded(core::KeyCode combinedKey)
     if (auto backend = platform::GetInputBackend()) {
         backend->releaseKeyChord(combinedKey);
     }
+}
+
+std::vector<core::KeyCode> ExpandScriptHotkeyToKeys(unsigned int hotkey)
+{
+    std::vector<core::KeyCode> keys;
+    if (hotkey & core::HOTKEY_MASK_WIN) {
+        keys.push_back(core::SMU_VK_LWIN);
+    }
+    if (hotkey & core::HOTKEY_MASK_CTRL) {
+        keys.push_back(core::SMU_VK_CONTROL);
+    }
+    if (hotkey & core::HOTKEY_MASK_ALT) {
+        keys.push_back(core::SMU_VK_MENU);
+    }
+    if (hotkey & core::HOTKEY_MASK_SHIFT) {
+        keys.push_back(core::SMU_VK_SHIFT);
+    }
+
+    const auto mainKey = static_cast<core::KeyCode>(hotkey & core::HOTKEY_KEY_MASK);
+    if (mainKey != core::SMU_VK_NONE) {
+        keys.push_back(mainKey);
+    }
+    return keys;
 }
 
 void MoveMouse(int dx, int dy)

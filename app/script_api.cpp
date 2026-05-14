@@ -55,6 +55,9 @@ constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::ma
 constexpr std::int64_t kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
 constexpr std::int64_t kDefaultShouldYieldMicros = 1000;
 constexpr int kMaxInputDelayMs = 300000;
+constexpr int kDefaultInputCallbackScanMs = 2;
+constexpr int kMinInputCallbackScanMs = 1;
+constexpr int kMaxInputCallbackScanMs = 50;
 constexpr float kMaxUiDimension = 10000.0f;
 constexpr std::size_t kMaxLogMessageBytes = 4096;
 constexpr std::size_t kMaxTypeTextBytes = 4096;
@@ -62,6 +65,8 @@ constexpr const char* kLogTruncateSuffix = "...(truncated)";
 constexpr const char* kRegistryMoveDegreesSettingsKey = "smu.moveDegreesSettings";
 constexpr const char* kMouseMotionModeRaw = "raw";
 constexpr const char* kMouseMotionModeAbsolute = "absolute";
+
+unsigned int NormalizeScriptHotkey(unsigned int hotkey);
 
 const char* MouseMotionModeToString(ScriptInstance::MouseMotionMode mode)
 {
@@ -303,6 +308,126 @@ smu::core::KeyCode CheckKey(lua_State* L, int index)
     return static_cast<smu::core::KeyCode>(luaL_error(L, "invalid key: %s", keyName ? keyName : "<null>"));
 }
 
+std::optional<unsigned int> ParseScriptHotkeyValue(lua_State* L, int index, const char* argumentName)
+{
+    if (lua_isinteger(L, index)) {
+        const unsigned int hotkey = static_cast<unsigned int>(
+            CheckLuaInt(L, index, 0, std::numeric_limits<int>::max(), argumentName));
+        const unsigned int normalized = NormalizeScriptHotkey(hotkey);
+        if (!IsScriptHotkeyBound(normalized)) {
+            return std::nullopt;
+        }
+        return normalized;
+    }
+
+    if (lua_type(L, index) == LUA_TSTRING) {
+        const char* text = lua_tostring(L, index);
+        if (auto parsed = ParseScriptHotkeyString(text ? text : "")) {
+            const unsigned int normalized = NormalizeScriptHotkey(*parsed);
+            if (IsScriptHotkeyBound(normalized)) {
+                return normalized;
+            }
+        }
+        return std::nullopt;
+    }
+
+    return std::nullopt;
+}
+
+unsigned int CheckHotkey(lua_State* L, int index, const char* argumentName)
+{
+    if (auto hotkey = ParseScriptHotkeyValue(L, index, argumentName)) {
+        return *hotkey;
+    }
+    return static_cast<unsigned int>(luaL_error(L, "%s must be a bound hotkey integer or hotkey string", argumentName));
+}
+
+bool IsMouseWheelHotkey(unsigned int hotkey)
+{
+    const unsigned int key = hotkey & smu::core::HOTKEY_KEY_MASK;
+    return key == smu::core::SMU_VK_MOUSE_WHEEL_UP || key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN;
+}
+
+void CheckManagedHotkeyTarget(lua_State* L, unsigned int hotkey, const char* argumentName)
+{
+    if (IsMouseWheelHotkey(hotkey)) {
+        luaL_error(L, "%s cannot be a mouse wheel action", argumentName);
+    }
+}
+
+bool IsCleanupMode(lua_State* L)
+{
+    return RequireInstance(L).isCleanupMode();
+}
+
+void CheckCleanupAllowsStartingAction(lua_State* L, const char* functionName)
+{
+    if (IsCleanupMode(L)) {
+        luaL_error(L, "%s is not available inside onCleanup", functionName);
+    }
+}
+
+bool ParseStrictModeText(lua_State* L, const char* text, const char* argumentName)
+{
+    if (!text) {
+        luaL_error(L, "%s must be \"strict\" or \"loose\"", argumentName);
+    }
+
+    if (std::strcmp(text, "strict") == 0 || std::strcmp(text, "exact") == 0) {
+        return true;
+    }
+    if (std::strcmp(text, "loose") == 0 || std::strcmp(text, "default") == 0) {
+        return false;
+    }
+    luaL_error(L, "%s must be \"strict\" or \"loose\"", argumentName);
+    return false;
+}
+
+bool CheckStrictHotkeyOption(lua_State* L, int index, bool defaultValue, const char* argumentName)
+{
+    if (lua_gettop(L) < index || lua_isnil(L, index)) {
+        return defaultValue;
+    }
+    if (lua_isboolean(L, index)) {
+        return lua_toboolean(L, index) != 0;
+    }
+    if (lua_type(L, index) == LUA_TSTRING) {
+        return ParseStrictModeText(L, lua_tostring(L, index), argumentName);
+    }
+    if (lua_istable(L, index)) {
+        lua_getfield(L, index, "strict");
+        if (!lua_isnil(L, -1)) {
+            const bool strict = lua_toboolean(L, -1) != 0;
+            lua_pop(L, 1);
+            return strict;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, index, "mode");
+        if (!lua_isnil(L, -1)) {
+            const bool strict = ParseStrictModeText(L, lua_tostring(L, -1), "mode");
+            lua_pop(L, 1);
+            return strict;
+        }
+        lua_pop(L, 1);
+        return defaultValue;
+    }
+    luaL_error(L, "%s must be a boolean, \"strict\"/\"loose\", or options table", argumentName);
+    return defaultValue;
+}
+
+bool CheckStrictHotkeyTableOption(lua_State* L, int tableIndex, const char* fieldName, bool defaultValue)
+{
+    lua_getfield(L, tableIndex, fieldName);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return defaultValue;
+    }
+    const bool strict = CheckStrictHotkeyOption(L, lua_gettop(L), defaultValue, fieldName);
+    lua_pop(L, 1);
+    return strict;
+}
+
 bool IsMouseRelatedKey(smu::core::KeyCode key)
 {
     switch (key) {
@@ -381,6 +506,9 @@ int LuaPressKeyImpl(lua_State* L, bool mouseOnly, const char* functionName)
     ScriptInstance& instance = RequireInstance(L);
     if (instance.isSettingsRenderMode() || instance.isSettingsCallbackActive()) {
         return luaL_error(L, "%s is not available inside script settings", functionName);
+    }
+    if (instance.isCleanupMode()) {
+        return luaL_error(L, "%s is not available inside onCleanup", functionName);
     }
     instance.throwStopIfRequested(L);
     const smu::core::KeyCode key = CheckKey(L, 1);
@@ -787,7 +915,25 @@ bool AreHotkeyModifiersPressed(const smu::platform::InputBackend& input, unsigne
     return true;
 }
 
-bool IsHotkeyPressed(unsigned int combinedKey)
+bool AreHotkeyModifiersExactlyPressed(const smu::platform::InputBackend& input, unsigned int combinedKey)
+{
+    const auto key = static_cast<smu::core::KeyCode>(combinedKey & smu::core::HOTKEY_KEY_MASK);
+    const bool wantsWin = (combinedKey & smu::core::HOTKEY_MASK_WIN) != 0 ||
+        key == smu::core::SMU_VK_LWIN || key == smu::core::SMU_VK_RWIN;
+    const bool wantsCtrl = (combinedKey & smu::core::HOTKEY_MASK_CTRL) != 0 ||
+        key == smu::core::SMU_VK_CONTROL || key == smu::core::SMU_VK_LCONTROL || key == smu::core::SMU_VK_RCONTROL;
+    const bool wantsAlt = (combinedKey & smu::core::HOTKEY_MASK_ALT) != 0 ||
+        key == smu::core::SMU_VK_MENU || key == smu::core::SMU_VK_LMENU || key == smu::core::SMU_VK_RMENU;
+    const bool wantsShift = (combinedKey & smu::core::HOTKEY_MASK_SHIFT) != 0 ||
+        key == smu::core::SMU_VK_SHIFT || key == smu::core::SMU_VK_LSHIFT || key == smu::core::SMU_VK_RSHIFT;
+
+    return IsModifierPressed(input, smu::core::SMU_VK_LWIN) == wantsWin &&
+        IsModifierPressed(input, smu::core::SMU_VK_CONTROL) == wantsCtrl &&
+        IsModifierPressed(input, smu::core::SMU_VK_MENU) == wantsAlt &&
+        IsModifierPressed(input, smu::core::SMU_VK_SHIFT) == wantsShift;
+}
+
+bool IsHotkeyPressed(unsigned int combinedKey, bool strict)
 {
     if (!IsScriptHotkeyBound(combinedKey)) {
         return false;
@@ -799,6 +945,9 @@ bool IsHotkeyPressed(unsigned int combinedKey)
     }
 
     if (!AreHotkeyModifiersPressed(*backend, combinedKey)) {
+        return false;
+    }
+    if (strict && !AreHotkeyModifiersExactlyPressed(*backend, combinedKey)) {
         return false;
     }
 
@@ -1132,6 +1281,7 @@ int LuaHoldKey(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "holdKey is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "holdKey");
     HoldKey(CheckKey(L, 1));
     return 0;
 }
@@ -1160,20 +1310,10 @@ int LuaIsHotkeyPressed(lua_State* L)
         return luaL_error(L, "isHotkeyPressed is not available inside script settings");
     }
 
-    unsigned int combinedKey = 0;
-    if (lua_isinteger(L, 1)) {
-        combinedKey = static_cast<unsigned int>(CheckLuaInt(L, 1, 0, std::numeric_limits<int>::max(), "hotkey"));
-    } else {
-        const char* text = luaL_checkstring(L, 1);
-        if (auto parsed = ParseScriptHotkeyString(text ? text : "")) {
-            combinedKey = *parsed;
-        } else {
-            return luaL_error(L, "invalid hotkey: %s", text ? text : "<null>");
-        }
-    }
-
-    combinedKey = NormalizeScriptHotkey(combinedKey);
-    lua_pushboolean(L, IsHotkeyPressed(combinedKey));
+    ScriptInstance& instance = RequireInstance(L);
+    const unsigned int combinedKey = CheckHotkey(L, 1, "hotkey");
+    const bool strict = CheckStrictHotkeyOption(L, 2, instance.strictHotkeyMatching(), "match mode");
+    lua_pushboolean(L, IsHotkeyPressed(combinedKey, strict));
     return 1;
 }
 
@@ -1189,11 +1329,215 @@ int LuaGetScriptHotkey(lua_State* L)
     return 1;
 }
 
+int LuaInputHold(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.hold is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "input.hold");
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    CheckManagedHotkeyTarget(L, hotkey, "hotkey");
+    RequireInstance(L).managedHoldHotkey(hotkey);
+    return 0;
+}
+
+int LuaInputRelease(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.release is not available inside script settings");
+    }
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    CheckManagedHotkeyTarget(L, hotkey, "hotkey");
+    RequireInstance(L).managedReleaseHotkey(hotkey);
+    return 0;
+}
+
+int LuaInputSetHeld(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.setHeld is not available inside script settings");
+    }
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    const bool down = lua_toboolean(L, 2) != 0;
+    CheckManagedHotkeyTarget(L, hotkey, "hotkey");
+    if (down) {
+        CheckCleanupAllowsStartingAction(L, "input.setHeld(true)");
+    }
+    const bool held = RequireInstance(L).managedSetHotkeyHeld(hotkey, down);
+    lua_pushboolean(L, held);
+    return 1;
+}
+
+int LuaInputToggleHeld(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.toggleHeld is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "input.toggleHeld");
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    CheckManagedHotkeyTarget(L, hotkey, "hotkey");
+    const bool held = RequireInstance(L).managedToggleHotkey(hotkey);
+    lua_pushboolean(L, held);
+    return 1;
+}
+
+int LuaInputReleaseAllManaged(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.releaseAllManaged is not available inside script settings");
+    }
+    RequireInstance(L).releaseAllManagedHotkeys();
+    return 0;
+}
+
+int LuaInputIsPressed(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.isPressed is not available inside script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    const bool strict = CheckStrictHotkeyOption(L, 2, instance.strictHotkeyMatching(), "match mode");
+    lua_pushboolean(L, IsHotkeyPressed(hotkey, strict));
+    return 1;
+}
+
+int LuaInputSetHotkeyMode(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.setHotkeyMode is not available inside script settings");
+    }
+    ScriptInstance& instance = RequireInstance(L);
+    const bool strict = CheckStrictHotkeyOption(L, 1, instance.strictHotkeyMatching(), "mode");
+    instance.setStrictHotkeyMatching(strict);
+    lua_pushstring(L, strict ? "strict" : "loose");
+    return 1;
+}
+
+int LuaInputGetHotkeyMode(lua_State* L)
+{
+    lua_pushstring(L, RequireInstance(L).strictHotkeyMatching() ? "strict" : "loose");
+    return 1;
+}
+
+int RegisterHotkeyCallback(lua_State* L, ScriptInstance::HotkeyCallbackKind kind, const char* functionName)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "%s is not available inside script settings", functionName);
+    }
+    CheckCleanupAllowsStartingAction(L, functionName);
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingHotkeyCallbacks()) {
+        return luaL_error(L, "cannot register input callbacks while dispatching input callbacks");
+    }
+    const unsigned int hotkey = CheckHotkey(L, 1, "hotkey");
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    const bool strict = CheckStrictHotkeyOption(L, 3, instance.strictHotkeyMatching(), "options");
+    lua_pushvalue(L, 2);
+    const int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    if (!instance.registerHotkeyCallback(kind, hotkey, strict, ref)) {
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        return luaL_error(L, "script registered too many input callbacks");
+    }
+    return 0;
+}
+
+int LuaInputOnPressed(lua_State* L)
+{
+    return RegisterHotkeyCallback(L, ScriptInstance::HotkeyCallbackKind::Pressed, "input.onPressed");
+}
+
+int LuaInputOnReleased(lua_State* L)
+{
+    return RegisterHotkeyCallback(L, ScriptInstance::HotkeyCallbackKind::Released, "input.onReleased");
+}
+
+int LuaInputOnChanged(lua_State* L)
+{
+    return RegisterHotkeyCallback(L, ScriptInstance::HotkeyCallbackKind::Changed, "input.onChanged");
+}
+
+int LuaInputListenUntilCancelled(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.listenUntilCancelled is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "input.listenUntilCancelled");
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingHotkeyCallbacks()) {
+        return luaL_error(L, "cannot listen for input callbacks while dispatching input callbacks");
+    }
+    const int scanMs = lua_gettop(L) >= 1 && !lua_isnil(L, 1)
+        ? CheckLuaIntClamped(L, 1, kMinInputCallbackScanMs, kMaxInputCallbackScanMs, "scanMs")
+        : kDefaultInputCallbackScanMs;
+    if (!instance.listenForHotkeyCallbacks(std::chrono::milliseconds(scanMs))) {
+        const std::string error = instance.owner().lastErrorCopy();
+        return luaL_error(L, "%s", error.empty() ? "input callback failed" : error.c_str());
+    }
+    return 0;
+}
+
+int LuaMirrorCallback(lua_State* L)
+{
+    const unsigned int targetHotkey = static_cast<unsigned int>(lua_tointeger(L, lua_upvalueindex(1)));
+    const bool down = lua_toboolean(L, 1) != 0;
+    RequireInstance(L).managedSetHotkeyHeld(targetHotkey, down);
+    return 0;
+}
+
+int LuaInputMirror(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "input.mirror is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "input.mirror");
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingHotkeyCallbacks()) {
+        return luaL_error(L, "cannot register input callbacks while dispatching input callbacks");
+    }
+
+    const unsigned int sourceHotkey = CheckHotkey(L, 1, "sourceHotkey");
+    const unsigned int targetHotkey = CheckHotkey(L, 2, "targetHotkey");
+    CheckManagedHotkeyTarget(L, targetHotkey, "targetHotkey");
+
+    bool allowScriptHotkeyTarget = false;
+    bool strict = instance.strictHotkeyMatching();
+    if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_getfield(L, 3, "allowScriptHotkeyTarget");
+        allowScriptHotkeyTarget = lua_toboolean(L, -1) != 0;
+        lua_pop(L, 1);
+        strict = CheckStrictHotkeyTableOption(L, 3, "strict", strict);
+        strict = CheckStrictHotkeyTableOption(L, 3, "sourceStrict", strict);
+        lua_getfield(L, 3, "mode");
+        if (!lua_isnil(L, -1)) {
+            strict = ParseStrictModeText(L, lua_tostring(L, -1), "mode");
+        }
+        lua_pop(L, 1);
+    }
+
+    const unsigned int scriptHotkey = instance.owner().hotkey.load(std::memory_order_acquire);
+    if (!allowScriptHotkeyTarget && IsScriptHotkeyBound(scriptHotkey) &&
+        NormalizeScriptHotkey(scriptHotkey) == targetHotkey) {
+        return luaL_error(L, "input.mirror target cannot be the script activation hotkey unless allowScriptHotkeyTarget is true");
+    }
+
+    lua_pushinteger(L, static_cast<lua_Integer>(targetHotkey));
+    lua_pushcclosure(L, LuaMirrorCallback, 1);
+    const int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    if (!instance.registerHotkeyCallback(ScriptInstance::HotkeyCallbackKind::Changed, sourceHotkey, strict, ref)) {
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        return luaL_error(L, "script registered too many input callbacks");
+    }
+    return 0;
+}
+
 int LuaTypeText(lua_State* L)
 {
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "typeText is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "typeText");
     ScriptInstance& instance = RequireInstance(L);
     instance.throwStopIfRequested(L);
     std::size_t textLength = 0;
@@ -1239,6 +1583,7 @@ int LuaMoveMouse(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "moveMouse is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "moveMouse");
     const int dx = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dx");
     const int dy = CheckLuaInt(L, 2, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "dy");
 
@@ -1263,6 +1608,7 @@ int LuaMoveMouseAbs(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "moveMouseAbs is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "moveMouseAbs");
 
     const double x = CheckLuaFiniteNumber(L, 1, "x");
     const double y = CheckLuaFiniteNumber(L, 2, "y");
@@ -1371,6 +1717,7 @@ int LuaMoveDegrees(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "moveDegrees is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "moveDegrees");
 
     const double dxDegrees = CheckLuaFiniteNumber(L, 1, "dx");
     const double dyDegrees = CheckLuaFiniteNumber(L, 2, "dy");
@@ -1405,6 +1752,7 @@ int LuaMouseWheel(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "mouseWheel is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "mouseWheel");
     const int delta = CheckLuaInt(L, 1, std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), "delta");
     MouseWheel(delta);
     return 0;
@@ -1416,7 +1764,11 @@ int LuaFreeze(lua_State* L)
         return luaL_error(L, "freeze is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
-    instance.setFreeze(lua_toboolean(L, 1) != 0);
+    const bool enabled = lua_toboolean(L, 1) != 0;
+    if (instance.isCleanupMode() && enabled) {
+        return luaL_error(L, "freeze(true) is not available inside onCleanup");
+    }
+    instance.setFreeze(enabled);
     return 0;
 }
 
@@ -1426,11 +1778,15 @@ int LuaLagSwitch(lua_State* L)
         return luaL_error(L, "lagSwitch is not available inside script settings");
     }
     ScriptInstance& instance = RequireInstance(L);
+    const bool enabled = lua_toboolean(L, 1) != 0;
+    if (instance.isCleanupMode() && enabled) {
+        return luaL_error(L, "lagSwitch(true) is not available inside onCleanup");
+    }
     if (lua_gettop(L) >= 2 && !lua_isnil(L, 2)) {
         const smu::platform::LagSwitchConfig config = CheckLagSwitchConfigTable(L, 2, instance.lagSwitchConfig());
         instance.setLagSwitchConfig(config);
     }
-    instance.setLagSwitch(lua_toboolean(L, 1) != 0);
+    instance.setLagSwitch(enabled);
     return 0;
 }
 
@@ -1449,6 +1805,7 @@ int LuaSetLagSwitchConfig(lua_State* L)
     if (IsSettingsCallbackActive(L)) {
         return luaL_error(L, "setLagSwitchConfig is not available inside script settings");
     }
+    CheckCleanupAllowsStartingAction(L, "setLagSwitchConfig");
     ScriptInstance& instance = RequireInstance(L);
     const smu::platform::LagSwitchConfig config = CheckLagSwitchConfigTable(L, 1, instance.lagSwitchConfig());
     instance.setLagSwitchConfig(config);
@@ -2016,9 +2373,45 @@ void RegisterUiTable(lua_State* L)
     lua_setfield(L, -2, "setDynamicText");
     lua_pushcfunction(L, LuaUiKeybind);
     lua_setfield(L, -2, "keybind");
+    lua_pushcfunction(L, LuaUiKeybind);
+    lua_setfield(L, -2, "hotkey");
+    lua_pushcfunction(L, LuaUiKeybind);
+    lua_setfield(L, -2, "keyCombo");
     lua_pushcfunction(L, LuaUiButton);
     lua_setfield(L, -2, "button");
     lua_setglobal(L, "ui");
+}
+
+void RegisterInputTable(lua_State* L)
+{
+    lua_newtable(L);
+    lua_pushcfunction(L, LuaInputHold);
+    lua_setfield(L, -2, "hold");
+    lua_pushcfunction(L, LuaInputRelease);
+    lua_setfield(L, -2, "release");
+    lua_pushcfunction(L, LuaInputSetHeld);
+    lua_setfield(L, -2, "setHeld");
+    lua_pushcfunction(L, LuaInputToggleHeld);
+    lua_setfield(L, -2, "toggleHeld");
+    lua_pushcfunction(L, LuaInputReleaseAllManaged);
+    lua_setfield(L, -2, "releaseAllManaged");
+    lua_pushcfunction(L, LuaInputIsPressed);
+    lua_setfield(L, -2, "isPressed");
+    lua_pushcfunction(L, LuaInputSetHotkeyMode);
+    lua_setfield(L, -2, "setHotkeyMode");
+    lua_pushcfunction(L, LuaInputGetHotkeyMode);
+    lua_setfield(L, -2, "getHotkeyMode");
+    lua_pushcfunction(L, LuaInputOnPressed);
+    lua_setfield(L, -2, "onPressed");
+    lua_pushcfunction(L, LuaInputOnReleased);
+    lua_setfield(L, -2, "onReleased");
+    lua_pushcfunction(L, LuaInputOnChanged);
+    lua_setfield(L, -2, "onChanged");
+    lua_pushcfunction(L, LuaInputListenUntilCancelled);
+    lua_setfield(L, -2, "listenUntilCancelled");
+    lua_pushcfunction(L, LuaInputMirror);
+    lua_setfield(L, -2, "mirror");
+    lua_setglobal(L, "input");
 }
 
 void Register(lua_State* L, const char* name, lua_CFunction function)
@@ -2067,6 +2460,7 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "getSMUVersion", LuaGetSMUVersion);
     Register(L, "getSavedValue", LuaGetSavedValue);
     RegisterUiTable(L);
+    RegisterInputTable(L);
     Register(L, "robloxFreeze", LuaFreeze);
     Register(L, "roblox_freeze", LuaFreeze);
     Register(L, "lagswitch", LuaLagSwitch);
