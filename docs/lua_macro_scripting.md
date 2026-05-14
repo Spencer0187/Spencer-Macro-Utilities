@@ -50,7 +50,7 @@ Add metadata at the top of the script using comment tags. Metadata fields are tr
 
 ## Importing Scripts
 
-You can import scripts with the in-app import button or place script files in the `scripts/` folder next to the executable. Scripts in that folder are loaded on startup.
+You can import scripts with the in-app import button or place script files in a `scripts/` folder next to the executable. Scripts in that folder are loaded on startup.
 
 ## Lua API Reference
 
