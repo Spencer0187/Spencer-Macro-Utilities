@@ -3,9 +3,12 @@
 #if defined(_WIN32)
 
 #include "../../core/legacy_globals.h"
+#include "../process_backend.h"
 #include "logzz.hpp"
 #include "resource.h"
 
+#include <iphlpapi.h>
+#include <iprtrmib.h>
 #include <mutex>
 #include <iostream>
 #include <fstream>
@@ -14,6 +17,7 @@
 #include <regex>
 #include <shlobj.h>
 #include <atomic>
+#include <set>
 
 // NEW INCLUDES FOR LAG QUEUE
 #include <queue>
@@ -37,6 +41,25 @@ std::uintptr_t g_script_blocking_owner = 0;
 bool g_has_script_lag_config = false;
 bool g_base_lag_blocking = false;
 bool g_script_lag_blocking = false;
+std::mutex g_process_udp_ports_mutex;
+std::set<int> g_process_udp_ports;
+#ifdef AF_INET6
+constexpr ULONG kAddressFamilyInet6 = AF_INET6;
+#else
+constexpr ULONG kAddressFamilyInet6 = 23;
+#endif
+
+struct Udp6RowOwnerPid {
+    UCHAR localAddr[16];
+    DWORD localScopeId;
+    DWORD localPort;
+    DWORD owningPid;
+};
+
+struct Udp6TableOwnerPid {
+    DWORD numEntries;
+    Udp6RowOwnerPid table[1];
+};
 
 // DELAY / LAG SYSTEM DEFINITIONS
 
@@ -66,6 +89,116 @@ bool LagSwitchTargetUsesRoblox(const smu::platform::LagSwitchConfig& config)
 {
     return config.targetMode == smu::platform::LagSwitchTargetMode::Roblox ||
         (config.targetMode == smu::platform::LagSwitchTargetMode::Custom && config.includeRobloxDynamicIps);
+}
+
+int UdpTablePortToHostOrder(DWORD networkOrderPort)
+{
+    const DWORD port = networkOrderPort & 0xFFFF;
+    return static_cast<int>(((port & 0x00FF) << 8) | ((port & 0xFF00) >> 8));
+}
+
+std::vector<smu::platform::PlatformPid> CurrentTargetProcessIds()
+{
+    auto processBackend = smu::platform::GetProcessBackend();
+    if (!processBackend || settingsBuffer[0] == '\0') {
+        return {};
+    }
+
+    if (takeallprocessids) {
+        return processBackend->findAllProcesses(settingsBuffer);
+    }
+
+    if (auto pid = processBackend->findMainProcess(settingsBuffer)) {
+        return {*pid};
+    }
+    return {};
+}
+
+void CollectUdp4PortsForPids(const std::set<DWORD>& targetPids, std::set<int>& ports)
+{
+    ULONG bufferSize = 0;
+    DWORD result = GetExtendedUdpTable(nullptr, &bufferSize, FALSE, AF_INET, UDP_TABLE_OWNER_PID, 0);
+    if (result != ERROR_INSUFFICIENT_BUFFER || bufferSize == 0) {
+        return;
+    }
+
+    std::vector<unsigned char> buffer(bufferSize);
+    auto* table = reinterpret_cast<PMIB_UDPTABLE_OWNER_PID>(buffer.data());
+    result = GetExtendedUdpTable(table, &bufferSize, FALSE, AF_INET, UDP_TABLE_OWNER_PID, 0);
+    if (result != NO_ERROR) {
+        return;
+    }
+
+    for (DWORD index = 0; index < table->dwNumEntries; ++index) {
+        const MIB_UDPROW_OWNER_PID& row = table->table[index];
+        if (targetPids.find(row.dwOwningPid) != targetPids.end()) {
+            const int port = UdpTablePortToHostOrder(row.dwLocalPort);
+            if (port > 0 && port <= 65535) {
+                ports.insert(port);
+            }
+        }
+    }
+}
+
+void CollectUdp6PortsForPids(const std::set<DWORD>& targetPids, std::set<int>& ports)
+{
+    ULONG bufferSize = 0;
+    DWORD result = GetExtendedUdpTable(nullptr, &bufferSize, FALSE, kAddressFamilyInet6, UDP_TABLE_OWNER_PID, 0);
+    if (result != ERROR_INSUFFICIENT_BUFFER || bufferSize == 0) {
+        return;
+    }
+
+    std::vector<unsigned char> buffer(bufferSize);
+    auto* table = reinterpret_cast<Udp6TableOwnerPid*>(buffer.data());
+    result = GetExtendedUdpTable(table, &bufferSize, FALSE, kAddressFamilyInet6, UDP_TABLE_OWNER_PID, 0);
+    if (result != NO_ERROR) {
+        return;
+    }
+
+    for (DWORD index = 0; index < table->numEntries; ++index) {
+        const Udp6RowOwnerPid& row = table->table[index];
+        if (targetPids.find(row.owningPid) != targetPids.end()) {
+            const int port = UdpTablePortToHostOrder(row.localPort);
+            if (port > 0 && port <= 65535) {
+                ports.insert(port);
+            }
+        }
+    }
+}
+
+std::set<int> QueryTargetUdpPorts()
+{
+    const std::vector<smu::platform::PlatformPid> pids = CurrentTargetProcessIds();
+    if (pids.empty()) {
+        return {};
+    }
+
+    std::set<DWORD> nativePids;
+    for (smu::platform::PlatformPid pid : pids) {
+        nativePids.insert(static_cast<DWORD>(pid));
+    }
+
+    std::set<int> ports;
+    CollectUdp4PortsForPids(nativePids, ports);
+    CollectUdp6PortsForPids(nativePids, ports);
+    return ports;
+}
+
+bool RefreshTargetUdpPorts()
+{
+    const std::set<int> ports = QueryTargetUdpPorts();
+    std::lock_guard<std::mutex> lock(g_process_udp_ports_mutex);
+    if (ports == g_process_udp_ports) {
+        return false;
+    }
+    g_process_udp_ports = ports;
+    return true;
+}
+
+std::set<int> TargetUdpPortsSnapshot()
+{
+    std::lock_guard<std::mutex> lock(g_process_udp_ports_mutex);
+    return g_process_udp_ports;
 }
 
 smu::platform::LagSwitchConfig EffectiveLagSwitchConfigLocked()
@@ -103,7 +236,27 @@ std::string BuildProtocolFilter(const smu::platform::LagSwitchConfig& config)
     return "false";
 }
 
-std::string BuildRobloxFilter()
+std::string BuildProcessUdpPortFilter()
+{
+    const std::set<int> ports = TargetUdpPortsSnapshot();
+    if (ports.empty()) {
+        return {};
+    }
+
+    std::string filter;
+    for (int port : ports) {
+        const std::string portText = std::to_string(port);
+        const std::string clause = "((outbound and udp.SrcPort == " + portText + ") or (inbound and udp.DstPort == " + portText + "))";
+        if (filter.empty()) {
+            filter = clause;
+        } else {
+            filter += " or " + clause;
+        }
+    }
+    return "(" + filter + ")";
+}
+
+std::string BuildRobloxIpFilter()
 {
     std::string combined_ip_filter = ROBLOX_RANGE_FILTER;
     std::shared_lock lock(g_ip_mutex);
@@ -113,13 +266,27 @@ std::string BuildRobloxFilter()
     return "(" + combined_ip_filter + ")";
 }
 
+std::string BuildRobloxFilter()
+{
+    const std::string processPortFilter = BuildProcessUdpPortFilter();
+    if (!processPortFilter.empty()) {
+        return processPortFilter;
+    }
+
+    if (CurrentTargetProcessIds().empty()) {
+        return "false";
+    }
+
+    return BuildRobloxIpFilter();
+}
+
 std::string BuildCustomTargetFilter(const smu::platform::LagSwitchConfig& config)
 {
     std::vector<std::string> clauses;
     clauses.reserve(config.remoteIps.size() + config.remotePorts.size() + 1);
 
     if (config.includeRobloxDynamicIps) {
-        clauses.push_back(BuildRobloxFilter());
+        clauses.push_back(BuildRobloxIpFilter());
     }
 
     for (const std::string& ip : config.remoteIps) {
@@ -454,6 +621,11 @@ void RobloxLogScannerThread() {
         
         if (!g_windivert_running.load(std::memory_order_relaxed)) break;
 
+        if (EffectiveLagSwitchConfig().targetMode == smu::platform::LagSwitchTargetMode::Roblox &&
+            RefreshTargetUdpPorts() && bWinDivertEnabled) {
+            SafeCloseWinDivert();
+        }
+
         // 2. Call Library Handle
         state s = logzz::loop_handle();
 
@@ -528,6 +700,9 @@ void WindivertWorkerThread() {
 
     while (g_windivert_running) {
         smu::platform::LagSwitchConfig filterConfig = EffectiveLagSwitchConfig();
+        if (filterConfig.targetMode == smu::platform::LagSwitchTargetMode::Roblox) {
+            RefreshTargetUdpPorts();
+        }
         std::string final_filter = BuildWindDivertFilter(filterConfig);
 
         g_current_windivert_filter = final_filter; 
@@ -871,6 +1046,10 @@ public:
             PublishEffectiveLagSwitchStateLocked();
         }
         g_log_thread_running.store(false, std::memory_order_relaxed);
+        {
+            std::lock_guard<std::mutex> lock(g_process_udp_ports_mutex);
+            g_process_udp_ports.clear();
+        }
         SafeCloseWinDivert();
 
         if (workerThread_.joinable()) {
