@@ -195,6 +195,7 @@ if(WIN32)
         version
         setupapi
         cfgmgr32
+        iphlpapi
         imm32
         shlwapi
         wininet
