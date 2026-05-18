@@ -326,6 +326,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     std::mutex backendMutex;
     std::condition_variable backendCv;
     std::mutex framePacingMutex;
+    std::mutex imguiMutex;
     std::condition_variable framePacingCv;
     SDL_GLContext renderGlContext = nullptr;
 
@@ -398,25 +399,29 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
                 continue;
             }
 
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplSDL3_NewFrame();
-            ImGui::NewFrame();
-
-            RenderAppUi(context);
-
-            const ImGuiIO& frameIo = ImGui::GetIO();
-            const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
-                frameIo.MouseDown[3] || frameIo.MouseDown[4];
-            const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
-
-            ImGui::Render();
-
             const int w = std::max(1, renderWidth.load());
             const int h = std::max(1, renderHeight.load());
             glViewport(0, 0, w, h);
             glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT);
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+            bool uiInteractionActive = false;
+            {
+                std::lock_guard<std::mutex> imguiLock(imguiMutex);
+                ImGui_ImplOpenGL3_NewFrame();
+                ImGui_ImplSDL3_NewFrame();
+                ImGui::NewFrame();
+
+                RenderAppUi(context);
+
+                const ImGuiIO& frameIo = ImGui::GetIO();
+                const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
+                    frameIo.MouseDown[3] || frameIo.MouseDown[4];
+                uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
+
+                ImGui::Render();
+                ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            }
             SDL_GL_SwapWindow(window);
 
             handledRedrawGeneration = observedRedrawGeneration;
@@ -454,10 +459,6 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     };
 
     auto processEvent = [&](const SDL_Event& event) {
-        // Forward to ImGui (backend initialized on render thread but ImGui context exists here).
-        ImGui_ImplSDL3_ProcessEvent(&event);
-        requestActiveRedraw();
-
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             state.done.store(true, std::memory_order_release);
             state.running.store(false, std::memory_order_release);
@@ -469,6 +470,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 #endif
             return true;
         }
+
         if (event.type == SDL_EVENT_WINDOW_RESIZED ||
             event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
             event.type == SDL_EVENT_WINDOW_MOVED) {
@@ -476,6 +478,17 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
             renderWidth.store(state.screenWidth);
             renderHeight.store(state.screenHeight);
         }
+
+        if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+            return false;
+        }
+
+        {
+            std::lock_guard<std::mutex> imguiLock(imguiMutex);
+            // Forward non-wheel input to ImGui while holding the shared context lock.
+            ImGui_ImplSDL3_ProcessEvent(&event);
+        }
+        requestActiveRedraw();
         return false;
     };
 
@@ -486,9 +499,44 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
             continue;
         }
 
-        bool quitRequested = processEvent(event);
+        bool quitRequested = false;
+        bool sawWheelInput = false;
+        bool sawOtherInput = false;
+        float wheelX = 0.0f;
+        float wheelY = 0.0f;
+
+        auto flushWheel = [&]() {
+            if (!sawWheelInput) {
+                return;
+            }
+            std::lock_guard<std::mutex> imguiLock(imguiMutex);
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            io.AddMouseWheelEvent(wheelX, wheelY);
+            sawWheelInput = false;
+            wheelX = 0.0f;
+            wheelY = 0.0f;
+        };
+
+        auto handleEvent = [&](const SDL_Event& currentEvent) {
+            if (currentEvent.type == SDL_EVENT_MOUSE_WHEEL) {
+                wheelX += -currentEvent.wheel.x;
+                wheelY += currentEvent.wheel.y;
+                sawWheelInput = true;
+                return processEvent(currentEvent);
+            }
+            sawOtherInput = true;
+            flushWheel();
+            return processEvent(currentEvent);
+        };
+
+        quitRequested = handleEvent(event);
         while (SDL_PollEvent(&event)) {
-            quitRequested = processEvent(event) || quitRequested;
+            quitRequested = handleEvent(event) || quitRequested;
+        }
+        flushWheel();
+        if (sawWheelInput || sawOtherInput) {
+            requestActiveRedraw();
         }
         if (quitRequested) {
             break;
