@@ -32,51 +32,9 @@ namespace {
 using namespace std::chrono_literals;
 using namespace Globals;
 
-bool IsModifierPressed(const smu::platform::InputBackend& input, unsigned int key)
-{
-    switch (key) {
-    case VK_SHIFT:
-        return input.isKeyPressed(VK_SHIFT) || input.isKeyPressed(VK_LSHIFT) || input.isKeyPressed(VK_RSHIFT);
-    case VK_CONTROL:
-        return input.isKeyPressed(VK_CONTROL) || input.isKeyPressed(VK_LCONTROL) || input.isKeyPressed(VK_RCONTROL);
-    case VK_MENU:
-        return input.isKeyPressed(VK_MENU) || input.isKeyPressed(VK_LMENU) || input.isKeyPressed(VK_RMENU);
-    case VK_LWIN:
-        return input.isKeyPressed(VK_LWIN) || input.isKeyPressed(VK_RWIN);
-    default:
-        return input.isKeyPressed(key);
-    }
-}
-
-
-bool AreHotkeyModifiersPressed(const smu::platform::InputBackend& input, unsigned int combinedKey)
-{
-    if ((combinedKey & HOTKEY_MASK_WIN) && !IsModifierPressed(input, VK_LWIN)) return false;
-    if ((combinedKey & HOTKEY_MASK_CTRL) && !IsModifierPressed(input, VK_CONTROL)) return false;
-    if ((combinedKey & HOTKEY_MASK_ALT) && !IsModifierPressed(input, VK_MENU)) return false;
-    if ((combinedKey & HOTKEY_MASK_SHIFT) && !IsModifierPressed(input, VK_SHIFT)) return false;
-    return true;
-}
-
 bool ShouldKeepRunning()
 {
     return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
-}
-
-bool AnyInputPressedForHotkeySuppression()
-{
-    auto input = smu::platform::GetInputBackend();
-    if (!input) {
-        return false;
-    }
-
-    for (unsigned int key = 1; key <= 0xFF; ++key) {
-        if (input->isKeyPressed(key)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 unsigned int InventorySlotKey(int slot)
@@ -114,6 +72,78 @@ void ReleaseZoomOrShift()
 MacroRuntime::~MacroRuntime()
 {
     stop();
+}
+
+void MacroRuntime::resetInputPollCache()
+{
+    inputPollBackend_ = smu::platform::GetInputBackend();
+    inputPollKnown_.fill(0);
+    inputPollPressed_.fill(0);
+    inputPollCacheActive_ = true;
+}
+
+bool MacroRuntime::cachedIsKeyPressed(unsigned int key) const
+{
+    if (key == smu::core::SMU_VK_MOUSE_WHEEL_UP || key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+        return false;
+    }
+
+    if (!inputPollCacheActive_) {
+        inputPollBackend_ = smu::platform::GetInputBackend();
+        inputPollKnown_.fill(0);
+        inputPollPressed_.fill(0);
+        inputPollCacheActive_ = true;
+    }
+
+    if (!inputPollBackend_) {
+        return false;
+    }
+
+    if (key >= inputPollKnown_.size()) {
+        return inputPollBackend_->isKeyPressed(key);
+    }
+
+    if (inputPollKnown_[key] == 0) {
+        inputPollPressed_[key] = inputPollBackend_->isKeyPressed(key) ? 1 : 0;
+        inputPollKnown_[key] = 1;
+    }
+    return inputPollPressed_[key] != 0;
+}
+
+bool MacroRuntime::isModifierPressed(unsigned int key) const
+{
+    switch (key) {
+    case VK_SHIFT:
+        return cachedIsKeyPressed(VK_SHIFT) || cachedIsKeyPressed(VK_LSHIFT) || cachedIsKeyPressed(VK_RSHIFT);
+    case VK_CONTROL:
+        return cachedIsKeyPressed(VK_CONTROL) || cachedIsKeyPressed(VK_LCONTROL) || cachedIsKeyPressed(VK_RCONTROL);
+    case VK_MENU:
+        return cachedIsKeyPressed(VK_MENU) || cachedIsKeyPressed(VK_LMENU) || cachedIsKeyPressed(VK_RMENU);
+    case VK_LWIN:
+        return cachedIsKeyPressed(VK_LWIN) || cachedIsKeyPressed(VK_RWIN);
+    default:
+        return cachedIsKeyPressed(key);
+    }
+}
+
+bool MacroRuntime::areHotkeyModifiersPressed(unsigned int combinedKey) const
+{
+    if ((combinedKey & HOTKEY_MASK_WIN) && !isModifierPressed(VK_LWIN)) return false;
+    if ((combinedKey & HOTKEY_MASK_CTRL) && !isModifierPressed(VK_CONTROL)) return false;
+    if ((combinedKey & HOTKEY_MASK_ALT) && !isModifierPressed(VK_MENU)) return false;
+    if ((combinedKey & HOTKEY_MASK_SHIFT) && !isModifierPressed(VK_SHIFT)) return false;
+    return true;
+}
+
+bool MacroRuntime::anyInputPressedForHotkeySuppression() const
+{
+    for (unsigned int key = 1; key <= 0xFF; ++key) {
+        if (cachedIsKeyPressed(key)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void MacroRuntime::start()
@@ -160,22 +190,23 @@ void MacroRuntime::controllerLoop()
     nextProcessRefresh_ = std::chrono::steady_clock::now();
 
     while (running_.load(std::memory_order_acquire) && ShouldKeepRunning()) {
+        resetInputPollCache();
         refreshTargetProcesses();
 
         if (g_keybindCaptureActive.load(std::memory_order_acquire)) {
             if (freezeSuspended_) {
                 setTargetSuspended(false);
             }
-            std::this_thread::sleep_for(5ms);
+            // std::this_thread::sleep_for(5ms);
             continue;
         }
 
         if (g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
-            if (AnyInputPressedForHotkeySuppression()) {
+            if (anyInputPressedForHotkeySuppression()) {
                 if (freezeSuspended_) {
                     setTargetSuspended(false);
                 }
-                std::this_thread::sleep_for(5ms);
+                // std::this_thread::sleep_for(5ms);
                 continue;
             }
 
@@ -187,32 +218,36 @@ void MacroRuntime::controllerLoop()
             if (freezeSuspended_) {
                 setTargetSuspended(false);
             }
-            std::this_thread::sleep_for(5ms);
+            // std::this_thread::sleep_for(5ms);
             continue;
         }
 
         pruneFinishedWorkers();
 
-        processFreezeMacro(foregroundAllows(disable_outside_roblox[0]));
-        processItemDesyncMacro(foregroundAllows(disable_outside_roblox[1]));
+        auto foregroundForEnabledSection = [&](int sectionIndex) {
+            return !section_toggles[sectionIndex] || foregroundAllows(disable_outside_roblox[sectionIndex]);
+        };
+
+        processFreezeMacro(foregroundForEnabledSection(0));
+        processItemDesyncMacro(foregroundForEnabledSection(1));
         processPressKeyMacros(true);
         processWallhopMacros(true);
-        processWallessLhjMacro(foregroundAllows(disable_outside_roblox[7]));
-        processSpeedglitchMacro(foregroundAllows(disable_outside_roblox[3]));
-        processHhjMacro(foregroundAllows(disable_outside_roblox[2]));
+        processWallessLhjMacro(foregroundForEnabledSection(7));
+        processSpeedglitchMacro(foregroundForEnabledSection(3));
+        processHhjMacro(foregroundForEnabledSection(2));
         processHhjMotionLoop();
-        processItemUnequipComOffsetMacro(foregroundAllows(disable_outside_roblox[4]));
-        processItemClipMacro(foregroundAllows(disable_outside_roblox[8]));
-        processLaughClipMacro(foregroundAllows(disable_outside_roblox[9]));
-        processWallWalkMacro(foregroundAllows(disable_outside_roblox[10]));
+        processItemUnequipComOffsetMacro(foregroundForEnabledSection(4));
+        processItemClipMacro(foregroundForEnabledSection(8));
+        processLaughClipMacro(foregroundForEnabledSection(9));
+        processWallWalkMacro(foregroundForEnabledSection(10));
         processSpamKeyMacros();
-        processLedgeBounceMacro(foregroundAllows(disable_outside_roblox[12]));
-        processBunnyhopMacro(foregroundAllows(disable_outside_roblox[13]));
-        processFloorBounceMacro(foregroundAllows(disable_outside_roblox[14]));
-        processLagSwitchMacro(foregroundAllows(disable_outside_roblox[15]));
+        processLedgeBounceMacro(foregroundForEnabledSection(12));
+        processBunnyhopMacro(foregroundForEnabledSection(13));
+        processFloorBounceMacro(foregroundForEnabledSection(14));
+        processLagSwitchMacro(foregroundForEnabledSection(15));
         processImportedScripts();
 
-        std::this_thread::sleep_for(2ms);
+        std::this_thread::sleep_for(1ms);
     }
 
     if (freezeSuspended_) {
@@ -293,11 +328,6 @@ bool MacroRuntime::foregroundAllows(bool disableOutsideRoblox)
 
 bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const
 {
-    auto input = smu::platform::GetInputBackend();
-    if (!input) {
-        return false;
-    }
-
     if (g_keybindCaptureActive.load(std::memory_order_acquire) ||
         g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
         return false;
@@ -308,11 +338,10 @@ bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const
         return false;
     }
 
-    if ((combinedKey & HOTKEY_MASK_WIN) && !IsModifierPressed(*input, VK_LWIN)) return false;
-    if ((combinedKey & HOTKEY_MASK_CTRL) && !IsModifierPressed(*input, VK_CONTROL)) return false;
-    if ((combinedKey & HOTKEY_MASK_ALT) && !IsModifierPressed(*input, VK_MENU)) return false;
-    if ((combinedKey & HOTKEY_MASK_SHIFT) && !IsModifierPressed(*input, VK_SHIFT)) return false;
-    return IsModifierPressed(*input, key);
+    if (!areHotkeyModifiersPressed(combinedKey)) {
+        return false;
+    }
+    return isModifierPressed(key);
 }
 
 void MacroRuntime::processFreezeMacro(bool foregroundAllowed)
@@ -379,8 +408,12 @@ void MacroRuntime::processPressKeyMacros(bool foregroundAllowed)
 
     for (std::size_t index = 0; index < presskey_instances.size(); ++index) {
         auto& inst = presskey_instances[index];
+        if (!inst.section_enabled) {
+            pressKeyWasPressed_[index] = false;
+            continue;
+        }
         const bool allowed = foregroundAllows(inst.presskeyinroblox) && foregroundAllowed;
-        const bool pressed = inst.section_enabled && allowed && isHotkeyPressed(inst.vk_trigger);
+        const bool pressed = allowed && isHotkeyPressed(inst.vk_trigger);
         const bool edge = pressed && !pressKeyWasPressed_[index];
         pressKeyWasPressed_[index] = pressed;
         if (!edge) {
@@ -414,8 +447,12 @@ void MacroRuntime::processWallhopMacros(bool foregroundAllowed)
 
     for (std::size_t index = 0; index < wallhop_instances.size(); ++index) {
         auto& inst = wallhop_instances[index];
+        if (!inst.section_enabled) {
+            wallhopWasPressed_[index] = false;
+            continue;
+        }
         const bool allowed = foregroundAllows(inst.disable_outside_roblox) && foregroundAllowed;
-        const bool pressed = inst.section_enabled && allowed && isHotkeyPressed(inst.vk_trigger);
+        const bool pressed = allowed && isHotkeyPressed(inst.vk_trigger);
         const bool edge = pressed && !wallhopWasPressed_[index];
         wallhopWasPressed_[index] = pressed;
         if (!edge) {
@@ -742,8 +779,13 @@ void MacroRuntime::processSpamKeyMacros()
 
     for (std::size_t index = 0; index < spamkey_instances.size(); ++index) {
         auto& inst = spamkey_instances[index];
+        if (!inst.section_enabled) {
+            spamKeyWasPressed_[index] = false;
+            inst.thread_active.store(false, std::memory_order_release);
+            continue;
+        }
         const bool allowed = foregroundAllows(inst.disable_outside_roblox);
-        const bool pressed = allowed && inst.section_enabled && isHotkeyPressed(inst.vk_trigger);
+        const bool pressed = allowed && isHotkeyPressed(inst.vk_trigger);
         const bool edge = pressed && !spamKeyWasPressed_[index];
         spamKeyWasPressed_[index] = pressed;
 
@@ -828,11 +870,6 @@ void MacroRuntime::processLedgeBounceMacro(bool foregroundAllowed)
 
 bool MacroRuntime::isBunnyhopPhysicallyHeld() const
 {
-    auto input = smu::platform::GetInputBackend();
-    if (!input) {
-        return false;
-    }
-
     const unsigned int key = vk_bunnyhopkey & HOTKEY_KEY_MASK;
     if (key == 0 ||
         key == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
@@ -840,14 +877,14 @@ bool MacroRuntime::isBunnyhopPhysicallyHeld() const
         return false;
     }
 
-    if (!AreHotkeyModifiersPressed(*input, vk_bunnyhopkey)) {
+    if (!areHotkeyModifiersPressed(vk_bunnyhopkey)) {
         return false;
     }
 
     // Mouse buttons do not pass through the Windows low-level keyboard hook.
     // For mouse-triggered bhop binds, keep using the backend's physical state.
     if (key >= VK_LBUTTON && key <= VK_XBUTTON2) {
-        return IsModifierPressed(*input, key);
+        return isModifierPressed(key);
     }
 
     // Keyboard-triggered bhop must use a physical-key latch, not the raw
@@ -891,7 +928,11 @@ void MacroRuntime::runBunnyhopWorker()
 
 void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
 {
-    const bool canProcess = foregroundAllowed && section_toggles[13] && macrotoggled && notbinding.load(std::memory_order_acquire);
+    if (!foregroundAllowed || !section_toggles[13] || !macrotoggled || !notbinding.load(std::memory_order_acquire)) {
+        isbhoploop.store(false, std::memory_order_release);
+        bunnyhopRunning_ = false;
+        return;
+    }
 
     if (isHotkeyPressed(vk_chatkey)) {
         bunnyhopChatLocked_ = true;
@@ -901,7 +942,7 @@ void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
     }
 
     const bool held = isBunnyhopPhysicallyHeld();
-    const bool shouldHop = canProcess && held && (!bunnyhopsmart || !bunnyhopChatLocked_);
+    const bool shouldHop = held && (!bunnyhopsmart || !bunnyhopChatLocked_);
     isbhoploop.store(shouldHop, std::memory_order_release);
 
     if (!shouldHop) {
@@ -959,18 +1000,25 @@ void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)
 
 void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 {
+    if (!section_toggles[15]) {
+        lagSwitchWasPressed_ = false;
+        return;
+    }
+
     auto backend = smu::platform::GetNetworkLagBackend();
     if (!backend) {
         return;
     }
 
-    const bool pressed = isHotkeyPressed(vk_lagswitchkey);
-    if (!foregroundAllowed || !section_toggles[15]) {
-        backend->setBlockingActive(false);
+    if (!foregroundAllowed) {
+        if (lagSwitchWasPressed_ || backend->isBaseBlockingActive()) {
+            backend->setBlockingActive(false);
+        }
         lagSwitchWasPressed_ = false;
         return;
     }
 
+    const bool pressed = isHotkeyPressed(vk_lagswitchkey);
     bool shouldInitializeBackend = false;
     if (islagswitchswitch) {
         shouldInitializeBackend = pressed && !lagSwitchWasPressed_ && !backend->isBaseBlockingActive();
@@ -1073,6 +1121,11 @@ void MacroRuntime::processImportedScripts()
             continue;
         }
 
+        if (!enabled && !running) {
+            importedScriptWasPressed_[index] = false;
+            continue;
+        }
+
         const bool pressed = isHotkeyPressed(hotkey);
         const bool edge = pressed && !importedScriptWasPressed_[index];
         importedScriptWasPressed_[index] = pressed;
@@ -1088,9 +1141,6 @@ void MacroRuntime::processImportedScripts()
             continue;
         }
 
-        if (!enabled) {
-            continue;
-        }
         if (!edge) {
             continue;
         }

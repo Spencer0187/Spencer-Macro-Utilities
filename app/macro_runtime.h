@@ -1,12 +1,19 @@
 #pragma once
 
 #include <atomic>
+#include <array>
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "../core/key_codes.h"
+
+namespace smu::platform {
+class InputBackend;
+}
 
 namespace smu::app {
 
@@ -51,9 +58,18 @@ private:
     void setPidsSuspended(const std::vector<unsigned int>& pids, bool suspended);
     void runWorker(std::function<void()> task);
     void pruneFinishedWorkers();
+    void resetInputPollCache();
+    bool cachedIsKeyPressed(unsigned int key) const;
+    bool isModifierPressed(unsigned int key) const;
+    bool areHotkeyModifiersPressed(unsigned int combinedKey) const;
+    bool anyInputPressedForHotkeySuppression() const;
 
     std::atomic<bool> running_{false};
     std::thread controllerThread_;
+    mutable std::shared_ptr<smu::platform::InputBackend> inputPollBackend_;
+    mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollKnown_{};
+    mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollPressed_{};
+    mutable bool inputPollCacheActive_ = false;
     mutable std::mutex workerMutex_;
     struct WorkerSlot {
         std::thread thread;
