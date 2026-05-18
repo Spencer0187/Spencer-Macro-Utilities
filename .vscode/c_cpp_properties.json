@@ -1,20 +1,13 @@
 {
     "configurations": [
         {
-            "name": "Win32",
+            "name": "CMake",
             "includePath": [
                 "${workspaceFolder}/**"
             ],
-            "defines": [
-                "_DEBUG",
-                "UNICODE",
-                "_UNICODE"
-            ],
-            "windowsSdkVersion": "10.0.26100.0",
-            "compilerPath": "cl.exe",
+            "configurationProvider": "ms-vscode.cmake-tools",
             "cStandard": "c23",
-            "cppStandard": "c++23",
-            "intelliSenseMode": "windows-msvc-x64"
+            "cppStandard": "c++20"
         }
     ],
     "version": 4
