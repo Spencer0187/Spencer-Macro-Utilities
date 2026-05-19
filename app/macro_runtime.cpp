@@ -16,14 +16,25 @@
 #include "../core/legacy_globals.h"
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 #include "../platform/windows/admin_elevation.h"
 #endif
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 namespace smu::app {
@@ -31,6 +42,271 @@ namespace {
 
 using namespace std::chrono_literals;
 using namespace Globals;
+
+#if defined(_WIN32)
+enum class RuntimeProfileSection : std::size_t {
+    ResetInputCache,
+    RefreshProcesses,
+    HotkeySuppression,
+    PruneWorkers,
+    Freeze,
+    ItemDesync,
+    PressKey,
+    Wallhop,
+    WallessLhj,
+    Speedglitch,
+    Hhj,
+    HhjMotion,
+    ItemUnequip,
+    ItemClip,
+    LaughClip,
+    WallWalk,
+    SpamKey,
+    LedgeBounce,
+    Bunnyhop,
+    FloorBounce,
+    LagSwitch,
+    ImportedScripts,
+    Count
+};
+
+constexpr std::array<const char*, static_cast<std::size_t>(RuntimeProfileSection::Count)> kRuntimeProfileSectionNames = {{
+    "reset_input_cache",
+    "refresh_processes",
+    "hotkey_suppression",
+    "prune_workers",
+    "freeze",
+    "item_desync",
+    "press_key",
+    "wallhop",
+    "walless_lhj",
+    "speedglitch",
+    "hhj",
+    "hhj_motion",
+    "item_unequip",
+    "item_clip",
+    "laugh_clip",
+    "wall_walk",
+    "spam_key",
+    "ledge_bounce",
+    "bunnyhop",
+    "floor_bounce",
+    "lag_switch",
+    "imported_scripts"
+}};
+
+unsigned long long FileTimeToUnsignedLongLong(const FILETIME& fileTime)
+{
+    return (static_cast<unsigned long long>(fileTime.dwHighDateTime) << 32) |
+        static_cast<unsigned long long>(fileTime.dwLowDateTime);
+}
+
+unsigned long long CurrentThreadCpu100ns()
+{
+    FILETIME creation = {};
+    FILETIME exitTime = {};
+    FILETIME kernel = {};
+    FILETIME user = {};
+    if (!GetThreadTimes(GetCurrentThread(), &creation, &exitTime, &kernel, &user)) {
+        return 0;
+    }
+
+    return FileTimeToUnsignedLongLong(kernel) + FileTimeToUnsignedLongLong(user);
+}
+
+std::string RuntimeProfilerTimestamp()
+{
+    SYSTEMTIME time = {};
+    GetLocalTime(&time);
+
+    char buffer[64] = {};
+    std::snprintf(buffer, sizeof(buffer), "%04u-%02u-%02u %02u:%02u:%02u",
+        static_cast<unsigned int>(time.wYear),
+        static_cast<unsigned int>(time.wMonth),
+        static_cast<unsigned int>(time.wDay),
+        static_cast<unsigned int>(time.wHour),
+        static_cast<unsigned int>(time.wMinute),
+        static_cast<unsigned int>(time.wSecond));
+    return buffer;
+}
+
+void AppendRuntimeProfilerLog(const std::string& message)
+{
+    std::ofstream file("SMC.log", std::ios::app);
+    if (file) {
+        file << "[" << RuntimeProfilerTimestamp() << "] [INFO] " << message << '\n';
+    }
+    OutputDebugStringA((message + "\n").c_str());
+}
+
+bool IsRuntimePerformanceLoggingEnabled()
+{
+    const char* value = std::getenv("SMU_MACRORUNTIME_PERF");
+    if (!value) {
+        return false;
+    }
+
+    return std::strcmp(value, "1") == 0 ||
+        std::strcmp(value, "true") == 0 ||
+        std::strcmp(value, "TRUE") == 0 ||
+        std::strcmp(value, "on") == 0 ||
+        std::strcmp(value, "ON") == 0;
+}
+
+class RuntimeThreadProfiler {
+public:
+    RuntimeThreadProfiler()
+    {
+        enabled_ = IsRuntimePerformanceLoggingEnabled();
+        if (enabled_) {
+            reset();
+        }
+    }
+
+    bool enabled() const
+    {
+        return enabled_;
+    }
+
+    void add(RuntimeProfileSection section, unsigned long long cpu100ns, long long wallNs)
+    {
+        if (!enabled_) {
+            return;
+        }
+
+        const std::size_t index = static_cast<std::size_t>(section);
+        cpu100ns_[index] += cpu100ns;
+        wallNs_[index] += static_cast<unsigned long long>(std::max<long long>(0, wallNs));
+        calls_[index] += 1;
+    }
+
+    void finishLoop()
+    {
+        if (!enabled_) {
+            return;
+        }
+
+        ++loops_;
+
+        const auto now = std::chrono::steady_clock::now();
+        if (now - startedAt_ < 5s) {
+            return;
+        }
+
+        const unsigned long long totalCpu100ns = CurrentThreadCpu100ns() - startedCpu100ns_;
+        const auto elapsedNs = std::chrono::duration_cast<std::chrono::nanoseconds>(now - startedAt_).count();
+        if (elapsedNs <= 0) {
+            reset();
+            return;
+        }
+
+        unsigned long long accountedCpu100ns = 0;
+        for (unsigned long long value : cpu100ns_) {
+            accountedCpu100ns += value;
+        }
+
+        std::array<std::size_t, static_cast<std::size_t>(RuntimeProfileSection::Count)> order = {};
+        for (std::size_t i = 0; i < order.size(); ++i) {
+            order[i] = i;
+        }
+        std::sort(order.begin(), order.end(), [&](std::size_t left, std::size_t right) {
+            return cpu100ns_[left] > cpu100ns_[right];
+        });
+
+        const double elapsedMs = static_cast<double>(elapsedNs) / 1000000.0;
+        const double elapsedSeconds = static_cast<double>(elapsedNs) / 1000000000.0;
+        const double totalCpuMs = static_cast<double>(totalCpu100ns) / 10000.0;
+        const double accountedCpuMs = static_cast<double>(accountedCpu100ns) / 10000.0;
+        const double unaccountedCpuMs = static_cast<double>(
+            totalCpu100ns > accountedCpu100ns ? totalCpu100ns - accountedCpu100ns : 0) / 10000.0;
+
+        std::ostringstream stream;
+        stream.setf(std::ios::fixed);
+        stream.precision(3);
+        stream << "SMU MacroRuntime profile: window_ms=" << elapsedMs
+               << " loops=" << loops_
+               << " loop_hz=" << (static_cast<double>(loops_) / elapsedSeconds)
+               << " thread_cpu_ms=" << totalCpuMs
+               << " thread_cpu_one_core_pct=" << (totalCpuMs * 100.0 / elapsedMs)
+               << " accounted_cpu_ms=" << accountedCpuMs
+               << " unaccounted_cpu_ms=" << unaccountedCpuMs;
+
+        for (std::size_t rank = 0; rank < order.size(); ++rank) {
+            const std::size_t index = order[rank];
+            if (calls_[index] == 0 && cpu100ns_[index] == 0 && wallNs_[index] == 0) {
+                continue;
+            }
+
+            const double sectionCpuMs = static_cast<double>(cpu100ns_[index]) / 10000.0;
+            const double sectionWallMs = static_cast<double>(wallNs_[index]) / 1000000.0;
+            stream << "\n  section=" << kRuntimeProfileSectionNames[index]
+                   << " calls=" << calls_[index]
+                   << " cpu_ms=" << sectionCpuMs
+                   << " cpu_pct_of_thread=" << (totalCpuMs > 0.0 ? sectionCpuMs * 100.0 / totalCpuMs : 0.0)
+                   << " wall_ms=" << sectionWallMs;
+        }
+
+        AppendRuntimeProfilerLog(stream.str());
+        reset();
+    }
+
+private:
+    void reset()
+    {
+        cpu100ns_.fill(0);
+        wallNs_.fill(0);
+        calls_.fill(0);
+        loops_ = 0;
+        startedAt_ = std::chrono::steady_clock::now();
+        startedCpu100ns_ = CurrentThreadCpu100ns();
+    }
+
+    std::array<unsigned long long, static_cast<std::size_t>(RuntimeProfileSection::Count)> cpu100ns_{};
+    std::array<unsigned long long, static_cast<std::size_t>(RuntimeProfileSection::Count)> wallNs_{};
+    std::array<unsigned long long, static_cast<std::size_t>(RuntimeProfileSection::Count)> calls_{};
+    bool enabled_ = false;
+    unsigned long long loops_ = 0;
+    std::chrono::steady_clock::time_point startedAt_{};
+    unsigned long long startedCpu100ns_ = 0;
+};
+
+class ScopedRuntimeProfile {
+public:
+    ScopedRuntimeProfile(RuntimeThreadProfiler& profiler, RuntimeProfileSection section)
+        : profiler_(profiler), section_(section), enabled_(profiler.enabled())
+    {
+        if (enabled_) {
+            startedAt_ = std::chrono::steady_clock::now();
+            startedCpu100ns_ = CurrentThreadCpu100ns();
+        }
+    }
+
+    ~ScopedRuntimeProfile()
+    {
+        if (!enabled_) {
+            return;
+        }
+
+        const unsigned long long endedCpu100ns = CurrentThreadCpu100ns();
+        const auto endedAt = std::chrono::steady_clock::now();
+        profiler_.add(section_,
+            endedCpu100ns > startedCpu100ns_ ? endedCpu100ns - startedCpu100ns_ : 0,
+            std::chrono::duration_cast<std::chrono::nanoseconds>(endedAt - startedAt_).count());
+    }
+
+private:
+    RuntimeThreadProfiler& profiler_;
+    RuntimeProfileSection section_;
+    bool enabled_ = false;
+    std::chrono::steady_clock::time_point startedAt_;
+    unsigned long long startedCpu100ns_ = 0;
+};
+
+#define SMU_CONCAT_RUNTIME_PROFILE_NAME_INNER(left, right) left##right
+#define SMU_CONCAT_RUNTIME_PROFILE_NAME(left, right) SMU_CONCAT_RUNTIME_PROFILE_NAME_INNER(left, right)
+#define SMU_PROFILE_RUNTIME_SECTION(profiler, section) \
+    ScopedRuntimeProfile SMU_CONCAT_RUNTIME_PROFILE_NAME(smuRuntimeProfileScope, __LINE__)((profiler), (section))
+#endif
 
 bool ShouldKeepRunning()
 {
@@ -65,6 +341,28 @@ void ReleaseZoomOrShift()
     if (!globalzoomin) {
         ReleaseKeyBinded(vk_shiftkey);
     }
+}
+
+bool LagSwitchConfigsEqual(const smu::platform::LagSwitchConfig& left, const smu::platform::LagSwitchConfig& right)
+{
+    return left.enabled == right.enabled &&
+        left.inboundHardBlock == right.inboundHardBlock &&
+        left.outboundHardBlock == right.outboundHardBlock &&
+        left.fakeLagEnabled == right.fakeLagEnabled &&
+        left.inboundFakeLag == right.inboundFakeLag &&
+        left.outboundFakeLag == right.outboundFakeLag &&
+        left.fakeLagDelayMs == right.fakeLagDelayMs &&
+        left.targetRobloxOnly == right.targetRobloxOnly &&
+        left.useUdp == right.useUdp &&
+        left.useTcp == right.useTcp &&
+        left.preventDisconnect == right.preventDisconnect &&
+        left.autoUnblock == right.autoUnblock &&
+        left.maxDurationSeconds == right.maxDurationSeconds &&
+        left.unblockDurationMs == right.unblockDurationMs &&
+        left.targetMode == right.targetMode &&
+        left.remoteIps == right.remoteIps &&
+        left.remotePorts == right.remotePorts &&
+        left.includeRobloxDynamicIps == right.includeRobloxDynamicIps;
 }
 
 } // namespace
@@ -188,25 +486,51 @@ void MacroRuntime::stop()
 void MacroRuntime::controllerLoop()
 {
     nextProcessRefresh_ = std::chrono::steady_clock::now();
+#if defined(_WIN32)
+    RuntimeThreadProfiler runtimeProfiler;
+#endif
 
     while (running_.load(std::memory_order_acquire) && ShouldKeepRunning()) {
-        resetInputPollCache();
-        refreshTargetProcesses();
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::ResetInputCache);
+#endif
+            resetInputPollCache();
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::RefreshProcesses);
+#endif
+            refreshTargetProcesses();
+        }
 
         if (g_keybindCaptureActive.load(std::memory_order_acquire)) {
             if (freezeSuspended_) {
                 setTargetSuspended(false);
             }
-            // std::this_thread::sleep_for(5ms);
+            std::this_thread::sleep_for(5ms);
+#if defined(_WIN32)
+            runtimeProfiler.finishLoop();
+#endif
             continue;
         }
 
         if (g_suppressHotkeysUntilRelease.load(std::memory_order_acquire)) {
-            if (anyInputPressedForHotkeySuppression()) {
+            bool anyInputPressed = false;
+            {
+#if defined(_WIN32)
+                SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::HotkeySuppression);
+#endif
+                anyInputPressed = anyInputPressedForHotkeySuppression();
+            }
+            if (anyInputPressed) {
                 if (freezeSuspended_) {
                     setTargetSuspended(false);
                 }
-                // std::this_thread::sleep_for(5ms);
+                std::this_thread::sleep_for(5ms);
+#if defined(_WIN32)
+                runtimeProfiler.finishLoop();
+#endif
                 continue;
             }
 
@@ -218,36 +542,137 @@ void MacroRuntime::controllerLoop()
             if (freezeSuspended_) {
                 setTargetSuspended(false);
             }
-            // std::this_thread::sleep_for(5ms);
+            std::this_thread::sleep_for(5ms);
+#if defined(_WIN32)
+            runtimeProfiler.finishLoop();
+#endif
             continue;
         }
 
-        pruneFinishedWorkers();
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::PruneWorkers);
+#endif
+            pruneFinishedWorkers();
+        }
 
         auto foregroundForEnabledSection = [&](int sectionIndex) {
             return !section_toggles[sectionIndex] || foregroundAllows(disable_outside_roblox[sectionIndex]);
         };
 
-        processFreezeMacro(foregroundForEnabledSection(0));
-        processItemDesyncMacro(foregroundForEnabledSection(1));
-        processPressKeyMacros(true);
-        processWallhopMacros(true);
-        processWallessLhjMacro(foregroundForEnabledSection(7));
-        processSpeedglitchMacro(foregroundForEnabledSection(3));
-        processHhjMacro(foregroundForEnabledSection(2));
-        processHhjMotionLoop();
-        processItemUnequipComOffsetMacro(foregroundForEnabledSection(4));
-        processItemClipMacro(foregroundForEnabledSection(8));
-        processLaughClipMacro(foregroundForEnabledSection(9));
-        processWallWalkMacro(foregroundForEnabledSection(10));
-        processSpamKeyMacros();
-        processLedgeBounceMacro(foregroundForEnabledSection(12));
-        processBunnyhopMacro(foregroundForEnabledSection(13));
-        processFloorBounceMacro(foregroundForEnabledSection(14));
-        processLagSwitchMacro(foregroundForEnabledSection(15));
-        processImportedScripts();
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::Freeze);
+#endif
+            processFreezeMacro(foregroundForEnabledSection(0));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::ItemDesync);
+#endif
+            processItemDesyncMacro(foregroundForEnabledSection(1));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::PressKey);
+#endif
+            processPressKeyMacros(true);
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::Wallhop);
+#endif
+            processWallhopMacros(true);
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::WallessLhj);
+#endif
+            processWallessLhjMacro(foregroundForEnabledSection(7));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::Speedglitch);
+#endif
+            processSpeedglitchMacro(foregroundForEnabledSection(3));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::Hhj);
+#endif
+            processHhjMacro(foregroundForEnabledSection(2));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::HhjMotion);
+#endif
+            processHhjMotionLoop();
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::ItemUnequip);
+#endif
+            processItemUnequipComOffsetMacro(foregroundForEnabledSection(4));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::ItemClip);
+#endif
+            processItemClipMacro(foregroundForEnabledSection(8));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::LaughClip);
+#endif
+            processLaughClipMacro(foregroundForEnabledSection(9));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::WallWalk);
+#endif
+            processWallWalkMacro(foregroundForEnabledSection(10));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::SpamKey);
+#endif
+            processSpamKeyMacros();
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::LedgeBounce);
+#endif
+            processLedgeBounceMacro(foregroundForEnabledSection(12));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::Bunnyhop);
+#endif
+            processBunnyhopMacro(foregroundForEnabledSection(13));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::FloorBounce);
+#endif
+            processFloorBounceMacro(foregroundForEnabledSection(14));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::LagSwitch);
+#endif
+            processLagSwitchMacro(foregroundForEnabledSection(15));
+        }
+        {
+#if defined(_WIN32)
+            SMU_PROFILE_RUNTIME_SECTION(runtimeProfiler, RuntimeProfileSection::ImportedScripts);
+#endif
+            processImportedScripts();
+        }
 
-        std::this_thread::sleep_for(1ms);
+        std::this_thread::sleep_for(2ms);
+#if defined(_WIN32)
+        runtimeProfiler.finishLoop();
+#endif
     }
 
     if (freezeSuspended_) {
@@ -1001,7 +1426,13 @@ void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)
 void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 {
     if (!section_toggles[15]) {
+        if (lagSwitchWasPressed_ || hasLastLagSwitchConfig_) {
+            if (auto backend = smu::platform::GetNetworkLagBackend()) {
+                backend->setBlockingActive(false);
+            }
+        }
         lagSwitchWasPressed_ = false;
+        hasLastLagSwitchConfig_ = false;
         return;
     }
 
@@ -1053,7 +1484,7 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
         }
     }
 
-    smu::platform::LagSwitchConfig config = backend->config();
+    smu::platform::LagSwitchConfig config;
     config.enabled = bWinDivertEnabled;
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
@@ -1069,7 +1500,11 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
     config.autoUnblock = lagswitch_autounblock;
     config.maxDurationSeconds = lagswitch_max_duration;
     config.unblockDurationMs = lagswitch_unblock_ms;
-    backend->setConfig(config);
+    if (!hasLastLagSwitchConfig_ || !LagSwitchConfigsEqual(config, lastLagSwitchConfig_)) {
+        backend->setConfig(config);
+        lastLagSwitchConfig_ = config;
+        hasLastLagSwitchConfig_ = true;
+    }
 
     if (islagswitchswitch) {
         if (pressed && !lagSwitchWasPressed_) {

@@ -65,6 +65,7 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
   (To receive generated logs)
   - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
   - Linux: Run using `DEBUG=1 ./suspend`.
+  - Developer-only MacroRuntime performance profiling on Windows: set `SMU_MACRORUNTIME_PERF=1` before launching. This appends `SMU MacroRuntime profile` blocks to `SMC.log` every few seconds.
 
 ## Compilation
 
