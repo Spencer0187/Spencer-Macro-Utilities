@@ -4,7 +4,7 @@
 
 #include "../../core/legacy_globals.h"
 #include "../process_backend.h"
-#include "logzz.hpp"
+#include "RoLogParser.h"
 #include "resource.h"
 
 #include <iphlpapi.h>
@@ -14,9 +14,9 @@
 #include <fstream>
 #include <filesystem>
 #include <string> 
-#include <regex>
 #include <shlobj.h>
 #include <atomic>
+#include <memory>
 #include <set>
 
 // NEW INCLUDES FOR LAG QUEUE
@@ -193,6 +193,48 @@ bool RefreshTargetUdpPorts()
     }
     g_process_udp_ports = ports;
     return true;
+}
+
+std::string FindNewestRobloxLogFile(const std::filesystem::path& logsFolder)
+{
+    namespace fs = std::filesystem;
+
+    std::error_code ec;
+    if (!fs::exists(logsFolder, ec) || ec || !fs::is_directory(logsFolder, ec) || ec) {
+        return {};
+    }
+
+    std::string newestLogFile;
+    fs::file_time_type newestTime{};
+    bool foundFile = false;
+
+    try {
+        for (const auto& entry : fs::directory_iterator(logsFolder, ec)) {
+            if (ec) {
+                return {};
+            }
+
+            if (!entry.is_regular_file(ec) || ec) {
+                continue;
+            }
+
+            const auto fileTime = entry.last_write_time(ec);
+            if (ec) {
+                continue;
+            }
+
+            if (!foundFile || fileTime > newestTime) {
+                newestLogFile = entry.path().string();
+                newestTime = fileTime;
+                foundFile = true;
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "[RoLogParser] Filesystem error: " << e.what() << std::endl;
+        return {};
+    }
+
+    return newestLogFile;
 }
 
 std::set<int> TargetUdpPortsSnapshot()
@@ -597,21 +639,16 @@ void DelaySenderWorker() {
 }
 
 void RobloxLogScannerThread() {
-    namespace fs = std::filesystem;
     char localAppData[MAX_PATH];
-    
-    // 1. Configure logzz paths
-    if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData) == S_OK) {
-        std::string base = std::string(localAppData) + "\\Roblox";
-        logzz::logs_folder_path = base + "\\logs";
-        logzz::local_storage_folder_path = base + "\\LocalStorage";
-        
-        // Optional: Load user info if available/needed
-        logzz::load_user_info();
-    } else {
-        std::cerr << "Could not find LocalAppData for Logzz configuration." << std::endl;
+
+    if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localAppData) != S_OK) {
+        std::cerr << "Could not find LocalAppData for RoLogParser configuration." << std::endl;
         return;
     }
+
+    const std::filesystem::path logsFolder = std::filesystem::path(localAppData) / "Roblox" / "logs";
+    std::string activeLogFile;
+    std::unique_ptr<RoLogObject, decltype(&RoLogFreeObject)> logObject(nullptr, RoLogFreeObject);
 
     while (g_windivert_running.load(std::memory_order_relaxed))
     {
@@ -626,22 +663,44 @@ void RobloxLogScannerThread() {
             SafeCloseWinDivert();
         }
 
-        // 2. Call Library Handle
-        state s = logzz::loop_handle();
+        const std::string newestLogFile = FindNewestRobloxLogFile(logsFolder);
+        if (newestLogFile.empty()) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
 
-        if (s == IN_GAME) {
+        if (!logObject || newestLogFile != activeLogFile) {
+            activeLogFile = newestLogFile;
+            logObject.reset(RoLogCreateObject(activeLogFile.c_str()));
+            if (!logObject) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+        }
+
+        const RoLogParseRes parseResult = RoLogParse(logObject.get());
+        if (parseResult != ROLOGSUCCESS) {
+            std::cerr << "[RoLogParser] Could not parse Roblox log: " << activeLogFile << std::endl;
+            logObject.reset();
+            activeLogFile.clear();
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+
+        if (logObject->current_state == ROLOG_IN_GAME) {
             bool new_ip_found = false;
 
             // Update Connection Type State
-            if (logzz::server_uses_udmux) {
+            if (logObject->serverObj && logObject->serverObj->serverType == ROLOGUDMUXSERVER) {
                 g_is_using_rcc = false;
-            } else {
+            } else if (logObject->serverObj && logObject->serverObj->serverType == ROLOGRCCSERVER) {
                 std::cout << "RCC Server Found, Switching logic to ten-second pulse logic";
                 g_is_using_rcc = true;
             }
 
             // Helper lambda to process IPs with specific labels
-            auto process_ip = [&](const std::string& ip, const std::string& label) {
+            auto process_ip = [&](const char* ip, const std::string& label) {
+                if (!ip) return;
                 if (!IsValidRobloxIP(ip)) return;
 
                 std::unique_lock lock(g_ip_mutex);
@@ -653,12 +712,14 @@ void RobloxLogScannerThread() {
             };
 
             // Process UDMUX
-            if (logzz::server_uses_udmux) {
-                process_ip(logzz::server_udmux_address, "UDMUX");
+            if (logObject->serverObj && logObject->serverObj->serverType == ROLOGUDMUXSERVER) {
+                process_ip(logObject->serverObj->serverIPUDMUX, "UDMUX");
             }
 
             // Process RCC (RakNet)
-            process_ip(logzz::server_rcc_address, "RCC");
+            if (logObject->serverObj) {
+                process_ip(logObject->serverObj->serverIPRCC, "RCC");
+            }
 
             if (new_ip_found && bWinDivertEnabled) {
                 SafeCloseWinDivert();
