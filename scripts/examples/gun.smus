@@ -1,0 +1,143 @@
+-- @name: Prison Life gun macro
+-- @desc: shoot really fast
+-- @author: Floofy
+-- @version: 1.3
+-- @keybind: Mouse X1
+
+function onSettings()
+  ui.sliderInt("actionSpeed", "slotSpeed", 8, 60, 1, 260)
+  ui.sliderInt("actionShootSpeed", "shootSpeed", 8, 60, 1, 260)
+
+  ui.checkbox("actionReload", "autoReload", 0, 100)
+  ui.checkbox("actionUnequip", "unequip", 1, 100)
+  ui.checkbox("actionFastBreak", "fastBreak", 1, 100)
+
+  ui.checkbox("actionSlota", "Slot1", 1, 60)
+  ui.checkbox("actionSlotb", "Slot2", 1, 60)
+  ui.checkbox("actionSlotc", "Slot3", 1, 60)
+  ui.checkbox("actionSlotd", "Slot4", 1, 60)
+end
+
+fired = {}
+
+function markFired(slot)
+  fired[slot] = true
+end
+
+function clearFired()
+  fired = {}
+end
+
+function reloadSlot(slot, reloadSpeed)
+  if cc ~= slot then
+    pressKey(slot, 5)
+    sleep(reloadSpeed)
+  end
+
+  pressKey("R", 5)
+  sleep(reloadSpeed)
+
+  cc = slot
+end
+
+function doReload()
+  local reloadSpeed = settings.actionSpeed
+
+  if fired["1"] then
+    reloadSlot("1", reloadSpeed)
+  end
+
+  if fired["2"] then
+    reloadSlot("2", reloadSpeed)
+  end
+
+  if fired["3"] then
+    reloadSlot("3", reloadSpeed)
+  end
+
+  if fired["4"] then
+    reloadSlot("4", reloadSpeed)
+  end
+end
+
+function shouldExit()
+  return settings.actionFastBreak
+    and not isHotkeyPressed(getScriptHotkey())
+end
+
+function exit()
+  local lastSlot = cc
+
+  if settings.actionReload then
+    doReload()
+  end
+
+  if lastSlot ~= nil and cc ~= lastSlot then
+    pressKey(lastSlot, 5)
+    sleep(settings.actionSpeed)
+    cc = lastSlot
+  end
+
+  if settings.actionUnequip and cc ~= nil then
+    pressKey(cc, 5)
+    sleep(settings.actionSpeed)
+  end
+
+  clearFired()
+end
+
+function doSlot(slot, enabled, shootSpeed, slotSpeed)
+  if shouldExit() then
+    exit()
+    return true
+  end
+
+  if enabled then
+    pressKey(slot, 5)
+
+    cc = slot
+
+    sleep(shootSpeed)
+
+    pressKey("LMB", 5)
+
+    markFired(slot)
+
+    sleep(slotSpeed)
+  end
+
+  return false
+end
+
+function onExecute()
+  local slotSpeed = settings.actionSpeed
+  local shootSpeed = settings.actionShootSpeed
+
+  cc = nil
+
+  clearFired()
+
+  while true do
+    if doSlot("1", settings.actionSlota, shootSpeed, slotSpeed) then
+      break
+    end
+
+    if doSlot("2", settings.actionSlotb, shootSpeed, slotSpeed) then
+      break
+    end
+
+    if doSlot("3", settings.actionSlotc, shootSpeed, slotSpeed) then
+      break
+    end
+
+    if doSlot("4", settings.actionSlotd, shootSpeed, slotSpeed) then
+      break
+    end
+
+    if not settings.actionFastBreak
+      and not isHotkeyPressed(getScriptHotkey()) then
+      exit()
+      break
+    end
+  end
+end
