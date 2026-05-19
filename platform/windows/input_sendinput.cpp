@@ -169,6 +169,11 @@ bool IsInjectedKeyboardEvent(const KBDLLHOOKSTRUCT& event)
 
 void UpdateBunnyhopPhysicalKeyState(WPARAM wParam, const KBDLLHOOKSTRUCT& event)
 {
+    if ((wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN || wParam == WM_KEYUP || wParam == WM_SYSKEYUP) &&
+        !IsInjectedKeyboardEvent(event)) {
+        g_realKeyboardActivitySerial.fetch_add(1, std::memory_order_release);
+    }
+
     const unsigned int configuredKey = vk_bunnyhopkey & HOTKEY_KEY_MASK;
     if (configuredKey == 0 ||
         configuredKey == smu::core::SMU_VK_MOUSE_WHEEL_UP ||

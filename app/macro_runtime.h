@@ -51,6 +51,7 @@ private:
     void processSpamKeyMacros();
     void processLedgeBounceMacro(bool foregroundAllowed);
     void processBunnyhopMacro(bool foregroundAllowed);
+    void processAntiAfkMacro();
     void processFloorBounceMacro(bool foregroundAllowed);
     void processLagSwitchMacro(bool foregroundAllowed);
     void processImportedScripts();
@@ -104,6 +105,9 @@ private:
     std::chrono::steady_clock::time_point lagSwitchStartTime_{};
     bool bunnyhopRunning_ = false;
     bool bunnyhopChatLocked_ = false;
+    bool antiAfkTimerArmed_ = false;
+    std::uint64_t antiAfkLastKeyboardSerialSeen_ = 0;
+    std::chrono::steady_clock::time_point antiAfkLastActivity_{};
     std::atomic<bool> bunnyhopWorkerActive_{false};
     std::atomic<bool> itemUnequipWorkerActive_{false};
     std::atomic<bool> laughClipWorkerActive_{false};

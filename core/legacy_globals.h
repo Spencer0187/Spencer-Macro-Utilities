@@ -303,6 +303,7 @@ namespace Globals {
     inline std::atomic<bool> ispresskeythread{ false };
     inline std::atomic<bool> isfloorbouncethread{ false };
     inline std::atomic<bool> g_isVk_BunnyhopHeldDown{ false };
+    inline std::atomic<std::uint64_t> g_realKeyboardActivitySerial{ 0 };
 
     // Bitmasks for key combinations (High bits of 32-bit int)
     constexpr unsigned int HOTKEY_MASK_SHIFT = smu::core::HOTKEY_MASK_SHIFT;
