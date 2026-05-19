@@ -308,6 +308,100 @@ private:
     ScopedRuntimeProfile SMU_CONCAT_RUNTIME_PROFILE_NAME(smuRuntimeProfileScope, __LINE__)((profiler), (section))
 #endif
 
+#if defined(_WIN32)
+struct ProcessWindowSearchContext {
+    const std::vector<unsigned int>* pids = nullptr;
+    HWND window = nullptr;
+    FILETIME creationTime = {};
+    bool foundAny = false;
+};
+
+bool IsMainWindow(HWND hwnd)
+{
+    return IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == nullptr;
+}
+
+BOOL CALLBACK FindNewestProcessWindowCallback(HWND hwnd, LPARAM lParam)
+{
+    auto* context = reinterpret_cast<ProcessWindowSearchContext*>(lParam);
+    if (!IsMainWindow(hwnd)) {
+        return TRUE;
+    }
+
+    DWORD windowPid = 0;
+    GetWindowThreadProcessId(hwnd, &windowPid);
+    if (!context->pids) {
+        return TRUE;
+    }
+
+    if (std::find(context->pids->begin(), context->pids->end(), static_cast<unsigned int>(windowPid)) == context->pids->end()) {
+        return TRUE;
+    }
+
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, windowPid);
+    if (!process) {
+        return TRUE;
+    }
+
+    FILETIME creation = {};
+    FILETIME exitTime = {};
+    FILETIME kernel = {};
+    FILETIME user = {};
+    if (GetProcessTimes(process, &creation, &exitTime, &kernel, &user)) {
+        if (!context->foundAny ||
+            CompareFileTime(&creation, &context->creationTime) > 0) {
+            context->creationTime = creation;
+            context->window = hwnd;
+            context->foundAny = true;
+        }
+    }
+
+    CloseHandle(process);
+    return TRUE;
+}
+
+HWND FindNewestProcessWindow(const std::vector<unsigned int>& pids)
+{
+    ProcessWindowSearchContext context{};
+    context.pids = &pids;
+    EnumWindows(FindNewestProcessWindowCallback, reinterpret_cast<LPARAM>(&context));
+    return context.window;
+}
+
+bool TapWindowCenter(HWND window)
+{
+    if (!window) {
+        return false;
+    }
+
+    RECT rect = {};
+    if (!GetWindowRect(window, &rect)) {
+        return false;
+    }
+
+    POINT originalMousePos = {};
+    const bool hasOriginalMousePos = GetCursorPos(&originalMousePos) != FALSE;
+
+    const int centerX = rect.left + (rect.right - rect.left) / 2;
+    const int centerY = rect.top + (rect.bottom - rect.top) / 2;
+    SetCursorPos(centerX, centerY);
+
+    INPUT mouseInput = {};
+    mouseInput.type = INPUT_MOUSE;
+    mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    SendInput(1, &mouseInput, sizeof(INPUT));
+    std::this_thread::sleep_for(50ms);
+    mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    SendInput(1, &mouseInput, sizeof(INPUT));
+
+    if (hasOriginalMousePos) {
+        std::this_thread::sleep_for(100ms);
+        SetCursorPos(originalMousePos.x, originalMousePos.y);
+    }
+    return true;
+}
+#endif
+
 bool ShouldKeepRunning()
 {
     return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
@@ -451,6 +545,8 @@ void MacroRuntime::start()
         return;
     }
 
+    antiAfkTimerArmed_ = false;
+    antiAfkLastKeyboardSerialSeen_ = 0;
     LogInfo("Portable macro runtime starting.");
     controllerThread_ = std::thread(&MacroRuntime::controllerLoop, this);
 }
@@ -465,6 +561,8 @@ void MacroRuntime::stop()
     isbhoploop.store(false, std::memory_order_release);
     g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
     bunnyhopWorkerActive_.store(false, std::memory_order_release);
+    antiAfkTimerArmed_ = false;
+    antiAfkLastKeyboardSerialSeen_ = 0;
 
     if (controllerThread_.joinable()) {
         controllerThread_.join();
@@ -537,6 +635,8 @@ void MacroRuntime::controllerLoop()
             g_suppressHotkeysUntilRelease.store(false, std::memory_order_release);
             notbinding.store(true, std::memory_order_release);
         }
+
+        processAntiAfkMacro();
 
         if (!macrotoggled || !notbinding.load(std::memory_order_acquire)) {
             if (freezeSuspended_) {
@@ -1386,6 +1486,121 @@ void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
             runBunnyhopWorker();
         });
     }
+}
+
+void MacroRuntime::processAntiAfkMacro()
+{
+#if defined(_WIN32)
+    if (!antiafktoggle || !processFound || !notbinding.load(std::memory_order_acquire)) {
+        antiAfkTimerArmed_ = false;
+        antiAfkLastKeyboardSerialSeen_ = 0;
+        return;
+    }
+
+    auto backend = smu::platform::GetProcessBackend();
+    if (!backend) {
+        antiAfkTimerArmed_ = false;
+        antiAfkLastKeyboardSerialSeen_ = 0;
+        return;
+    }
+
+    const auto pids = currentTargetPids();
+    if (pids.empty()) {
+        antiAfkTimerArmed_ = false;
+        antiAfkLastKeyboardSerialSeen_ = 0;
+        return;
+    }
+
+    bool robloxForeground = false;
+    for (unsigned int pid : pids) {
+        if (backend->isForegroundProcess(pid)) {
+            robloxForeground = true;
+            break;
+        }
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    const std::uint64_t keyboardSerial = g_realKeyboardActivitySerial.load(std::memory_order_acquire);
+    if (!antiAfkTimerArmed_) {
+        antiAfkTimerArmed_ = true;
+        antiAfkLastActivity_ = now;
+        antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
+    }
+
+    if (robloxForeground && keyboardSerial != antiAfkLastKeyboardSerialSeen_) {
+        antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
+        antiAfkLastActivity_ = now;
+    }
+
+    const int antiAfkMinutes = std::max(1, AntiAFKTime);
+    const auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - antiAfkLastActivity_).count();
+    if (elapsedMinutes < antiAfkMinutes) {
+        return;
+    }
+
+    const unsigned int afkKey = vk_afkkey;
+    if ((afkKey & HOTKEY_KEY_MASK) == 0) {
+        antiAfkLastActivity_ = now;
+        return;
+    }
+
+    auto pressAntiAfkKey = [this, afkKey]() {
+        if (doublepressafkkey) {
+            HoldKeyBinded(afkKey);
+            std::this_thread::sleep_for(20ms);
+            ReleaseKeyBinded(afkKey);
+            std::this_thread::sleep_for(20ms);
+            HoldKeyBinded(afkKey);
+            std::this_thread::sleep_for(20ms);
+            ReleaseKeyBinded(afkKey);
+        } else {
+            HoldKeyBinded(afkKey);
+            std::this_thread::sleep_for(20ms);
+            ReleaseKeyBinded(afkKey);
+        }
+    };
+
+    if (robloxForeground) {
+        pressAntiAfkKey();
+        antiAfkLastActivity_ = std::chrono::steady_clock::now();
+        antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
+        return;
+    }
+
+    HWND window = FindNewestProcessWindow(pids);
+    if (!window) {
+        antiAfkLastActivity_ = now;
+        return;
+    }
+
+    HWND originalForeground = GetForegroundWindow();
+    POINT originalMousePos = {};
+    const bool hasMousePos = GetCursorPos(&originalMousePos) != FALSE;
+
+    ShowWindow(window, SW_RESTORE);
+    SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    TapWindowCenter(window);
+    std::this_thread::sleep_for(500ms);
+    pressAntiAfkKey();
+    std::this_thread::sleep_for(200ms);
+
+    if (originalForeground) {
+        SetWindowPos(originalForeground, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        SetWindowPos(originalForeground, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        std::this_thread::sleep_for(50ms);
+        SetForegroundWindow(originalForeground);
+        std::this_thread::sleep_for(1s);
+    }
+    if (hasMousePos) {
+        SetCursorPos(originalMousePos.x, originalMousePos.y);
+    }
+
+    antiAfkLastActivity_ = std::chrono::steady_clock::now();
+#else
+    antiAfkTimerArmed_ = false;
+    antiAfkLastKeyboardSerialSeen_ = 0;
+#endif
 }
 
 void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)

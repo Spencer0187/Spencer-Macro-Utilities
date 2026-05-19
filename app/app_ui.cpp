@@ -1801,7 +1801,7 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     ImVec2 textSizeCalc = ImGui::CalcTextSize("Toggle Anti-AFK (?)");
     ImGui::InvisibleButton("##tooltip", textSizeCalc);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Anti-AFK only works on Windows right now due to Linux restraints.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, if the current active window is Roblox, it will press the \"\\\" key\ntwo times, which will toggle on and off UI navigation.");
+        ImGui::SetTooltip("Anti-AFK only works on Windows right now due to Linux restraints.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first.");
     }
     ImGui::SetCursorScreenPos(ImVec2(tooltipCursorPos.x + textSizeCalc.x, tooltipCursorPos.y));
     ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
