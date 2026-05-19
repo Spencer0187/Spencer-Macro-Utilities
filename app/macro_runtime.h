@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "../core/key_codes.h"
+#include "../platform/network_backend.h"
 
 namespace smu::platform {
 class InputBackend;
@@ -84,6 +85,7 @@ private:
     std::chrono::steady_clock::time_point nextProcessRefresh_{};
     std::chrono::steady_clock::time_point nextForegroundCheck_{};
     std::chrono::steady_clock::time_point freezeStartTime_{};
+    smu::platform::LagSwitchConfig lastLagSwitchConfig_{};
     bool cachedForegroundAllowed_ = true;
     bool freezeSuspended_ = false;
     bool freezeWasPressed_ = false;
@@ -98,6 +100,7 @@ private:
     bool ledgeBounceWasPressed_ = false;
     bool floorBounceWasPressed_ = false;
     bool lagSwitchWasPressed_ = false;
+    bool hasLastLagSwitchConfig_ = false;
     std::chrono::steady_clock::time_point lagSwitchStartTime_{};
     bool bunnyhopRunning_ = false;
     bool bunnyhopChatLocked_ = false;
