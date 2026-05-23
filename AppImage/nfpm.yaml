@@ -14,8 +14,8 @@ contents:
     dst: /usr/libexec/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
-  - src: ./staged/usr/libexec/spencer-macro-utilities/nethelper
-    dst: /usr/libexec/spencer-macro-utilities/nethelper
+  - src: ./staged/usr/bin/nethelper
+    dst: /usr/bin/nethelper
     file_info:
       mode: 0755
   - src: ./launcher/spencer-macro-utilities
