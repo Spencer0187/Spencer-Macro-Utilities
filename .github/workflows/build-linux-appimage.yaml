@@ -51,28 +51,39 @@ jobs:
       - name: Prepare packaging directory
         run: |
           rm -rf packaging
-          mkdir -p packaging/staged
+          mkdir -p packaging/staged/usr/bin
+          mkdir -p packaging/staged/usr/libexec/spencer-macro-utilities
+          mkdir -p packaging/staged/usr/lib
+          mkdir -p packaging/staged/usr/share/spencer-macro-utilities/scripts
+          mkdir -p packaging/staged/usr/share/doc/spencer-macro-utilities
           mkdir -p packaging/AppImage
+          mkdir -p packaging/assets
+          mkdir -p packaging/launcher
 
-          cp -a build/linux-appimage/AppDir/usr packaging/staged/usr
+          cp -a build/linux-appimage/AppDir/usr/lib/. packaging/staged/usr/lib/
+          cp -a build/linux-appimage/AppDir/usr/share/. packaging/staged/usr/share/
 
-          # Put nethelper next to suspend (same bin dir)
-          cp build/go-bin/nethelper packaging/staged/usr/bin/nethelper
-          chmod +x packaging/staged/usr/bin/nethelper
+          cp build/linux-appimage/AppDir/usr/bin/suspend \
+             packaging/staged/usr/bin/suspend
+          chmod +x packaging/staged/usr/bin/suspend
+
+          cp build/go-bin/nethelper \
+             packaging/staged/usr/libexec/spencer-macro-utilities/nethelper
+          chmod +x packaging/staged/usr/libexec/spencer-macro-utilities/nethelper
 
           cp build/linux-appimage/Spencer-Macro-Utilities-x86_64.AppImage \
              packaging/AppImage/Spencer-Macro-Utilities-x86_64.AppImage
 
           cp AppImage/SMU.desktop packaging/AppImage/spencer-macro-utilities.desktop
           cp AppImage/SMU.png     packaging/AppImage/SMU.png
-          cp AppImage/postinstall.sh packaging/AppImage/postinstall.sh
-          cp AppImage/postremove.sh  packaging/AppImage/postremove.sh
-          cp AppImage/launcher.sh  packaging/AppImage/launcher.sh
 
-          mkdir -p staged/usr/libexec/spencer-macro-utilities
+          cp AppImage/postinstall.sh packaging/postinstall.sh
+          cp AppImage/postremove.sh  packaging/postremove.sh
 
-          cp build/go-bin/nethelper \
-          staged/usr/libexec/spencer-macro-utilities/nethelper
+          cp AppImage/launcher.sh packaging/launcher/spencer-macro-utilities
+          chmod +x packaging/launcher/spencer-macro-utilities
+
+          cp -a AppImage/assets/. packaging/assets/ 2>/dev/null || true
 
       - name: Debug packaging contents
         run: find packaging -type f -print
