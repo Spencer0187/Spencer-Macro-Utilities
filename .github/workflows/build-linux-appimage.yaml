@@ -46,6 +46,8 @@ jobs:
 
       - name: Build AppImage
         run: |
+          cp build/go-bin/nethelper build/linux-appimage/AppDir/usr/bin/nethelper
+          chmod +x build/linux-appimage/AppDir/usr/bin/nethelper
           APPIMAGETOOL="$PWD/appimagetool.AppImage" bash scripts/package_appimage.sh
 
       - name: Prepare packaging directory
