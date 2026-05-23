@@ -1723,27 +1723,54 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 
     if (islagswitchswitch) {
         if (pressed && !lagSwitchWasPressed_) {
-            const bool nextActive = !backend->isBaseBlockingActive();
-            backend->setBlockingActive(nextActive);
-            if (nextActive) {
+            const bool nextActive = !backend->isBaseBlockingActive() || lagSwitchUnblocking_;
+            if (!lagSwitchUnblocking_) {
+                backend->setBlockingActive(nextActive);
+            }
+            if (nextActive && !lagSwitchUnblocking_) {
                 lagSwitchStartTime_ = std::chrono::steady_clock::now();
+                lagSwitchLastUnblockTime_ = lagSwitchStartTime_;
+                lagSwitchUnblocking_ = false;
             }
         }
     } else {
-        if (pressed && !backend->isBaseBlockingActive()) {
-            lagSwitchStartTime_ = std::chrono::steady_clock::now();
+        if (!lagSwitchUnblocking_) {
+            if (pressed && !backend->isBaseBlockingActive()) {
+                lagSwitchStartTime_ = std::chrono::steady_clock::now();
+                lagSwitchLastUnblockTime_ = lagSwitchStartTime_;
+            }
+            backend->setBlockingActive(pressed);
         }
-        backend->setBlockingActive(pressed);
     }
     lagSwitchWasPressed_ = pressed;
 
-    if (lagswitch_autounblock && backend->isBaseBlockingActive()) {
-        const auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - lagSwitchStartTime_).count();
-        if (elapsed >= lagswitch_max_duration) {
+    if (lagswitch_autounblock && (backend->isBaseBlockingActive() || lagSwitchUnblocking_)) {
+        const bool shouldPulse = islagswitchswitch
+            ? backend->isBaseBlockingActive() || lagSwitchUnblocking_
+            : pressed && (backend->isBaseBlockingActive() || lagSwitchUnblocking_);
+
+        if (!shouldPulse) {
+            lagSwitchUnblocking_ = false;
             backend->setBlockingActive(false);
+        } else if (!lagSwitchUnblocking_) {
+            const auto sinceLastUnblock = std::chrono::duration<float>(
+                std::chrono::steady_clock::now() - lagSwitchLastUnblockTime_).count();
+            if (sinceLastUnblock >= lagswitch_max_duration) {
+                lagSwitchUnblocking_ = true;
+                lagSwitchUnblockStartTime_ = std::chrono::steady_clock::now();
+                backend->setBlockingActive(false);
+            }
+        } else {
+            const auto unblockElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - lagSwitchUnblockStartTime_).count();
+            if (unblockElapsed >= lagswitch_unblock_ms) {
+                lagSwitchUnblocking_ = false;
+                lagSwitchLastUnblockTime_ = std::chrono::steady_clock::now();
+                backend->setBlockingActive(true);
+            }
         }
     }
-}
+    }
 
 void MacroRuntime::processImportedScripts()
 {
