@@ -2,10 +2,10 @@
 set -euo pipefail
 NETHELPER="/usr/bin/nethelper"
 TMP="/tmp/nethelper-$USER"
-cp "$NETHELPER" "$TMP"
-chmod +x "$TMP"
 
 if ! pgrep -x "nethelper" >/dev/null 2>&1; then
+  cp "$NETHELPER" "$TMP"
+  chmod +x "$TMP"
   pkexec "$TMP" &
 fi
 
