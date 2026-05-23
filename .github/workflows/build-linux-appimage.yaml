@@ -69,6 +69,11 @@ jobs:
           cp AppImage/postremove.sh  packaging/AppImage/postremove.sh
           cp AppImage/launcher.sh  packaging/AppImage/launcher.sh
 
+          mkdir -p staged/usr/libexec/spencer-macro-utilities
+
+          cp build/go-bin/nethelper \
+          staged/usr/libexec/spencer-macro-utilities/nethelper
+
       - name: Debug packaging contents
         run: find packaging -type f -print
 
