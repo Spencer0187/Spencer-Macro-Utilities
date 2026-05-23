@@ -6,7 +6,7 @@ export SMU_APPDIR="$HERE"
 export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 NETHELPER_TMP="/tmp/nethelper-$USER"
-cp "$HERE/usr/libexec/spencer-macro-utilities/nethelper" "$NETHELPER_TMP"
+cp "$HERE/usr/bin/nethelper" "$NETHELPER_TMP"
 chmod +x "$NETHELPER_TMP"
 
 if ! pgrep -x "nethelper" >/dev/null 2>&1; then
