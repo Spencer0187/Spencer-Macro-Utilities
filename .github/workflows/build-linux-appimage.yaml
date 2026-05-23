@@ -68,8 +68,8 @@ jobs:
           chmod +x packaging/staged/usr/bin/suspend
 
           cp build/go-bin/nethelper \
-             packaging/staged/usr/libexec/spencer-macro-utilities/nethelper
-          chmod +x packaging/staged/usr/libexec/spencer-macro-utilities/nethelper
+            build/linux-appimage/AppDir/usr/libexec/spencer-macro-utilities/nethelper
+          chmod +x build/linux-appimage/AppDir/usr/libexec/spencer-macro-utilities/nethelper
 
           cp build/linux-appimage/Spencer-Macro-Utilities-x86_64.AppImage \
              packaging/AppImage/Spencer-Macro-Utilities-x86_64.AppImage
