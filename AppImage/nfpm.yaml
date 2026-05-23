@@ -6,6 +6,7 @@ section: default
 priority: optional
 
 maintainer: FloofyIV <floofyiv9@proton.me>
+
 description: |
   An open source C++ Roblox Macro with many features.
 
@@ -18,17 +19,17 @@ contents:
     file_info:
       mode: 0755
 
-  - src: ./staged/usr/bin/nethelper
+  - src: ./staged/usr/libexec/nethelper
     dst: /usr/libexec/spencer-macro-utilities/nethelper
     file_info:
       mode: 0755
 
-  - src: ./AppImage/launcher.sh
+  - src: ./launcher/spencer-macro-utilities
     dst: /usr/bin/spencer-macro-utilities
     file_info:
       mode: 0755
 
-  - src: ./staged/usr/bin/assets
+  - src: ./packaging/assets
     dst: /usr/share/spencer-macro-utilities/assets
 
   - src: ./staged/usr/lib/
@@ -49,5 +50,5 @@ contents:
     dst: /usr/share/pixmaps/spencer-macro-utilities.png
 
 scripts:
-  postinstall: ./AppImage/postinstall.sh
-  postremove: ./AppImage/postremove.sh
+  postinstall: postinstall.sh
+  postremove: postremove.sh
