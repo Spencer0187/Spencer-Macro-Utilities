@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
+HERE="$(dirname "$(readlink -f "$0")")"
+export APPDIR="$HERE"
+export SMU_APPDIR="$HERE"
+export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-HERE="$(dirname "$(readlink -f "${0}")")"
+NETHELPER_TMP="/tmp/nethelper-$USER"
+cp "$HERE/usr/bin/nethelper" "$NETHELPER_TMP"
+chmod +x "$NETHELPER_TMP"
 
-export APPDIR="${APPDIR:-$HERE}"
-export SMU_APPDIR="${SMU_APPDIR:-$HERE}"
-export LD_LIBRARY_PATH="${HERE}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+if ! pgrep -x "nethelper" >/dev/null 2>&1; then
+  pkexec "$NETHELPER_TMP" &
+fi
 
-exec "${HERE}/usr/bin/suspend" "$@"
+exec "$HERE/usr/bin/suspend" "$@"
