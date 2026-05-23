@@ -68,6 +68,9 @@ private:
 
     std::atomic<bool> running_{false};
     std::thread controllerThread_;
+    bool lagSwitchUnblocking_ = false;
+    std::chrono::steady_clock::time_point lagSwitchUnblockStartTime_;
+    std::chrono::steady_clock::time_point lagSwitchLastUnblockTime_;
     mutable std::shared_ptr<smu::platform::InputBackend> inputPollBackend_;
     mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollKnown_{};
     mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollPressed_{};
