@@ -83,7 +83,7 @@ jobs:
           cp AppImage/launcher.sh packaging/launcher/spencer-macro-utilities
           chmod +x packaging/launcher/spencer-macro-utilities
 
-          cp -a AppImage/assets/. packaging/assets/ 2>/dev/null || true
+          cp -a assets/. packaging/assets/
 
       - name: Debug packaging contents
         run: find packaging -type f -print
