@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-NETHELPER="/usr/libexec/spencer-macro-utilities/nethelper"
+NETHELPER="/usr/bin/nethelper"
 TMP="/tmp/nethelper-$USER"
 cp "$NETHELPER" "$TMP"
 chmod +x "$TMP"
