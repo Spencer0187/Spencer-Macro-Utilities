@@ -16,7 +16,6 @@ pkexec "$NETHELPER_TMP" "$@" || {
   echo "[AppRun] nethelper failed or was cancelled"
 }
 
-# Optional: cleanup later (don’t block AppImage startup)
 (
   sleep 5
   rm -f "$NETHELPER_TMP"
