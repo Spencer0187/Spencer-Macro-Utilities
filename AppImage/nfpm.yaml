@@ -4,51 +4,38 @@ platform: linux
 version: 3.2.1
 section: default
 priority: optional
-
 maintainer: FloofyIV <floofyiv9@proton.me>
-
 description: |
   An open source C++ Roblox Macro with many features.
-
 vendor: FloofyIV
 homepage: https://spencermacro.vercel.app
-
 contents:
   - src: ./staged/usr/bin/suspend
-    dst: /usr/bin/suspend
+    dst: /usr/libexec/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
-
-  - src: ./staged/usr/libexec/nethelper
+  - src: ./staged/usr/libexec/spencer-macro-utilities/nethelper
     dst: /usr/libexec/spencer-macro-utilities/nethelper
     file_info:
       mode: 0755
-
   - src: ./launcher/spencer-macro-utilities
     dst: /usr/bin/spencer-macro-utilities
     file_info:
       mode: 0755
-
-  - src: ./packaging/assets
+  - src: ./assets
     dst: /usr/share/spencer-macro-utilities/assets
-
   - src: ./staged/usr/lib/
     dst: /usr/lib/
-
   - src: ./staged/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
     dst: /usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
     file_info:
       mode: 0755
-
   - src: ./staged/usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
     dst: /usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
-
   - src: ./AppImage/spencer-macro-utilities.desktop
     dst: /usr/share/applications/spencer-macro-utilities.desktop
-
   - src: ./AppImage/SMU.png
     dst: /usr/share/pixmaps/spencer-macro-utilities.png
-
 scripts:
   postinstall: postinstall.sh
   postremove: postremove.sh
