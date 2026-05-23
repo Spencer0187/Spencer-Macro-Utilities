@@ -7,5 +7,19 @@ export APPDIR="${APPDIR:-$HERE}"
 export SMU_APPDIR="${SMU_APPDIR:-$HERE}"
 export LD_LIBRARY_PATH="${HERE}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
-pkexec "${HERE}/usr/bin/nethelper" "$@" & disown
+NETHELPER_TMP="/tmp/nethelper-${USER}-${RANDOM}"
+
+cp "${HERE}/usr/bin/nethelper" "$NETHELPER_TMP"
+chmod +x "$NETHELPER_TMP"
+
+pkexec "$NETHELPER_TMP" "$@" || {
+  echo "[AppRun] nethelper failed or was cancelled"
+}
+
+# Optional: cleanup later (don’t block AppImage startup)
+(
+  sleep 5
+  rm -f "$NETHELPER_TMP"
+) &
+
 exec "${HERE}/usr/bin/suspend" "$@"
