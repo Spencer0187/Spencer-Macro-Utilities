@@ -19,9 +19,13 @@ cmake --build "$BUILD_DIR" --target suspend --parallel
 echo "Building nethelper (Go)..."
 NETHELPER_BIN="$BUILD_DIR/nethelper"
 
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
-  -o "$NETHELPER_BIN" \
-  "$ROOT_DIR/platform/linux/nethelper/"
+(
+  cd "$ROOT_DIR/platform/linux/nethelper"
+  go mod download
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+    -o "$NETHELPER_BIN" \
+    .
+)
 
 chmod 755 "$NETHELPER_BIN"
 
