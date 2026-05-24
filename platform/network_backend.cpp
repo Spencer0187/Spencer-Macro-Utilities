@@ -262,21 +262,21 @@ private:
         return std::string(buf).find("pong") != std::string::npos;
     }
 
-    void apply()
+void apply()
 {
     if (!available_) return;
 
     LagSwitchConfig cfg = effectiveConfig();
 
     std::string newCmd;
-    if (cfg.currentlyBlocking) {
+    if (!cfg.currentlyBlocking) {
+        newCmd = "reset";
+    } else if (cfg.inboundHardBlock || cfg.outboundHardBlock) {
         newCmd = "block"
             " in="  + std::to_string(cfg.inboundHardBlock  ? 1 : 0) +
             " out=" + std::to_string(cfg.outboundHardBlock ? 1 : 0) +
             " udp=" + std::to_string(cfg.useUdp            ? 1 : 0) +
             " tcp=" + std::to_string(cfg.useTcp            ? 1 : 0);
-    } else if (!cfg.enabled) {
-        newCmd = "reset";
     } else if (cfg.fakeLagEnabled) {
         newCmd = "lag"
             " delay=" + std::to_string(cfg.fakeLagDelayMs) +
