@@ -11,19 +11,21 @@ vendor: FloofyIV
 homepage: https://spencermacro.vercel.app
 contents:
   - src: ./staged/usr/bin/suspend
-    dst: /usr/libexec/spencer-macro-utilities/suspend
+    dst: /usr/share/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
   - src: ./staged/usr/bin/nethelper
     dst: /usr/bin/nethelper
     file_info:
       mode: 0755
+  - src: ./staged/usr/bin/assets/*
+    dst: /usr/share/spencer-macro-utilities/assets/
+  - src: ./staged/usr/bin/assets/macro_tutorials/*
+    dst: /usr/share/spencer-macro-utilities/assets/macro_tutorials/
   - src: ./launcher/spencer-macro-utilities
     dst: /usr/bin/spencer-macro-utilities
     file_info:
       mode: 0755
-  - src: ./assets
-    dst: /usr/share/spencer-macro-utilities/assets
   - src: ./staged/usr/lib/
     dst: /usr/lib/
   - src: ./staged/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh
@@ -37,5 +39,5 @@ contents:
   - src: ./AppImage/SMU.png
     dst: /usr/share/pixmaps/spencer-macro-utilities.png
 scripts:
-  postinstall: postinstall.sh
-  postremove: postremove.sh
+  postinstall: ./AppImage/postinstall.sh
+  postremove: ./AppImage/postremove.sh
