@@ -1316,7 +1316,7 @@ void RenderImportTrustModal()
 smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
 {
     smu::platform::LagSwitchConfig config;
-    config.enabled = bWinDivertEnabled;
+    config.enabled = true;
     config.currentlyBlocking = g_windivert_blocking.load(std::memory_order_relaxed);
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
@@ -1347,7 +1347,10 @@ bool InitializeLagSwitchBackend(std::string* errorMessage = nullptr)
 {
     SyncLagSwitchBackendConfig();
     if (auto backend = smu::platform::GetNetworkLagBackend()) {
-        const bool ok = backend->init(errorMessage);
+        const bool ok = backend->isAvailable();
+        if (!ok && errorMessage) {
+            *errorMessage = backend->unsupportedReason();
+        }
         bWinDivertEnabled = ok;
         return ok;
     }

@@ -15,6 +15,15 @@ cmake --build "$BUILD_DIR" --target package-linux-dir --parallel
 PACKAGE_DIR="$BUILD_DIR/SpencerMacroUtilities"
 SUSPEND_BIN="$PACKAGE_DIR/suspend"
 
+NETHELPER_BIN="$PACKAGE_DIR/nethelper"
+
+echo "Building nethelper..."
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+  -o "$NETHELPER_BIN" \
+  "$ROOT_DIR/platform/linux/nethelper/nethelper.go"
+
+chmod +x "$NETHELPER_BIN"
+
 echo
 echo "Portable folder: $PACKAGE_DIR"
 echo

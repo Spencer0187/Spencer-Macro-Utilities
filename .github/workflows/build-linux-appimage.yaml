@@ -2,11 +2,13 @@ name: Build Linux
 
 on:
   workflow_dispatch:
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Install dependencies
         run: |
@@ -18,11 +20,21 @@ jobs:
             libxinerama-dev libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev \
             libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev \
             libthai-dev golang-go
+
       - uses: actions/checkout@v4
+
+      - name: Build nethelper (Go)
+        run: |
+          mkdir -p build/go-bin
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+            -o build/go-bin/nethelper \
+            platform/linux/nethelper/nethelper.go
+
       - name: Install nfpm
         run: |
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
       - name: Download appimagetool
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,35 +43,58 @@ jobs:
           URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name == "appimagetool-x86_64.AppImage") | .browser_download_url')
           wget -O appimagetool.AppImage "$URL"
           chmod +x appimagetool.AppImage
+
       - name: Build AppImage
         run: |
           APPIMAGETOOL="$PWD/appimagetool.AppImage" bash scripts/package_appimage.sh
+
       - name: Prepare packaging directory
         run: |
           rm -rf packaging
-          mkdir -p packaging/staged
+          mkdir -p packaging/staged/usr/bin
+          mkdir -p packaging/staged/usr/lib
+          mkdir -p packaging/staged/usr/share/spencer-macro-utilities/scripts
+          mkdir -p packaging/staged/usr/share/doc/spencer-macro-utilities
           mkdir -p packaging/AppImage
+          mkdir -p packaging/launcher
 
-          cp -a build/linux-appimage/AppDir/usr packaging/staged/usr
+          cp -a build/linux-appimage/AppDir/usr/lib/. packaging/staged/usr/lib/
+          cp -a build/linux-appimage/AppDir/usr/share/. packaging/staged/usr/share/
+
+          cp build/linux-appimage/AppDir/usr/bin/suspend \
+             packaging/staged/usr/bin/suspend
+          chmod +x packaging/staged/usr/bin/suspend
+
+          cp -a build/linux-appimage/AppDir/usr/bin/assets packaging/staged/usr/bin/assets
+
+          cp build/go-bin/nethelper packaging/staged/usr/bin/nethelper
+          chmod +x packaging/staged/usr/bin/nethelper
 
           cp build/linux-appimage/Spencer-Macro-Utilities-x86_64.AppImage \
              packaging/AppImage/Spencer-Macro-Utilities-x86_64.AppImage
 
           cp AppImage/SMU.desktop packaging/AppImage/spencer-macro-utilities.desktop
           cp AppImage/SMU.png     packaging/AppImage/SMU.png
+
           cp AppImage/postinstall.sh packaging/AppImage/postinstall.sh
           cp AppImage/postremove.sh  packaging/AppImage/postremove.sh
-          cp AppImage/launcher.sh  packaging/AppImage/launcher.sh
+
+          cp AppImage/launcher.sh packaging/launcher/spencer-macro-utilities
+          chmod +x packaging/launcher/spencer-macro-utilities
+
       - name: Debug packaging contents
         run: find packaging -type f -print
+
       - name: Build deb
         run: |
           cd packaging
           nfpm pkg --packager deb --config ../AppImage/nfpm.yaml
+
       - name: Build rpm
         run: |
           cd packaging
           nfpm pkg --packager rpm --config ../AppImage/nfpm.yaml
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
