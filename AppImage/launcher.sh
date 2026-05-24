@@ -10,4 +10,4 @@ if ! pgrep -f "$TMP" >/dev/null 2>&1; then
   pkexec "$TMP" &
 fi
 
-exec /usr/libexec/spencer-macro-utilities/suspend "$@"
+exec /usr/share/spencer-macro-utilities/suspend "$@"
