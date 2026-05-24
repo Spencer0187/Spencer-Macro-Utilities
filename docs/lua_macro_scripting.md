@@ -13,7 +13,7 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Absolute mouse | yes | yes via X11 | no / limited |
 | Pixel reads | yes | yes via X11 | planned |
 | Freeze | yes | yes | yes |
-| Lag switch | yes | planned | planned |
+| Lag switch | yes | yes | yes |
 
 On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs, and the Linux lag-switch backend is not implemented yet.
 
