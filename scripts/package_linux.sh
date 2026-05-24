@@ -20,7 +20,7 @@ NETHELPER_BIN="$PACKAGE_DIR/nethelper"
 echo "Building nethelper..."
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
   -o "$NETHELPER_BIN" \
-  "$ROOT_DIR/platform/linux/nethelper/nethelper.go"
+  "$ROOT_DIR/platform/linux/nethelper/
 
 chmod +x "$NETHELPER_BIN"
 
