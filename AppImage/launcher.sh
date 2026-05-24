@@ -3,7 +3,7 @@ set -euo pipefail
 NETHELPER="/usr/bin/nethelper"
 TMP="/tmp/nethelper-$USER"
 
-if [ ! -S "/tmp/nethelper.sock" ]; then
+if ! pgrep -x "nethelper-$USER" >/dev/null 2>&1; then
   rm -f "$TMP"
   cp "$NETHELPER" "$TMP"
   chmod +x "$TMP"
