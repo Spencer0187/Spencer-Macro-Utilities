@@ -10,15 +10,12 @@ import (
 	"sync"
 
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 )
 
 const socketPath = "/tmp/nethelper.sock"
 
 var (
 	iface      string
-	nlHandle   *netlink.Handle
 	ipt        *iptables.IPTables
 	cmdMu      sync.Mutex
 	inFlightMu sync.Mutex
@@ -26,16 +23,15 @@ var (
 )
 
 func detectIface() string {
-	routes, err := nlHandle.RouteList(nil, netlink.FAMILY_V4)
+	out, err := exec.Command("ip", "-4", "route", "show", "default").Output()
 	if err != nil {
 		return "eth0"
 	}
-	for _, r := range routes {
-		if r.Dst == nil {
-			link, err := nlHandle.LinkByIndex(r.LinkIndex)
-			if err == nil {
-				return link.Attrs().Name
-			}
+	// "default via x.x.x.x dev ethX ..."
+	fields := strings.Fields(string(out))
+	for i, f := range fields {
+		if f == "dev" && i+1 < len(fields) {
+			return fields[i+1]
 		}
 	}
 	return "eth0"
@@ -51,40 +47,12 @@ func setupSocket() net.Listener {
 	return l
 }
 
-func ifb0Link() netlink.Link {
-	l, _ := nlHandle.LinkByName("ifb0")
-	return l
-}
-
-func delRootQdisc(link netlink.Link) {
-	_ = nlHandle.QdiscDel(&netlink.GenericQdisc{
-		QdiscAttrs: netlink.QdiscAttrs{
-			LinkIndex: link.Attrs().Index,
-			Handle:    netlink.MakeHandle(1, 0),
-			Parent:    netlink.HANDLE_ROOT,
-		},
-		QdiscType: "noqueue",
-	})
-}
-
 func resetAll() {
-	link, err := nlHandle.LinkByName(iface)
-	if err == nil {
-		delRootQdisc(link)
-		_ = nlHandle.QdiscDel(&netlink.Ingress{
-			QdiscAttrs: netlink.QdiscAttrs{
-				LinkIndex: link.Attrs().Index,
-				Handle:    netlink.MakeHandle(0xffff, 0),
-				Parent:    netlink.HANDLE_INGRESS,
-			},
-		})
-	}
-
-	if ifb := ifb0Link(); ifb != nil {
-		delRootQdisc(ifb)
-		_ = nlHandle.LinkSetDown(ifb)
-		_ = nlHandle.LinkDel(ifb)
-	}
+	exec.Command("tc", "qdisc", "del", "dev", iface, "root").Run()
+	exec.Command("tc", "qdisc", "del", "dev", iface, "ingress").Run()
+	exec.Command("tc", "qdisc", "del", "dev", "ifb0", "root").Run()
+	exec.Command("ip", "link", "set", "ifb0", "down").Run()
+	exec.Command("ip", "link", "del", "ifb0").Run()
 
 	_ = ipt.ClearChain("filter", "INPUT")
 	_ = ipt.ClearChain("filter", "OUTPUT")
@@ -130,75 +98,21 @@ func blockSelected(inbound, outbound, udp, tcp bool) {
 	}
 }
 
-func netemQdisc(linkIndex int, parent uint32, delayMs int) *netlink.Netem {
-	return &netlink.Netem{
-		QdiscAttrs: netlink.QdiscAttrs{
-			LinkIndex: linkIndex,
-			Handle:    netlink.MakeHandle(1, 0),
-			Parent:    parent,
-		},
-		Latency: uint32(delayMs) * 1000,
-	}
-}
-
 func lagSelected(delayMs int, inbound, outbound bool) {
-	link, err := nlHandle.LinkByName(iface)
-	if err != nil {
-		return
-	}
-
-	var wg sync.WaitGroup
+	delay := fmt.Sprintf("%dms", delayMs)
 
 	if outbound {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_ = nlHandle.QdiscReplace(netemQdisc(link.Attrs().Index, netlink.HANDLE_ROOT, delayMs))
-		}()
+		exec.Command("tc", "qdisc", "replace", "dev", iface, "root", "netem", "delay", delay).Run()
 	}
 
 	if inbound {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			ifb := &netlink.Ifb{LinkAttrs: netlink.LinkAttrs{Name: "ifb0"}}
-			_ = nlHandle.LinkAdd(ifb)
-			ifbLink, err := nlHandle.LinkByName("ifb0")
-			if err != nil {
-				return
-			}
-			_ = nlHandle.LinkSetUp(ifbLink)
-
-			_ = nlHandle.QdiscAdd(&netlink.Ingress{
-				QdiscAttrs: netlink.QdiscAttrs{
-					LinkIndex: link.Attrs().Index,
-					Handle:    netlink.MakeHandle(0xffff, 0),
-					Parent:    netlink.HANDLE_INGRESS,
-				},
-			})
-
-			_ = nlHandle.FilterAdd(&netlink.U32{
-				FilterAttrs: netlink.FilterAttrs{
-					LinkIndex: link.Attrs().Index,
-					Parent:    netlink.MakeHandle(0xffff, 0),
-					Priority:  1,
-					Protocol:  unix.ETH_P_IP,
-				},
-				Actions: []netlink.Action{
-					&netlink.MirredAction{
-						ActionAttrs:  netlink.ActionAttrs{Action: netlink.TC_ACT_STOLEN},
-						MirredAction: netlink.TCA_EGRESS_REDIR,
-						Ifindex:      ifbLink.Attrs().Index,
-					},
-				},
-			})
-
-			_ = nlHandle.QdiscReplace(netemQdisc(ifbLink.Attrs().Index, netlink.HANDLE_ROOT, delayMs))
-		}()
+		exec.Command("modprobe", "ifb").Run()
+		exec.Command("ip", "link", "add", "ifb0", "type", "ifb").Run()
+		exec.Command("ip", "link", "set", "ifb0", "up").Run()
+		exec.Command("tc", "qdisc", "add", "dev", iface, "ingress").Run()
+		exec.Command("tc", "filter", "add", "dev", iface, "parent", "ffff:", "protocol", "ip", "u32", "match", "u32", "0", "0", "action", "mirred", "egress", "redirect", "dev", "ifb0").Run()
+		exec.Command("tc", "qdisc", "replace", "dev", "ifb0", "root", "netem", "delay", delay).Run()
 	}
-
-	wg.Wait()
 }
 
 func dedup(key string, fn func()) {
@@ -274,12 +188,6 @@ func handle(conn net.Conn) {
 func main() {
 	var err error
 
-	nlHandle, err = netlink.NewHandle(unix.NETLINK_ROUTE)
-	if err != nil {
-		panic(fmt.Sprintf("netlink: %v", err))
-	}
-	defer nlHandle.Close()
-
 	ipt, err = iptables.New()
 	if err != nil {
 		panic(fmt.Sprintf("iptables: %v", err))
@@ -287,6 +195,7 @@ func main() {
 
 	exec.Command("modprobe", "ifb").Run()
 	iface = detectIface()
+	fmt.Printf("[daemon] iface: %s\n", iface)
 
 	l := setupSocket()
 	defer l.Close()
