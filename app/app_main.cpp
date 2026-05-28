@@ -202,7 +202,11 @@ void UpdateWindowMetrics(SDL_Window* window)
 WindowSize GetNativeMinimumWindowSize(SDL_Window* window)
 {
     (void)window;
-    return kMinimumRenderSize;
+    WindowSize minimumSize = kMinimumRenderSize;
+#if defined(__APPLE__)
+    minimumSize.width += 40;
+#endif
+    return minimumSize;
 }
 
 void ApplyWindowMinimumSize(SDL_Window* window)
