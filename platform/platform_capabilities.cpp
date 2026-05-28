@@ -5,6 +5,9 @@
 #if defined(__linux__)
 #include "linux/display_server.h"
 #include "linux/foreground_x11.h"
+#elif defined(__APPLE__)
+#include "macos/input_cgevent.h"
+#include "macos/permissions_macos.h"
 #endif
 
 namespace smu::platform {
@@ -46,6 +49,19 @@ PlatformCapabilities GetPlatformCapabilities()
     caps.canReadGlobalInput = true;
     caps.canUseNetworkLagSwitch = false;
     caps.canShowGlobalOverlay = false;
+#elif defined(__APPLE__)
+    caps.displayServer = "macos";
+    caps.canInjectGlobalInput =
+        macos::IsAccessibilityTrusted() && macos::IsMacosInputOutputInitialized();
+    caps.canReadGlobalInput = macos::IsMacosInputReadLoopInitialized();
+    caps.canDetectForegroundProcess = true;
+    caps.canSuspendProcesses = true;
+    caps.canUseNetworkLagSwitch = false;
+    caps.canShowGlobalOverlay = false;
+    if (!macos::IsAccessibilityTrusted()) {
+        caps.warnings.push_back(
+            "macOS Accessibility permission is required to send global macro input.");
+    }
 #else
     caps.warnings.push_back("Unsupported platform; no platform backends are available.");
 #endif

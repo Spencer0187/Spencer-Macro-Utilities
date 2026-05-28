@@ -168,7 +168,7 @@ UpdaterStatus CheckForUpdate(const std::string& localVersion)
     } else if (!status.selectedAsset) {
         status.message = "An update is available, but no matching package asset was found for this platform.";
     } else if (!status.autoApplySupported) {
-        status.message = "An update is available. Update check is supported, but auto-apply is not implemented for this platform yet.";
+        status.message = "An update is available, but automatic installation is not available in this launch mode.";
     } else {
         status.message = "An update is available.";
     }

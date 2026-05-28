@@ -13,6 +13,7 @@ set(SMU_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/core")
 set(SMU_PLATFORM_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 set(SMU_PLATFORM_WINDOWS_DIR "${SMU_PLATFORM_DIR}/windows")
 set(SMU_PLATFORM_LINUX_DIR "${SMU_PLATFORM_DIR}/linux")
+set(SMU_PLATFORM_MACOS_DIR "${SMU_PLATFORM_DIR}/macos")
 set(SMU_UPDATER_DIR "${SMU_PLATFORM_DIR}/updater")
 set(SMU_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 set(SMU_MACRO_TUTORIAL_ASSETS_DIR "${SMU_ASSETS_DIR}/macro_tutorials")
@@ -424,6 +425,185 @@ elseif(UNIX AND NOT APPLE)
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/lib"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/"
+        )
+    endif()
+elseif(APPLE)
+    enable_language(OBJCXX)
+
+    find_package(OpenGL REQUIRED)
+    find_package(Threads REQUIRED)
+    option(SMU_MACOS_ADHOC_SIGN_BUILD "Sign local macOS app bundles after building." ON)
+    set(SMU_MACOS_SIGN_IDENTITY "-" CACHE STRING "macOS code-signing identity for local builds; '-' uses ad-hoc signing. Official unsigned releases use the stable self-signed 'SMU macOS Release' identity.")
+    if(SMU_MACOS_ADHOC_SIGN_BUILD)
+        find_program(SMU_CODESIGN_EXECUTABLE codesign)
+    endif()
+
+    find_library(SMU_APPKIT_FRAMEWORK AppKit REQUIRED)
+    find_library(SMU_FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(SMU_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+    find_library(SMU_COREGRAPHICS_FRAMEWORK CoreGraphics REQUIRED)
+    find_library(SMU_APPLICATIONSERVICES_FRAMEWORK ApplicationServices REQUIRED)
+
+    set(SMU_VENDORED_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL")
+    if(EXISTS "${SMU_VENDORED_SDL3_DIR}/CMakeLists.txt")
+        message(STATUS "Using vendored SDL3 from ${SMU_VENDORED_SDL3_DIR}")
+
+        if(SMU_LINK_SDL3_STATIC)
+            set(SDL_SHARED OFF CACHE BOOL "Build a shared version of the library" FORCE)
+            set(SDL_STATIC ON CACHE BOOL "Build a static version of the library" FORCE)
+        else()
+            set(SDL_SHARED ON CACHE BOOL "Build a shared version of the library" FORCE)
+            set(SDL_STATIC OFF CACHE BOOL "Build a static version of the library" FORCE)
+        endif()
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "Build the SDL3_test library" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "Build the test directory" FORCE)
+        set(SDL_EXAMPLES OFF CACHE BOOL "Build the examples directory" FORCE)
+        set(SDL_INSTALL OFF CACHE BOOL "Enable installation of SDL3" FORCE)
+        set(SDL_INSTALL_DOCS OFF CACHE BOOL "Install docs for SDL3" FORCE)
+        set(SDL_INSTALL_TESTS OFF CACHE BOOL "Install test-cases" FORCE)
+        set(SDL_UNINSTALL OFF CACHE BOOL "Enable uninstallation of SDL3" FORCE)
+
+        add_subdirectory("${SMU_VENDORED_SDL3_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/_deps/sdl3-build" EXCLUDE_FROM_ALL)
+    else()
+        find_package(SDL3 REQUIRED CONFIG)
+    endif()
+
+    set(SMU_MACOS_ICON_ASSET "${SMU_ASSETS_DIR}/smu_icon.icns")
+    set_source_files_properties("${SMU_MACOS_ICON_ASSET}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
+
+    set(SMU_MACOS_PLATFORM_SOURCES
+        "${SMU_PLATFORM_DIR}/input_backend.cpp"
+        "${SMU_PLATFORM_DIR}/logging.cpp"
+        "${SMU_PLATFORM_DIR}/network_backend.cpp"
+        "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
+        "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
+        "${SMU_PLATFORM_DIR}/window_backend.cpp"
+        "${SMU_PLATFORM_MACOS_DIR}/app_icon_macos.mm"
+        "${SMU_PLATFORM_MACOS_DIR}/input_cgevent.mm"
+        "${SMU_PLATFORM_MACOS_DIR}/macos_backends.cpp"
+        "${SMU_PLATFORM_MACOS_DIR}/permissions_macos.mm"
+        "${SMU_PLATFORM_MACOS_DIR}/process_macos.mm"
+    )
+
+    add_library(smu_platform_macos STATIC ${SMU_MACOS_PLATFORM_SOURCES})
+
+    target_include_directories(smu_platform_macos PRIVATE
+        "${SMU_PLATFORM_DIR}"
+        "${SMU_PLATFORM_MACOS_DIR}"
+        "${SMU_IMGUI_DIR}"
+        "${SMU_MINIZ_DIR}"
+        "${SMU_JSON_DIR}"
+    )
+
+    target_link_libraries(smu_platform_macos PRIVATE Threads::Threads)
+
+    set(SMU_MACOS_APP_SOURCES
+        "${SMU_IMGUI_DIR}/imgui.cpp"
+        "${SMU_IMGUI_DIR}/imgui_demo.cpp"
+        "${SMU_IMGUI_DIR}/imgui_draw.cpp"
+        "${SMU_IMGUI_DIR}/imgui_impl_opengl3.cpp"
+        "${SMU_IMGUI_DIR}/imgui_impl_sdl3.cpp"
+        "${SMU_IMGUI_DIR}/imgui_tables.cpp"
+        "${SMU_IMGUI_DIR}/imgui_widgets.cpp"
+        "${SMU_APP_DIR}/app_assets.cpp"
+        "${SMU_APP_DIR}/app_context.cpp"
+        "${SMU_APP_DIR}/app_main.cpp"
+        "${SMU_APP_DIR}/app_profile_bridge.cpp"
+        "${SMU_APP_DIR}/app_theme_bridge.cpp"
+        "${SMU_APP_DIR}/app_ui.cpp"
+        "${SMU_APP_DIR}/input_actions.cpp"
+        "${SMU_APP_DIR}/macro_runtime.cpp"
+        "${SMU_APP_DIR}/macro_tutorial_assets.cpp"
+        "${SMU_APP_DIR}/main_macos.cpp"
+        "${SMU_APP_DIR}/profile_manager.cpp"
+        "${SMU_APP_DIR}/script_api.cpp"
+        "${SMU_APP_DIR}/script_instance.cpp"
+        "${SMU_APP_DIR}/script_manager.cpp"
+        "${SMU_APP_DIR}/script_metadata.cpp"
+        "${SMU_APP_DIR}/theme_manager.cpp"
+        "${SMU_CORE_DIR}/app_state.cpp"
+        "${SMU_CORE_DIR}/macro_state.cpp"
+        "${SMU_PLATFORM_DIR}/file_dialog.cpp"
+        "${SMU_UPDATER_DIR}/updater.cpp"
+        "${SMU_UPDATER_DIR}/macos_updater.cpp"
+        "${SMU_IMGUIFILEDIALOG_DIR}/ImGuiFileDialog.cpp"
+        "${SMU_MINIZ_DIR}/miniz.c"
+        "${SMU_MACOS_ICON_ASSET}"
+    )
+
+    add_executable(suspend MACOSX_BUNDLE ${SMU_MACOS_APP_SOURCES})
+
+    target_include_directories(suspend PRIVATE
+        "${SMU_APP_DIR}"
+        "${SMU_CORE_DIR}"
+        "${SMU_PLATFORM_DIR}"
+        "${SMU_PLATFORM_MACOS_DIR}"
+        "${SMU_IMGUI_DIR}"
+        "${SMU_IMGUIFILEDIALOG_DIR}"
+        "${SMU_MINIZ_DIR}"
+        "${SMU_JSON_DIR}"
+    )
+
+    target_compile_definitions(suspend PRIVATE
+        SMU_PORTABLE_GLOBALS=1
+        "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\""
+    )
+
+    if(SMU_LINK_SDL3_STATIC)
+        if(TARGET SDL3::SDL3-static)
+            set(SMU_SDL3_TARGET SDL3::SDL3-static)
+        elseif(TARGET SDL3-static)
+            set(SMU_SDL3_TARGET SDL3-static)
+        elseif(TARGET SDL3::SDL3)
+            set(SMU_SDL3_TARGET SDL3::SDL3)
+        else()
+            message(FATAL_ERROR "SMU_LINK_SDL3_STATIC is enabled, but no usable SDL3 static target is available.")
+        endif()
+    elseif(TARGET SDL3::SDL3)
+        set(SMU_SDL3_TARGET SDL3::SDL3)
+    elseif(TARGET SDL3::SDL3-shared)
+        set(SMU_SDL3_TARGET SDL3::SDL3-shared)
+    else()
+        message(FATAL_ERROR "SDL3 package was found, but no usable SDL3 imported target is available.")
+    endif()
+
+    target_link_libraries(suspend PRIVATE
+        lua_static
+        smu_platform_macos
+        ${SMU_SDL3_TARGET}
+        OpenGL::GL
+        Threads::Threads
+        ${SMU_APPKIT_FRAMEWORK}
+        ${SMU_FOUNDATION_FRAMEWORK}
+        ${SMU_COREFOUNDATION_FRAMEWORK}
+        ${SMU_COREGRAPHICS_FRAMEWORK}
+        ${SMU_APPLICATIONSERVICES_FRAMEWORK}
+    )
+
+    set_target_properties(suspend PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "Spencer Macro Utilities"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.spencer0187.smu"
+        MACOSX_BUNDLE_ICON_FILE "smu_icon.icns"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/Info.plist.in"
+    )
+
+    add_custom_command(TARGET suspend POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_FILE_DIR:suspend>/assets"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/LSANS.TTF" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/smu_icon.bmp" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/macro_tutorials"
+        COMMENT "Copying macOS runtime assets into suspend.app Resources"
+    )
+
+    if(SMU_CODESIGN_EXECUTABLE)
+        add_custom_command(TARGET suspend POST_BUILD
+            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --force --deep --sign "${SMU_MACOS_SIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:suspend>"
+            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --verify --deep --strict --verbose=2 "$<TARGET_BUNDLE_DIR:suspend>"
+            COMMENT "Signing macOS app bundle for local TCC identity"
         )
     endif()
 else()

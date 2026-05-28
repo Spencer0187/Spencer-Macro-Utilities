@@ -1,5 +1,5 @@
 # Spencer Macro Client
-An open-source, Cross-Platform Windows + Linux C++ Roblox ImGui Macro with many features.
+An open-source, cross-platform Windows, Linux, and macOS C++ Roblox ImGui macro with many features.
 
 ### Is this A CHEAT???
 No, it's a macro; it doesn't communicate with Roblox memory in any way.
@@ -14,6 +14,7 @@ No, it's a macro; it doesn't communicate with Roblox memory in any way.
 ## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
 - Windows Installation: Run the executable "suspend" file.
 - Linux Native Installation: Run the native `suspend` build. Follow the setup screens instructions.
+- macOS Installation: Drag `suspend.app` to Applications, use Privacy & Security > Open Anyway when macOS warns that the app is unidentified, then follow the in-app permission setup screen.
 
 ## Join the Roblox Glitching Discord! (I can help you with support)
 https://discord.gg/roblox-glitching-community-998572881892094012
@@ -56,7 +57,7 @@ https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
 
 ## Code Signing Policy
 
-This project uses free code signing provided by [SignPath.io](https://about.signpath.io/), with certificates issued by [SignPath Foundation](https://signpath.org/).
+Windows builds use free code signing provided by [SignPath.io](https://about.signpath.io/), with certificates issued by [SignPath Foundation](https://signpath.org/). macOS builds are not Apple Developer ID signed and are not notarized. They are signed with a stable self-signed project certificate so macOS privacy permissions are less likely to become stale after updates, but users still need to approve first launch through macOS Privacy & Security.
 
 | [<img src="https://avatars.githubusercontent.com/u/34448643?s=25&v=4" width="25">](https://about.signpath.io/) | Free code signing provided by [**SignPath.io**](https://about.signpath.io/), certificate by [**SignPath Foundation**](https://signpath.org/) |
 |----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
@@ -65,6 +66,7 @@ This project uses free code signing provided by [SignPath.io](https://about.sign
   (To receive generated logs)
   - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
   - Linux: Run using `DEBUG=1 ./suspend`.
+  - macOS: Run the app binary with `DEBUG=1 ./suspend.app/Contents/MacOS/suspend` from the built bundle.
   - Developer-only MacroRuntime performance profiling on Windows: set `SMU_MACRORUNTIME_PERF=1` before launching. This appends `SMU MacroRuntime profile` blocks to `SMC.log` every few seconds.
 
 ## Compilation
@@ -106,6 +108,41 @@ Runtime notes for the native Linux backend:
 - X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior. Wayland support is currently in development.
 - Wayland foreground process detection is intentionally unsupported.
 - Linux network lagswitch support is not part of the native backend target yet; we're working on it.
+
+### macOS Universal App Bundle:
+
+Install the Xcode Command Line Tools first:
+```bash
+xcode-select --install
+```
+
+Configure and build the local architecture:
+```bash
+cmake --preset macos-release
+cmake --build --preset macos-release --target suspend
+open out/build/macos-release/suspend.app
+```
+
+Build the universal Intel + Apple Silicon package:
+```bash
+bash scripts/package_macos.sh
+```
+
+The universal preset sets `CMAKE_OSX_ARCHITECTURES` to `arm64;x86_64`, builds a single signed `suspend.app`, verifies the bundle executable with `lipo`, and stages both `SpencerMacroUtilities-macOS-universal.zip` and a drag-to-install dmg when `hdiutil` is present. Set `SMU_MACOS_SIGN_IDENTITY` to use a stable local code-signing certificate instead of ad-hoc signing.
+
+Runtime notes for the native macOS backend:
+- Accessibility permission enables global synthetic keyboard and mouse output.
+- Screen Recording permission enables Lua screen pixel reads on the active monitor containing the cursor.
+- macOS releases are not notarized. First launch requires System Settings > Privacy & Security > Open Anyway. Do not disable Gatekeeper globally.
+- If permissions still show missing after an update, use the in-app `Reset macOS Permission Entries` button, re-enable Accessibility and Screen Recording, then restart SMU.
+- If macOS quarantine gets stuck, run `xattr -dr com.apple.quarantine /Applications/suspend.app`.
+- Permission changes are controlled by macOS. Use the in-app Restart & Check Permissions button after granting a permission.
+- User settings are stored in `~/Library/Application Support/Spencer Macro Utilities/SMCSettings.json`, including when SMU is launched from a dmg.
+- macOS auto-update can replace a writable installed `.app` bundle from the universal zip release asset. A read-only dmg launch can check for updates but must be installed to Applications before automatic replacement is possible.
+- Foreground Roblox detection uses the frontmost macOS app. Process freeze uses macOS process stop/continue signals where the OS permits it.
+- Lagswitch support is intentionally unsupported on macOS.
+
+See [`MACOS_SETUP.md`](MACOS_SETUP.md) for build, unsigned-release, permission repair, and optional Developer ID notes.
 
 ---
 

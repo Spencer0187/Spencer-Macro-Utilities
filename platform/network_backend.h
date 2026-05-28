@@ -59,6 +59,4 @@ public:
 std::shared_ptr<NetworkLagBackend> GetNetworkLagBackend();
 void SetNetworkLagBackend(std::shared_ptr<NetworkLagBackend> backend);
 
-std::shared_ptr<NetworkLagBackend> CreateGoNetworkLagBackend();
-
 } // namespace smu::platform

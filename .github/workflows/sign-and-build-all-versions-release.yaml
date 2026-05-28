@@ -96,3 +96,67 @@ jobs:
       - name: Clean up staging folder
         run: Remove-Item -Recurse -Force staging
         shell: pwsh
+
+  build-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+
+    env:
+      SMU_MACOS_RELEASE_CERTIFICATE_BASE64: ${{ secrets.SMU_MACOS_RELEASE_CERTIFICATE_BASE64 }}
+      SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD: ${{ secrets.SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD }}
+      SMU_MACOS_RELEASE_SIGN_IDENTITY: ${{ secrets.SMU_MACOS_RELEASE_SIGN_IDENTITY }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Check stable macOS release certificate secrets
+        shell: bash
+        run: |
+          if [[ -z "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" ||
+                -z "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" ]]; then
+            echo "Stable macOS release certificate secrets are required for release artifacts." >&2
+            echo "Create them with scripts/create_macos_release_certificate.sh." >&2
+            exit 1
+          fi
+
+      - name: Import stable self-signed macOS release certificate
+        shell: bash
+        run: |
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          KEYCHAIN_PATH="$RUNNER_TEMP/smu-macos-release.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/smu-macos-release.p12"
+          CERT_PEM="$RUNNER_TEMP/smu-macos-release.cert.pem"
+          echo "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+          openssl pkcs12 \
+            -in "$CERT_PATH" \
+            -nokeys \
+            -passin "pass:$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
+            -out "$CERT_PEM"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN_PATH" "$CERT_PEM"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          echo "SMU_MACOS_SIGN_IDENTITY=${SMU_MACOS_RELEASE_SIGN_IDENTITY:-SMU macOS Release}" >> "$GITHUB_ENV"
+
+      - name: Build self-signed universal macOS package
+        run: bash scripts/package_macos.sh
+
+      - name: Upload self-signed macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: SpencerMacroUtilities-macOS-universal-self-signed
+          path: |
+            out/build/macos-universal-release/package-macos/SpencerMacroUtilities-macOS-universal.zip
+            out/build/macos-universal-release/package-macos/SpencerMacroUtilities-macOS-universal.dmg

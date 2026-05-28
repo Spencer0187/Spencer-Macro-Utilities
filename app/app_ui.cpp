@@ -1316,7 +1316,7 @@ void RenderImportTrustModal()
 smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
 {
     smu::platform::LagSwitchConfig config;
-    config.enabled = true;
+    config.enabled = bWinDivertEnabled;
     config.currentlyBlocking = g_windivert_blocking.load(std::memory_order_relaxed);
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
@@ -1347,10 +1347,7 @@ bool InitializeLagSwitchBackend(std::string* errorMessage = nullptr)
 {
     SyncLagSwitchBackendConfig();
     if (auto backend = smu::platform::GetNetworkLagBackend()) {
-        const bool ok = backend->isAvailable();
-        if (!ok && errorMessage) {
-            *errorMessage = backend->unsupportedReason();
-        }
+        const bool ok = backend->init(errorMessage);
         bWinDivertEnabled = ok;
         return ok;
     }
@@ -1455,6 +1452,103 @@ void RenderLinuxInputSetup(AppContext& context)
         }
 
         if (!context.linuxInputSetupRequired) {
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+#else
+    (void)context;
+#endif
+}
+
+void RenderMacOSPermissionSetup(AppContext& context)
+{
+#if defined(__APPLE__)
+    if (!context.platformSetupRequired) {
+        context.platformSetupDismissed = false;
+        return;
+    }
+    if (context.platformSetupDismissed) {
+        return;
+    }
+
+    const char* title = context.platformSetupTitle.empty()
+        ? "macOS Permissions Required"
+        : context.platformSetupTitle.c_str();
+    ImGui::OpenPopup(title);
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(640.0f, 0.0f), ImGuiCond_Appearing);
+
+    if (ImGui::BeginPopupModal(title, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped(
+            "macOS requires Accessibility for macro input and Screen Recording for pixel reads.");
+        if (!context.platformSetupSummary.empty()) {
+            ImGui::TextWrapped("%s", context.platformSetupSummary.c_str());
+        }
+        ImGui::TextWrapped(
+            "After changing a Privacy & Security setting, restart SMU so macOS reports the new state.");
+        ImGui::Separator();
+
+        ImGui::Text("Accessibility: %s",
+            context.platformAccessibilityPermissionGranted ? "Granted" : "Missing");
+        ImGui::Text("Screen Recording for pixel reads: %s",
+            context.platformScreenRecordingPermissionGranted ? "Granted" : "Missing");
+
+        if (!context.platformSetupDetails.empty()) {
+            ImGui::Separator();
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 600.0f);
+            ImGui::TextUnformatted(context.platformSetupDetails.c_str());
+            ImGui::PopTextWrapPos();
+        }
+
+        ImGui::Separator();
+        if (!context.platformAccessibilityPermissionGranted &&
+            ImGui::Button("Open Accessibility Settings")) {
+            if (context.requestAccessibilityPermission) {
+                context.requestAccessibilityPermission();
+            }
+        }
+
+        if (!context.platformScreenRecordingPermissionGranted) {
+            const char* screenRecordingLabel = "Request Screen Recording Permission";
+            if (!context.platformAccessibilityPermissionGranted) {
+                const float spacing = ImGui::GetStyle().ItemSpacing.x;
+                const float nextButtonWidth =
+                    ImGui::CalcTextSize(screenRecordingLabel).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+                if (ImGui::GetContentRegionAvail().x >= spacing + nextButtonWidth) {
+                    ImGui::SameLine();
+                }
+            }
+            if (ImGui::Button(screenRecordingLabel)) {
+                if (context.requestScreenRecordingPermission) {
+                    context.requestScreenRecordingPermission();
+                }
+            }
+        }
+
+        if (context.resetMacOSPermissionEntries) {
+            if (ImGui::Button("Reset macOS Permission Entries")) {
+                context.resetMacOSPermissionEntries();
+            }
+        }
+
+        if (ImGui::Button("Restart & Check Permissions")) {
+            if (context.restartApplication && !context.restartApplication()) {
+                context.platformSetupActionMessage =
+                    "Could not restart SMU automatically. Quit and reopen the app.";
+            }
+        }
+
+        if (!context.platformSetupActionMessage.empty()) {
+            ImGui::Separator();
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 600.0f);
+            ImGui::TextUnformatted(context.platformSetupActionMessage.c_str());
+            ImGui::PopTextWrapPos();
+        }
+
+        if (!context.platformSetupRequired) {
             ImGui::CloseCurrentPopup();
         }
 
@@ -1607,7 +1701,7 @@ void RenderUpdaterPanel()
 
     if (checkedOnce && status.updateAvailable && !status.autoApplySupported) {
         ImGui::TextColored(GetCurrentTheme().warning_color,
-            "Update check available, auto-apply not implemented for this platform.");
+            "Update check available; automatic installation is unavailable in this launch mode.");
     }
 
     if (!actionMessage.empty()) {
@@ -1770,7 +1864,6 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     if (ImGui::InputText("##SettingsTextbox", settingsBuffer, sizeof(settingsBuffer))) {
         TrimWhitespace(settingsBuffer);
     }
-
     ImGui::SameLine();
     if (ImGui::Button("R", ImVec2(25, 0))) {
         std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", g_isLinuxWine ? "Main" : "RobloxPlayerBeta.exe");
@@ -3195,13 +3288,14 @@ void RenderAppUi(AppContext& context)
 
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();
+    RenderMacOSPermissionSetup(context);
     RenderLinuxInputSetup(context);
     RenderUpdateConfirmationModal();
     RenderAdministratorRequiredPopup();
     RenderScriptFileDialogFallback();
     RenderImportTrustModal();
 
-    float settingsPanelHeight = 140.0f;
+    float settingsPanelHeight = ImGui::GetTextLineHeightWithSpacing() * 4.0f + ImGui::GetStyle().WindowPadding.y * 3.0f + 12.0f;
     ImGui::BeginChild("GlobalSettings", ImVec2(displaySize.x - 16, settingsPanelHeight), true);
     RenderGlobalSettings(context, displaySize);
     ImGui::EndChild();
