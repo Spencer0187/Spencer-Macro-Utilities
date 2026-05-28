@@ -565,6 +565,8 @@ Notes:
 | `moveMouseAbs(x, y, mode)` | Move the mouse to an absolute position on the monitor containing the cursor |
 | `setMouseMotionMode(mode)` | Set Lua mouse motion mode to `"raw"` or `"absolute"` |
 | `getMouseMotionMode()` | Return the current Lua mouse motion mode |
+| `setMacOSCursorMovement(enabled)` | macOS only: set the global Quartz relative movement mode. Returns `true` on macOS and `false` elsewhere |
+| `getMacOSCursorMovement()` | macOS only: return whether global Quartz relative movement moves the visible cursor. Returns `false` elsewhere |
 | `getPixelColor(x, y, mode, format)` | Return the pixel color at a position. `format` defaults to `"hex"` and may be `"rgb"` |
 | `getPixelRect(x1, y1, x2, y2, mode, format)` | Return a row-major 2D table of pixels covering the rectangle between two points |
 | `moveDegrees(dx, dy)` | Move the mouse using degree units derived from saved Roblox sensitivity and Cam-Fix settings. Positive `dy` moves upward |
@@ -603,6 +605,7 @@ Behavior notes:
 
 - Lua scripts start in `"raw"` mouse motion mode by default.
 - In `"absolute"` mode, `moveMouse()` uses platform absolute-pointer APIs instead of a raw relative path.
+- On macOS, `setMacOSCursorMovement(false)` keeps raw relative movement game-safe by sending Quartz delta fields without moving the visible cursor; `true` makes raw relative movement move the visible cursor for desktop automation.
 - `moveMouseAbs()`, `getPixelColor()`, and `getPixelRect()` target the monitor containing the current cursor, not the full virtual desktop.
 - In `"pixels"` mode, `(0, 0)` is the top-left of the active monitor.
 - In `"percent"` mode, `x` and `y` must be between `0` and `100`.
@@ -739,7 +742,7 @@ Cleanup may not start new actions such as:
 
 ### Keyboard and Relative Mouse Input
 
-Keyboard injection and relative mouse motion are available on Windows and Linux. On Linux, relative input continues to work in native Wayland sessions because it uses the existing low-level input path rather than global desktop coordinate APIs. On macOS, synthetic keyboard and mouse calls, global `isKeyPressed()`, and hotkey reads require Accessibility permission.
+Keyboard injection and relative mouse motion are available on Windows and Linux. On Linux, relative input continues to work in native Wayland sessions because it uses the existing low-level input path rather than global desktop coordinate APIs. On macOS, synthetic keyboard and mouse calls, global `isKeyPressed()`, and hotkey reads require Accessibility permission. macOS raw relative movement defaults to Quartz delta-only input for locked-camera games; use `setMacOSCursorMovement(true)` or the app checkbox when desktop cursor movement is required.
 
 ### Absolute Mouse Coordinates
 
@@ -806,6 +809,7 @@ If a key is not part of the persisted setting registry, `getSavedValue()` return
 | `toggle_jump` | boolean | First Wallhop/Rotation instance: press the configured wallhop jump key during the wallhop |
 | `toggle_flick` | boolean | First Wallhop/Rotation instance: perform the flick-back movement after the initial flick |
 | `camfixtoggle` | boolean | Global Game Uses Cam-Fix setting; changes sensitivity-derived pixel calculations for Speedglitch, Wallhop, Wall-Walk, and Ledge Bounce |
+| `macos_cursor_movement` | boolean | macOS-only Quartz relative mouse setting: `false` sends game-safe delta input, `true` moves the visible cursor |
 | `wallwalktoggleside` | boolean | Wall-Walk: use the left-flick side instead of the default side |
 | `antiafktoggle` | boolean | Enable the Anti-AFK timer/key press routine |
 | `fasthhj` | boolean | Wall Helicopter High Jump: decrease the default freeze duration in speedrunner mode |

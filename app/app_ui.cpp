@@ -1963,6 +1963,27 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
         }
     }
 
+#if defined(__APPLE__)
+    ImGui::SameLine();
+    ImVec2 macosCursorTooltipPos = ImGui::GetCursorScreenPos();
+    ImGui::Text("Swap Movement Mode (");
+    ImGui::SameLine(0, 0);
+    ImGui::PushStyleColor(ImGuiCol_Text, GetCurrentTheme().accent_primary);
+    ImGui::Text("?");
+    ImGui::PopStyleColor();
+    ImGui::SameLine(0, 0);
+    ImGui::Text("):");
+    ImVec2 macosCursorTooltipSize = ImGui::CalcTextSize("Swap Movement Mode (?)");
+    ImGui::SetCursorScreenPos(macosCursorTooltipPos);
+    ImGui::InvisibleButton("##MacOSCursorMovementTooltip", macosCursorTooltipSize);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("Off: macOS uses relative input, best for locked-camera games like Roblox.\nOn: macOS moves the visible cursor, best for desktop/non-game automation.\nThis toggle exists because Quartz synthetic mouse events cannot perfectly do both at once.");
+    }
+    ImGui::SetCursorScreenPos(ImVec2(macosCursorTooltipPos.x + macosCursorTooltipSize.x, macosCursorTooltipPos.y));
+    ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
+    ImGui::Checkbox("##MacOSCursorMovement", &macos_cursor_movement);
+#endif
+
     static bool showSettingsMenu = false;
     ImGui::SameLine(ImGui::GetWindowWidth() - 107);
     if (showSettingsMenu ? ImGui::Button("Settings <-") : ImGui::Button("Settings ->")) {

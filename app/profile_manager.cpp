@@ -112,6 +112,7 @@ const std::unordered_map<std::string, bool *> bool_vars = {
 	{"toggle_jump", &toggle_jump},
 	{"toggle_flick", &toggle_flick},
 	{"camfixtoggle", &camfixtoggle},
+	{"macos_cursor_movement", &macos_cursor_movement},
 	{"wallwalktoggleside", &wallwalktoggleside},
 	{"antiafktoggle", &antiafktoggle},
 	{"fasthhj", &fasthhj},
