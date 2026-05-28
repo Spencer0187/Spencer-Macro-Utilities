@@ -14,15 +14,11 @@ contents:
     dst: /usr/share/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
-  - src: ./staged/usr/bin/nethelper
-    dst: /usr/bin/nethelper
-    file_info:
-      mode: 0755
   - src: ./staged/usr/bin/assets/*
     dst: /usr/share/spencer-macro-utilities/assets/
   - src: ./staged/usr/bin/assets/macro_tutorials/*
     dst: /usr/share/spencer-macro-utilities/assets/macro_tutorials/
-  - src: ./launcher/spencer-macro-utilities
+  - src: ./AppImage/launcher.sh
     dst: /usr/bin/spencer-macro-utilities
     file_info:
       mode: 0755

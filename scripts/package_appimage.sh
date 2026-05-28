@@ -16,19 +16,6 @@ cmake -S "$ROOT_DIR" -B "$BUILD_DIR" \
 
 cmake --build "$BUILD_DIR" --target suspend --parallel
 
-echo "Building nethelper (Go)..."
-NETHELPER_BIN="$BUILD_DIR/nethelper"
-
-(
-  cd "$ROOT_DIR/platform/linux/nethelper"
-  go mod download
-  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
-    -o "$NETHELPER_BIN" \
-    .
-)
-
-chmod 755 "$NETHELPER_BIN"
-
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/lib"
@@ -37,10 +24,8 @@ mkdir -p "$APPDIR/usr/share/doc/spencer-macro-utilities"
 mkdir -p "$APPDIR/scripts"
 
 cp "$BUILD_DIR/suspend" "$APPDIR/usr/bin/suspend"
-cp "$NETHELPER_BIN" "$APPDIR/usr/bin/nethelper"
-
 cp "$ROOT_DIR/AppImage/AppRun" "$APPDIR/AppRun"
-chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/suspend" "$APPDIR/usr/bin/nethelper"
+chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/suspend"
 
 cp -R "$BUILD_DIR/assets" "$APPDIR/usr/bin/assets"
 
@@ -74,8 +59,6 @@ cp "$APP_ICON_SOURCE" "$APPDIR/.DirIcon"
 
 test -x "$APPDIR/AppRun"
 test -x "$APPDIR/usr/bin/suspend"
-test -x "$APPDIR/usr/bin/nethelper"
-
 test -d "$APPDIR/usr/bin/assets"
 test -f "$APPDIR/usr/bin/assets/LSANS.TTF"
 test -f "$APPDIR/usr/bin/assets/smu_icon.bmp"
@@ -84,7 +67,6 @@ test -f "$APPDIR/usr/bin/assets/macro_tutorials/gear-clip.jpg"
 test -f "$APPDIR/usr/bin/assets/macro_tutorials/laugh.jpg"
 test -f "$APPDIR/usr/bin/assets/macro_tutorials/wallhop.jpg"
 test -f "$APPDIR/usr/bin/assets/macro_tutorials/wallwalk.jpg"
-
 test -x "$APPDIR/scripts/install_linux_permissions.sh"
 test -f "$APPDIR/LINUX_SETUP.md"
 test -f "$APPDIR/spencer-macro-utilities.desktop"
@@ -103,7 +85,6 @@ chmod 755 "$BUILD_DIR/$OUTPUT_NAME"
   cd "$BUILD_DIR"
   rm -rf squashfs-root
   "./$OUTPUT_NAME" --appimage-extract >/dev/null
-
   test -f "squashfs-root/usr/bin/assets/LSANS.TTF"
   test -f "squashfs-root/usr/bin/assets/smu_icon.bmp"
   test -f "squashfs-root/usr/bin/assets/macro_tutorials/fullgeardesync.png"
@@ -111,9 +92,6 @@ chmod 755 "$BUILD_DIR/$OUTPUT_NAME"
   test -f "squashfs-root/usr/bin/assets/macro_tutorials/laugh.jpg"
   test -f "squashfs-root/usr/bin/assets/macro_tutorials/wallhop.jpg"
   test -f "squashfs-root/usr/bin/assets/macro_tutorials/wallwalk.jpg"
-
-  test -x "squashfs-root/usr/bin/nethelper"
-
   rm -rf squashfs-root
 )
 

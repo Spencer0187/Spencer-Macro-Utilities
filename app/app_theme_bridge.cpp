@@ -129,7 +129,10 @@ void SetupSharedFontsAndStyle(ImGuiIO& io)
         io.Fonts->AddFontDefault();
     }
 #else
-    const std::filesystem::path fontPath = FindLegacyFontPath();
+    const std::filesystem::path runtimeFontPath = FindRuntimeAsset("LSANS.TTF");
+    const std::filesystem::path fontPath = runtimeFontPath.empty()
+        ? FindLegacyFontPath()
+        : runtimeFontPath;
 #endif
 
 #if !defined(_WIN32)

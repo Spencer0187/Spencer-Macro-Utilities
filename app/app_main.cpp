@@ -46,6 +46,8 @@
 #endif
 #elif defined(__linux__)
 #include <unistd.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
 #endif
 
 namespace smu::app {
@@ -53,6 +55,15 @@ namespace {
 
 using FrameClock = std::chrono::steady_clock;
 using FrameTimePoint = FrameClock::time_point;
+
+struct WindowSize {
+    int width = 0;
+    int height = 0;
+};
+
+constexpr WindowSize kMinimumRenderSize{1180, 700};
+constexpr int kMaximumInitialWindowWidth = 3840;
+constexpr int kMaximumInitialWindowHeight = 2160;
 
 FrameTimePoint FrameTimePointFromTicks(std::int64_t ticks)
 {
@@ -110,6 +121,22 @@ std::filesystem::path GetExecutableDirectory()
     }
 
     return std::filesystem::path(buffer.data()).parent_path();
+#elif defined(__APPLE__)
+    std::vector<char> buffer(1024);
+
+    while (true) {
+        std::uint32_t size = static_cast<std::uint32_t>(buffer.size());
+        if (_NSGetExecutablePath(buffer.data(), &size) == 0) {
+            std::error_code ec;
+            const std::filesystem::path resolvedPath = std::filesystem::weakly_canonical(buffer.data(), ec);
+            return (ec ? std::filesystem::path(buffer.data()) : resolvedPath).parent_path();
+        }
+
+        if (size <= buffer.size()) {
+            return {};
+        }
+        buffer.resize(size);
+    }
 #else
     return {};
 #endif
@@ -147,22 +174,22 @@ void UpdateWindowMetrics(SDL_Window* window)
 {
     auto& state = smu::core::GetAppState();
 
+    int windowWidth = 0;
+    int windowHeight = 0;
+    if (SDL_GetWindowSize(window, &windowWidth, &windowHeight) && windowWidth > 0 && windowHeight > 0) {
+        state.screenWidth = windowWidth;
+        state.screenHeight = windowHeight;
+    }
+
     int pixelWidth = 0;
     int pixelHeight = 0;
     if (SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight) && pixelWidth > 0 && pixelHeight > 0) {
-        state.screenWidth = pixelWidth;
-        state.screenHeight = pixelHeight;
-    } else {
-        int windowWidth = 0;
-        int windowHeight = 0;
-        if (SDL_GetWindowSize(window, &windowWidth, &windowHeight) && windowWidth > 0 && windowHeight > 0) {
-            state.screenWidth = windowWidth;
-            state.screenHeight = windowHeight;
-        }
+        state.rawWindowWidth = pixelWidth;
+        state.rawWindowHeight = pixelHeight;
+    } else if (windowWidth > 0 && windowHeight > 0) {
+        state.rawWindowWidth = windowWidth;
+        state.rawWindowHeight = windowHeight;
     }
-
-    state.rawWindowWidth = state.screenWidth;
-    state.rawWindowHeight = state.screenHeight;
 
     int windowPosX = 0;
     int windowPosY = 0;
@@ -170,6 +197,18 @@ void UpdateWindowMetrics(SDL_Window* window)
         state.windowPosX = windowPosX;
         state.windowPosY = windowPosY;
     }
+}
+
+WindowSize GetNativeMinimumWindowSize(SDL_Window* window)
+{
+    (void)window;
+    return kMinimumRenderSize;
+}
+
+void ApplyWindowMinimumSize(SDL_Window* window)
+{
+    const WindowSize minimumSize = GetNativeMinimumWindowSize(window);
+    SDL_SetWindowMinimumSize(window, minimumSize.width, minimumSize.height);
 }
 
 #if defined(_WIN32)
@@ -205,6 +244,29 @@ void ApplyDarkTitleBar(SDL_Window* window)
 }
 #endif
 
+void ClampInitialWindowSizeToDisplay()
+{
+    auto& state = smu::core::GetAppState();
+    state.screenWidth = std::clamp(state.screenWidth, 1, kMaximumInitialWindowWidth);
+    state.screenHeight = std::clamp(state.screenHeight, 1, kMaximumInitialWindowHeight);
+
+    const SDL_DisplayID displayId = SDL_GetPrimaryDisplay();
+    SDL_Rect usableBounds{};
+    if (displayId == 0 || !SDL_GetDisplayUsableBounds(displayId, &usableBounds)) {
+        return;
+    }
+
+    int usableWidth = usableBounds.w;
+    int usableHeight = usableBounds.h;
+
+    if (usableWidth > 1) {
+        state.screenWidth = std::min(state.screenWidth, std::max(1, usableWidth - 80));
+    }
+    if (usableHeight > 1) {
+        state.screenHeight = std::min(state.screenHeight, std::max(1, usableHeight - 100));
+    }
+}
+
 } // namespace
 
 bool SetWorkingDirectoryToExecutablePath()
@@ -226,10 +288,10 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     InitializeSharedThemeSystem();
     InitializeSharedProfiles();
 
-    if (state.screenWidth <= 0 || state.screenWidth > 15360) {
+    if (state.screenWidth <= 0 || state.screenWidth > kMaximumInitialWindowWidth) {
         state.screenWidth = config.defaultWidth;
     }
-    if (state.screenHeight <= 0 || state.screenHeight > 8640) {
+    if (state.screenHeight <= 0 || state.screenHeight > kMaximumInitialWindowHeight) {
         state.screenHeight = config.defaultHeight;
     }
 
@@ -239,22 +301,34 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         return 1;
     }
 
+#if defined(__APPLE__)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-    SDL_Window* window = SDL_CreateWindow(config.title, state.screenWidth, state.screenHeight,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN);
+    SDL_WindowFlags windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
+#if defined(__APPLE__)
+    windowFlags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+#endif
+    ClampInitialWindowSizeToDisplay();
+
+    SDL_Window* window = SDL_CreateWindow(config.title, state.screenWidth, state.screenHeight, windowFlags);
     if (!window) {
         LogCritical(std::string("Failed SDL window creation: ") + SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
-    SDL_SetWindowMinimumSize(window, 1147, 780);
+    ApplyWindowMinimumSize(window);
     ApplyWindowIcon(window);
     if (state.windowPosX != 0 || state.windowPosY != 0) {
         SDL_SetWindowPosition(window, state.windowPosX, state.windowPosY);
@@ -317,10 +391,71 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     SetupSharedFontsAndStyle(io);
 
+#if defined(__APPLE__)
+    SDL_GL_SetSwapInterval(1);
+    if (!ImGui_ImplSDL3_InitForOpenGL(window, glContext)) {
+        LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");
+    }
+    if (!ImGui_ImplOpenGL3_Init("#version 150")) {
+        LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
+    }
+    LoadMacroTutorialTextures();
+
+    while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                state.done.store(true, std::memory_order_release);
+                state.running.store(false, std::memory_order_release);
+                Globals::done.store(true, std::memory_order_release);
+                Globals::running.store(false, std::memory_order_release);
+            }
+            if (event.type == SDL_EVENT_WINDOW_RESIZED ||
+                event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+                event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+                event.type == SDL_EVENT_WINDOW_MOVED) {
+                if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+                    event.type == SDL_EVENT_WINDOW_MOVED) {
+                    ApplyWindowMinimumSize(window);
+                }
+                UpdateWindowMetrics(window);
+            }
+        }
+
+        if (!state.running.load(std::memory_order_acquire) || state.done.load(std::memory_order_acquire)) {
+            break;
+        }
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+        RenderAppUi(context);
+        ImGui::Render();
+
+        glViewport(0, 0, std::max(1, state.rawWindowWidth), std::max(1, state.rawWindowHeight));
+        glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        SDL_GL_SwapWindow(window);
+    }
+
+    UnloadMacroTutorialTextures();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
+    UpdateWindowMetrics(window);
+    ShutdownSharedProfiles();
+    ResetFloatingUiWindowState();
+    ImGui::DestroyContext();
+    SDL_GL_DestroyContext(glContext);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+    return 0;
+#else
     std::atomic<bool> renderRunning{true};
     std::atomic<bool> backendReady{false};
-    std::atomic<int> renderWidth{state.screenWidth};
-    std::atomic<int> renderHeight{state.screenHeight};
+    std::atomic<int> renderWidth{state.rawWindowWidth > 0 ? state.rawWindowWidth : state.screenWidth};
+    std::atomic<int> renderHeight{state.rawWindowHeight > 0 ? state.rawWindowHeight : state.screenHeight};
     std::atomic<std::uint64_t> redrawGeneration{1};
     std::atomic<std::int64_t> activeUntilTicks{FrameTimePointToTicks(FrameClock::now())};
     std::mutex backendMutex;
@@ -353,7 +488,12 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         if (!ImGui_ImplSDL3_InitForOpenGL(window, renderGlContext)) {
             LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");
         }
-        if (!ImGui_ImplOpenGL3_Init("#version 130")) {
+#if defined(__APPLE__)
+        constexpr const char* glslVersion = "#version 150";
+#else
+        constexpr const char* glslVersion = "#version 130";
+#endif
+        if (!ImGui_ImplOpenGL3_Init(glslVersion)) {
             LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
         }
         LoadMacroTutorialTextures();
@@ -473,10 +613,15 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
         if (event.type == SDL_EVENT_WINDOW_RESIZED ||
             event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+            event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
             event.type == SDL_EVENT_WINDOW_MOVED) {
+            if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+                event.type == SDL_EVENT_WINDOW_MOVED) {
+                ApplyWindowMinimumSize(window);
+            }
             UpdateWindowMetrics(window);
-            renderWidth.store(state.screenWidth);
-            renderHeight.store(state.screenHeight);
+            renderWidth.store(state.rawWindowWidth > 0 ? state.rawWindowWidth : state.screenWidth);
+            renderHeight.store(state.rawWindowHeight > 0 ? state.rawWindowHeight : state.screenHeight);
         }
 
         if (event.type == SDL_EVENT_MOUSE_WHEEL) {
@@ -560,6 +705,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
+#endif
 }
 
 } // namespace smu::app
