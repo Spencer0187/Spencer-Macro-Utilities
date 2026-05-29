@@ -9,7 +9,6 @@
 #include "json.hpp"
 #include <array>
 #include <cerrno>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -22,7 +21,6 @@
 #include <variant>
 #include <unordered_map>
 #include <type_traits>
-#include <vector>
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
 #include <shlobj.h>
 #endif
@@ -31,9 +29,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#elif defined(__APPLE__)
-#include <mach-o/dyld.h>
-#include <sys/stat.h>
 #endif
 
 using namespace Globals;
@@ -325,17 +320,6 @@ RealUserContext GetRealUserContext() {
 			context.homeDirectory = pwd->pw_dir;
 		}
 	}
-#else
-	if (const char* home = std::getenv("HOME")) {
-		if (home[0] != '\0') {
-			context.homeDirectory = home;
-		}
-	}
-	if (const char* user = std::getenv("USER")) {
-		if (user[0] != '\0') {
-			context.username = user;
-		}
-	}
 #endif
 
 	return context;
@@ -412,32 +396,11 @@ fs::path GetExecutableDirectoryPath() {
 	}
 
 	LogWarning(std::string("Could not resolve /proc/self/exe: ") + std::strerror(errno));
-#elif defined(__APPLE__)
-	std::vector<char> buffer(1024);
-	while (true) {
-		std::uint32_t size = static_cast<std::uint32_t>(buffer.size());
-		if (_NSGetExecutablePath(buffer.data(), &size) == 0) {
-			std::error_code ec;
-			const fs::path resolved = fs::weakly_canonical(buffer.data(), ec);
-			return (ec ? fs::path(buffer.data()) : resolved).parent_path();
-		}
-		if (size <= buffer.size()) {
-			break;
-		}
-		buffer.resize(size);
-	}
-	LogWarning("Could not resolve the macOS executable path.");
 #endif
 	return GetCurrentDirectoryPath();
 }
 
 fs::path GetUserConfigDirectory(const RealUserContext& realUser) {
-#if defined(__APPLE__)
-	if (!realUser.homeDirectory.empty()) {
-		return fs::path(realUser.homeDirectory) / "Library" / "Application Support" / "Spencer Macro Utilities";
-	}
-	return {};
-#else
 	if (const char* xdgConfigHome = std::getenv("XDG_CONFIG_HOME")) {
 		if (xdgConfigHome[0] != '\0') {
 			return fs::path(xdgConfigHome) / "SpencerMacroUtilities";
@@ -453,11 +416,10 @@ fs::path GetUserConfigDirectory(const RealUserContext& realUser) {
 	}
 
 	return {};
-#endif
 }
 
 bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__)
 	if (path.empty()) {
 		return false;
 	}
@@ -472,14 +434,12 @@ bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
 		return true;
 	}
 
-#if defined(__linux__)
 	const RealUserContext realUser = GetRealUserContext();
 	if (geteuid() == 0 && realUser.hasOriginalUser) {
 		if (chown(path.c_str(), realUser.uid, realUser.gid) != 0) {
 			LogWarning("Could not chown " + FormatPathForLog(path) + ": " + std::strerror(errno));
 		}
 	}
-#endif
 
     if (chmod(path.c_str(), 0600) != 0) {
         LogWarning("Could not chmod 0600 on " + FormatPathForLog(path) + ": " + std::strerror(errno));
@@ -593,10 +553,9 @@ static bool WriteJsonFile(const std::string& filepath, const json& data) {
 
 // ============================================================================
 //  FILE RESOLUTION — Single function to find the settings file
-//  Search order: platform config dir, then executable dir, with SMC priority over RMC.
+//  Search order: current dir → parent dir, with SMC priority over RMC.
 //  Automatically renames RMCSettings.json → SMCSettings.json when found.
-//  On macOS, copies bundle-adjacent settings into Application Support instead of
-//  writing into the app bundle or mounted dmg.
+//  Copies files from parent directory to current directory for future use.
 //  May throw std::filesystem::filesystem_error if filesystem queries,
 //  renames, or copies fail.
 // ============================================================================
@@ -608,49 +567,12 @@ std::string ResolveSettingsFilePath() {
 	const fs::path configDir = GetUserConfigDirectory(realUser);
 
 	const fs::path executableSettings = executableDir / "SMCSettings.json";
-	const fs::path executableLegacySettings = executableDir / "RMCSettings.json";
-
-#if defined(__APPLE__)
-	if (!configDir.empty()) {
-		const fs::path configSettings = configDir / "SMCSettings.json";
-		if (PathExists(configSettings)) {
-			LogInfo("Using settings file from Application Support: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		const fs::path legacyConfigSettings = configDir / "RMCSettings.json";
-		if (PathExists(legacyConfigSettings)) {
-			if (RenameSettingsFile(legacyConfigSettings, configSettings)) {
-				LogInfo("Migrated legacy settings file in Application Support: " + configSettings.string());
-				return configSettings.string();
-			}
-			LogWarning("Using legacy Application Support settings path because rename failed: " + legacyConfigSettings.string());
-			return legacyConfigSettings.string();
-		}
-
-		if (PathExists(executableSettings) && CopySettingsFile(executableSettings, configSettings)) {
-			LogInfo("Copied settings file from app bundle location to Application Support: " + configSettings.string());
-			return configSettings.string();
-		}
-		if (PathExists(executableLegacySettings) && CopySettingsFile(executableLegacySettings, configSettings)) {
-			LogInfo("Copied legacy settings file from app bundle location to Application Support: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		if (EnsureParentDirectoryExists(configSettings)) {
-			LogInfo("Using Application Support settings path: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		LogWarning("Falling back from preferred Application Support settings path: " + configSettings.string());
-	}
-#endif
-
 	if (PathExists(executableSettings)) {
 		LogInfo("Using existing settings file next to executable: " + executableSettings.string());
 		return executableSettings.string();
 	}
 
+	const fs::path executableLegacySettings = executableDir / "RMCSettings.json";
 	if (PathExists(executableLegacySettings)) {
 		if (RenameSettingsFile(executableLegacySettings, executableSettings)) {
 			LogInfo("Migrated legacy settings file next to executable: " + executableSettings.string());

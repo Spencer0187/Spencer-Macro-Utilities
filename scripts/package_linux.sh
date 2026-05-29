@@ -14,6 +14,18 @@ cmake --build "$BUILD_DIR" --target package-linux-dir --parallel
 
 PACKAGE_DIR="$BUILD_DIR/SpencerMacroUtilities"
 SUSPEND_BIN="$PACKAGE_DIR/suspend"
+NETHELPER_BIN="$PACKAGE_DIR/nethelper"
+
+echo "Building nethelper..."
+(
+  cd "$ROOT_DIR/platform/linux/nethelper"
+  go mod download
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+    -o "$NETHELPER_BIN" \
+    .
+)
+
+chmod +x "$NETHELPER_BIN"
 
 echo
 echo "Portable folder: $PACKAGE_DIR"
@@ -21,12 +33,10 @@ echo
 file "$SUSPEND_BIN"
 echo
 ldd "$SUSPEND_BIN" | tee "$BUILD_DIR/package-linux-ldd.txt"
-
 if grep -q "not found" "$BUILD_DIR/package-linux-ldd.txt"; then
   echo "ERROR: ldd reports missing shared libraries." >&2
   exit 1
 fi
-
 if grep -q "libSDL3" "$BUILD_DIR/package-linux-ldd.txt" && ! compgen -G "$PACKAGE_DIR/lib/libSDL3.so*" >/dev/null; then
   echo "ERROR: suspend depends on SDL3, but no bundled libSDL3.so* was found in $PACKAGE_DIR/lib." >&2
   exit 1

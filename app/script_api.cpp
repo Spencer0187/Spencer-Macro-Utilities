@@ -1856,8 +1856,6 @@ int LuaGetPlatform(lua_State* L)
     lua_pushliteral(L, "windows");
 #elif defined(__linux__)
     lua_pushliteral(L, "linux");
-#elif defined(__APPLE__)
-    lua_pushliteral(L, "macos");
 #else
     lua_pushliteral(L, "unknown");
 #endif

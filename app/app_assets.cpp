@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <system_error>
-#include <vector>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -72,26 +71,9 @@ std::filesystem::path FindRuntimeAsset(const std::string& assetName)
     return {};
 #else
     std::error_code ec;
-    const std::filesystem::path normalizedAssetName = NormalizeAssetName(assetName);
-    const std::filesystem::path basePath = GetExecutableBasePath();
-    std::vector<std::filesystem::path> candidates{
-        basePath / "assets" / normalizedAssetName,
-    };
-
-#if defined(__APPLE__)
-    std::filesystem::path macOSPath = basePath;
-    if (macOSPath.filename().empty()) {
-        macOSPath = macOSPath.parent_path();
-    }
-    const std::filesystem::path contentsPath = macOSPath.parent_path();
-    candidates.push_back(contentsPath / "Resources" / "assets" / normalizedAssetName);
-#endif
-
-    for (const auto& assetPath : candidates) {
-        if (std::filesystem::exists(assetPath, ec)) {
-            return assetPath;
-        }
-        ec.clear();
+    const std::filesystem::path assetPath = GetExecutableBasePath() / "assets" / NormalizeAssetName(assetName);
+    if (std::filesystem::exists(assetPath, ec)) {
+        return assetPath;
     }
     return {};
 #endif

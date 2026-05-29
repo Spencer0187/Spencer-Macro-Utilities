@@ -38,9 +38,7 @@
 using HWND = void*;
 using HANDLE = void*;
 using DWORD = std::uint32_t;
-#if !defined(__OBJC__)
 using BOOL = int;
-#endif
 using INT16 = std::int16_t;
 using UINT = unsigned int;
 using UINT8 = std::uint8_t;

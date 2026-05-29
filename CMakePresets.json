@@ -101,56 +101,6 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
-    },
-    {
-      "name": "macos-debug",
-      "displayName": "macOS Debug",
-      "description": "Native macOS Debug app bundle build.",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15"
-      }
-    },
-    {
-      "name": "macos-release",
-      "displayName": "macOS Release",
-      "description": "Native macOS optimized app bundle build.",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15"
-      }
-    },
-    {
-      "name": "macos-universal-release",
-      "displayName": "macOS Universal Release",
-      "description": "Universal macOS Release app bundle for Apple Silicon and Intel.",
-      "generator": "Unix Makefiles",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Darwin"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
-        "CMAKE_OSX_DEPLOYMENT_TARGET": "10.15",
-        "SMU_LINK_SDL3_STATIC": "ON"
-      }
     }
   ],
   "buildPresets": [
@@ -180,18 +130,6 @@
     {
       "name": "linux-relwithdebinfo",
       "configurePreset": "linux-relwithdebinfo"
-    },
-    {
-      "name": "macos-debug",
-      "configurePreset": "macos-debug"
-    },
-    {
-      "name": "macos-release",
-      "configurePreset": "macos-release"
-    },
-    {
-      "name": "macos-universal-release",
-      "configurePreset": "macos-universal-release"
     }
   ]
 }

@@ -6,17 +6,16 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 
 ## Capability Matrix
 
-| Feature | Windows | Linux X11/XWayland | Native Wayland | macOS |
-| --- | --- | --- | --- | --- |
-| Keyboard input | yes | yes | yes | yes with Accessibility |
-| Global key state reads | yes | yes | yes | yes with Accessibility |
-| Relative mouse | yes | yes | yes | yes with Accessibility |
-| Absolute mouse | yes | yes via X11 | no / limited | yes with Accessibility |
-| Pixel reads | yes | yes via X11 | planned | yes with Screen Recording |
-| Freeze | yes | yes | yes | yes when process signals are permitted |
-| Lag switch | yes | planned | planned | no |
+| Feature | Windows | Linux X11/XWayland | Native Wayland |
+| --- | --- | --- | --- |
+| Keyboard input | yes | yes | yes |
+| Relative mouse | yes | yes | yes |
+| Absolute mouse | yes | yes via X11 | no / limited |
+| Pixel reads | yes | yes via X11 | planned |
+| Freeze | yes | yes | yes |
+| Lag switch | yes | yes | yes |
 
-On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs, and the Linux lag-switch backend is not implemented yet. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
+On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs, and the Linux lag-switch backend is not implemented yet.
 
 ## Quick Start
 
@@ -241,7 +240,7 @@ For new scripts, prefer script-local `settings.*` values created with `ui.*`. Us
 | `sleepMicros(us)` | Sleep for the specified number of microseconds, clamped to a 24-hour maximum. Uses a cancellable native high-precision wait path |
 | `nowMicros()` | Return the current monotonic time in microseconds |
 | `getSMUVersion()` | Return the current application version |
-| `getPlatform()` | Return `windows`, `linux`, `macos`, or `unknown` |
+| `getPlatform()` | Return `windows`, `linux`, or `unknown` |
 | `getScriptHotkey()` | Return this script's current activation hotkey as a combined hotkey value, or `nil` if it is unbound |
 | `getSavedValue(name)` | Return the current in-memory value of a saved app/profile setting, or `nil` if that key is not exposed |
 
@@ -735,11 +734,11 @@ Cleanup may not start new actions such as:
 
 ## Platform Compatibility
 
-`getPlatform()` returns `windows`, `linux`, `macos`, or `unknown`.
+`getPlatform()` returns `windows`, `linux`, or `unknown`.
 
 ### Keyboard and Relative Mouse Input
 
-Keyboard injection and relative mouse motion are available on Windows and Linux. On Linux, relative input continues to work in native Wayland sessions because it uses the existing low-level input path rather than global desktop coordinate APIs. On macOS, synthetic keyboard and mouse calls, global `isKeyPressed()`, and hotkey reads require Accessibility permission.
+Keyboard injection and relative mouse motion are available on Windows and Linux. On Linux, relative input continues to work in native Wayland sessions because it uses the existing low-level input path rather than global desktop coordinate APIs.
 
 ### Absolute Mouse Coordinates
 
@@ -748,7 +747,6 @@ Use `setMouseMotionMode("absolute")` when you want desktop-style pointer targeti
 - Windows uses normalized absolute `SendInput` coordinates.
 - Linux/X11 uses X11 absolute pointer warping.
 - Native Wayland sessions without usable X11 access cannot provide this global absolute-pointer path.
-- macOS uses CoreGraphics cursor coordinates and requires Accessibility permission for global pointer movement.
 
 When absolute targeting is unavailable on Linux, script errors explain why, for example that the current session lacks usable X11/XWayland cursor-position access.
 
@@ -759,15 +757,14 @@ When absolute targeting is unavailable on Linux, script errors explain why, for 
 - Windows reuses a cached monitor frame when possible and refreshes that cache roughly once per monitor refresh interval. Repeated polling is efficient and suitable for high-frequency color checks and moderate real-time scanning.
 - Linux currently uses an X11/XWayland screen-read path.
 - Native Wayland sessions without usable X11 access cannot currently provide arbitrary global screen reads.
-- macOS uses Screen Recording permission and samples the same active-monitor coordinate space used by `moveMouseAbs()`.
 
 ### Freeze and Foreground Detection
 
-Freeze is available on Windows and Linux. On Linux, native Wayland sessions cannot reliably inspect other apps' active windows, so foreground-detection-dependent behavior may fall back to an always-active mode instead of an exact active-window restriction. On macOS, foreground detection uses the frontmost app and freeze uses process stop/continue signals; the signal operation still depends on normal OS process permissions.
+Freeze is available on Windows and Linux. On Linux, native Wayland sessions cannot reliably inspect other apps' active windows, so foreground-detection-dependent behavior may fall back to an always-active mode instead of an exact active-window restriction.
 
 ### Lag Switch
 
-Lag switch is currently implemented on Windows. The Lua API still exists on Linux and macOS, but `getLagSwitchStatus()` reports that the native lag-switch backend is unavailable there.
+Lag switch is currently implemented on Windows. The Lua API still exists on Linux, but `getLagSwitchStatus()` reports that the Linux lag-switch backend is not implemented yet.
 
 ## Legacy / Saved App Settings Reference
 

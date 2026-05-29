@@ -1723,27 +1723,54 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
 
     if (islagswitchswitch) {
         if (pressed && !lagSwitchWasPressed_) {
-            const bool nextActive = !backend->isBaseBlockingActive();
-            backend->setBlockingActive(nextActive);
-            if (nextActive) {
+            const bool nextActive = !backend->isBaseBlockingActive() || lagSwitchUnblocking_;
+            if (!lagSwitchUnblocking_) {
+                backend->setBlockingActive(nextActive);
+            }
+            if (nextActive && !lagSwitchUnblocking_) {
                 lagSwitchStartTime_ = std::chrono::steady_clock::now();
+                lagSwitchLastUnblockTime_ = lagSwitchStartTime_;
+                lagSwitchUnblocking_ = false;
             }
         }
     } else {
-        if (pressed && !backend->isBaseBlockingActive()) {
-            lagSwitchStartTime_ = std::chrono::steady_clock::now();
+        if (!lagSwitchUnblocking_) {
+            if (pressed && !backend->isBaseBlockingActive()) {
+                lagSwitchStartTime_ = std::chrono::steady_clock::now();
+                lagSwitchLastUnblockTime_ = lagSwitchStartTime_;
+            }
+            backend->setBlockingActive(pressed);
         }
-        backend->setBlockingActive(pressed);
     }
     lagSwitchWasPressed_ = pressed;
 
-    if (lagswitch_autounblock && backend->isBaseBlockingActive()) {
-        const auto elapsed = std::chrono::duration<float>(std::chrono::steady_clock::now() - lagSwitchStartTime_).count();
-        if (elapsed >= lagswitch_max_duration) {
+    if (lagswitch_autounblock && (backend->isBaseBlockingActive() || lagSwitchUnblocking_)) {
+        const bool shouldPulse = islagswitchswitch
+            ? backend->isBaseBlockingActive() || lagSwitchUnblocking_
+            : pressed && (backend->isBaseBlockingActive() || lagSwitchUnblocking_);
+
+        if (!shouldPulse) {
+            lagSwitchUnblocking_ = false;
             backend->setBlockingActive(false);
+        } else if (!lagSwitchUnblocking_) {
+            const auto sinceLastUnblock = std::chrono::duration<float>(
+                std::chrono::steady_clock::now() - lagSwitchLastUnblockTime_).count();
+            if (sinceLastUnblock >= lagswitch_max_duration) {
+                lagSwitchUnblocking_ = true;
+                lagSwitchUnblockStartTime_ = std::chrono::steady_clock::now();
+                backend->setBlockingActive(false);
+            }
+        } else {
+            const auto unblockElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - lagSwitchUnblockStartTime_).count();
+            if (unblockElapsed >= lagswitch_unblock_ms) {
+                lagSwitchUnblocking_ = false;
+                lagSwitchLastUnblockTime_ = std::chrono::steady_clock::now();
+                backend->setBlockingActive(true);
+            }
         }
     }
-}
+    }
 
 void MacroRuntime::processImportedScripts()
 {
@@ -1809,9 +1836,7 @@ void MacroRuntime::setTargetSuspended(bool suspended)
     }
 
     if (suspended) {
-        if (targetPIDs.empty()) {
-            refreshTargetProcesses(true);
-        }
+        refreshTargetProcesses(true);
         if (targetPIDs.empty()) {
             return;
         }
@@ -1821,17 +1846,6 @@ void MacroRuntime::setTargetSuspended(bool suspended)
     bool anySuccess = false;
     for (unsigned int pid : frozenPids_) {
         anySuccess = (suspended ? backend->suspend(pid) : backend->resume(pid)) || anySuccess;
-    }
-
-    if (!anySuccess && suspended) {
-        const auto previousPids = frozenPids_;
-        refreshTargetProcesses(true);
-        if (!targetPIDs.empty() && targetPIDs != previousPids) {
-            frozenPids_ = targetPIDs;
-            for (unsigned int pid : frozenPids_) {
-                anySuccess = backend->suspend(pid) || anySuccess;
-            }
-        }
     }
 
     if (anySuccess) {
@@ -1848,9 +1862,7 @@ void MacroRuntime::setTargetSuspended(bool suspended)
 
 std::vector<unsigned int> MacroRuntime::currentTargetPids()
 {
-    if (targetPIDs.empty()) {
-        refreshTargetProcesses(true);
-    }
+    refreshTargetProcesses(true);
     return targetPIDs;
 }
 
