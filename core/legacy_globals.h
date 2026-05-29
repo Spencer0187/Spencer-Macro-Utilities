@@ -353,7 +353,6 @@ namespace Globals {
     inline bool shiftswitch = false;
     inline bool unequiptoggle = false;
     inline bool camfixtoggle = false;
-    inline bool macos_cursor_movement = false;
     inline bool wallhopswitch = false;
     inline bool wallwalktoggleside = false;
     inline bool wallhopcamfix = false;

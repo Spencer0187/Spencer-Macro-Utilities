@@ -1683,29 +1683,6 @@ int LuaGetMouseMotionMode(lua_State* L)
     return 1;
 }
 
-int LuaSetMacOSCursorMovement(lua_State* L)
-{
-    const bool enabled = lua_toboolean(L, 1) != 0;
-#if defined(__APPLE__)
-    Globals::macos_cursor_movement = enabled;
-    lua_pushboolean(L, 1);
-#else
-    (void)enabled;
-    lua_pushboolean(L, 0);
-#endif
-    return 1;
-}
-
-int LuaGetMacOSCursorMovement(lua_State* L)
-{
-#if defined(__APPLE__)
-    lua_pushboolean(L, Globals::macos_cursor_movement);
-#else
-    lua_pushboolean(L, 0);
-#endif
-    return 1;
-}
-
 int LuaGetPixelRect(lua_State* L)
 {
     if (IsSettingsCallbackActive(L)) {
@@ -2471,8 +2448,6 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "moveMouseAbs", LuaMoveMouseAbs);
     Register(L, "setMouseMotionMode", LuaSetMouseMotionMode);
     Register(L, "getMouseMotionMode", LuaGetMouseMotionMode);
-    Register(L, "setMacOSCursorMovement", LuaSetMacOSCursorMovement);
-    Register(L, "getMacOSCursorMovement", LuaGetMacOSCursorMovement);
     Register(L, "getPixelColor", LuaGetPixelColor);
     Register(L, "getPixelRect", LuaGetPixelRect);
     Register(L, "moveDegrees", LuaMoveDegrees);

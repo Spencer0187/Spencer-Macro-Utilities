@@ -430,28 +430,16 @@ bool PostMouseButtonEvent(PlatformKeyCode key, bool down)
     return PostTaggedEvent(event);
 }
 
-bool PostMouseMove(CGPoint target,
-                   std::optional<int> deltaX = std::nullopt,
-                   std::optional<int> deltaY = std::nullopt)
+bool PostMouseMove(CGPoint target)
 {
     if (!AccessibilityAllowsOutput()) {
         return false;
     }
-    CGEventRef event = CGEventCreateMouseEvent(
+    return PostTaggedEvent(CGEventCreateMouseEvent(
         nullptr,
         kCGEventMouseMoved,
         target,
-        kCGMouseButtonLeft);
-    if (!event) {
-        return false;
-    }
-    if (deltaX) {
-        CGEventSetIntegerValueField(event, kCGMouseEventDeltaX, *deltaX);
-    }
-    if (deltaY) {
-        CGEventSetIntegerValueField(event, kCGMouseEventDeltaY, *deltaY);
-    }
-    return PostTaggedEvent(event);
+        kCGMouseButtonLeft));
 }
 
 PlatformKeyCode WinVirtualKeyForMacKey(uint16_t macKey)
@@ -643,11 +631,7 @@ public:
         if (!cursor) {
             return;
         }
-        if (Globals::macos_cursor_movement) {
-            PostMouseMove(CGPointMake(cursor->x + dx, cursor->y + dy));
-        } else {
-            PostMouseMove(*cursor, dx, dy);
-        }
+        PostMouseMove(CGPointMake(cursor->x + dx, cursor->y + dy));
     }
 
     bool moveMouseAbsolute(int x, int y, std::string* errorMessage = nullptr) override
