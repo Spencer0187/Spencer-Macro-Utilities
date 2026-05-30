@@ -47,7 +47,7 @@ PlatformCapabilities GetPlatformCapabilities()
     caps.canSuspendProcesses = true;
     caps.canInjectGlobalInput = true;
     caps.canReadGlobalInput = true;
-    caps.canUseNetworkLagSwitch = false;
+    caps.canUseNetworkLagSwitch = true;
     caps.canShowGlobalOverlay = false;
 #elif defined(__APPLE__)
     caps.displayServer = "macos";

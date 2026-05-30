@@ -83,8 +83,10 @@ cmake --build build/windows --config Release --target suspend
 
 Install dependencies on Ubuntu/Debian:
 ```bash
-sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxinerama-dev libxkbcommon-dev
+sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config golang-go libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxinerama-dev libxkbcommon-dev
 ```
+
+Go is required when building the Linux portable folder or AppImage because the Linux network lagswitch helper is compiled from `platform/linux/nethelper`. The helper module currently requests Go `1.26.2`; with Go toolchain auto-download enabled, a modern Go install will fetch that toolchain automatically during `go mod download`, `go test`, or `go build`. If your distro package is too old for toolchain auto-download, install a current Go release from https://go.dev/dl/ before running the package scripts.
 
 Configure and build:
 ```bash
@@ -107,7 +109,7 @@ Runtime notes for the native Linux backend:
 - Runtime assets are loaded from `assets/` next to the executable.
 - X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior. Wayland support is currently in development.
 - Wayland foreground process detection is intentionally unsupported.
-- Linux network lagswitch support is not part of the native backend target yet; we're working on it.
+- Linux network lagswitch support uses the bundled `nethelper` daemon. Build the portable folder or AppImage through the package scripts so `nethelper` is compiled and staged next to `suspend`.
 
 ### macOS Universal App Bundle:
 
