@@ -378,12 +378,15 @@ int main(int argc, char** argv)
         LogInfo("Linux process backend initialized.");
     }
 
-    smu::platform::SetNetworkLagBackend(nullptr);
-    if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
-        context.networkBackendAvailable = networkBackend->isAvailable();
-        context.networkBackendError = networkBackend->unsupportedReason();
-        if (!context.networkBackendError.empty()) {
-            LogWarning(context.networkBackendError, kLinuxNetworkBackendUnavailableWarningId, true);
+    {
+        auto netBackend = smu::platform::CreateGoNetworkLagBackend();
+        std::string networkError;
+        smu::platform::SetNetworkLagBackend(netBackend);
+        context.networkBackendAvailable = netBackend->init(&networkError);
+        if (!context.networkBackendAvailable && !networkError.empty()) {
+            LogWarning(networkError, kLinuxNetworkBackendUnavailableWarningId, true);
+        } else if (context.networkBackendAvailable) {
+            LogInfo("Linux network backend initialized.");
         }
     }
 
