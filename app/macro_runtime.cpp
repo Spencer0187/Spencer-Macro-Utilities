@@ -1314,16 +1314,30 @@ void MacroRuntime::processSpamKeyMacros()
         const bool edge = pressed && !spamKeyWasPressed_[index];
         spamKeyWasPressed_[index] = pressed;
 
-        if (!allowed || inst.isspamswitch) {
-            inst.thread_active.store(false, std::memory_order_release);
-        }
-        if (!edge) {
-            continue;
+        bool shouldStartWorker = false;
+        if (inst.isspamswitch) {
+            if (!pressed) {
+                inst.thread_active.store(false, std::memory_order_release);
+                continue;
+            }
+            shouldStartWorker = !inst.thread_active.exchange(true, std::memory_order_acq_rel);
+        } else {
+            if (!allowed) {
+                inst.thread_active.store(false, std::memory_order_release);
+            }
+            if (!edge) {
+                continue;
+            }
+
+            const bool newActive = !inst.thread_active.load(std::memory_order_acquire);
+            inst.thread_active.store(newActive, std::memory_order_release);
+            if (!newActive) {
+                continue;
+            }
+            shouldStartWorker = true;
         }
 
-        const bool newActive = !inst.thread_active.load(std::memory_order_acquire);
-        inst.thread_active.store(newActive, std::memory_order_release);
-        if (!newActive) {
+        if (!shouldStartWorker) {
             continue;
         }
 
