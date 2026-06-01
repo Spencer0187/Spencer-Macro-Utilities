@@ -14,7 +14,7 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Absolute mouse | yes | yes via X11 | no / limited | yes with Accessibility |
 | Pixel reads | yes | yes via X11 | planned | yes with Screen Recording |
 | Freeze | yes | yes | yes | yes when process signals are permitted |
-| Lag switch | yes | planned | planned | no |
+| Lag switch | yes | yes | yes | no |
 
 On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs, and the Linux lag-switch backend is not implemented yet. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
 
