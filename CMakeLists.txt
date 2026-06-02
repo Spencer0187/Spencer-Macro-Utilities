@@ -527,6 +527,7 @@ elseif(APPLE)
         "${SMU_CORE_DIR}/app_state.cpp"
         "${SMU_CORE_DIR}/macro_state.cpp"
         "${SMU_PLATFORM_DIR}/file_dialog.cpp"
+        "${SMU_PLATFORM_MACOS_DIR}/termination_handler.mm"
         "${SMU_UPDATER_DIR}/updater.cpp"
         "${SMU_UPDATER_DIR}/macos_updater.cpp"
         "${SMU_IMGUIFILEDIALOG_DIR}/ImGuiFileDialog.cpp"

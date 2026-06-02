@@ -48,6 +48,7 @@
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
+#include "../platform/macos/termination_handler.h"
 #endif
 
 namespace smu::app {
@@ -331,6 +332,9 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         SDL_Quit();
         return 1;
     }
+#if defined(__APPLE__)
+    smu::platform::macos::InstallMacOSTerminationHandler();
+#endif
 
     ApplyWindowMinimumSize(window);
     ApplyWindowIcon(window);

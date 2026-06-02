@@ -56,6 +56,7 @@ esac
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
 ditto "$APP_PATH" "$STAGED_APP"
+touch "$STAGED_APP"
 
 if [[ "$SMU_MACOS_ADHOC_SIGN" == "ON" ]]; then
   # The default identity is ad-hoc ("-"). Official unsigned GitHub macOS
