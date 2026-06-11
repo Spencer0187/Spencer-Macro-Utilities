@@ -2,7 +2,7 @@
 
 namespace smu::platform {
 
-#if !defined(_WIN32) && !defined(__linux__)
+#if !defined(_WIN32) && !defined(__linux__) && !defined(__APPLE__)
 FileDialogResult OpenNativeFileDialog(const FileDialogOptions&)
 {
     return {FileDialogResultType::Unavailable, {}, "No native file dialog is available for this platform."};
