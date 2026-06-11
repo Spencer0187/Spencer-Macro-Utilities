@@ -409,36 +409,110 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     }
     LoadMacroTutorialTextures();
 
-    while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            ImGui_ImplSDL3_ProcessEvent(&event);
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-                state.done.store(true, std::memory_order_release);
-                state.running.store(false, std::memory_order_release);
-                Globals::done.store(true, std::memory_order_release);
-                Globals::running.store(false, std::memory_order_release);
-            }
-            if (event.type == SDL_EVENT_WINDOW_RESIZED ||
-                event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-                event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+    constexpr int kActiveFps = 60;
+    constexpr int kIdleFps = 8;
+    constexpr auto inputBurstDuration = std::chrono::milliseconds(250);
+    const auto activeFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
+        std::chrono::duration<double>(1.0 / static_cast<double>(kActiveFps)));
+    const auto idleFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
+        std::chrono::duration<double>(1.0 / static_cast<double>(kIdleFps)));
+    auto activeUntil = FrameClock::now();
+    auto nextActiveFrameTime = activeUntil;
+    auto nextIdleFrameTime = activeUntil;
+    std::uint64_t redrawGeneration = 1;
+    std::uint64_t handledRedrawGeneration = 0;
+
+    auto requestActiveRedraw = [&]() {
+        ++redrawGeneration;
+        activeUntil = std::max(activeUntil, FrameClock::now() + inputBurstDuration);
+    };
+
+    auto processEvent = [&](const SDL_Event& event) {
+        ImGui_ImplSDL3_ProcessEvent(&event);
+        if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+            state.done.store(true, std::memory_order_release);
+            state.running.store(false, std::memory_order_release);
+            Globals::done.store(true, std::memory_order_release);
+            Globals::running.store(false, std::memory_order_release);
+            return true;
+        }
+        if (event.type == SDL_EVENT_WINDOW_RESIZED ||
+            event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
+            event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
+            event.type == SDL_EVENT_WINDOW_MOVED) {
+            if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
                 event.type == SDL_EVENT_WINDOW_MOVED) {
-                if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
-                    event.type == SDL_EVENT_WINDOW_MOVED) {
-                    ApplyWindowMinimumSize(window);
-                }
-                UpdateWindowMetrics(window);
+                ApplyWindowMinimumSize(window);
             }
+            UpdateWindowMetrics(window);
+        }
+        return false;
+    };
+
+    auto handlePendingEvents = [&](const SDL_Event* firstEvent = nullptr) {
+        bool quitRequested = false;
+        bool sawEvent = false;
+        SDL_Event event{};
+
+        if (firstEvent) {
+            sawEvent = true;
+            quitRequested = processEvent(*firstEvent);
+        }
+        while (SDL_PollEvent(&event)) {
+            sawEvent = true;
+            quitRequested = processEvent(event) || quitRequested;
+        }
+        if (sawEvent) {
+            requestActiveRedraw();
+        }
+        return quitRequested;
+    };
+
+    while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
+        const auto now = FrameClock::now();
+        const bool redrawRequested = redrawGeneration != handledRedrawGeneration;
+        const bool activeFrameDue = now < activeUntil && now >= nextActiveFrameTime;
+        const bool idleFrameDue = now >= nextIdleFrameTime;
+
+        bool quitRequested = false;
+        if (!redrawRequested && !activeFrameDue && !idleFrameDue) {
+            const auto wakeDeadline = (now < activeUntil)
+                ? std::min(nextActiveFrameTime, nextIdleFrameTime)
+                : nextIdleFrameTime;
+            const auto waitDuration = std::chrono::ceil<std::chrono::milliseconds>(
+                std::max(FrameClock::duration::zero(), wakeDeadline - now));
+            const int timeoutMs = std::clamp(static_cast<int>(waitDuration.count()), 1, 1000);
+
+            SDL_Event event{};
+            if (SDL_WaitEventTimeout(&event, timeoutMs)) {
+                quitRequested = handlePendingEvents(&event);
+            }
+        } else {
+            quitRequested = handlePendingEvents();
         }
 
-        if (!state.running.load(std::memory_order_acquire) || state.done.load(std::memory_order_acquire)) {
+        if (quitRequested || !state.running.load(std::memory_order_acquire) || state.done.load(std::memory_order_acquire)) {
             break;
+        }
+
+        const auto renderNow = FrameClock::now();
+        const bool renderRedrawRequested = redrawGeneration != handledRedrawGeneration;
+        const bool renderActiveFrameDue = renderNow < activeUntil && renderNow >= nextActiveFrameTime;
+        const bool renderIdleFrameDue = renderNow >= nextIdleFrameTime;
+        if (!renderRedrawRequested && !renderActiveFrameDue && !renderIdleFrameDue) {
+            continue;
         }
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
         RenderAppUi(context);
+
+        const ImGuiIO& frameIo = ImGui::GetIO();
+        const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
+            frameIo.MouseDown[3] || frameIo.MouseDown[4];
+        const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
+
         ImGui::Render();
 
         glViewport(0, 0, std::max(1, state.rawWindowWidth), std::max(1, state.rawWindowHeight));
@@ -446,6 +520,14 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
+
+        handledRedrawGeneration = redrawGeneration;
+        const auto nowAfterRender = FrameClock::now();
+        if (uiInteractionActive) {
+            activeUntil = std::max(activeUntil, nowAfterRender + inputBurstDuration);
+        }
+        nextActiveFrameTime = nowAfterRender + activeFrameDuration;
+        nextIdleFrameTime = nowAfterRender + idleFrameDuration;
     }
 
     UnloadMacroTutorialTextures();
