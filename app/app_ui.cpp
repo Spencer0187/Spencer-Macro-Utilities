@@ -1195,6 +1195,22 @@ void QueueScriptImportTrustModal(const std::filesystem::path& path)
     g_import_error.clear();
 }
 
+bool IsValidDroppedScriptFile(const std::filesystem::path& path)
+{
+    if (!IsSupportedScriptExtension(path)) {
+        return false;
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec) || ec) {
+        return false;
+    }
+    if (!std::filesystem::is_regular_file(path, ec) || ec) {
+        return false;
+    }
+    return true;
+}
+
 void OpenScriptFileDialogFallback()
 {
     BeginModalInputCapture();
@@ -1276,7 +1292,8 @@ void RenderImportTrustModal()
         if (ImGui::Button("Import", ImVec2(90.0f, 0.0f))) {
             if (g_pending_import_path) {
                 const std::size_t beforeCount = ScriptManager::Get().count();
-                const bool ok = ScriptManager::Get().importScript(*g_pending_import_path);
+                const ScriptImportResult importResult = ScriptManager::Get().importScriptWithResult(*g_pending_import_path);
+                const bool ok = importResult == ScriptImportResult::Success;
                 const std::size_t afterCount = ScriptManager::Get().count();
                 if (afterCount > beforeCount) {
                     g_selected_imported_script = static_cast<int>(afterCount - 1);
@@ -1289,7 +1306,11 @@ void RenderImportTrustModal()
                         g_import_error.clear();
                     }
                 } else if (!ok) {
-                    g_import_error = "Script could not be imported. It may already be imported or is malformed.";
+                    if (importResult == ScriptImportResult::AlreadyImported) {
+                        g_import_error = "Script is already imported.";
+                    } else {
+                        g_import_error = "Script could not be imported because it is malformed or invalid.";
+                    }
                 }
             }
             g_pending_import_path.reset();
@@ -3256,6 +3277,17 @@ void RenderForegroundDependentCheckbox(AppContext& context, const char* label, c
     if (fallbackActive && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("%s", kForegroundFallbackTooltip);
     }
+}
+
+bool QueueDroppedScriptImport(const std::filesystem::path& path)
+{
+    if (!IsValidDroppedScriptFile(path)) {
+        LogWarning("Rejected dropped script file: " + path.string());
+        return false;
+    }
+
+    QueueScriptImportTrustModal(path);
+    return true;
 }
 
 void RenderAppUi(AppContext& context)

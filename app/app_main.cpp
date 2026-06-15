@@ -66,6 +66,19 @@ constexpr WindowSize kMinimumRenderSize{1180, 700};
 constexpr int kMaximumInitialWindowWidth = 3840;
 constexpr int kMaximumInitialWindowHeight = 2160;
 
+#if defined(_WIN32)
+#ifdef WM_COPYGLOBALDATA
+constexpr UINT kWmCopyGlobalData = WM_COPYGLOBALDATA;
+#else
+constexpr UINT kWmCopyGlobalData = 0x0049;
+#endif
+#ifdef MSGFLT_ALLOW
+constexpr DWORD kMsgfltAllow = MSGFLT_ALLOW;
+#else
+constexpr DWORD kMsgfltAllow = 1;
+#endif
+#endif
+
 FrameTimePoint FrameTimePointFromTicks(std::int64_t ticks)
 {
     return FrameTimePoint(FrameClock::duration(ticks));
@@ -217,6 +230,67 @@ void ApplyWindowMinimumSize(SDL_Window* window)
 }
 
 #if defined(_WIN32)
+void AllowElevatedWindowFileDrops(SDL_Window* window)
+{
+    SDL_PropertiesID props = SDL_GetWindowProperties(window);
+    HWND hwnd = static_cast<HWND>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, nullptr));
+    if (!hwnd) {
+        LogWarning("Could not find Win32 window handle for drag-and-drop message filter.");
+        return;
+    }
+
+    using ChangeWindowMessageFilterExFn = BOOL(WINAPI*)(HWND, UINT, DWORD, void*);
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    auto changeMessageFilter = user32
+        ? reinterpret_cast<ChangeWindowMessageFilterExFn>(GetProcAddress(user32, "ChangeWindowMessageFilterEx"))
+        : nullptr;
+    if (!changeMessageFilter) {
+        LogWarning("ChangeWindowMessageFilterEx is unavailable; elevated Windows drag-and-drop may be blocked.");
+        return;
+    }
+
+    const std::array<UINT, 3> dropMessages = {WM_DROPFILES, WM_COPYDATA, kWmCopyGlobalData};
+    for (UINT message : dropMessages) {
+        if (!changeMessageFilter(hwnd, message, kMsgfltAllow, nullptr)) {
+            LogWarning("Could not allow elevated Windows drag-and-drop message " + std::to_string(message) + ".");
+        }
+    }
+}
+
+std::filesystem::path Utf8PathFromDropData(const char* path)
+{
+    if (!path || path[0] == '\0') {
+        return {};
+    }
+
+    const int requiredChars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, nullptr, 0);
+    if (requiredChars <= 0) {
+        return std::filesystem::path(path);
+    }
+
+    std::wstring widePath(static_cast<std::size_t>(requiredChars), L'\0');
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, widePath.data(), requiredChars) <= 0) {
+        return std::filesystem::path(path);
+    }
+    widePath.resize(static_cast<std::size_t>(requiredChars - 1));
+    return std::filesystem::path(widePath);
+}
+#else
+std::filesystem::path Utf8PathFromDropData(const char* path)
+{
+    return path ? std::filesystem::path(path) : std::filesystem::path();
+}
+#endif
+
+bool HandleDroppedFileEvent(const SDL_Event& event)
+{
+    if (event.type != SDL_EVENT_DROP_FILE || !event.drop.data || event.drop.data[0] == '\0') {
+        return false;
+    }
+    return QueueDroppedScriptImport(Utf8PathFromDropData(event.drop.data));
+}
+
+#if defined(_WIN32)
 void ApplyDarkTitleBar(SDL_Window* window)
 {
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
@@ -305,6 +379,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         LogCritical(std::string("Failed SDL initialization: ") + SDL_GetError());
         return 1;
     }
+    SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
 
 #if defined(__APPLE__)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
@@ -343,6 +418,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     }
 #if defined(_WIN32)
     ApplyDarkTitleBar(window);
+    AllowElevatedWindowFileDrops(window);
 #endif
 
     SDL_GLContext glContext = SDL_GL_CreateContext(window);
@@ -429,6 +505,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
     auto processEvent = [&](const SDL_Event& event) {
         ImGui_ImplSDL3_ProcessEvent(&event);
+        HandleDroppedFileEvent(event);
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             state.done.store(true, std::memory_order_release);
             state.running.store(false, std::memory_order_release);
@@ -720,6 +797,7 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
         {
             std::lock_guard<std::mutex> imguiLock(imguiMutex);
+            HandleDroppedFileEvent(event);
             // Forward non-wheel input to ImGui while holding the shared context lock.
             ImGui_ImplSDL3_ProcessEvent(&event);
         }

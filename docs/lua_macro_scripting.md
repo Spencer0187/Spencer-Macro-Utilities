@@ -280,6 +280,7 @@ The `ui` table is available to scripts that define `onSettings()`. These helpers
 | `ui.checkbox(id, label, defaultValue, width)` | Render a checkbox and persist a boolean setting |
 | `ui.sliderInt(id, label, defaultValue, minValue, maxValue, width)` | Render an integer slider and persist the value |
 | `ui.sliderFloat(id, label, defaultValue, minValue, maxValue, width)` | Render a float slider and persist the value |
+| `ui.dropdown(id, label, options, defaultValue, width)` | Render a dropdown from an array of strings and persist the selected string. `defaultValue` may be a string or 1-based option index |
 | `ui.textbox(id, label, defaultValue, width, height)` | Render a text box and persist the value |
 | `ui.dynamicTextbox(id, label, defaultValue, width, height)` | Render a read-only multi-line text box backed by a script-updated value |
 | `ui.setDynamicText(id, text)` | Update a dynamic text-box value. Clamped to 4096 characters |
@@ -299,6 +300,7 @@ Notes:
 - UI IDs must be non-empty, contain no embedded NUL bytes, and are limited to 128 bytes.
 - A single `onSettings()` call may create up to 512 UI controls, and each script is capped at 4096 total unique UI IDs.
 - Stored script UI strings are clamped to 4096 bytes.
+- Dropdown option lists must contain 1 to 256 unique, non-empty strings.
 
 Example:
 
@@ -316,6 +318,7 @@ end
 function onSettings()
     ui.dynamicTextbox("status", "Status", "Ready", 360, 90)
     ui.sliderInt("speed", "Speed", 50, 0, 100, 260)
+    ui.dropdown("mode", "Mode", { "Tap", "Hold", "Burst" }, "Tap", 220)
     ui.button("reset-speed", "Reset Speed", "actions.resetSpeed", 140, 0)
 
     if ui.button("mark-ready", "Mark Ready", 140, 0) then

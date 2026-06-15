@@ -100,6 +100,11 @@ ScriptManager& ScriptManager::Get()
 
 bool ScriptManager::importScript(const std::filesystem::path& path)
 {
+    return importScriptWithResult(path) == ScriptImportResult::Success;
+}
+
+ScriptImportResult ScriptManager::importScriptWithResult(const std::filesystem::path& path)
+{
     auto record = std::make_shared<ImportedScriptRecord>();
     record->path = NormalizePath(path);
     record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
@@ -108,13 +113,13 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
 
     if (!IsSupportedScriptExtension(record->path)) {
         LogWarning("Rejected imported script with unsupported extension: " + record->path.string());
-        return false;
+        return ScriptImportResult::UnsupportedExtension;
     }
     {
         std::lock_guard<std::mutex> lock(scriptsMutex_);
         if (isDuplicatePath(record->path)) {
             LogWarning("Script is already imported: " + record->path.string());
-            return false;
+            return ScriptImportResult::AlreadyImported;
         }
         scripts_.push_back(record);
     }
@@ -131,7 +136,7 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
                 break;
             }
         }
-        return false;
+        return ScriptImportResult::LoadFailed;
     }
 
     if (auto hotkey = ParseScriptHotkeyMetadata(record->path)) {
@@ -139,7 +144,7 @@ bool ScriptManager::importScript(const std::filesystem::path& path)
     } else {
         record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
     }
-    return true;
+    return ScriptImportResult::Success;
 }
 
 bool ScriptManager::importScriptFromSave(const std::filesystem::path& path, unsigned int hotkey, bool enabled, bool disableOutsideRoblox)
