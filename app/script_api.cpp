@@ -290,6 +290,80 @@ std::string ClampedString(const char* text, std::size_t length)
     return std::string(text ? text : "", clampedLength);
 }
 
+std::vector<std::string> CheckDropdownItems(lua_State* L, int index)
+{
+    luaL_checktype(L, index, LUA_TTABLE);
+    const lua_Integer rawCount = static_cast<lua_Integer>(lua_rawlen(L, index));
+    if (rawCount <= 0) {
+        luaL_argerror(L, index, "dropdown items must not be empty");
+    }
+    if (rawCount > static_cast<lua_Integer>(kMaxUiDropdownItems)) {
+        luaL_argerror(L, index, "dropdown items exceed the allowed limit");
+    }
+
+    std::vector<std::string> items;
+    items.reserve(static_cast<std::size_t>(rawCount));
+    std::unordered_set<std::string> seen;
+    for (lua_Integer itemIndex = 1; itemIndex <= rawCount; ++itemIndex) {
+        lua_rawgeti(L, index, itemIndex);
+        std::size_t itemLength = 0;
+        const char* itemText = luaL_checklstring(L, -1, &itemLength);
+        if (itemLength == 0) {
+            lua_pop(L, 1);
+            luaL_error(L, "dropdown item %lld must not be empty", static_cast<long long>(itemIndex));
+        }
+        if (itemLength > kMaxUiStateStringBytes) {
+            lua_pop(L, 1);
+            luaL_error(L, "dropdown item %lld is too long", static_cast<long long>(itemIndex));
+        }
+        if (std::memchr(itemText, '\0', itemLength)) {
+            lua_pop(L, 1);
+            luaL_error(L, "dropdown item %lld must not contain embedded NUL bytes", static_cast<long long>(itemIndex));
+        }
+        std::string item(itemText, itemLength);
+        if (!seen.insert(item).second) {
+            lua_pop(L, 1);
+            luaL_error(L, "dropdown item %lld duplicates an earlier item", static_cast<long long>(itemIndex));
+        }
+        items.push_back(std::move(item));
+        lua_pop(L, 1);
+    }
+    return items;
+}
+
+std::size_t FindDropdownItemIndex(const std::vector<std::string>& items, const std::string& value)
+{
+    const auto it = std::find(items.begin(), items.end(), value);
+    return it == items.end() ? 0 : static_cast<std::size_t>(std::distance(items.begin(), it));
+}
+
+std::string CheckDropdownDefault(lua_State* L, int index, const std::vector<std::string>& items)
+{
+    if (lua_gettop(L) < index || lua_isnil(L, index)) {
+        return items.front();
+    }
+    if (lua_isinteger(L, index)) {
+        const lua_Integer itemIndex = lua_tointeger(L, index);
+        if (itemIndex < 1 || itemIndex > static_cast<lua_Integer>(items.size())) {
+            luaL_argerror(L, index, "default dropdown index is outside the allowed range");
+        }
+        return items[static_cast<std::size_t>(itemIndex - 1)];
+    }
+    if (lua_type(L, index) == LUA_TSTRING) {
+        std::size_t defaultLength = 0;
+        const char* defaultText = luaL_checklstring(L, index, &defaultLength);
+        if (defaultLength <= kMaxUiStateStringBytes && !std::memchr(defaultText, '\0', defaultLength)) {
+            const std::string defaultValue(defaultText, defaultLength);
+            if (std::find(items.begin(), items.end(), defaultValue) != items.end()) {
+                return defaultValue;
+            }
+        }
+        return items.front();
+    }
+    luaL_argerror(L, index, "default dropdown value must be a string, option index, or nil");
+    return items.front();
+}
+
 smu::core::KeyCode CheckKey(lua_State* L, int index)
 {
     if (lua_isinteger(L, index)) {
@@ -2128,6 +2202,64 @@ int LuaUiSliderFloat(lua_State* L)
     return 1;
 }
 
+int LuaUiDropdown(lua_State* L)
+{
+    ScriptInstance& instance = RequireInstance(L);
+    CheckUiControlBudget(L, instance);
+    std::size_t idLength = 0;
+    const char* idText = CheckUiId(L, 1, idLength);
+    const char* label = luaL_checkstring(L, 2);
+    std::vector<std::string> items = CheckDropdownItems(L, 3);
+    std::string defaultValue = CheckDropdownDefault(L, 4, items);
+    const float width = CheckOptionalNonNegativeFloat(L, 5, 0.0f, "width");
+
+    const std::string id(idText, idLength);
+    instance.recordSettingsDropdown(id, label, items, defaultValue, width);
+    CheckUiIdBudget(L, instance, id);
+    ImportedScriptRecord& record = instance.owner();
+    bool hasStored = false;
+    std::string stored = defaultValue;
+    {
+        std::lock_guard<std::mutex> uiLock(record.uiStateMutex);
+        const auto storedIt = record.uiState.find(id);
+        hasStored = storedIt != record.uiState.end();
+        if (hasStored && storedIt->is_string()) {
+            stored = storedIt->get<std::string>();
+        }
+    }
+    std::size_t selectedIndex = FindDropdownItemIndex(items, stored);
+    if (!hasStored || items[selectedIndex] != stored) {
+        stored = defaultValue;
+        selectedIndex = FindDropdownItemIndex(items, stored);
+        UpdateScriptStringSetting(instance, id, stored);
+    }
+
+    if (instance.isSettingsRenderMode()) {
+        ImGui::PushID(id.c_str());
+        if (width > 0.0f) {
+            ImGui::SetNextItemWidth(width);
+        }
+        if (ImGui::BeginCombo(label, items[selectedIndex].c_str())) {
+            for (std::size_t itemIndex = 0; itemIndex < items.size(); ++itemIndex) {
+                const bool selected = itemIndex == selectedIndex;
+                if (ImGui::Selectable(items[itemIndex].c_str(), selected)) {
+                    selectedIndex = itemIndex;
+                    stored = items[itemIndex];
+                    UpdateScriptStringSetting(instance, id, stored);
+                }
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::PopID();
+    }
+
+    lua_pushlstring(L, stored.c_str(), stored.size());
+    return 1;
+}
+
 int LuaUiTextbox(lua_State* L)
 {
     ScriptInstance& instance = RequireInstance(L);
@@ -2390,6 +2522,8 @@ void RegisterUiTable(lua_State* L)
     lua_setfield(L, -2, "sliderInt");
     lua_pushcfunction(L, LuaUiSliderFloat);
     lua_setfield(L, -2, "sliderFloat");
+    lua_pushcfunction(L, LuaUiDropdown);
+    lua_setfield(L, -2, "dropdown");
     lua_pushcfunction(L, LuaUiTextbox);
     lua_setfield(L, -2, "textbox");
     lua_pushcfunction(L, LuaUiDynamicTextbox);

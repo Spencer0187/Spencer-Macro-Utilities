@@ -401,6 +401,12 @@ unsigned int NormalizeCachedHotkey(unsigned int hotkey)
     return IsScriptHotkeyBound(hotkey) ? hotkey : kScriptUnboundHotkey;
 }
 
+std::size_t FindDropdownItemIndex(const std::vector<std::string>& items, const std::string& value)
+{
+    const auto it = std::find(items.begin(), items.end(), value);
+    return it == items.end() ? 0 : static_cast<std::size_t>(std::distance(items.begin(), it));
+}
+
 std::optional<SavedSettingValue> JsonToSavedValue(const nlohmann::json& value)
 {
     if (value.is_boolean()) {
@@ -937,6 +943,22 @@ void ScriptInstance::recordSettingsSliderFloat(std::string id, std::string label
     pendingSettingsUiControls_.push_back(std::move(control));
 }
 
+void ScriptInstance::recordSettingsDropdown(std::string id, std::string label, std::vector<std::string> items, std::string defaultValue, float width)
+{
+    std::lock_guard<std::mutex> lock(settingsUiMutex_);
+    if (!settingsUiCaptureActive_) {
+        return;
+    }
+    SettingsUiControl control;
+    control.kind = SettingsUiControl::Kind::Dropdown;
+    control.id = std::move(id);
+    control.label = std::move(label);
+    control.items = std::move(items);
+    control.defaultText = std::move(defaultValue);
+    control.width = width;
+    pendingSettingsUiControls_.push_back(std::move(control));
+}
+
 void ScriptInstance::recordSettingsTextbox(std::string id, std::string label, std::string defaultValue, float width, float height)
 {
     std::lock_guard<std::mutex> lock(settingsUiMutex_);
@@ -1107,6 +1129,35 @@ void ScriptInstance::renderCachedSettings(bool readOnly)
             ImGui::SliderFloat(control.label.c_str(), &value,
                 static_cast<float>(control.minFloat),
                 static_cast<float>(control.maxFloat));
+            if (readOnly) {
+                ImGui::EndDisabled();
+            }
+            break;
+        }
+        case SettingsUiControl::Kind::Dropdown: {
+            std::string stored = ClampStoredUiText(control.defaultText);
+            const nlohmann::json value = copyUiValue(control.id);
+            if (value.is_string()) {
+                stored = ClampStoredUiText(value.get<std::string>());
+            }
+            const std::size_t selectedIndex = FindDropdownItemIndex(control.items, stored);
+            if (readOnly) {
+                ImGui::BeginDisabled();
+            }
+            if (control.width > 0.0f) {
+                ImGui::SetNextItemWidth(control.width);
+            }
+            const char* preview = control.items.empty() ? "" : control.items[selectedIndex].c_str();
+            if (ImGui::BeginCombo(control.label.c_str(), preview)) {
+                for (std::size_t itemIndex = 0; itemIndex < control.items.size(); ++itemIndex) {
+                    const bool selected = itemIndex == selectedIndex;
+                    ImGui::Selectable(control.items[itemIndex].c_str(), selected);
+                    if (selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                }
+                ImGui::EndCombo();
+            }
             if (readOnly) {
                 ImGui::EndDisabled();
             }

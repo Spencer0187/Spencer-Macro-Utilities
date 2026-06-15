@@ -33,6 +33,7 @@ inline constexpr std::size_t kMaxUiIdBytes = 128;
 inline constexpr std::size_t kMaxUiControlsPerSettingsCall = 512;
 inline constexpr std::size_t kMaxUiStateStringBytes = 4096;
 inline constexpr std::size_t kMaxUiStateEntries = 4096;
+inline constexpr std::size_t kMaxUiDropdownItems = 256;
 
 class ScriptInstance {
 public:
@@ -55,6 +56,7 @@ public:
             Checkbox,
             SliderInt,
             SliderFloat,
+            Dropdown,
             Textbox,
             DynamicTextbox,
             Keybind,
@@ -66,6 +68,7 @@ public:
         std::string label;
         std::string text;
         std::string defaultText;
+        std::vector<std::string> items;
         bool defaultBool = false;
         int defaultInt = 0;
         int minInt = 0;
@@ -147,6 +150,7 @@ public:
     void recordSettingsCheckbox(std::string id, std::string label, bool defaultValue, float width);
     void recordSettingsSliderInt(std::string id, std::string label, int defaultValue, int minValue, int maxValue, float width);
     void recordSettingsSliderFloat(std::string id, std::string label, double defaultValue, double minValue, double maxValue, float width);
+    void recordSettingsDropdown(std::string id, std::string label, std::vector<std::string> items, std::string defaultValue, float width);
     void recordSettingsTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
     void recordSettingsDynamicTextbox(std::string id, std::string label, std::string defaultValue, float width, float height);
     void recordSettingsKeybind(std::string id, std::string label, unsigned int defaultValue, float width);

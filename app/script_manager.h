@@ -76,6 +76,13 @@ struct ImportedScriptRecord {
     }
 };
 
+enum class ScriptImportResult {
+    Success,
+    UnsupportedExtension,
+    AlreadyImported,
+    LoadFailed,
+};
+
 class ScriptManager {
 public:
     using RecordPtr = std::shared_ptr<ImportedScriptRecord>;
@@ -85,6 +92,7 @@ public:
     static ScriptManager& Get();
 
     bool importScript(const std::filesystem::path& path);
+    ScriptImportResult importScriptWithResult(const std::filesystem::path& path);
     bool importScriptFromSave(const std::filesystem::path& path, unsigned int hotkey, bool enabled, bool disableOutsideRoblox);
     bool reloadScript(std::size_t index);
     bool removeScript(std::size_t index);
