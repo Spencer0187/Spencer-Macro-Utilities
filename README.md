@@ -79,27 +79,105 @@ cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
 cmake --build build/windows --config Release --target suspend
 ```
 
-### Linux Native Backend:
+## Linux Native Backend
 
-Install dependencies on Ubuntu/Debian:
+### Install build dependencies
+
+Install the dependency set for your distro family.
+
+#### Ubuntu / Debian
+
 ```bash
-sudo apt-get update && sudo apt-get install -y build-essential cmake pkg-config golang-go libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev libxinerama-dev libxkbcommon-dev
+sudo apt-get update && sudo apt-get install -y \
+  build-essential cmake pkg-config golang-go \
+  libgl1-mesa-dev \
+  libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+  libxfixes-dev libxi-dev libxss-dev libxtst-dev \
+  libxinerama-dev libxkbcommon-dev
 ```
 
-Go is required when building the Linux portable folder or AppImage because the Linux network lagswitch helper is compiled from `platform/linux/nethelper`. The helper module currently requests Go `1.26.2`; with Go toolchain auto-download enabled, a modern Go install will fetch that toolchain automatically during `go mod download`, `go test`, or `go build`. If your distro package is too old for toolchain auto-download, install a current Go release from https://go.dev/dl/ before running the package scripts.
+This command also generally applies to Ubuntu/Debian-based distributions that keep compatible package names, such as Linux Mint, Pop!_OS, Zorin OS, elementary OS, and KDE neon.
 
-Configure and build:
+#### Fedora
+
+```bash
+sudo dnf makecache --refresh && sudo dnf install -y \
+  gcc gcc-c++ make cmake pkgconf-pkg-config golang \
+  mesa-libGL-devel \
+  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
+  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
+  libXinerama-devel libxkbcommon-devel
+```
+
+Alternatively, Fedora users can install the broader development tools group:
+
+```bash
+sudo dnf makecache --refresh && sudo dnf install -y \
+  @development-tools cmake pkgconf-pkg-config golang \
+  mesa-libGL-devel \
+  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
+  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
+  libXinerama-devel libxkbcommon-devel
+```
+
+#### Arch Linux / Manjaro
+
+```bash
+sudo pacman -Syu --needed \
+  base-devel cmake pkgconf go \
+  libglvnd mesa \
+  libx11 libxext libxrandr libxcursor libxfixes libxi \
+  libxss libxtst libxinerama libxkbcommon
+```
+
+#### openSUSE Tumbleweed / Leap
+
+```bash
+sudo zypper refresh && sudo zypper install -y \
+  -t pattern devel_basis \
+  cmake pkgconf go \
+  Mesa-libGL-devel \
+  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
+  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
+  libXinerama-devel libxkbcommon-devel
+```
+
+### Go requirement
+
+Go is required when building the Linux portable folder or AppImage because the Linux network lagswitch helper is compiled from `platform/linux/nethelper`.
+
+The helper module currently requests Go `1.26.2`. With Go toolchain auto-download enabled, a modern Go install can automatically fetch the requested toolchain during `go mod download`, `go test`, or `go build`.
+
+If your distro package ships an older Go version that does not support toolchain auto-download, install a current Go release from the official Go downloads page before running the Linux package scripts.
+
+### Configure and build
+
 ```bash
 cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
 cmake --build build/linux --target suspend
 ```
 
-Build a portable folder:
+### Build a portable folder
+
 ```bash
 cmake --build build/linux --target package-linux-dir
 ```
 
-This creates `build/linux-package/SpencerMacroUtilities/` with `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`. Copy the whole folder to a compatible Linux system and launch it with `./run.sh`. The app starts unprivileged; if native input permissions are missing, it shows setup options inside the UI.
+This creates:
+
+```text
+build/linux-package/SpencerMacroUtilities/
+```
+
+The folder contains `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`.
+
+Copy the whole folder to a compatible Linux system and launch it with:
+
+```bash
+./run.sh
+```
+
+The app starts unprivileged. If native input permissions are missing, it shows setup options inside the UI.
 
 Runtime notes for the native Linux backend:
 - Input injection uses `/dev/uinput`.
