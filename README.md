@@ -166,7 +166,7 @@ cmake --build build/linux --target package-linux-dir
 This creates:
 
 ```text
-build/linux-package/SpencerMacroUtilities/
+build/linux/SpencerMacroUtilities/
 ```
 
 The folder contains `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`.
