@@ -1914,7 +1914,7 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     }
     ImGui::SameLine();
     if (ImGui::Button("R", ImVec2(25, 0))) {
-        std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", g_isLinuxWine ? "Main" : "RobloxPlayerBeta.exe");
+        std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", g_isLinuxWine ? "sober" : "RobloxPlayerBeta.exe");
     }
     ImGui::SameLine();
 
