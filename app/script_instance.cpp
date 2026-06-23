@@ -2,6 +2,7 @@
 
 #include "app_ui_controls.h"
 #include "input_actions.h"
+#include "linux_lagswitch_helper.h"
 #include "script_api.h"
 #include "profile_manager.h"
 #include "script_manager.h"
@@ -161,6 +162,8 @@ bool WaitUntilWithWindowsTimer(std::chrono::steady_clock::time_point wakeTime, H
 constexpr const char* kRegistryInstanceKey = "SMU.ScriptInstance";
 constexpr const char* kLagSwitchRequiresAdminWarning =
     "Lag switch was requested, but SMU is not running as Administrator. The script continued, but lag-switch actions were skipped.";
+constexpr const char* kLagSwitchRequiresLinuxHelperWarning =
+    "Lag switch was requested, but the Linux lagswitch helper is not running. Approve the lagswitch permission prompt to continue.";
 constexpr auto kMaxScriptRuntime = std::chrono::seconds(30);
 constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr auto kMaxCleanupRuntime = std::chrono::seconds(2);
@@ -2008,6 +2011,14 @@ void ScriptInstance::setLagSwitch(bool enabled)
             if (!smu::platform::windows::IsRunAsAdmin()) {
                 owner_->setLastWarning(kLagSwitchRequiresAdminWarning);
                 LogWarning(kLagSwitchRequiresAdminWarning);
+                return;
+            }
+#endif
+#if defined(__linux__)
+            if (error.empty()) {
+                Globals::bShowAdminPopup = true;
+                owner_->setLastWarning(kLagSwitchRequiresLinuxHelperWarning);
+                LogWarning(kLagSwitchRequiresLinuxHelperWarning);
                 return;
             }
 #endif

@@ -30,7 +30,6 @@ namespace {
 
 constexpr const char kLinuxProcessBackendInitWarningId[] = "linux_process_backend_init_failed";
 constexpr const char kLinuxInputBackendInitWarningId[] = "linux_input_backend_init_failed";
-constexpr const char kLinuxNetworkBackendUnavailableWarningId[] = "linux_network_backend_unavailable";
 constexpr const char kForegroundDetectionUnavailableWarningId[] = "foreground_detection_unavailable";
 
 std::string GetExecutablePath()
@@ -380,14 +379,8 @@ int main(int argc, char** argv)
 
     {
         auto netBackend = smu::platform::CreateGoNetworkLagBackend();
-        std::string networkError;
         smu::platform::SetNetworkLagBackend(netBackend);
-        context.networkBackendAvailable = netBackend->init(&networkError);
-        if (!context.networkBackendAvailable && !networkError.empty()) {
-            LogWarning(networkError, kLinuxNetworkBackendUnavailableWarningId, true);
-        } else if (context.networkBackendAvailable) {
-            LogInfo("Linux network backend initialized.");
-        }
+        context.networkBackendAvailable = true;
     }
 
     for (const std::string& warning : context.capabilities.warnings) {

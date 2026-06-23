@@ -3,6 +3,7 @@
 #include "app_profile_bridge.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
+#include "linux_lagswitch_helper.h"
 #include "macro_tutorial_assets.h"
 #include "script_instance.h"
 #include "script_manager.h"
@@ -1582,7 +1583,7 @@ void RenderMacOSPermissionSetup(AppContext& context)
 
 void RenderAdministratorRequiredPopup()
 {
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__linux__)
     if (bShowAdminPopup) {
         ImGui::OpenPopup("Administrator Required");
     }
@@ -1594,15 +1595,23 @@ void RenderAdministratorRequiredPopup()
     ImGui::SetNextWindowSizeConstraints(ImVec2(520.0f, 0.0f), ImVec2(720.0f, 1000.0f));
 
     if (ImGui::BeginPopupModal("Administrator Required", &bShowAdminPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+#if defined(_WIN32)
         ImGui::TextWrapped("WinDivert features require Administrator privileges.");
         ImGui::TextWrapped("This process involves:");
         ImGui::BulletText("Extracting SMCWinDivert.dll and WinDivert64.sys to the current folder.");
         ImGui::BulletText("Restarting this application as Administrator.");
+#elif defined(__linux__)
+        ImGui::TextWrapped("Linux lagswitch features require a privileged nethelper process.");
+        ImGui::TextWrapped("This process involves:");
+        ImGui::BulletText("Starting the bundled nethelper with pkexec.");
+        ImGui::BulletText("Keeping the SMU GUI running as your normal desktop user.");
+#endif
         ImGui::Separator();
 
         ImGui::Checkbox("Do not show this again", &DontShowAdminWarning);
 
         ImGui::Separator();
+#if defined(_WIN32)
         if (ImGui::Button("Restart as Admin", ImVec2(180, 0))) {
             ImGui::CloseCurrentPopup();
             bShowAdminPopup = false;
@@ -1615,6 +1624,24 @@ void RenderAdministratorRequiredPopup()
                 appState.running.store(false, std::memory_order_release);
             }
         }
+#elif defined(__linux__)
+        if (ImGui::Button("Start Helper", ImVec2(180, 0))) {
+            smu::app::SaveSharedProfilesNow();
+            std::string helperError;
+            if (!smu::app::StartLinuxNetworkHelperWithGraphicalPkexec(&helperError)) {
+                if (!helperError.empty()) {
+                    LogWarning(helperError);
+                }
+            } else {
+                std::string backendError;
+                if (!InitializeLagSwitchBackend(&backendError) && !backendError.empty()) {
+                    LogWarning(backendError);
+                }
+            }
+            ImGui::CloseCurrentPopup();
+            bShowAdminPopup = false;
+        }
+#endif
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(120, 0))) {
@@ -3010,10 +3037,6 @@ void RenderSelectedSection(AppContext& context)
 
     if (selected_section == 15) {
         auto backend = smu::platform::GetNetworkLagBackend();
-        const bool backendAvailable = backend && backend->isAvailable();
-        if (!backendAvailable) {
-            ImGui::BeginDisabled();
-        }
 
         ImGui::Checkbox("Switch from Hold Key to Toggle Key", &islagswitchswitch);
         ImGui::Separator();
@@ -3139,7 +3162,16 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::NewLine();
         ImGui::Separator();
-        if (ImGui::Button(bWinDivertEnabled ? "Disable WinDivert" : "Enable WinDivert")) {
+#if defined(__linux__)
+        bool linuxHelperReady = backend && backend->isAvailable();
+#endif
+        const char* lagSwitchButtonLabel =
+#if defined(__linux__)
+            bWinDivertEnabled ? "Disable Lagswitch" : (linuxHelperReady ? "Enable Lagswitch" : "Enable Lagswitch Helper");
+#else
+            bWinDivertEnabled ? "Disable WinDivert" : "Enable WinDivert";
+#endif
+        if (ImGui::Button(lagSwitchButtonLabel)) {
             if (!bWinDivertEnabled) {
                 std::string backendError;
                 if (!InitializeLagSwitchBackend(&backendError)) {
@@ -3162,14 +3194,48 @@ void RenderSelectedSection(AppContext& context)
                         }
                     }
 #endif
+#if defined(__linux__)
+                    if (backendError.empty()) {
+                        if (DontShowAdminWarning) {
+                            smu::app::SaveSharedProfilesNow();
+                            std::string helperError;
+                            if (!smu::app::StartLinuxNetworkHelperWithGraphicalPkexec(&helperError)) {
+                                if (!helperError.empty()) {
+                                    LogWarning(helperError);
+                                }
+                            } else {
+                                std::string retryError;
+                                if (!InitializeLagSwitchBackend(&retryError) && !retryError.empty()) {
+                                    LogWarning(retryError);
+                                }
+                            }
+                        } else {
+                            bShowAdminPopup = true;
+                        }
+                    }
+#endif
                 }
             } else {
                 ShutdownLagSwitchBackend();
             }
         }
         ImGui::SameLine();
-        ImGui::TextColored(bWinDivertEnabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color,
-            bWinDivertEnabled ? "Driver Running" : "Driver Not Running");
+#if defined(__linux__)
+        linuxHelperReady = backend && backend->isAvailable();
+#endif
+        const char* runningLabel =
+#if defined(__linux__)
+            linuxHelperReady ? "Helper Ready" : "Helper Not Running";
+#else
+            bWinDivertEnabled ? "Driver Running" : "Driver Not Running";
+#endif
+        ImGui::TextColored(
+#if defined(__linux__)
+            linuxHelperReady ? GetCurrentTheme().success_color : GetCurrentTheme().error_color,
+#else
+            bWinDivertEnabled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color,
+#endif
+            "%s", runningLabel);
         if (bWinDivertEnabled) {
             ImGui::SameLine();
             ImGui::Text(" |  Status: ");
@@ -3178,8 +3244,7 @@ void RenderSelectedSection(AppContext& context)
                 g_windivert_blocking ? "LAGGING" : "Clear");
         }
 
-        if (!backendAvailable) {
-            ImGui::EndDisabled();
+        if (!(backend && backend->isAvailable())) {
             ImGui::Separator();
             ImGui::TextColored(GetCurrentTheme().warning_color, "%s", backend ? backend->unsupportedReason().c_str() : "Network lagswitch backend is unavailable.");
         }
