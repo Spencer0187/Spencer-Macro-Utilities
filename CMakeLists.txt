@@ -293,6 +293,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_theme_bridge.cpp"
         "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
+        "${SMU_APP_DIR}/linux_lagswitch_helper.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/macro_tutorial_assets.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
@@ -363,6 +364,36 @@ elseif(UNIX AND NOT APPLE)
 
     set(SMU_LINUX_FONT_ASSET "${SMU_ASSETS_DIR}/LSANS.TTF")
     set(SMU_LINUX_ICON_ASSET "${SMU_ASSETS_DIR}/smu_icon.bmp")
+    set(SMU_LINUX_NETHELPER_SOURCE_DIR "${SMU_PLATFORM_LINUX_DIR}/nethelper")
+    set(SMU_LINUX_NETHELPER_BINARY "${CMAKE_CURRENT_BINARY_DIR}/nethelper")
+    set(SMU_LINUX_NETHELPER_GO_CACHE "${CMAKE_CURRENT_BINARY_DIR}/go-build-cache")
+    set(SMU_LINUX_NETHELPER_GO_TMP "${CMAKE_CURRENT_BINARY_DIR}/go-tmp")
+
+    find_program(SMU_GO_EXECUTABLE go)
+    if(SMU_GO_EXECUTABLE)
+        add_custom_command(
+            OUTPUT "${SMU_LINUX_NETHELPER_BINARY}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_NETHELPER_GO_CACHE}" "${SMU_LINUX_NETHELPER_GO_TMP}"
+            COMMAND "${CMAKE_COMMAND}" -E env
+                GOOS=linux
+                GOARCH=amd64
+                CGO_ENABLED=0
+                GOCACHE=${SMU_LINUX_NETHELPER_GO_CACHE}
+                GOTMPDIR=${SMU_LINUX_NETHELPER_GO_TMP}
+                "${SMU_GO_EXECUTABLE}" build -mod=vendor -o "${SMU_LINUX_NETHELPER_BINARY}" .
+            WORKING_DIRECTORY "${SMU_LINUX_NETHELPER_SOURCE_DIR}"
+            DEPENDS
+                "${SMU_LINUX_NETHELPER_SOURCE_DIR}/go.mod"
+                "${SMU_LINUX_NETHELPER_SOURCE_DIR}/go.sum"
+                "${SMU_LINUX_NETHELPER_SOURCE_DIR}/nethelper.go"
+            COMMENT "Building Linux nethelper"
+            VERBATIM
+        )
+        add_custom_target(smu_linux_nethelper DEPENDS "${SMU_LINUX_NETHELPER_BINARY}")
+        add_dependencies(suspend smu_linux_nethelper)
+    else()
+        message(WARNING "Go was not found; Linux lagswitch nethelper will not be built next to suspend.")
+    endif()
 
     add_custom_command(TARGET suspend POST_BUILD
         COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
@@ -395,6 +426,9 @@ elseif(UNIX AND NOT APPLE)
     install(PROGRAMS "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" DESTINATION ".")
     install(PROGRAMS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" DESTINATION "scripts")
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" DESTINATION ".")
+    if(SMU_GO_EXECUTABLE)
+        install(PROGRAMS "${SMU_LINUX_NETHELPER_BINARY}" DESTINATION ".")
+    endif()
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         install(FILES
             "$<TARGET_FILE:${SMU_SDL3_TARGET}>"
@@ -419,6 +453,14 @@ elseif(UNIX AND NOT APPLE)
         DEPENDS suspend
         COMMENT "Creating portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}"
     )
+
+    if(SMU_GO_EXECUTABLE)
+        add_dependencies(package-linux-dir smu_linux_nethelper)
+        add_custom_command(TARGET package-linux-dir POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_NETHELPER_BINARY}" "${SMU_LINUX_PACKAGE_DIR}/nethelper"
+            COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/nethelper"
+        )
+    endif()
 
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         add_custom_command(TARGET package-linux-dir POST_BUILD

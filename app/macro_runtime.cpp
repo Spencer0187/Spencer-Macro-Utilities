@@ -2,6 +2,7 @@
 
 #include "app_profile_bridge.h"
 #include "input_actions.h"
+#include "linux_lagswitch_helper.h"
 #include "notification_suppression.h"
 #include "script_manager.h"
 #include "../core/key_codes.h"
@@ -1702,6 +1703,24 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
                         auto& appState = smu::core::GetAppState();
                         appState.done.store(true, std::memory_order_release);
                         appState.running.store(false, std::memory_order_release);
+                    }
+                } else {
+                    bShowAdminPopup = true;
+                }
+            }
+#endif
+#if defined(__linux__)
+            if (backendError.empty()) {
+                if (IsNotificationSuppressed(kAdminElevationWarningId)) {
+                    smu::app::SaveSharedProfilesNow();
+                    std::string helperError;
+                    if (smu::app::StartLinuxNetworkHelperWithGraphicalPkexec(&helperError) &&
+                        backend->init(&backendError)) {
+                        bWinDivertEnabled = true;
+                    } else if (!helperError.empty()) {
+                        LogWarning(helperError);
+                    } else if (!backendError.empty()) {
+                        LogWarning(backendError);
                     }
                 } else {
                     bShowAdminPopup = true;

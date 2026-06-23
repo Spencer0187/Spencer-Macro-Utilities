@@ -151,25 +151,21 @@ class GoNetworkLagBackend final : public NetworkLagBackend {
 public:
     bool init(std::string* errorMessage = nullptr) override
     {
+        if (errorMessage) {
+            errorMessage->clear();
+        }
         if (available_) return true;
 
         socketPath_ = "/tmp/nethelper.sock";
 
-        for (int i = 0; i < 30; ++i) {
-            if (pingDaemon()) {
-                available_ = true;
-                fprintf(stderr, "[netbackend] connected to Go daemon at %s\n",
-                        socketPath_.c_str());
-                return true;
-            }
-            usleep(100 * 1000);
+        if (pingDaemon()) {
+            available_ = true;
+            fprintf(stderr, "[netbackend] connected to Go daemon at %s\n",
+                    socketPath_.c_str());
+            return true;
         }
 
         available_ = false;
-        if (errorMessage) {
-            *errorMessage = "Go daemon not reachable at " + socketPath_ +
-                            " after 30 retries";
-        }
         return false;
     }
 
@@ -244,7 +240,9 @@ public:
 
     std::string unsupportedReason() const override
     {
-        return "Go backend active (Linux)";
+        return available_
+            ? "Linux lagswitch helper is running."
+            : "Linux lagswitch helper is not running. Enable lagswitch to start it with elevated permissions.";
     }
 
 private:
@@ -332,16 +330,6 @@ std::shared_ptr<NetworkLagBackend> CreateGoNetworkLagBackend()
 static struct BackendInit {
     BackendInit()
     {
-#if defined(__linux__)
-        auto backend = std::make_shared<GoNetworkLagBackend>();
-        std::string err;
-        if (backend->init(&err)) {
-            g_networkBackend = backend;
-            return;
-        }
-        fprintf(stderr, "[netbackend] GoNetworkLagBackend init failed: %s\n",
-                err.c_str());
-#endif
         g_networkBackend = std::make_shared<UnsupportedNetworkLagBackend>();
     }
 } g_backendInit;
