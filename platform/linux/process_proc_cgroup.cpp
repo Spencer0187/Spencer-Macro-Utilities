@@ -178,6 +178,35 @@ std::vector<PlatformPid> ProcessTree(PlatformPid rootPid)
     return result;
 }
 
+bool ProcessHasAncestor(PlatformPid pid, PlatformPid ancestorPid)
+{
+    if (pid == 0 || ancestorPid == 0) {
+        return false;
+    }
+
+    std::unordered_set<PlatformPid> seen;
+    PlatformPid current = pid;
+
+    for (int depth = 0; depth < 1024; ++depth) {
+        if (current == ancestorPid) {
+            return true;
+        }
+
+        if (!seen.insert(current).second) {
+            return false;
+        }
+
+        auto parent = ParentPid(current);
+        if (!parent || *parent == 0 || *parent == current) {
+            return false;
+        }
+
+        current = *parent;
+    }
+
+    return false;
+}
+
 bool CgroupV2Available()
 {
     struct stat st {};
@@ -583,22 +612,26 @@ bool ProcCgroupProcessBackend::isForegroundProcess(
 
     std::string error;
 
-    const bool foreground =
-        IsX11ForegroundProcess(
-            candidates,
-            &error);
+    auto foregroundPid = GetX11ForegroundProcess(&error);
+    if (!foregroundPid) {
+        if (!error.empty()) {
 
-    if (!foreground && !error.empty()) {
+            if (DisableX11ForegroundDetection(error)) {
 
-        if (DisableX11ForegroundDetection(error)) {
-
-            smu::log::LogWarning(
-                "Linux foreground detection disabled: " +
-                error);
+                smu::log::LogWarning(
+                    "Linux foreground detection disabled: " +
+                    error);
+            }
         }
+
+        return false;
     }
 
-    return foreground;
+    if (std::find(candidates.begin(), candidates.end(), *foregroundPid) != candidates.end()) {
+        return true;
+    }
+
+    return ProcessHasAncestor(pid, *foregroundPid);
 }
 
 std::shared_ptr<ProcessBackend>
