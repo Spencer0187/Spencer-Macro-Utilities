@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <charconv>
+#include <cctype>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
@@ -81,6 +82,23 @@ std::string Basename(const std::string& path)
     }
 
     return path.substr(slash + 1);
+}
+
+bool EqualsIgnoreCase(const std::string& left, const std::string& right)
+{
+    return left.size() == right.size() &&
+        std::equal(
+            left.begin(),
+            left.end(),
+            right.begin(),
+            [](unsigned char a, unsigned char b) {
+                return std::tolower(a) == std::tolower(b);
+            });
+}
+
+bool IsSoberAlias(const std::string& executable)
+{
+    return EqualsIgnoreCase(executable, "sober");
 }
 
 std::optional<std::string> ReadExeBasename(PlatformPid pid)
@@ -231,6 +249,109 @@ std::optional<std::string> CgroupV2Path(PlatformPid pid)
     }
 
     return std::nullopt;
+}
+
+std::vector<PlatformPid> ReadNamespacePids(PlatformPid pid)
+{
+    std::ifstream statusFile("/proc/" + std::to_string(pid) + "/status");
+    std::vector<PlatformPid> pids;
+
+    if (!statusFile) {
+        return pids;
+    }
+
+    std::string line;
+    while (std::getline(statusFile, line)) {
+        if (line.rfind("NSpid:", 0) != 0) {
+            continue;
+        }
+
+        std::istringstream fields(line.substr(6));
+        PlatformPid namespacePid = 0;
+        while (fields >> namespacePid) {
+            pids.push_back(namespacePid);
+        }
+
+        break;
+    }
+
+    return pids;
+}
+
+std::optional<PlatformPid> FindHostPidForNamespacePidInTargetCgroup(
+    PlatformPid namespacePid,
+    const std::vector<PlatformPid>& targetPids)
+{
+    if (namespacePid == 0) {
+        return std::nullopt;
+    }
+
+    std::set<std::string> targetCgroups;
+    for (PlatformPid targetPid : targetPids) {
+        auto cgroupPath = CgroupV2Path(targetPid);
+        if (cgroupPath) {
+            targetCgroups.insert(*cgroupPath);
+        }
+    }
+
+    if (targetCgroups.empty()) {
+        return std::nullopt;
+    }
+
+    DIR* procDir = opendir("/proc");
+    if (!procDir) {
+        return std::nullopt;
+    }
+
+    std::optional<PlatformPid> hostPid;
+
+    while (dirent* entry = readdir(procDir)) {
+        PlatformPid candidatePid = 0;
+        if (!IsPidToken(entry->d_name, &candidatePid) || candidatePid == namespacePid) {
+            continue;
+        }
+
+        auto cgroupPath = CgroupV2Path(candidatePid);
+        if (!cgroupPath || targetCgroups.find(*cgroupPath) == targetCgroups.end()) {
+            continue;
+        }
+
+        const std::vector<PlatformPid> namespacePids = ReadNamespacePids(candidatePid);
+        if (std::find(namespacePids.begin(), namespacePids.end(), namespacePid) != namespacePids.end()) {
+            hostPid = candidatePid;
+            break;
+        }
+    }
+
+    closedir(procDir);
+    return hostPid;
+}
+
+bool ProcessMatchesExecutable(
+    PlatformPid pid,
+    const std::optional<std::string>& comm,
+    const std::optional<std::string>& exe,
+    const std::string& executable)
+{
+    if ((comm && *comm == executable) ||
+        (exe && *exe == executable)) {
+
+        return true;
+    }
+
+    if (IsSoberAlias(executable)) {
+        if ((comm && EqualsIgnoreCase(*comm, "sober")) ||
+            (exe && EqualsIgnoreCase(*exe, "sober"))) {
+
+            return true;
+        }
+
+        if (comm && *comm == "Main" && exe && EqualsIgnoreCase(*exe, "sober")) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool IsSafeAppCgroup(const std::string& path)
@@ -526,8 +647,7 @@ ProcCgroupProcessBackend::findAllProcesses(
 
         for (const std::string& executable : executableTokens) {
 
-            if ((comm && *comm == executable) ||
-                (exe && *exe == executable)) {
+            if (ProcessMatchesExecutable(pid, comm, exe, executable)) {
 
                 pids.push_back(pid);
                 break;
@@ -610,28 +730,32 @@ bool ProcCgroupProcessBackend::isForegroundProcess(
         candidates.push_back(pid);
     }
 
-    std::string error;
-
-    auto foregroundPid = GetX11ForegroundProcess(&error);
+    auto foregroundPid = GetX11ForegroundProcess();
     if (!foregroundPid) {
-        if (!error.empty()) {
-
-            if (DisableX11ForegroundDetection(error)) {
-
-                smu::log::LogWarning(
-                    "Linux foreground detection disabled: " +
-                    error);
-            }
-        }
-
         return false;
     }
 
-    if (std::find(candidates.begin(), candidates.end(), *foregroundPid) != candidates.end()) {
-        return true;
+    std::vector<PlatformPid> foregroundCandidates{*foregroundPid};
+    if (auto hostForegroundPid = FindHostPidForNamespacePidInTargetCgroup(*foregroundPid, candidates)) {
+        foregroundCandidates.push_back(*hostForegroundPid);
     }
 
-    return ProcessHasAncestor(pid, *foregroundPid);
+    std::sort(foregroundCandidates.begin(), foregroundCandidates.end());
+    foregroundCandidates.erase(
+        std::unique(foregroundCandidates.begin(), foregroundCandidates.end()),
+        foregroundCandidates.end());
+
+    for (PlatformPid candidateForegroundPid : foregroundCandidates) {
+        if (std::find(candidates.begin(), candidates.end(), candidateForegroundPid) != candidates.end()) {
+            return true;
+        }
+
+        if (ProcessHasAncestor(pid, candidateForegroundPid)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 std::shared_ptr<ProcessBackend>
