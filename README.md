@@ -153,6 +153,8 @@ If your distro package ships an older Go version that does not support toolchain
 ### Configure and build
 
 ```bash
+git clone https://github.com/Spencer0187/Spencer-Macro-Utilities.git
+cd Spencer-Macro-Utilities
 cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
 cmake --build build/linux --target suspend
 ```
