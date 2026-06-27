@@ -12,7 +12,7 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Global key state reads | yes | yes | yes | yes with Accessibility |
 | Relative mouse | yes | yes | yes | yes with Accessibility |
 | Absolute mouse | yes | yes via X11 | no / limited | yes with Accessibility |
-| Pixel reads | yes | yes via X11 | planned | yes with Screen Recording |
+| Pixel reads | yes | yes via X11 | unplanned | yes with Screen Recording |
 | Freeze | yes | yes | yes | yes when process signals are permitted |
 | Lag switch | yes | yes | yes | no |
 
