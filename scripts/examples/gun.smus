@@ -1,24 +1,29 @@
 -- @name: Prison Life gun macro
 -- @desc: shoot really fast
 -- @author: Floofy
--- @version: 1.3
+-- @version: 1.5
 -- @keybind: Mouse X1
 
 function onSettings()
-  ui.sliderInt("actionSpeed", "slotSpeed", 8, 60, 1, 260)
-  ui.sliderInt("actionShootSpeed", "shootSpeed", 8, 60, 1, 260)
+  ui.checkbox("actionFpsSync", "sync to fps", false, 260)
 
-  ui.checkbox("actionReload", "autoReload", 0, 100)
-  ui.checkbox("actionUnequip", "unequip", 1, 100)
-  ui.checkbox("actionFastBreak", "fastBreak", 1, 100)
+  ui.textbox("actionSpeed", "Slot delay (us)", "8000", 260, 0)
+  ui.textbox("actionShootSpeed", "Shoot delay (us)", "8000", 260, 0)
 
-  ui.checkbox("actionSlota", "Slot1", 1, 60)
-  ui.checkbox("actionSlotb", "Slot2", 1, 60)
-  ui.checkbox("actionSlotc", "Slot3", 1, 60)
-  ui.checkbox("actionSlotd", "Slot4", 1, 60)
+  ui.checkbox("actionReload", "autoReload", false, 260)
+  ui.checkbox("actionUnequip", "unequip", true, 260)
+  ui.checkbox("actionFastBreak", "fastBreak", true, 260)
+
+  ui.checkbox("actionSlota", "Slot1", true, 260)
+  ui.checkbox("actionSlotb", "Slot2", true, 260)
+  ui.checkbox("actionSlotc", "Slot3", true, 260)
+  ui.checkbox("actionSlotd", "Slot4", true, 260)
 end
 
 fired = {}
+cc = nil
+slotDelayUs = 8000
+shootDelayUs = 8000
 
 function markFired(slot)
   fired[slot] = true
@@ -28,35 +33,43 @@ function clearFired()
   fired = {}
 end
 
-function reloadSlot(slot, reloadSpeed)
+function computeDelays()
+  if settings.actionFpsSync then
+    local fps = tonumber(getSavedValue("RobloxFPSChar")) or 60
+    if fps <= 0 then
+      fps = 60
+    end
+    local frameTimeUs = math.floor(1000000 / fps)
+    slotDelayUs = frameTimeUs
+    shootDelayUs = frameTimeUs
+  else
+    slotDelayUs = tonumber(settings.actionSpeed) or 8000
+    shootDelayUs = tonumber(settings.actionShootSpeed) or 8000
+  end
+end
+
+function reloadSlot(slot, reloadDelayUs)
   if cc ~= slot then
     pressKey(slot, 5)
-    sleep(reloadSpeed)
+    sleepMicros(reloadDelayUs)
   end
-
   pressKey("R", 5)
-  sleep(reloadSpeed)
-
+  sleepMicros(reloadDelayUs)
   cc = slot
 end
 
 function doReload()
-  local reloadSpeed = settings.actionSpeed
-
   if fired["1"] then
-    reloadSlot("1", reloadSpeed)
+    reloadSlot("1", slotDelayUs)
   end
-
   if fired["2"] then
-    reloadSlot("2", reloadSpeed)
+    reloadSlot("2", slotDelayUs)
   end
-
   if fired["3"] then
-    reloadSlot("3", reloadSpeed)
+    reloadSlot("3", slotDelayUs)
   end
-
   if fired["4"] then
-    reloadSlot("4", reloadSpeed)
+    reloadSlot("4", slotDelayUs)
   end
 end
 
@@ -67,73 +80,55 @@ end
 
 function exit()
   local lastSlot = cc
-
   if settings.actionReload then
     doReload()
   end
-
   if lastSlot ~= nil and cc ~= lastSlot then
     pressKey(lastSlot, 5)
-    sleep(settings.actionSpeed)
+    sleepMicros(slotDelayUs)
     cc = lastSlot
   end
-
   if settings.actionUnequip and cc ~= nil then
     pressKey(cc, 5)
-    sleep(settings.actionSpeed)
+    sleepMicros(slotDelayUs)
   end
-
   clearFired()
 end
 
-function doSlot(slot, enabled, shootSpeed, slotSpeed)
+function doSlot(slot, enabled)
   if shouldExit() then
     exit()
     return true
   end
-
   if enabled then
     pressKey(slot, 5)
-
     cc = slot
-
-    sleep(shootSpeed)
-
+    sleepMicros(shootDelayUs)
     pressKey("LMB", 5)
-
     markFired(slot)
-
-    sleep(slotSpeed)
+    sleepMicros(slotDelayUs)
   end
-
   return false
 end
 
 function onExecute()
-  local slotSpeed = settings.actionSpeed
-  local shootSpeed = settings.actionShootSpeed
-
   cc = nil
-
   clearFired()
+  computeDelays()
 
   while true do
-    if doSlot("1", settings.actionSlota, shootSpeed, slotSpeed) then
+    if doSlot("1", settings.actionSlota) then
       break
     end
-
-    if doSlot("2", settings.actionSlotb, shootSpeed, slotSpeed) then
+    if doSlot("2", settings.actionSlotb) then
       break
     end
-
-    if doSlot("3", settings.actionSlotc, shootSpeed, slotSpeed) then
+    if doSlot("3", settings.actionSlotc) then
       break
     end
-
-    if doSlot("4", settings.actionSlotd, shootSpeed, slotSpeed) then
+    if doSlot("4", settings.actionSlotd) then
       break
     end
-
     if not settings.actionFastBreak
       and not isHotkeyPressed(getScriptHotkey()) then
       exit()
