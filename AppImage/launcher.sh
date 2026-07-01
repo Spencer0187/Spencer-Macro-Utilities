@@ -1,3 +1,3 @@
 #!/bin/sh
-cd /usr/share/spencer-macro-utilities
+cd /usr/lib/spencer-macro-utilities
 exec ./suspend "$@"
