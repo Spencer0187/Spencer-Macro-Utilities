@@ -101,6 +101,11 @@ bool IsSoberAlias(const std::string& executable)
     return EqualsIgnoreCase(executable, "sober");
 }
 
+bool IsMainAlias(const std::string& executable)
+{
+    return EqualsIgnoreCase(executable, "main");
+}
+
 std::optional<std::string> ReadExeBasename(PlatformPid pid)
 {
     std::string linkPath = "/proc/" + std::to_string(pid) + "/exe";
@@ -346,9 +351,22 @@ bool ProcessMatchesExecutable(
             return true;
         }
 
-        if (comm && *comm == "Main" && exe && EqualsIgnoreCase(*exe, "sober")) {
+        if (comm && EqualsIgnoreCase(*comm, "main") &&
+            exe && EqualsIgnoreCase(*exe, "sober")) {
+
             return true;
         }
+    }
+
+    // Sober's game process is exposed as "Main" while its executable remains
+    // /app/bin/sober. Accept the lowercase selector as well as the displayed
+    // process name, but keep the alias scoped to Sober when the executable is
+    // available.
+    if (IsMainAlias(executable) &&
+        comm && EqualsIgnoreCase(*comm, "main") &&
+        (!exe || EqualsIgnoreCase(*exe, "sober"))) {
+
+        return true;
     }
 
     return false;
@@ -673,6 +691,23 @@ ProcCgroupProcessBackend::findMainProcess(
     std::vector<PlatformPid> pids = findAllProcesses(executableName);
     if (pids.empty()) {
         return std::nullopt;
+    }
+
+    // Sober now has a launcher plus helper processes whose names are also
+    // "sober". The actual game process is the one reported as "Main"; choose
+    // it before applying the generic process-tree-root heuristic.
+    if (IsSoberAlias(executableName) || IsMainAlias(executableName)) {
+        for (PlatformPid pid : pids) {
+            const auto comm = ReadFirstLine(
+                "/proc/" + std::to_string(pid) + "/comm");
+            const auto exe = ReadExeBasename(pid);
+
+            if (comm && EqualsIgnoreCase(*comm, "main") &&
+                exe && EqualsIgnoreCase(*exe, "sober")) {
+
+                return pid;
+            }
+        }
     }
 
     if (pids.size() == 1) {
