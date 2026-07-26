@@ -3143,11 +3143,6 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::TextWrapped("This macro allows you to temporarily block or delay Roblox network traffic. Use the direction checkboxes below to choose whether other players stop seeing you, you stop seeing them, or both.");
-#if defined(__linux__)
-        ImGui::TextColored(
-            GetCurrentTheme().warning_color,
-            "Linux fake lag uses a guarded traffic-control helper. It refuses interfaces with custom traffic-control settings rather than replacing them.");
-#endif
         ImGui::Separator();
 #if defined(_WIN32)
         ImVec2 tooltipCursorPos = ImGui::GetCursorScreenPos();
@@ -3261,9 +3256,12 @@ void RenderSelectedSection(AppContext& context)
         if (!overlay_use_bg) ImGui::EndDisabled();
         ImGui::Unindent();
         if (!show_lag_overlay) ImGui::EndDisabled();
+#elif defined(__linux__)
+        ImGui::BeginDisabled();
+        ImGui::Checkbox("Show Lagswitch Status Overlay (Windows Only)", &show_lag_overlay);
+        ImGui::EndDisabled();
 #endif
 
-        ImGui::Separator();
         ImGui::NewLine();
         ImGui::Separator();
 #if defined(__linux__)
@@ -3348,10 +3346,6 @@ void RenderSelectedSection(AppContext& context)
                 g_windivert_blocking ? "LAGGING" : "Clear");
         }
 
-        if (!(backend && backend->isAvailable())) {
-            ImGui::Separator();
-            ImGui::TextColored(GetCurrentTheme().warning_color, "%s", backend ? backend->unsupportedReason().c_str() : "Network lagswitch backend is unavailable.");
-        }
 #endif
     }
 }
