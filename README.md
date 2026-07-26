@@ -57,7 +57,7 @@ See [the scripting guide](docs/lua_macro_scripting.md) for the script format and
 2. macOS needs Accessibility permission. Screen Recording permission is needed for script pixel reads.
 3. Native Wayland restricts foreground-app detection, absolute pointer positioning, and screen reads. SMU explains unavailable behavior instead of silently failing.
 4. Linux hard-block and fake-lag rules match selected machine-wide traffic rather than a Sober process. Roblox mode combines the static Roblox range with the UDMUX and RCC addresses discovered from Sober's player log. Fake lag refuses to replace custom traffic-control configuration on the active interface.
-5. A safe macOS lag switch needs a Developer ID-signed, Apple-entitled Network Extension. See [the feasibility review](docs/macos-lagswitch-feasibility.md).
+5. A safe macOS lag switch needs a Developer ID-signed, Apple-entitled Network Extension. We are not paying for that.
 
 ## Updates
 
