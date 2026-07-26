@@ -100,7 +100,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: platform/linux/nethelper/go.mod
+          # nFPM v2.47.0 requires Go 1.26.4. The network helper itself is
+          # compatible with this newer compiler despite its older go.mod.
+          go-version: '1.26.4'
           cache-dependency-path: platform/linux/nethelper/go.sum
 
       - name: Install Linux build dependencies
@@ -244,7 +246,7 @@ jobs:
           }
 
       - name: Configure Windows build
-        run: cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
+        run: cmake -S . -B build/windows -G "Visual Studio 18 2026" -A x64
 
       - name: Build Windows app
         run: cmake --build build/windows --config Release --target suspend --parallel

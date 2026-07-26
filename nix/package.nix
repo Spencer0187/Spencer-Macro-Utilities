@@ -11,6 +11,7 @@
   libdecor,
   libGL,
   libpulseaudio,
+  libxcb,
   libxkbcommon,
   udev,
   wayland,
@@ -84,6 +85,7 @@ stdenv.mkDerivation {
   ];
 
   buildInputs = runtimeLibraries ++ [
+    libxcb
     wayland-protocols
   ];
 
