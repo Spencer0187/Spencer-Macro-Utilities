@@ -51,6 +51,10 @@ enum RoLogParseRes {
     ROLOGINVALID_FILE_PATH,
 };
 
+// Called once for every line buffer consumed by RoLogParseWithCallback.  The
+// line buffer is only valid for the duration of the callback.
+typedef void (*RoLogLineCallback)(const char* line, void* userData);
+
 enum RoLogState {
     ROLOG_IN_LUA_APP,
     ROLOG_IN_GAME,
@@ -60,9 +64,10 @@ enum RoLogState {
 
 static inline RoLogObject* RoLogCreateObject(const char* file_path) {
     RoLogObject* obj = (RoLogObject *)malloc(sizeof(RoLogObject));
-    if (file_path != NULL) {
-        obj->file_path = file_path;
+    if (!obj) {
+        return NULL;
     }
+    obj->file_path = file_path;
     obj->last_idx = 0;
     obj->current_state = 3;
     obj->placeId = 0;
@@ -70,9 +75,26 @@ static inline RoLogObject* RoLogCreateObject(const char* file_path) {
     obj->universeId = 0;
 
     RoLogServerIPs* serverObj = (RoLogServerIPs *)malloc(sizeof(RoLogServerIPs));
+    if (!serverObj) {
+        free(obj);
+        return NULL;
+    }
     serverObj->serverIPRCC = (char*)malloc(64);
+    if (!serverObj->serverIPRCC) {
+        free(serverObj);
+        free(obj);
+        return NULL;
+    }
     serverObj->serverPortRCC = 0;
     serverObj->serverIPUDMUX = (char*)malloc(64);
+    if (!serverObj->serverIPUDMUX) {
+        free(serverObj->serverIPRCC);
+        free(serverObj);
+        free(obj);
+        return NULL;
+    }
+    serverObj->serverIPRCC[0] = '\0';
+    serverObj->serverIPUDMUX[0] = '\0';
     serverObj->serverPortUDMUX = 0;
     serverObj->serverType = ROLOGINVALIDSERVER;
 
@@ -116,6 +138,9 @@ static inline uint64_t RoLogFindCommaValue(char* line, const char* regex) {
         if (regexIndex) {
             regexIndex++; // :
             const char *regexEnd = strchr(regexIndex, ',');
+            if (!regexEnd) {
+                return 0;
+            }
 
             size_t len = regexEnd - regexIndex;
             char value[64];
@@ -189,6 +214,11 @@ static inline void RoLogDealWithConnectingTo(RoLogObject* obj, char* line) {
 
             RoLogIP *UdmuxIP = RoLogExtractIP(line, a - line);
             if (!UdmuxIP) return;
+            if (strlen(UdmuxIP->IP) >= 64) {
+                free(UdmuxIP->IP);
+                free(UdmuxIP);
+                return;
+            }
 
             strcpy(obj->serverObj->serverIPUDMUX, UdmuxIP->IP);
             obj->serverObj->serverPortUDMUX = UdmuxIP->Port;
@@ -202,6 +232,11 @@ static inline void RoLogDealWithConnectingTo(RoLogObject* obj, char* line) {
 
             RoLogIP* RccIP = RoLogExtractIP(line, rcc - line);
             if (!RccIP) return;
+            if (strlen(RccIP->IP) >= 64) {
+                free(RccIP->IP);
+                free(RccIP);
+                return;
+            }
 
             strcpy(obj->serverObj->serverIPRCC, RccIP->IP);
             obj->serverObj->serverPortRCC = RccIP->Port;
@@ -216,6 +251,11 @@ static inline void RoLogDealWithConnectingTo(RoLogObject* obj, char* line) {
 
             RoLogIP *ip = RoLogExtractIP(line, a - line);
             if (!ip) return;
+            if (strlen(ip->IP) >= 64) {
+                free(ip->IP);
+                free(ip);
+                return;
+            }
 
             strcpy(obj->serverObj->serverIPRCC, ip->IP);
             obj->serverObj->serverPortRCC = ip->Port;
@@ -236,6 +276,7 @@ static inline void RoLogDealWithUDMUXAddress(RoLogObject* obj, char* line) {
         if (!udmux_comma) return;
 
         size_t udmux_len = udmux_comma - udmux;
+        if (udmux_len >= 64) return;
         memcpy(obj->serverObj->serverIPUDMUX, udmux, udmux_len);
         obj->serverObj->serverIPUDMUX[udmux_len] = '\0';
 
@@ -252,6 +293,7 @@ static inline void RoLogDealWithUDMUXAddress(RoLogObject* obj, char* line) {
         if (!rcc_comma) return;
 
         size_t rcc_len = rcc_comma - rcc;
+        if (rcc_len >= 64) return;
         memcpy(obj->serverObj->serverIPRCC, rcc, rcc_len);
         obj->serverObj->serverIPRCC[rcc_len] = '\0';
 
@@ -365,7 +407,9 @@ static inline void RoLogDealWithResolution(RoLogObject* obj, char* line) {
     obj->resolutionHeight = (uint16_t)strtoul(height, NULL, 10);
 }
 
-static inline enum RoLogParseRes RoLogParse(RoLogObject* obj){
+static inline enum RoLogParseRes RoLogParseWithCallback(RoLogObject* obj,
+                                                         RoLogLineCallback callback,
+                                                         void* userData){
     if (obj->file_path == NULL) return ROLOGINVALID_FILE_PATH;
     FILE* fp = fopen(obj->file_path, "r");
     if (!fp) {
@@ -416,11 +460,18 @@ static inline enum RoLogParseRes RoLogParse(RoLogObject* obj){
         if (strstr(line, "resizing main targets to")) {
             RoLogDealWithResolution(obj, line);
         }
+        if (callback) {
+            callback(line, userData);
+        }
     }
     obj->last_idx = (unsigned int)ftell(fp);
     fclose(fp);
 
     return ROLOGSUCCESS;
+}
+
+static inline enum RoLogParseRes RoLogParse(RoLogObject* obj){
+    return RoLogParseWithCallback(obj, NULL, NULL);
 }
 
 #endif

@@ -3,6 +3,7 @@
 #include "../core/key_codes.h"
 #include "../platform/platform_types.h"
 #include "../platform/network_backend.h"
+#include "../platform/roblox_log_reader.h"
 
 #include <array>
 #include <atomic>
@@ -12,6 +13,8 @@
 #include <filesystem>
 #include <cstddef>
 #include <mutex>
+#include <optional>
+#include <regex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -125,6 +128,12 @@ public:
     void setLagSwitchConfig(const smu::platform::LagSwitchConfig& config);
     void clearLagSwitchConfig();
     smu::platform::LagSwitchConfig lagSwitchConfig() const;
+    smu::platform::RobloxLogSnapshot readRobloxLog(bool includeExisting = false);
+    bool registerRobloxLogCallback(std::string pattern, bool useRegex, int callbackRef, std::string* errorMessage);
+    void clearRobloxLogCallbacks();
+    bool dispatchRobloxLogCallbacks(const smu::platform::RobloxLogSnapshot& snapshot);
+    bool listenForRobloxLogCallbacks(std::chrono::milliseconds pollDelay);
+    bool isDispatchingRobloxLogCallbacks() const { return dispatchingRobloxLogCallbacks_; }
     std::uintptr_t lagSwitchOwnerToken() const;
     void setMouseMotionMode(MouseMotionMode mode) { mouseMotionMode_ = mode; }
     MouseMotionMode mouseMotionMode() const { return mouseMotionMode_; }
@@ -200,6 +209,12 @@ private:
         bool lastDown = false;
     };
 
+    struct RobloxLogCallback {
+        std::string pattern;
+        std::optional<std::regex> regex;
+        int luaRegistryRef = LUA_NOREF;
+    };
+
     lua_State* L_ = nullptr;
     ImportedScriptRecord* owner_ = nullptr;
     std::chrono::steady_clock::time_point deadline_{};
@@ -216,6 +231,7 @@ private:
     void releaseAllSleepingCoroutines();
     std::vector<SleepingCoroutine> sleepingCoroutines_;
     std::vector<smu::platform::PlatformPid> frozenPids_;
+    smu::platform::RobloxLogReader robloxLogReader_;
     std::unordered_map<std::string, std::string> transientUi_;
     std::unordered_map<std::string, UiStringBuffer> textboxBuffers_;
     std::unordered_map<std::string, UiStringBuffer> dynamicTextboxBuffers_;
@@ -223,6 +239,7 @@ private:
     std::unordered_map<smu::core::KeyCode, int> managedHeldKeys_;
     std::unordered_map<unsigned int, bool> managedHotkeyStates_;
     std::vector<HotkeyCallback> hotkeyCallbacks_;
+    std::vector<RobloxLogCallback> robloxLogCallbacks_;
     std::vector<SettingsUiControl> settingsUiControls_;
     std::vector<SettingsUiControl> pendingSettingsUiControls_;
     std::unordered_set<std::string> uiIdCache_;
@@ -235,6 +252,7 @@ private:
     bool settingsCallbackActive_ = false;
     bool cleanupMode_ = false;
     bool dispatchingHotkeyCallbacks_ = false;
+    bool dispatchingRobloxLogCallbacks_ = false;
     bool strictHotkeyMatching_ = false;
     MouseMotionMode mouseMotionMode_ = MouseMotionMode::Raw;
     bool budgetActive_ = false;

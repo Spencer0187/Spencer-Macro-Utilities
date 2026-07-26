@@ -247,8 +247,61 @@ For new scripts, prefer script-local `settings.*` values created with `ui.*`. Us
 | `getPlatform()` | Return `windows`, `linux`, `macos`, or `unknown` |
 | `getScriptHotkey()` | Return this script's current activation hotkey as a combined hotkey value, or `nil` if it is unbound |
 | `getSavedValue(name)` | Return the current in-memory value of a saved app/profile setting, or `nil` if that key is not exposed |
+| `readRobloxLog(includeExisting)` | Return new lines and parsed metadata from the active Roblox/Sober player log |
 
 For sub-millisecond pacing, prefer `sleepMicros()` over a Lua `nowMicros()` busy-wait. Busy-wait loops consume execution budget and can still trip the watchdog.
+
+### Roblox Log Reading
+
+`readRobloxLog()` and `robloxLog` use RoLogParser to incrementally read the newest player log without granting scripts arbitrary filesystem access. They find the official Roblox log on Windows and macOS, and Sober's player log on Linux. The first call for a log establishes a baseline and returns no existing lines by default; pass `true` to include the current log contents. A newly-created or truncated player log is treated the same way.
+
+`readRobloxLog()` (also `robloxLog.read()`) returns a table with `available`, `startedNewLog`, `path`, `lines`, `state`, `placeId`, `userId`, `universeId`, `jobId`, `clientChannel`, `resolution`, and `server` fields. `lines` is an array of every complete, raw, newline-free Roblox console/log line appended since the prior call. `server` includes `type`, `rccAddress`, `rccPort`, `udmuxAddress`, and `udmuxPort` when RoLogParser finds them.
+
+Use `robloxLog.onLine(pattern, callback, useRegex)` to bind an event. By default, `pattern` is a literal substring. Set `useRegex` to `true` for an ECMAScript regular expression; invalid patterns are rejected when the script starts. The callback receives the full log line. Start the native reader with `robloxLog.listenUntilCancelled(pollMs)`; SMU then polls and dispatches the events without a Lua polling loop. A callback must not call `readRobloxLog()`, register more log callbacks, or sleep.
+
+| Function | Description |
+| --- | --- |
+| `robloxLog.read(includeExisting)` | Read every new complete log line and its current RoLogParser metadata |
+| `robloxLog.onLine(pattern, callback, useRegex)` | Run `callback(line)` for each future matching line; literal substring by default, ECMAScript regex when `useRegex` is `true` |
+| `robloxLog.listenUntilCancelled(pollMs)` | Have SMU poll and dispatch registered line callbacks until the script stops; defaults to 50 ms and accepts 10–1000 ms |
+
+```lua
+function onExecute()
+    -- Establish the baseline so old console output cannot trigger the macro.
+    readRobloxLog()
+
+    while not isCancelled() do
+        local logData = readRobloxLog()
+        for _, line in ipairs(logData.lines) do
+            if line:find("Teleport failed", 1, true) then
+                log("Teleport failure detected")
+                pressKey("space")
+            end
+        end
+        if sleepUntilCancelled(50) then
+            break
+        end
+    end
+end
+```
+
+Event-driven example, using a literal match for a specific failed asset load:
+
+```lua
+function onExecute()
+    robloxLog.onLine(
+        "MeshContentProvider failed to process https://assetdelivery.roblox.com/v1/asset?id=130979808453527 because 'could not fetch'",
+        function(line)
+            typeText("/testmessage")
+            pressKey("Enter")
+        end
+    )
+    robloxLog.read() -- establish the baseline before SMU starts listening
+    robloxLog.listenUntilCancelled(50)
+end
+```
+
+The same event with a regex that accepts any asset ID is `robloxLog.onLine("MeshContentProvider failed to process https://assetdelivery\\.roblox\\.com/v1/asset\\?id=[0-9]+ because 'could not fetch'", callback, true)`.
 
 ### Execution Control
 

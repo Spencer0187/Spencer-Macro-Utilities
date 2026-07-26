@@ -61,6 +61,7 @@ constexpr int kMaxInputCallbackScanMs = 50;
 constexpr float kMaxUiDimension = 10000.0f;
 constexpr std::size_t kMaxLogMessageBytes = 4096;
 constexpr std::size_t kMaxTypeTextBytes = 4096;
+constexpr std::size_t kMaxRobloxLogPatternBytes = 1024;
 constexpr const char* kLogTruncateSuffix = "...(truncated)";
 constexpr const char* kRegistryMoveDegreesSettingsKey = "smu.moveDegreesSettings";
 constexpr const char* kMouseMotionModeRaw = "raw";
@@ -1241,6 +1242,137 @@ int LuaLog(lua_State* L)
         return 0;
     }
     LogInfo(std::string("[script] ") + std::string(message, messageLength));
+    return 0;
+}
+
+void SetLuaStringField(lua_State* L, const char* name, const std::string& value)
+{
+    lua_pushlstring(L, value.data(), value.size());
+    lua_setfield(L, -2, name);
+}
+
+void SetLuaIntegerField(lua_State* L, const char* name, std::uint64_t value)
+{
+    lua_pushinteger(L, static_cast<lua_Integer>(value));
+    lua_setfield(L, -2, name);
+}
+
+int LuaReadRobloxLog(lua_State* L)
+{
+    const int argumentCount = lua_gettop(L);
+    if (argumentCount > 1) {
+        return luaL_error(L, "readRobloxLog accepts at most one argument");
+    }
+    bool includeExisting = false;
+    if (argumentCount == 1 && !lua_isnil(L, 1)) {
+        if (!lua_isboolean(L, 1)) {
+            return luaL_error(L, "includeExisting must be a boolean");
+        }
+        includeExisting = lua_toboolean(L, 1) != 0;
+    }
+
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingRobloxLogCallbacks()) {
+        return luaL_error(L, "cannot read Roblox logs while dispatching a Roblox log callback");
+    }
+    const smu::platform::RobloxLogSnapshot snapshot = instance.readRobloxLog(includeExisting);
+    if (!instance.dispatchRobloxLogCallbacks(snapshot)) {
+        const std::string error = instance.owner().lastErrorCopy();
+        return luaL_error(L, "%s", error.empty() ? "Roblox log callback failed" : error.c_str());
+    }
+    lua_createtable(L, 0, 18);
+    lua_pushboolean(L, snapshot.available);
+    lua_setfield(L, -2, "available");
+    lua_pushboolean(L, snapshot.startedNewLog);
+    lua_setfield(L, -2, "startedNewLog");
+    SetLuaStringField(L, "path", snapshot.path.string());
+    SetLuaStringField(L, "state", snapshot.state);
+    SetLuaIntegerField(L, "placeId", snapshot.placeId);
+    SetLuaIntegerField(L, "userId", snapshot.userId);
+    SetLuaIntegerField(L, "universeId", snapshot.universeId);
+    SetLuaStringField(L, "jobId", snapshot.jobId);
+    SetLuaStringField(L, "clientChannel", snapshot.clientChannel);
+    SetLuaStringField(L, "clientRobloxGitHash", snapshot.clientRobloxGitHash);
+    SetLuaStringField(L, "serverRobloxGitHash", snapshot.serverRobloxGitHash);
+    SetLuaStringField(L, "serverPrefix", snapshot.serverPrefix);
+    SetLuaStringField(L, "serverLuauVersion", snapshot.serverLuauVersion);
+
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, snapshot.resolutionWidth);
+    lua_setfield(L, -2, "width");
+    lua_pushinteger(L, snapshot.resolutionHeight);
+    lua_setfield(L, -2, "height");
+    lua_setfield(L, -2, "resolution");
+
+    lua_createtable(L, 0, 5);
+    SetLuaStringField(L, "type", snapshot.server.type);
+    SetLuaStringField(L, "rccAddress", snapshot.server.rccAddress);
+    lua_pushinteger(L, snapshot.server.rccPort);
+    lua_setfield(L, -2, "rccPort");
+    SetLuaStringField(L, "udmuxAddress", snapshot.server.udmuxAddress);
+    lua_pushinteger(L, snapshot.server.udmuxPort);
+    lua_setfield(L, -2, "udmuxPort");
+    lua_setfield(L, -2, "server");
+
+    lua_createtable(L, static_cast<int>(snapshot.lines.size()), 0);
+    for (std::size_t index = 0; index < snapshot.lines.size(); ++index) {
+        lua_pushlstring(L, snapshot.lines[index].data(), snapshot.lines[index].size());
+        lua_rawseti(L, -2, static_cast<lua_Integer>(index + 1));
+    }
+    lua_setfield(L, -2, "lines");
+    return 1;
+}
+
+int LuaRobloxLogOnLine(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "robloxLog.onLine is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "robloxLog.onLine");
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingRobloxLogCallbacks()) {
+        return luaL_error(L, "cannot register Roblox log callbacks while dispatching a Roblox log callback");
+    }
+
+    std::size_t patternLength = 0;
+    const char* patternText = luaL_checklstring(L, 1, &patternLength);
+    if (patternLength == 0 || patternLength > kMaxRobloxLogPatternBytes || std::memchr(patternText, '\0', patternLength)) {
+        return luaL_error(L, "pattern must contain 1 to %zu non-NUL bytes", kMaxRobloxLogPatternBytes);
+    }
+    luaL_checktype(L, 2, LUA_TFUNCTION);
+    bool useRegex = false;
+    if (lua_gettop(L) >= 3 && !lua_isnil(L, 3)) {
+        if (!lua_isboolean(L, 3)) return luaL_error(L, "useRegex must be a boolean");
+        useRegex = lua_toboolean(L, 3) != 0;
+    }
+
+    lua_pushvalue(L, 2);
+    const int ref = luaL_ref(L, LUA_REGISTRYINDEX);
+    std::string error;
+    if (!instance.registerRobloxLogCallback(std::string(patternText, patternLength), useRegex, ref, &error)) {
+        luaL_unref(L, LUA_REGISTRYINDEX, ref);
+        return luaL_error(L, "%s", error.c_str());
+    }
+    return 0;
+}
+
+int LuaRobloxLogListenUntilCancelled(lua_State* L)
+{
+    if (IsSettingsCallbackActive(L)) {
+        return luaL_error(L, "robloxLog.listenUntilCancelled is not available inside script settings");
+    }
+    CheckCleanupAllowsStartingAction(L, "robloxLog.listenUntilCancelled");
+    ScriptInstance& instance = RequireInstance(L);
+    if (instance.isDispatchingRobloxLogCallbacks()) {
+        return luaL_error(L, "cannot listen for Roblox logs while dispatching a Roblox log callback");
+    }
+    const int pollMs = lua_gettop(L) >= 1 && !lua_isnil(L, 1)
+        ? CheckLuaIntClamped(L, 1, 10, 1000, "pollMs")
+        : 50;
+    if (!instance.listenForRobloxLogCallbacks(std::chrono::milliseconds(pollMs))) {
+        const std::string error = instance.owner().lastErrorCopy();
+        return luaL_error(L, "%s", error.empty() ? "Roblox log callback failed" : error.c_str());
+    }
     return 0;
 }
 
@@ -2573,6 +2705,18 @@ void RegisterInputTable(lua_State* L)
     lua_setglobal(L, "input");
 }
 
+void RegisterRobloxLogTable(lua_State* L)
+{
+    lua_newtable(L);
+    lua_pushcfunction(L, LuaReadRobloxLog);
+    lua_setfield(L, -2, "read");
+    lua_pushcfunction(L, LuaRobloxLogOnLine);
+    lua_setfield(L, -2, "onLine");
+    lua_pushcfunction(L, LuaRobloxLogListenUntilCancelled);
+    lua_setfield(L, -2, "listenUntilCancelled");
+    lua_setglobal(L, "robloxLog");
+}
+
 void Register(lua_State* L, const char* name, lua_CFunction function)
 {
     lua_pushcfunction(L, function);
@@ -2585,6 +2729,7 @@ void RegisterScriptApi(lua_State* L)
 {
     CacheMoveDegreesSettings(L);
     Register(L, "log", LuaLog);
+    Register(L, "readRobloxLog", LuaReadRobloxLog);
     Register(L, "nowMicros", LuaNowMicros);
     Register(L, "sleep", LuaSleep);
     Register(L, "sleepMicros", LuaSleepMicros);
@@ -2622,6 +2767,7 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "getSavedValue", LuaGetSavedValue);
     RegisterUiTable(L);
     RegisterInputTable(L);
+    RegisterRobloxLogTable(L);
     Register(L, "robloxFreeze", LuaFreeze);
     Register(L, "roblox_freeze", LuaFreeze);
     Register(L, "lagswitch", LuaLagSwitch);
