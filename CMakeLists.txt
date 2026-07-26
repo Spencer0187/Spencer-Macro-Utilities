@@ -103,6 +103,17 @@ set_property(TARGET lua_static PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
 
+if(BUILD_TESTING)
+    add_executable(smu_roblox_log_reader_test
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/roblox_log_reader_test.cpp"
+        "${SMU_PLATFORM_DIR}/roblox_log_reader.cpp"
+    )
+    target_include_directories(smu_roblox_log_reader_test PRIVATE
+        "${SMU_PLATFORM_DIR}"
+    )
+    add_test(NAME roblox-log-reader COMMAND smu_roblox_log_reader_test)
+endif()
+
 if(WIN32)
     enable_language(RC)
 
@@ -139,6 +150,7 @@ if(WIN32)
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/roblox_log_reader.cpp"
         "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_UPDATER_DIR}/updater.cpp"
@@ -284,6 +296,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/roblox_log_reader.cpp"
         "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_PLATFORM_LINUX_DIR}/display_server.cpp"
@@ -610,6 +623,7 @@ elseif(APPLE)
         "${SMU_PLATFORM_DIR}/network_backend.cpp"
         "${SMU_PLATFORM_DIR}/platform_capabilities.cpp"
         "${SMU_PLATFORM_DIR}/process_backend.cpp"
+        "${SMU_PLATFORM_DIR}/roblox_log_reader.cpp"
         "${SMU_PLATFORM_DIR}/text_input_backend.cpp"
         "${SMU_PLATFORM_DIR}/window_backend.cpp"
         "${SMU_PLATFORM_MACOS_DIR}/app_icon_macos.mm"

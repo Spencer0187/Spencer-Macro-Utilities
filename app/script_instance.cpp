@@ -169,6 +169,7 @@ constexpr auto kMaxSettingsRuntime = std::chrono::seconds(5);
 constexpr auto kMaxCleanupRuntime = std::chrono::seconds(2);
 constexpr int kLuaHookInstructionCount = 10000;
 constexpr std::size_t kMaxHotkeyCallbacksPerScript = 128;
+constexpr std::size_t kMaxRobloxLogCallbacksPerScript = 128;
 // Allow effectively infinite sleeps; wake times are clamped to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 void TimeoutHook(lua_State* L, lua_Debug*);
@@ -1320,6 +1321,7 @@ void ScriptInstance::cleanup()
     std::lock_guard<std::mutex> luaLock(luaMutex_);
     releaseAllManagedHotkeys();
     clearHotkeyCallbacks();
+    clearRobloxLogCallbacks();
     setFreeze(false);
     releaseLagSwitchControls();
     if (L_) {
@@ -1334,6 +1336,7 @@ void ScriptInstance::cleanup()
     settingsCallbackActive_ = false;
     cleanupMode_ = false;
     dispatchingHotkeyCallbacks_ = false;
+    dispatchingRobloxLogCallbacks_ = false;
     strictHotkeyMatching_ = false;
     mouseMotionMode_ = MouseMotionMode::Raw;
     settingsUiControlCount_ = 0;
@@ -1398,6 +1401,7 @@ void ScriptInstance::finishScriptExecution(const char* reason)
 {
     releaseAllManagedHotkeys();
     clearHotkeyCallbacks();
+    clearRobloxLogCallbacks();
     releaseAllSleepingCoroutines();
     callOnCleanup(reason ? reason : "error");
     releaseLagSwitchControls();
@@ -2066,6 +2070,82 @@ smu::platform::LagSwitchConfig ScriptInstance::lagSwitchConfig() const
         return {};
     }
     return backend->effectiveConfig();
+}
+
+smu::platform::RobloxLogSnapshot ScriptInstance::readRobloxLog(bool includeExisting)
+{
+    return robloxLogReader_.poll(includeExisting);
+}
+
+bool ScriptInstance::registerRobloxLogCallback(std::string pattern, bool useRegex, int callbackRef, std::string* errorMessage)
+{
+    if (robloxLogCallbacks_.size() >= kMaxRobloxLogCallbacksPerScript) {
+        if (errorMessage) *errorMessage = "script registered too many Roblox log callbacks";
+        return false;
+    }
+
+    RobloxLogCallback callback;
+    callback.pattern = std::move(pattern);
+    callback.luaRegistryRef = callbackRef;
+    if (useRegex) {
+        try {
+            callback.regex.emplace(callback.pattern, std::regex::ECMAScript | std::regex::optimize);
+        } catch (const std::regex_error& error) {
+            if (errorMessage) *errorMessage = std::string("invalid Roblox log regex: ") + error.what();
+            return false;
+        }
+    }
+    robloxLogCallbacks_.push_back(std::move(callback));
+    return true;
+}
+
+void ScriptInstance::clearRobloxLogCallbacks()
+{
+    if (L_) {
+        for (RobloxLogCallback& callback : robloxLogCallbacks_) {
+            if (callback.luaRegistryRef != LUA_NOREF && callback.luaRegistryRef != LUA_REFNIL) {
+                luaL_unref(L_, LUA_REGISTRYINDEX, callback.luaRegistryRef);
+            }
+        }
+    }
+    robloxLogCallbacks_.clear();
+}
+
+bool ScriptInstance::dispatchRobloxLogCallbacks(const smu::platform::RobloxLogSnapshot& snapshot)
+{
+    const std::size_t callbackCount = robloxLogCallbacks_.size();
+    for (const std::string& line : snapshot.lines) {
+        for (std::size_t index = 0; index < callbackCount; ++index) {
+            const RobloxLogCallback& callback = robloxLogCallbacks_[index];
+            const bool matches = callback.regex
+                ? std::regex_search(line, *callback.regex)
+                : line.find(callback.pattern) != std::string::npos;
+            if (!matches) continue;
+
+            lua_rawgeti(L_, LUA_REGISTRYINDEX, callback.luaRegistryRef);
+            lua_pushlstring(L_, line.data(), line.size());
+            dispatchingRobloxLogCallbacks_ = true;
+            const int status = lua_pcall(L_, 1, 0, 0);
+            dispatchingRobloxLogCallbacks_ = false;
+            if (status != LUA_OK) {
+                const char* message = lua_tostring(L_, -1);
+                owner_->setLastError(message ? message : "Roblox log callback failed");
+                lua_pop(L_, 1);
+                return false;
+            }
+            if (stopReason_.load(std::memory_order_acquire) != StopReason::None) return true;
+        }
+    }
+    return true;
+}
+
+bool ScriptInstance::listenForRobloxLogCallbacks(std::chrono::milliseconds pollDelay)
+{
+    while (stopReason_.load(std::memory_order_acquire) == StopReason::None) {
+        if (!dispatchRobloxLogCallbacks(readRobloxLog())) return false;
+        if (!waitFor(pollDelay)) return true;
+    }
+    return true;
 }
 
 std::uintptr_t ScriptInstance::lagSwitchOwnerToken() const

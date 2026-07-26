@@ -1,0 +1,19 @@
+-- @name: Asset load failure chat
+-- @desc: Sends /testmessage when a selected Roblox asset fails to load
+-- @author: Spencer
+-- @version: 1.0
+-- @keybind: F8
+
+function onExecute()
+    robloxLog.onLine(
+        "MeshContentProvider failed to process https://assetdelivery.roblox.com/v1/asset?id=130979808453527 because 'could not fetch'",
+        function(line)
+            typeText("/testmessage")
+            pressKey("Enter")
+        end
+    )
+
+    -- Discard old entries, then let SMU poll and dispatch new matching lines.
+    robloxLog.read()
+    robloxLog.listenUntilCancelled(50)
+end
