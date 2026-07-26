@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <sstream>
@@ -25,6 +26,16 @@ namespace {
 
 constexpr const char* kLatestReleaseUrl =
     "https://api.github.com/repos/Spencer0187/Spencer-Macro-Utilities/releases/latest";
+constexpr const char* kTrustedReleaseAssetPrefix =
+    "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/download/";
+constexpr std::size_t kMaximumUpdateBytes = 512ULL * 1024ULL * 1024ULL;
+
+bool IsTrustedReleaseAsset(const ReleaseAsset& asset)
+{
+    return asset.sizeBytes > 0 &&
+        asset.sizeBytes <= kMaximumUpdateBytes &&
+        asset.downloadUrl.rfind(kTrustedReleaseAssetPrefix, 0) == 0;
+}
 
 std::string Trim(std::string value)
 {
@@ -110,8 +121,13 @@ std::optional<ReleaseInfo> FetchLatestRelease(std::string* errorMessage)
                 ReleaseAsset asset;
                 asset.name = assetJson.value("name", "");
                 asset.downloadUrl = assetJson.value("browser_download_url", "");
-                asset.sizeBytes = assetJson.value("size", 0u);
-                if (!asset.name.empty() && !asset.downloadUrl.empty()) {
+                const std::uint64_t sizeBytes = assetJson.value("size", std::uint64_t {0});
+                if (sizeBytes <= kMaximumUpdateBytes) {
+                    asset.sizeBytes = static_cast<std::size_t>(sizeBytes);
+                }
+                if (!asset.name.empty() &&
+                    !asset.downloadUrl.empty() &&
+                    IsTrustedReleaseAsset(asset)) {
                     release.assets.push_back(std::move(asset));
                 }
             }
@@ -178,12 +194,48 @@ UpdaterStatus CheckForUpdate(const std::string& localVersion)
 
 bool DownloadAssetToFile(const ReleaseAsset& asset, const std::filesystem::path& destination, std::string* errorMessage)
 {
-    return detail::DownloadUrlToFile(asset.downloadUrl, destination, errorMessage);
+    if (!IsTrustedReleaseAsset(asset)) {
+        if (errorMessage) {
+            *errorMessage = "Updater refused an untrusted or oversized release asset.";
+        }
+        return false;
+    }
+    if (!detail::DownloadUrlToFile(asset.downloadUrl, destination, errorMessage)) {
+        return false;
+    }
+
+    std::error_code ec;
+    const std::uintmax_t downloadedSize = std::filesystem::file_size(destination, ec);
+    if (ec || downloadedSize != asset.sizeBytes) {
+        std::error_code removeError;
+        std::filesystem::remove(destination, removeError);
+        if (errorMessage) {
+            *errorMessage = "Downloaded update size did not match the GitHub release metadata.";
+        }
+        return false;
+    }
+    return true;
 }
 
 bool DownloadAssetToMemory(const ReleaseAsset& asset, std::vector<char>& data, std::string* errorMessage)
 {
-    return detail::DownloadUrlToMemory(asset.downloadUrl, data, errorMessage);
+    if (!IsTrustedReleaseAsset(asset)) {
+        if (errorMessage) {
+            *errorMessage = "Updater refused an untrusted or oversized release asset.";
+        }
+        return false;
+    }
+    if (!detail::DownloadUrlToMemory(asset.downloadUrl, data, errorMessage)) {
+        return false;
+    }
+    if (data.size() != asset.sizeBytes) {
+        data.clear();
+        if (errorMessage) {
+            *errorMessage = "Downloaded update size did not match the GitHub release metadata.";
+        }
+        return false;
+    }
+    return true;
 }
 
 bool ExtractUpdatePackage(
@@ -193,6 +245,22 @@ bool ExtractUpdatePackage(
     std::string* errorMessage)
 {
     extractedData.clear();
+    if (packageBytes.empty() || packageBytes.size() > kMaximumUpdateBytes) {
+        if (errorMessage) {
+            *errorMessage = "Downloaded update package was empty or exceeded the 512 MiB safety limit.";
+        }
+        return false;
+    }
+    if (fileNameToExtract.empty() ||
+        fileNameToExtract.find('/') != std::string::npos ||
+        fileNameToExtract.find('\\') != std::string::npos ||
+        fileNameToExtract == "." ||
+        fileNameToExtract == "..") {
+        if (errorMessage) {
+            *errorMessage = "Updater refused an unsafe package file name.";
+        }
+        return false;
+    }
 
     mz_zip_archive zipArchive;
     mz_zip_zero_struct(&zipArchive);
@@ -209,6 +277,22 @@ bool ExtractUpdatePackage(
         mz_zip_reader_end(&zipArchive);
         if (errorMessage) {
             *errorMessage = "The update package did not contain " + fileNameToExtract + ".";
+        }
+        return false;
+    }
+
+    mz_zip_archive_file_stat fileStat {};
+    if (!mz_zip_reader_file_stat(
+            &zipArchive,
+            static_cast<mz_uint>(fileIndex),
+            &fileStat) ||
+        fileStat.m_is_directory ||
+        fileStat.m_is_encrypted ||
+        fileStat.m_uncomp_size == 0 ||
+        fileStat.m_uncomp_size > kMaximumUpdateBytes) {
+        mz_zip_reader_end(&zipArchive);
+        if (errorMessage) {
+            *errorMessage = "The requested update file was empty, encrypted, or too large.";
         }
         return false;
     }
@@ -237,6 +321,12 @@ bool ApplyUpdate(const ReleaseInfo& release, const std::string& localVersion, st
     if (!asset) {
         if (errorMessage) {
             *errorMessage = "No matching update package asset was found for this platform.";
+        }
+        return false;
+    }
+    if (!IsTrustedReleaseAsset(*asset)) {
+        if (errorMessage) {
+            *errorMessage = "Updater refused an untrusted or oversized release asset.";
         }
         return false;
     }

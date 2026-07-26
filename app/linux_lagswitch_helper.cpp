@@ -6,6 +6,7 @@
 
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/un.h>
@@ -14,11 +15,13 @@
 #include <cerrno>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -27,7 +30,28 @@
 namespace smu::app {
 namespace {
 
-constexpr const char kNethelperSocketPath[] = "/tmp/nethelper.sock";
+std::string NethelperSocketPath()
+{
+    return "/tmp/smu-nethelper-" + std::to_string(getuid()) + ".sock";
+}
+
+bool IsRootPeer(int fd)
+{
+    struct {
+        pid_t pid;
+        uid_t uid;
+        gid_t gid;
+    } credentials{};
+    socklen_t credentialsLength = sizeof(credentials);
+    return getsockopt(
+               fd,
+               SOL_SOCKET,
+               SO_PEERCRED,
+               &credentials,
+               &credentialsLength) == 0 &&
+           credentialsLength == sizeof(credentials) &&
+           credentials.uid == 0;
+}
 
 std::string GetExecutableBasePath()
 {
@@ -51,23 +75,76 @@ bool PathExists(const std::filesystem::path& path)
     return !path.empty() && std::filesystem::exists(path, ec) && !ec;
 }
 
+bool ReadProcessStartTime(pid_t pid, std::uint64_t* startTime)
+{
+    if (!startTime || pid <= 0) {
+        return false;
+    }
+
+    std::ifstream statFile("/proc/" + std::to_string(pid) + "/stat");
+    std::string stat;
+    if (!statFile || !std::getline(statFile, stat)) {
+        return false;
+    }
+
+    const std::size_t closeName = stat.rfind(')');
+    if (closeName == std::string::npos || closeName + 1 >= stat.size()) {
+        return false;
+    }
+
+    // The first token after the executable name is field 3 (state).
+    // Linux documents process starttime as field 22.
+    std::istringstream fields(stat.substr(closeName + 1));
+    std::string value;
+    for (int field = 3; field <= 22; ++field) {
+        if (!(fields >> value)) {
+            return false;
+        }
+    }
+
+    try {
+        std::size_t parsedLength = 0;
+        const unsigned long long parsed = std::stoull(value, &parsedLength, 10);
+        if (parsed == 0 || parsedLength != value.size()) {
+            return false;
+        }
+        *startTime = static_cast<std::uint64_t>(parsed);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool IsNethelperReachable()
 {
+    const std::string socketPath = NethelperSocketPath();
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) {
         return false;
     }
+    timeval timeout{};
+    timeout.tv_sec = 2;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
-    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", kNethelperSocketPath);
+    if (socketPath.size() >= sizeof(addr.sun_path)) {
+        close(fd);
+        return false;
+    }
+    std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", socketPath.c_str());
 
     if (connect(fd, reinterpret_cast<sockaddr*>(&addr), SUN_LEN(&addr)) != 0) {
         close(fd);
         return false;
     }
+    if (!IsRootPeer(fd)) {
+        close(fd);
+        return false;
+    }
 
-    const char msg[] = "ping";
+    const char msg[] = "ping\n";
     if (send(fd, msg, std::strlen(msg), MSG_NOSIGNAL) <= 0) {
         close(fd);
         return false;
@@ -81,7 +158,7 @@ bool IsNethelperReachable()
         return false;
     }
     buf[n] = '\0';
-    return std::string(buf).find("pong") != std::string::npos;
+    return std::string(buf).find("PONG") != std::string::npos;
 }
 
 std::vector<std::filesystem::path> AppDirCandidates()
@@ -133,14 +210,26 @@ std::string ResolveNethelperPath()
     return (exeDir / "nethelper").string();
 }
 
-std::string StagedNethelperPath()
+bool WriteAll(int fd, const char* data, std::size_t length)
 {
-    const char* user = std::getenv("USER");
-    std::string suffix = (user && user[0] != '\0') ? user : std::to_string(getuid());
-    return "/tmp/nethelper-" + suffix;
+    while (length > 0) {
+        const ssize_t written = write(fd, data, length);
+        if (written < 0 && errno == EINTR) {
+            continue;
+        }
+        if (written <= 0) {
+            return false;
+        }
+        data += written;
+        length -= static_cast<std::size_t>(written);
+    }
+    return true;
 }
 
-bool StageNethelper(const std::string& sourcePath, std::string* errorMessage)
+bool StageNethelper(
+    const std::string& sourcePath,
+    std::string* stagedPath,
+    std::string* errorMessage)
 {
     if (!PathExists(sourcePath)) {
         if (errorMessage) {
@@ -149,27 +238,66 @@ bool StageNethelper(const std::string& sourcePath, std::string* errorMessage)
         return false;
     }
 
-    const std::string stagedPath = StagedNethelperPath();
-    std::error_code ec;
-    std::filesystem::copy_file(
-        sourcePath,
-        stagedPath,
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
-    if (ec) {
+    char pathTemplate[] = "/tmp/smu-nethelper-stage-XXXXXX";
+    const int destination = mkstemp(pathTemplate);
+    if (destination < 0) {
         if (errorMessage) {
-            *errorMessage = "Could not stage Linux lagswitch helper at " + stagedPath + ": " + ec.message() + ".";
+            *errorMessage = "Could not create a private Linux lagswitch helper staging file: " +
+                std::string(std::strerror(errno)) + ".";
         }
         return false;
     }
 
-    if (chmod(stagedPath.c_str(), 0755) != 0) {
+    const std::string privatePath(pathTemplate);
+    const auto fail = [&](const std::string& message) {
+        close(destination);
+        unlink(privatePath.c_str());
         if (errorMessage) {
-            *errorMessage = "Could not mark Linux lagswitch helper executable: " + std::string(std::strerror(errno)) + ".";
+            *errorMessage = message;
+        }
+        return false;
+    };
+
+    if (fchmod(destination, 0700) != 0) {
+        return fail(
+            "Could not protect the staged Linux lagswitch helper: " +
+            std::string(std::strerror(errno)) + ".");
+    }
+
+    std::ifstream source(sourcePath, std::ios::binary);
+    if (!source) {
+        return fail("Could not read Linux lagswitch helper at " + sourcePath + ".");
+    }
+
+    std::vector<char> buffer(64 * 1024);
+    while (source) {
+        source.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+        const std::streamsize count = source.gcount();
+        if (count > 0 &&
+            !WriteAll(destination, buffer.data(), static_cast<std::size_t>(count))) {
+            return fail(
+                "Could not stage Linux lagswitch helper: " +
+                std::string(std::strerror(errno)) + ".");
+        }
+    }
+    if (!source.eof()) {
+        return fail("Could not finish reading Linux lagswitch helper at " + sourcePath + ".");
+    }
+    if (fsync(destination) != 0) {
+        return fail(
+            "Could not finish staging Linux lagswitch helper: " +
+            std::string(std::strerror(errno)) + ".");
+    }
+    if (close(destination) != 0) {
+        unlink(privatePath.c_str());
+        if (errorMessage) {
+            *errorMessage = "Could not close the staged Linux lagswitch helper: " +
+                std::string(std::strerror(errno)) + ".";
         }
         return false;
     }
 
+    *stagedPath = privatePath;
     return true;
 }
 
@@ -213,6 +341,15 @@ bool WaitForNethelper(pid_t pid, std::string* errorMessage)
     return false;
 }
 
+void ReapNethelperProcess(pid_t pid)
+{
+    std::thread([pid]() {
+        int status = 0;
+        while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {
+        }
+    }).detach();
+}
+
 } // namespace
 
 bool StartLinuxNetworkHelperWithGraphicalPkexec(std::string* errorMessage)
@@ -221,14 +358,25 @@ bool StartLinuxNetworkHelperWithGraphicalPkexec(std::string* errorMessage)
         return true;
     }
 
-    const std::string nethelperPath = ResolveNethelperPath();
-    if (!StageNethelper(nethelperPath, errorMessage)) {
+    const pid_t ownerPid = getpid();
+    std::uint64_t ownerStartTimeValue = 0;
+    if (!ReadProcessStartTime(ownerPid, &ownerStartTimeValue)) {
+        if (errorMessage) {
+            *errorMessage =
+                "Could not read the SMU process identity required to safely start the Linux lagswitch helper.";
+        }
         return false;
     }
 
-    const std::string stagedPath = StagedNethelperPath();
+    const std::string nethelperPath = ResolveNethelperPath();
+    std::string stagedPath;
+    if (!StageNethelper(nethelperPath, &stagedPath, errorMessage)) {
+        return false;
+    }
+
     const pid_t pid = fork();
     if (pid < 0) {
+        unlink(stagedPath.c_str());
         if (errorMessage) {
             *errorMessage = "Failed to fork Linux lagswitch helper: " + std::string(std::strerror(errno)) + ".";
         }
@@ -236,20 +384,41 @@ bool StartLinuxNetworkHelperWithGraphicalPkexec(std::string* errorMessage)
     }
 
     if (pid == 0) {
+        const std::string invokingUid = std::to_string(getuid());
+        const std::string ownerPidText = std::to_string(ownerPid);
+        const std::string ownerStartTime = std::to_string(ownerStartTimeValue);
         if (geteuid() == 0) {
-            execl(stagedPath.c_str(), stagedPath.c_str(), static_cast<char*>(nullptr));
+            execl(
+                stagedPath.c_str(),
+                stagedPath.c_str(),
+                "--uid",
+                invokingUid.c_str(),
+                "--owner-pid",
+                ownerPidText.c_str(),
+                "--owner-start-time",
+                ownerStartTime.c_str(),
+                static_cast<char*>(nullptr));
         } else {
             execlp(
                 "pkexec",
                 "pkexec",
                 "--disable-internal-agent",
                 stagedPath.c_str(),
+                "--uid",
+                invokingUid.c_str(),
+                "--owner-pid",
+                ownerPidText.c_str(),
+                "--owner-start-time",
+                ownerStartTime.c_str(),
                 static_cast<char*>(nullptr));
         }
         _exit(errno == ENOENT ? 127 : 126);
     }
 
-    if (!WaitForNethelper(pid, errorMessage)) {
+    const bool started = WaitForNethelper(pid, errorMessage);
+    ReapNethelperProcess(pid);
+    unlink(stagedPath.c_str());
+    if (!started) {
         return false;
     }
 

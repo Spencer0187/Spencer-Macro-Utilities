@@ -1,21 +1,59 @@
 name: spencer-macro-utilities
 arch: amd64
 platform: linux
-version: 3.2.1
+version: 3.3.0
 section: default
 priority: optional
 maintainer: FloofyIV <floofyiv9@proton.me>
 description: |
-  An open source C++ Roblox Macro with many features.
+  Native cross-platform Roblox macro client with a custom Lua scripting API.
 vendor: FloofyIV
-homepage: https://spencermacro.vercel.app
+homepage: https://github.com/Spencer0187/Spencer-Macro-Utilities
+license: GPL-3.0-only
+overrides:
+  deb:
+    depends:
+      - curl
+      - iproute2
+      - iptables
+      - kmod
+      - policykit-1
+      - libx11-6
+      - libxinerama1
+      - libdecor-0-0
+      - libwayland-client0
+      - libglx0
+      - libopengl0
+      - libstdc++6
+      - libc6
+  rpm:
+    depends:
+      - curl
+      - iproute
+      - iptables
+      - kmod
+      - polkit
+      - libX11
+      - libXinerama
+      - libdecor
+      - libwayland-client
+      - libglvnd-glx
+      - libglvnd-opengl
+      - libstdc++
+      - glibc
 contents:
   - src: ./staged/usr/bin/suspend
     dst: /usr/lib/spencer-macro-utilities/suspend
     file_info:
       mode: 0755
-  - src: ./staged/usr/bin/assets/*
-    dst: /usr/lib/spencer-macro-utilities/assets/
+  - src: ./staged/usr/bin/nethelper
+    dst: /usr/lib/spencer-macro-utilities/nethelper
+    file_info:
+      mode: 0755
+  - src: ./staged/usr/bin/assets/LSANS.TTF
+    dst: /usr/lib/spencer-macro-utilities/assets/LSANS.TTF
+  - src: ./staged/usr/bin/assets/smu_icon.bmp
+    dst: /usr/lib/spencer-macro-utilities/assets/smu_icon.bmp
   - src: ./staged/usr/bin/assets/macro_tutorials/*
     dst: /usr/lib/spencer-macro-utilities/assets/macro_tutorials/
   - src: ./AppImage/launcher.sh
@@ -30,6 +68,16 @@ contents:
       mode: 0755
   - src: ./staged/usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
     dst: /usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/LINUX_SETUP.md
+    dst: /usr/lib/spencer-macro-utilities/LINUX_SETUP.md
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/LICENSE
+    dst: /usr/share/doc/spencer-macro-utilities/LICENSE
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/PRIVACY.md
+    dst: /usr/share/doc/spencer-macro-utilities/PRIVACY.md
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/THIRD_PARTY_NOTICES.md
+    dst: /usr/share/doc/spencer-macro-utilities/THIRD_PARTY_NOTICES.md
+  - src: ./staged/usr/share/doc/spencer-macro-utilities/licenses/*
+    dst: /usr/share/doc/spencer-macro-utilities/licenses/
   - src: ./AppImage/spencer-macro-utilities.desktop
     dst: /usr/share/applications/spencer-macro-utilities.desktop
   - src: ./AppImage/SMU.png

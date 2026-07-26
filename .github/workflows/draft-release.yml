@@ -1,0 +1,145 @@
+name: Build Draft Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: smu-draft-release
+  cancel-in-progress: false
+
+jobs:
+  build-packages:
+    name: Build signed release packages
+    uses: ./.github/workflows/build.yml
+    with:
+      release_mode: true
+    secrets: inherit
+
+  draft-release:
+    name: Create draft release
+    needs: build-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare draft release body
+        id: release-body
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.build-packages.outputs.app_version }}"
+          previous_tag="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq '.tag_name'
+          )"
+          if [[ -z "$previous_tag" || "$previous_tag" == "V${version}" ]]; then
+            echo "Could not determine the previous published release tag." >&2
+            exit 1
+          fi
+          changelog_url="https://github.com/${GITHUB_REPOSITORY}/compare/${previous_tag}...V${version}"
+          {
+            echo 'body<<EOF'
+            echo '<!-- TODO: Write release notes here before publishing this draft. -->'
+            echo
+            echo "Full Changelog: [${previous_tag}...V${version}](${changelog_url})"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download release assets
+        uses: actions/download-artifact@v8
+        with:
+          pattern: Spencer-Macro-Utilities-*
+          path: release-files
+          merge-multiple: true
+          skip-decompress: true
+
+      - name: Verify release asset set
+        shell: bash
+        run: |
+          version="${{ needs.build-packages.outputs.app_version }}"
+          expected=(
+            "Spencer-Macro-Utilities-${version}.zip"
+            "Spencer-Macro-Utilities-V${version}-Linux-x86_64.zip"
+            "Spencer-Macro-Utilities-V${version}-macOS-universal.zip"
+            "Spencer-Macro-Utilities-V${version}-macOS-universal.dmg"
+          )
+          for asset in "${expected[@]}"; do
+            test -s "release-files/$asset"
+          done
+          test "$(find release-files -maxdepth 1 -type f | wc -l)" -eq "${#expected[@]}"
+
+      - name: Clear assets from an existing draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.build-packages.outputs.app_version }}"
+          tag="V${version}"
+          mapfile -t release_ids < <(
+            gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --paginate \
+              --jq ".[] | select(.tag_name == \"${tag}\") | .id"
+          )
+          if (( ${#release_ids[@]} > 1 )); then
+            echo "Refusing to choose between multiple releases tagged ${tag}." >&2
+            exit 1
+          fi
+          release_id="${release_ids[0]:-}"
+          if [[ -z "$release_id" ]]; then
+            exit 0
+          fi
+          if [[ "$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --jq '.draft')" != "true" ]]; then
+            echo "Refusing to replace assets on the published ${tag} release." >&2
+            exit 1
+          fi
+          mapfile -t asset_ids < <(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \
+              --paginate \
+              --jq '.[].id'
+          )
+          for asset_id in "${asset_ids[@]}"; do
+            gh api \
+              --method DELETE \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+          done
+
+      - name: Create draft GitHub release
+        id: create-release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: V${{ needs.build-packages.outputs.app_version }}
+          target_commitish: ${{ github.sha }}
+          name: Spencer Macro Utilities V${{ needs.build-packages.outputs.app_version }}
+          body: ${{ steps.release-body.outputs.body }}
+          draft: true
+          # V3.2 selects the first ZIP. Upload sequentially in this order, then
+          # fail the workflow below if GitHub's API does not preserve it.
+          preserve_order: true
+          files: |
+            release-files/Spencer-Macro-Utilities-${{ needs.build-packages.outputs.app_version }}.zip
+            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-Linux-x86_64.zip
+            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.zip
+            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.dmg
+          fail_on_unmatched_files: true
+
+      - name: Verify legacy updater asset ordering
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.build-packages.outputs.app_version }}"
+          release_id="${{ steps.create-release.outputs.id }}"
+          expected="Spencer-Macro-Utilities-${version}.zip"
+          first_zip="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \
+              --paginate \
+              --jq '[.[].name | select(endswith(".zip"))][0] // ""'
+          )"
+          if [[ "$first_zip" != "$expected" ]]; then
+            echo "Legacy updater compatibility failed: first ZIP is '$first_zip', expected '$expected'." >&2
+            exit 1
+          fi

@@ -1,6 +1,7 @@
 #if defined(__APPLE__)
 
 #include "updater.h"
+#include "asset_selection.h"
 
 #include <algorithm>
 #include <cerrno>
@@ -23,17 +24,14 @@
 namespace smu::updater::detail {
 namespace {
 
+constexpr std::uintmax_t kMaximumUpdateBytes = 512ULL * 1024ULL * 1024ULL;
+
 std::string Lower(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
     });
     return value;
-}
-
-bool Contains(const std::string& value, const char* needle)
-{
-    return value.find(needle) != std::string::npos;
 }
 
 bool EndsWith(const std::string& value, const char* suffix)
@@ -101,8 +99,14 @@ bool RunCurlToStdout(const std::string& url, std::string& output, std::string* e
         execl("/usr/bin/curl",
             "curl",
             "-fsSL",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
             "--max-time",
             "15",
+            "--max-filesize",
+            "536870912",
             "-H",
             "User-Agent: Spencer-Macro-Utilities-Updater",
             "-H",
@@ -155,8 +159,14 @@ bool RunCurlToFile(const std::string& url, const std::filesystem::path& destinat
         execl("/usr/bin/curl",
             "curl",
             "-fsSL",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
             "--max-time",
             "120",
+            "--max-filesize",
+            "536870912",
             "-H",
             "User-Agent: Spencer-Macro-Utilities-Updater",
             "-L",
@@ -223,6 +233,144 @@ bool IsMountedDmgPath(const std::filesystem::path& path)
     return value == "/Volumes" || value.rfind("/Volumes/", 0) == 0;
 }
 
+bool WaitForChild(pid_t pid, int* status)
+{
+    for (;;) {
+        if (waitpid(pid, status, 0) == pid) {
+            return true;
+        }
+        if (errno != EINTR) {
+            return false;
+        }
+    }
+}
+
+bool HasCertificateBackedReleaseSignature(
+    const std::filesystem::path& bundlePath,
+    std::string* errorMessage)
+{
+    const pid_t verifyPid = fork();
+    if (verifyPid < 0) {
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not inspect the current macOS code signature: ") +
+                std::strerror(errno);
+        }
+        return false;
+    }
+    if (verifyPid == 0) {
+        execl(
+            "/usr/bin/codesign",
+            "codesign",
+            "--verify",
+            "--deep",
+            "--strict",
+            bundlePath.c_str(),
+            static_cast<char*>(nullptr));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+
+    int verifyStatus = 0;
+    if (!WaitForChild(verifyPid, &verifyStatus) ||
+        !WIFEXITED(verifyStatus) ||
+        WEXITSTATUS(verifyStatus) != 0) {
+        if (errorMessage) {
+            *errorMessage =
+                "Automatic updates require an installed SMU app with a valid release signature.";
+        }
+        return false;
+    }
+
+    char dirTemplate[] = "/tmp/smu-macos-signer-XXXXXX";
+    char* signerDirectory = mkdtemp(dirTemplate);
+    if (!signerDirectory) {
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not create a macOS signature-check directory: ") +
+                std::strerror(errno);
+        }
+        return false;
+    }
+
+    const std::filesystem::path signerDir(signerDirectory);
+    const std::filesystem::path signerPrefix = signerDir / "signer-";
+    const std::string extractOption =
+        "--extract-certificates=" + signerPrefix.string();
+    const pid_t extractPid = fork();
+    if (extractPid < 0) {
+        std::filesystem::remove_all(signerDir);
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not inspect the macOS release certificate: ") +
+                std::strerror(errno);
+        }
+        return false;
+    }
+    if (extractPid == 0) {
+        execl(
+            "/usr/bin/codesign",
+            "codesign",
+            "-d",
+            extractOption.c_str(),
+            bundlePath.c_str(),
+            static_cast<char*>(nullptr));
+        _exit(errno == ENOENT ? 127 : 126);
+    }
+
+    int extractStatus = 0;
+    const bool extracted =
+        WaitForChild(extractPid, &extractStatus) &&
+        WIFEXITED(extractStatus) &&
+        WEXITSTATUS(extractStatus) == 0;
+    const std::filesystem::path leafCertificate =
+        signerPrefix.string() + "0";
+    std::error_code ec;
+    const bool hasLeafCertificate =
+        extracted &&
+        std::filesystem::is_regular_file(leafCertificate, ec) &&
+        !ec &&
+        std::filesystem::file_size(leafCertificate, ec) > 0 &&
+        !ec;
+    std::filesystem::remove_all(signerDir, ec);
+
+    if (!hasLeafCertificate && errorMessage) {
+        *errorMessage =
+            "Automatic updates require the official certificate-signed SMU app. "
+            "This build must be updated manually.";
+    }
+    return hasLeafCertificate;
+}
+
+bool CanStageBundleInDirectory(
+    const std::filesystem::path& directory,
+    std::string* errorMessage)
+{
+    const std::string pathTemplate =
+        (directory / ".smu-update-write-test-XXXXXX").string();
+    std::vector<char> mutableTemplate(pathTemplate.begin(), pathTemplate.end());
+    mutableTemplate.push_back('\0');
+    char* probeDirectory = mkdtemp(mutableTemplate.data());
+    if (!probeDirectory) {
+        if (errorMessage) {
+            *errorMessage =
+                "SMU cannot update itself because its containing folder is not writable.";
+        }
+        return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(std::filesystem::path(probeDirectory), ec);
+    if (ec) {
+        if (errorMessage) {
+            *errorMessage =
+                "Could not clean up the macOS update writeability probe: " +
+                ec.message();
+        }
+        return false;
+    }
+    return true;
+}
+
 bool CurrentBundleCanBeReplaced(std::string* errorMessage)
 {
     const auto bundlePath = CurrentAppBundlePath();
@@ -242,22 +390,47 @@ bool CurrentBundleCanBeReplaced(std::string* errorMessage)
     }
 
     std::error_code ec;
-    if (!std::filesystem::exists(*bundlePath, ec) || ec) {
+    if (!std::filesystem::is_directory(*bundlePath, ec) || ec) {
         if (errorMessage) {
             *errorMessage = "Could not resolve the current SMU app bundle on disk.";
         }
         return false;
     }
+    if (!HasCertificateBackedReleaseSignature(*bundlePath, errorMessage)) {
+        return false;
+    }
 
     const std::filesystem::path parent = bundlePath->parent_path();
-    if (parent.empty() || access(parent.c_str(), W_OK) != 0) {
+    if (parent.empty() || access(parent.c_str(), W_OK | X_OK) != 0) {
         if (errorMessage) {
             *errorMessage = "Cannot update SMU because its containing folder is not writable: " + parent.string();
         }
         return false;
     }
 
-    return true;
+    struct stat parentStat {};
+    struct stat bundleStat {};
+    if (stat(parent.c_str(), &parentStat) != 0 ||
+        lstat(bundlePath->c_str(), &bundleStat) != 0) {
+        if (errorMessage) {
+            *errorMessage =
+                "Could not inspect the current SMU app location before updating.";
+        }
+        return false;
+    }
+    const uid_t effectiveUser = geteuid();
+    if ((parentStat.st_mode & S_ISVTX) != 0 &&
+        effectiveUser != 0 &&
+        effectiveUser != parentStat.st_uid &&
+        effectiveUser != bundleStat.st_uid) {
+        if (errorMessage) {
+            *errorMessage =
+                "Cannot replace this app because it is owned by another user in a protected folder.";
+        }
+        return false;
+    }
+
+    return CanStageBundleInDirectory(parent, errorMessage);
 }
 
 std::filesystem::path CreateTemporaryDirectory(std::string* errorMessage)
@@ -293,6 +466,25 @@ bool WriteUpdaterScript(const std::filesystem::path& scriptPath, std::string* er
         "APP_NAME=\"$4\"\n"
         "OLD_PID=\"$5\"\n"
         "LOG_FILE=\"${TMPDIR:-/tmp}/smu-macos-updater.log\"\n"
+        "CURRENT_MOVED=0\n"
+        "STAGED_APP=\"\"\n"
+        "\n"
+        "cleanup_updater() {\n"
+        "    status=\"$1\"\n"
+        "    trap - EXIT HUP INT TERM\n"
+        "    if [ \"$status\" -ne 0 ] && [ \"$CURRENT_MOVED\" -eq 0 ] && "
+            "! kill -0 \"$OLD_PID\" 2>/dev/null && [ -d \"$CURRENT_APP\" ]; then\n"
+        "        /usr/bin/open -n \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1 || true\n"
+        "    fi\n"
+        "    if [ \"$status\" -ne 0 ] && [ -n \"$STAGED_APP\" ] && [ -e \"$STAGED_APP\" ]; then\n"
+        "        /bin/rm -rf \"$STAGED_APP\"\n"
+        "    fi\n"
+        "    /bin/rm -rf \"$WORK_DIR\"\n"
+        "    /bin/rm -f \"$0\"\n"
+        "    exit \"$status\"\n"
+        "}\n"
+        "trap 'cleanup_updater $?' EXIT\n"
+        "trap 'exit 1' HUP INT TERM\n"
         "\n"
         "echo \"SMU macOS updater started\" > \"$LOG_FILE\"\n"
         "echo \"Current app: $CURRENT_APP\" >> \"$LOG_FILE\"\n"
@@ -305,41 +497,84 @@ bool WriteUpdaterScript(const std::filesystem::path& scriptPath, std::string* er
         "        echo \"Timed out waiting for old SMU process to exit\" >> \"$LOG_FILE\"\n"
         "        exit 1\n"
         "    fi\n"
-        "    sleep 0.1\n"
+        "    /bin/sleep 0.1\n"
         "done\n"
         "\n"
         "EXTRACT_DIR=\"$WORK_DIR/extracted\"\n"
-        "mkdir -p \"$EXTRACT_DIR\" || exit 1\n"
-        "/usr/bin/ditto -x -k -- \"$ZIP_PATH\" \"$EXTRACT_DIR\" >> \"$LOG_FILE\" 2>&1 || exit 1\n"
+        "/bin/mkdir -p \"$EXTRACT_DIR\" || exit 1\n"
+        "/usr/bin/ditto -x -k \"$ZIP_PATH\" \"$EXTRACT_DIR\" >> \"$LOG_FILE\" 2>&1 || exit 1\n"
         "\n"
-        "NEW_APP=$(/usr/bin/find \"$EXTRACT_DIR\" -maxdepth 3 -type d -name \"$APP_NAME\" -print -quit)\n"
-        "if [ -z \"$NEW_APP\" ]; then\n"
-        "    NEW_APP=$(/usr/bin/find \"$EXTRACT_DIR\" -maxdepth 3 -type d -name \"*.app\" -print -quit)\n"
+        "NEW_APP=\"$EXTRACT_DIR/$APP_NAME\"\n"
+        "if [ ! -d \"$NEW_APP\" ]; then\n"
+        "    NEW_APP=$(/usr/bin/find \"$EXTRACT_DIR\" -type d -name \"*.app\" -print | /usr/bin/head -n 1)\n"
         "fi\n"
         "if [ -z \"$NEW_APP\" ]; then\n"
         "    echo \"Downloaded update did not contain a .app bundle\" >> \"$LOG_FILE\"\n"
         "    exit 1\n"
         "fi\n"
         "\n"
-        "BACKUP_APP=\"$CURRENT_APP.old.$$\"\n"
-        "rm -rf -- \"$BACKUP_APP\"\n"
-        "if ! mv -- \"$CURRENT_APP\" \"$BACKUP_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
-        "    echo \"Failed to move current app aside\" >> \"$LOG_FILE\"\n"
+        "if ! /usr/bin/codesign --verify --deep --strict \"$NEW_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Downloaded app failed code-signature validation\" >> \"$LOG_FILE\"\n"
         "    exit 1\n"
         "fi\n"
-        "if ! mv -- \"$NEW_APP\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "CURRENT_CERT=\"$WORK_DIR/current-signer-\"\n"
+        "NEW_CERT=\"$WORK_DIR/new-signer-\"\n"
+        "if ! /usr/bin/codesign -d --extract-certificates=\"$CURRENT_CERT\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Current app does not have a certificate-backed release signature\" >> \"$LOG_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "if ! /usr/bin/codesign -d --extract-certificates=\"$NEW_CERT\" \"$NEW_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Downloaded app does not have a certificate-backed release signature\" >> \"$LOG_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "if [ ! -f \"${CURRENT_CERT}0\" ] || [ ! -f \"${NEW_CERT}0\" ] || "
+            "! /usr/bin/cmp -s \"${CURRENT_CERT}0\" \"${NEW_CERT}0\"; then\n"
+        "    echo \"Downloaded app was not signed by the same release certificate\" >> \"$LOG_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "\n"
+        "STAGED_APP=\"${CURRENT_APP}.update.${OLD_PID}.$$\"\n"
+        "BACKUP_APP=\"${CURRENT_APP}.old.${OLD_PID}.$$\"\n"
+        "if [ -e \"$STAGED_APP\" ] || [ -e \"$BACKUP_APP\" ]; then\n"
+        "    echo \"Refusing to overwrite an existing app staging path or backup\" >> \"$LOG_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "if ! /bin/mv \"$NEW_APP\" \"$STAGED_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Failed to stage the downloaded app beside the current app\" >> \"$LOG_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "if ! /bin/mv \"$CURRENT_APP\" \"$BACKUP_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Failed to move current app aside\" >> \"$LOG_FILE\"\n"
+        "    /bin/rm -rf \"$STAGED_APP\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "CURRENT_MOVED=1\n"
+        "if ! /bin/mv \"$STAGED_APP\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
         "    echo \"Failed to move new app into place; restoring previous app\" >> \"$LOG_FILE\"\n"
-        "    mv -- \"$BACKUP_APP\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1\n"
+        "    /bin/rm -rf \"$CURRENT_APP\" \"$STAGED_APP\"\n"
+        "    if /bin/mv \"$BACKUP_APP\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "        CURRENT_MOVED=0\n"
+        "    else\n"
+        "        echo \"Automatic rollback failed; backup remains at $BACKUP_APP\" >> \"$LOG_FILE\"\n"
+        "    fi\n"
         "    exit 1\n"
         "fi\n"
         "\n"
         "SUPPORT_DIR=\"$HOME/Library/Application Support/Spencer Macro Utilities\"\n"
-        "mkdir -p \"$SUPPORT_DIR\" >/dev/null 2>&1 || true\n"
-        "touch \"$SUPPORT_DIR/macos-permissions-may-need-repair\" >/dev/null 2>&1 || true\n"
-        "xattr -dr com.apple.quarantine \"$CURRENT_APP\" >/dev/null 2>&1 || true\n"
-        "/usr/bin/open -n \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1 &\n"
-        "rm -rf -- \"$BACKUP_APP\" \"$WORK_DIR\"\n"
-        "rm -f -- \"$0\"\n"
+        "/bin/mkdir -p \"$SUPPORT_DIR\" >/dev/null 2>&1 || true\n"
+        "/usr/bin/touch \"$SUPPORT_DIR/macos-permissions-may-need-repair\" >/dev/null 2>&1 || true\n"
+        "/usr/bin/xattr -dr com.apple.quarantine \"$CURRENT_APP\" >/dev/null 2>&1 || true\n"
+        "if ! /usr/bin/open -n \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "    echo \"Updated app could not be opened; restoring the previous version\" >> \"$LOG_FILE\"\n"
+        "    /bin/rm -rf \"$CURRENT_APP\"\n"
+        "    if /bin/mv \"$BACKUP_APP\" \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1; then\n"
+        "        /usr/bin/open -n \"$CURRENT_APP\" >> \"$LOG_FILE\" 2>&1 || true\n"
+        "    else\n"
+        "        echo \"Automatic rollback failed; backup remains at $BACKUP_APP\" >> \"$LOG_FILE\"\n"
+        "    fi\n"
+        "    exit 1\n"
+        "fi\n"
+        "/bin/rm -rf \"$BACKUP_APP\"\n"
         "exit 0\n";
 
     script.close();
@@ -402,19 +637,7 @@ bool DownloadUrlToMemory(const std::string& url, std::vector<char>& data, std::s
 
 int ScoreAssetForCurrentPlatform(const ReleaseAsset& asset)
 {
-    const std::string name = Lower(asset.name);
-    if (!EndsWith(name, ".zip")) {
-        return 0;
-    }
-    if (Contains(name, "windows") || Contains(name, "linux") || Contains(name, "appimage")) {
-        return 0;
-    }
-
-    int score = 20;
-    if (Contains(name, "macos") || Contains(name, "mac-os") || Contains(name, "darwin") || Contains(name, "osx")) score += 60;
-    if (Contains(name, "universal")) score += 20;
-    if (Contains(name, "spencer") || Contains(name, "macro") || Contains(name, "suspend")) score += 8;
-    return score;
+    return ScoreMacOSAssetName(asset.name);
 }
 
 bool PlatformAutoApplySupported()
@@ -435,6 +658,12 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
     if (!CurrentBundleCanBeReplaced(errorMessage)) {
         return false;
     }
+    if (asset.sizeBytes == 0 || asset.sizeBytes > kMaximumUpdateBytes) {
+        if (errorMessage) {
+            *errorMessage = "macOS update package failed the updater size checks.";
+        }
+        return false;
+    }
 
     const auto currentBundle = CurrentAppBundlePath();
     if (!currentBundle) {
@@ -451,15 +680,20 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
 
     std::error_code ec;
     const std::filesystem::path zipPath = workDir / "update.zip";
-    if (!DownloadUrlToFile(asset.downloadUrl, zipPath, errorMessage)) {
+    if (!smu::updater::DownloadAssetToFile(asset, zipPath, errorMessage)) {
         std::filesystem::remove_all(workDir, ec);
         return false;
     }
 
-    if (!std::filesystem::exists(zipPath, ec) || ec || std::filesystem::file_size(zipPath, ec) == 0 || ec) {
+    const std::uintmax_t downloadedSize = std::filesystem::file_size(zipPath, ec);
+    if (!std::filesystem::exists(zipPath, ec) ||
+        ec ||
+        downloadedSize == 0 ||
+        downloadedSize > kMaximumUpdateBytes ||
+        downloadedSize != asset.sizeBytes) {
         std::filesystem::remove_all(workDir, ec);
         if (errorMessage) {
-            *errorMessage = "Downloaded macOS update package was missing or empty.";
+            *errorMessage = "Downloaded macOS update package was missing, truncated, or too large.";
         }
         return false;
     }
@@ -470,6 +704,7 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
         return false;
     }
 
+    const std::string oldPid = std::to_string(getpid());
     const pid_t child = fork();
     if (child < 0) {
         std::filesystem::remove_all(workDir, ec);
@@ -482,7 +717,6 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
     if (child == 0) {
         setsid();
 
-        const std::string oldPid = std::to_string(getppid());
         execl(
             "/bin/sh",
             "sh",

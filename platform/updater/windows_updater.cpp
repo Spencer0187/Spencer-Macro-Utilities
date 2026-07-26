@@ -1,17 +1,17 @@
 #if defined(_WIN32)
 
 #include "updater.h"
+#include "asset_selection.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
-#include <shlwapi.h>
 #include <wininet.h>
+#include <wintrust.h>
+#include <wincrypt.h>
+#include <Softpub.h>
 
-#include <algorithm>
-#include <cctype>
-#include <codecvt>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -24,6 +24,8 @@
 namespace smu::updater::detail {
 namespace {
 
+constexpr std::size_t kMaximumDownloadBytes = 512ULL * 1024ULL * 1024ULL;
+
 std::wstring Utf8ToWide(const std::string& value)
 {
     if (value.empty()) {
@@ -35,29 +37,12 @@ std::wstring Utf8ToWide(const std::string& value)
         return {};
     }
 
-    std::wstring result(static_cast<std::size_t>(size - 1), L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, result.data(), size);
+    std::wstring result(static_cast<std::size_t>(size), L'\0');
+    if (MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, result.data(), size) <= 0) {
+        return {};
+    }
+    result.resize(static_cast<std::size_t>(size - 1));
     return result;
-}
-
-std::string Lower(std::string value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return value;
-}
-
-bool Contains(const std::string& value, const char* needle)
-{
-    return value.find(needle) != std::string::npos;
-}
-
-bool EndsWith(const std::string& value, const char* suffix)
-{
-    const std::string suffixText(suffix);
-    return value.size() >= suffixText.size() &&
-        value.compare(value.size() - suffixText.size(), suffixText.size(), suffixText) == 0;
 }
 
 std::wstring GenerateRandomHexString()
@@ -71,6 +56,72 @@ std::wstring GenerateRandomHexString()
         stream << std::hex << distrib(gen);
     }
     return stream.str();
+}
+
+bool GetCurrentExecutableLocation(
+    std::wstring& executablePath,
+    std::wstring& containingDirectory,
+    std::string* errorMessage)
+{
+    std::vector<wchar_t> pathBuffer(1024);
+    for (;;) {
+        const DWORD length = GetModuleFileNameW(
+            nullptr,
+            pathBuffer.data(),
+            static_cast<DWORD>(pathBuffer.size()));
+        if (length == 0) {
+            if (errorMessage) {
+                *errorMessage = "Could not resolve the running SMU executable.";
+            }
+            return false;
+        }
+        if (length < pathBuffer.size() - 1) {
+            executablePath.assign(pathBuffer.data(), length);
+            break;
+        }
+        if (pathBuffer.size() >= 32768) {
+            if (errorMessage) {
+                *errorMessage = "The running SMU executable path is too long to update safely.";
+            }
+            return false;
+        }
+        pathBuffer.resize(pathBuffer.size() * 2);
+    }
+
+    containingDirectory =
+        std::filesystem::path(executablePath).parent_path().wstring();
+    if (containingDirectory.empty()) {
+        if (errorMessage) {
+            *errorMessage = "Could not resolve the folder containing SMU.";
+        }
+        return false;
+    }
+    return true;
+}
+
+bool ExecutableFolderCanBeWritten(
+    const std::wstring& containingDirectory,
+    std::string* errorMessage)
+{
+    const std::wstring probePath =
+        containingDirectory + L"\\.smu-update-write-test-" + GenerateRandomHexString();
+    HANDLE probe = CreateFileW(
+        probePath.c_str(),
+        GENERIC_WRITE | DELETE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
+        nullptr);
+    if (probe == INVALID_HANDLE_VALUE) {
+        if (errorMessage) {
+            *errorMessage =
+                "SMU cannot update itself because its containing folder is not writable.";
+        }
+        return false;
+    }
+    CloseHandle(probe);
+    return true;
 }
 
 bool ReadInternetHandle(HINTERNET handle, std::vector<char>& data, std::string* errorMessage)
@@ -87,6 +138,12 @@ bool ReadInternetHandle(HINTERNET handle, std::vector<char>& data, std::string* 
         if (bytesRead == 0) {
             break;
         }
+        if (data.size() > kMaximumDownloadBytes - bytesRead) {
+            if (errorMessage) {
+                *errorMessage = "Updater download exceeded the 512 MiB safety limit.";
+            }
+            return false;
+        }
         data.insert(data.end(), buffer, buffer + bytesRead);
     }
     return !data.empty();
@@ -95,6 +152,13 @@ bool ReadInternetHandle(HINTERNET handle, std::vector<char>& data, std::string* 
 bool DownloadUrlToMemoryImpl(const std::string& url, std::vector<char>& data, std::string* errorMessage)
 {
     data.clear();
+    if (url.rfind("https://", 0) != 0) {
+        if (errorMessage) {
+            *errorMessage = "Updater refused a non-HTTPS URL.";
+        }
+        return false;
+    }
+
     const std::wstring wideUrl = Utf8ToWide(url);
     if (wideUrl.empty()) {
         if (errorMessage) {
@@ -141,6 +205,24 @@ bool DownloadUrlToMemoryImpl(const std::string& url, std::vector<char>& data, st
         return false;
     }
 
+    DWORD statusCode = 0;
+    DWORD statusCodeSize = sizeof(statusCode);
+    if (!HttpQueryInfoW(
+            connection,
+            HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER,
+            &statusCode,
+            &statusCodeSize,
+            nullptr) ||
+        statusCode < 200 ||
+        statusCode >= 300) {
+        InternetCloseHandle(connection);
+        InternetCloseHandle(internet);
+        if (errorMessage) {
+            *errorMessage = "Updater server returned a non-success HTTP status.";
+        }
+        return false;
+    }
+
     const bool ok = ReadInternetHandle(connection, data, errorMessage);
     InternetCloseHandle(connection);
     InternetCloseHandle(internet);
@@ -170,6 +252,202 @@ bool WriteBytesToFile(const std::wstring& path, const std::vector<char>& bytes, 
         return false;
     }
 
+    return true;
+}
+
+bool HasTrustedAuthenticodeSignature(
+    const std::wstring& path,
+    const char* description,
+    std::string* errorMessage)
+{
+    WINTRUST_FILE_INFO fileInfo {};
+    fileInfo.cbStruct = sizeof(fileInfo);
+    fileInfo.pcwszFilePath = path.c_str();
+
+    WINTRUST_DATA trustData {};
+    trustData.cbStruct = sizeof(trustData);
+    trustData.dwUIChoice = WTD_UI_NONE;
+    trustData.fdwRevocationChecks = WTD_REVOKE_WHOLECHAIN;
+    trustData.dwUnionChoice = WTD_CHOICE_FILE;
+    trustData.pFile = &fileInfo;
+    trustData.dwStateAction = WTD_STATEACTION_VERIFY;
+    trustData.dwProvFlags = WTD_REVOCATION_CHECK_CHAIN;
+
+    GUID policy = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    const LONG status = WinVerifyTrust(nullptr, &policy, &trustData);
+
+    trustData.dwStateAction = WTD_STATEACTION_CLOSE;
+    WinVerifyTrust(nullptr, &policy, &trustData);
+
+    if (status != ERROR_SUCCESS) {
+        if (errorMessage) {
+            std::ostringstream message;
+            message << description << " does not have a trusted Authenticode signature (0x"
+                    << std::hex << static_cast<unsigned long>(status) << ").";
+            *errorMessage = message.str();
+        }
+        return false;
+    }
+    return true;
+}
+
+bool GetAuthenticodeSignerSha256(
+    const std::wstring& path,
+    const char* description,
+    std::vector<unsigned char>& fingerprint,
+    std::string* errorMessage)
+{
+    fingerprint.clear();
+
+    DWORD encodingType = 0;
+    DWORD contentType = 0;
+    DWORD formatType = 0;
+    HCERTSTORE certificateStore = nullptr;
+    HCRYPTMSG cryptMessage = nullptr;
+    if (!CryptQueryObject(
+            CERT_QUERY_OBJECT_FILE,
+            path.c_str(),
+            CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
+            CERT_QUERY_FORMAT_FLAG_BINARY,
+            0,
+            &encodingType,
+            &contentType,
+            &formatType,
+            &certificateStore,
+            &cryptMessage,
+            nullptr)) {
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not read the Authenticode signer from ") +
+                description + ".";
+        }
+        return false;
+    }
+
+    const auto closeHandles = [&]() {
+        if (cryptMessage) {
+            CryptMsgClose(cryptMessage);
+        }
+        if (certificateStore) {
+            CertCloseStore(certificateStore, 0);
+        }
+    };
+
+    DWORD signerInfoSize = 0;
+    if (!CryptMsgGetParam(
+            cryptMessage,
+            CMSG_SIGNER_INFO_PARAM,
+            0,
+            nullptr,
+            &signerInfoSize) ||
+        signerInfoSize < sizeof(CMSG_SIGNER_INFO)) {
+        closeHandles();
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not inspect the Authenticode signer in ") +
+                description + ".";
+        }
+        return false;
+    }
+
+    std::vector<unsigned char> signerInfoBytes(signerInfoSize);
+    if (!CryptMsgGetParam(
+            cryptMessage,
+            CMSG_SIGNER_INFO_PARAM,
+            0,
+            signerInfoBytes.data(),
+            &signerInfoSize)) {
+        closeHandles();
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not decode the Authenticode signer in ") +
+                description + ".";
+        }
+        return false;
+    }
+
+    const auto* signerInfo =
+        reinterpret_cast<const CMSG_SIGNER_INFO*>(signerInfoBytes.data());
+    CERT_INFO signerCertificateInfo {};
+    signerCertificateInfo.Issuer = signerInfo->Issuer;
+    signerCertificateInfo.SerialNumber = signerInfo->SerialNumber;
+    PCCERT_CONTEXT signerCertificate = CertFindCertificateInStore(
+        certificateStore,
+        X509_ASN_ENCODING | PKCS_7_ASN_ENCODING,
+        0,
+        CERT_FIND_SUBJECT_CERT,
+        &signerCertificateInfo,
+        nullptr);
+    if (!signerCertificate) {
+        closeHandles();
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not locate the Authenticode signer certificate in ") +
+                description + ".";
+        }
+        return false;
+    }
+
+    DWORD fingerprintSize = 0;
+    const bool sizeRead = CertGetCertificateContextProperty(
+        signerCertificate,
+        CERT_SHA256_HASH_PROP_ID,
+        nullptr,
+        &fingerprintSize);
+    if (sizeRead && fingerprintSize > 0) {
+        fingerprint.resize(fingerprintSize);
+    }
+    const bool fingerprintRead =
+        sizeRead &&
+        !fingerprint.empty() &&
+        CertGetCertificateContextProperty(
+            signerCertificate,
+            CERT_SHA256_HASH_PROP_ID,
+            fingerprint.data(),
+            &fingerprintSize);
+
+    CertFreeCertificateContext(signerCertificate);
+    closeHandles();
+
+    if (!fingerprintRead) {
+        fingerprint.clear();
+        if (errorMessage) {
+            *errorMessage =
+                std::string("Could not calculate the Authenticode signer fingerprint for ") +
+                description + ".";
+        }
+        return false;
+    }
+    fingerprint.resize(fingerprintSize);
+    return true;
+}
+
+bool HasMatchingAuthenticodeSigner(
+    const std::wstring& currentExecutable,
+    const std::wstring& downloadedExecutable,
+    std::string* errorMessage)
+{
+    std::vector<unsigned char> currentSigner;
+    std::vector<unsigned char> downloadedSigner;
+    if (!GetAuthenticodeSignerSha256(
+            currentExecutable,
+            "the running SMU executable",
+            currentSigner,
+            errorMessage) ||
+        !GetAuthenticodeSignerSha256(
+            downloadedExecutable,
+            "the downloaded SMU executable",
+            downloadedSigner,
+            errorMessage)) {
+        return false;
+    }
+    if (currentSigner != downloadedSigner) {
+        if (errorMessage) {
+            *errorMessage =
+                "Downloaded update was signed by a different certificate than the running SMU executable.";
+        }
+        return false;
+    }
     return true;
 }
 
@@ -210,27 +488,31 @@ bool DownloadUrlToMemory(const std::string& url, std::vector<char>& data, std::s
 
 int ScoreAssetForCurrentPlatform(const ReleaseAsset& asset)
 {
-    const std::string name = Lower(asset.name);
-    if (Contains(name, "linux") || Contains(name, "appimage") || EndsWith(name, ".tar.gz") || EndsWith(name, ".tgz")) {
-        return 0;
-    }
-    if (!EndsWith(name, ".zip")) {
-        return 0;
-    }
-
-    int score = 10;
-    if (Contains(name, "windows") || Contains(name, "win64") || Contains(name, "win32")) score += 50;
-    if (Contains(name, "x64") || Contains(name, "amd64")) score += 10;
-    if (Contains(name, "spencer") || Contains(name, "macro") || Contains(name, "suspend")) score += 8;
-    return score;
+    return ScoreWindowsAssetName(asset.name);
 }
 
 bool PlatformAutoApplySupported()
 {
-    return true;
+    std::wstring executablePath;
+    std::wstring containingDirectory;
+    std::vector<unsigned char> signer;
+    return GetCurrentExecutableLocation(
+               executablePath,
+               containingDirectory,
+               nullptr) &&
+        ExecutableFolderCanBeWritten(containingDirectory, nullptr) &&
+        HasTrustedAuthenticodeSignature(
+            executablePath,
+            "The running SMU executable",
+            nullptr) &&
+        GetAuthenticodeSignerSha256(
+            executablePath,
+            "the running SMU executable",
+            signer,
+            nullptr);
 }
 
-bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string& newVersion, const std::string& localVersion, std::string* errorMessage)
+bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const std::string&, std::string* errorMessage)
 {
     std::vector<char> zipData;
     if (!smu::updater::DownloadAssetToMemory(asset, zipData, errorMessage)) {
@@ -241,81 +523,93 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string& newVersi
     if (!smu::updater::ExtractUpdatePackage(zipData, "suspend.exe", exeData, errorMessage)) {
         return false;
     }
+    if (exeData.size() < 64ULL * 1024ULL || exeData.size() > kMaximumDownloadBytes) {
+        if (errorMessage) {
+            *errorMessage = "Downloaded Windows executable failed the updater size checks.";
+        }
+        return false;
+    }
 
-    wchar_t currentExePathArr[MAX_PATH] {};
-    GetModuleFileNameW(nullptr, currentExePathArr, MAX_PATH);
-    std::wstring currentExePath = currentExePathArr;
-    std::wstring currentExeName = PathFindFileNameW(currentExePathArr);
-
-    wchar_t workingDirArr[MAX_PATH] {};
-    wcscpy_s(workingDirArr, currentExePathArr);
-    PathRemoveFileSpecW(workingDirArr);
-    std::wstring workingDir = workingDirArr;
+    std::wstring currentExePath;
+    std::wstring workingDir;
+    if (!GetCurrentExecutableLocation(
+            currentExePath,
+            workingDir,
+            errorMessage) ||
+        !ExecutableFolderCanBeWritten(workingDir, errorMessage)) {
+        return false;
+    }
 
     const std::wstring randomFileName = GenerateRandomHexString();
     const std::wstring tempExePath = workingDir + L"\\" + randomFileName + L".tmp";
     if (!WriteBytesToFile(tempExePath, exeData, errorMessage)) {
         return false;
     }
-
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    const std::wstring wideLocalVersion = converter.from_bytes(localVersion);
-    const std::wstring wideNewVersion = converter.from_bytes(newVersion);
-
-    bool shouldRenameFolder = false;
-    std::wstring currentFolderPath = workingDir;
-    wchar_t folderNameBuffer[MAX_PATH] {};
-    wcscpy_s(folderNameBuffer, currentFolderPath.c_str());
-    PathStripPathW(folderNameBuffer);
-    std::wstring currentFolderName = folderNameBuffer;
-
-    if (!currentFolderName.empty() &&
-        currentFolderName.length() > wideLocalVersion.length() &&
-        currentFolderName.substr(currentFolderName.length() - wideLocalVersion.length()) == wideLocalVersion) {
-        const wchar_t separator = currentFolderName[currentFolderName.length() - wideLocalVersion.length() - 1];
-        if (separator == L'-' || separator == L'_' || separator == L' ' || separator == L'V' || separator == L'v') {
-            shouldRenameFolder = true;
-        }
+    if (!HasTrustedAuthenticodeSignature(
+            tempExePath,
+            "Downloaded update",
+            errorMessage) ||
+        !HasTrustedAuthenticodeSignature(
+            currentExePath,
+            "The running SMU executable",
+            errorMessage) ||
+        !HasMatchingAuthenticodeSigner(
+            currentExePath,
+            tempExePath,
+            errorMessage)) {
+        DeleteFileW(tempExePath.c_str());
+        return false;
     }
 
     wchar_t tempDir[MAX_PATH] {};
-    GetTempPathW(MAX_PATH, tempDir);
-    const std::wstring batchFilePath = std::wstring(tempDir) + L"updater-" + GenerateRandomHexString() + L".bat";
-
-    std::wstring batchScriptContent;
-    if (shouldRenameFolder) {
-        const std::wstring newFolderName =
-            currentFolderName.substr(0, currentFolderName.length() - wideLocalVersion.length()) + wideNewVersion;
-
-        wchar_t parentOfCurrentArr[MAX_PATH] {};
-        wcscpy_s(parentOfCurrentArr, currentFolderPath.c_str());
-        PathRemoveFileSpecW(parentOfCurrentArr);
-
-        const std::wstring newFolderPath = std::wstring(parentOfCurrentArr) + L"\\" + newFolderName;
-        const std::wstring tempExePathAfterRename = newFolderPath + L"\\" + randomFileName + L".tmp";
-        const std::wstring finalExePathInNewFolder = newFolderPath + L"\\" + currentExeName;
-
-        batchScriptContent =
-            L"@echo off\n"
-            L"pushd \"%~dp0\"\n\n"
-            L"echo Updating and renaming folder...\n"
-            L"timeout /t 2 /nobreak > NUL\n\n"
-            L"move \"" + currentFolderPath + L"\" \"" + newFolderPath + L"\"\n\n"
-            L"del /F /Q \"" + finalExePathInNewFolder + L"\"\n"
-            L"move \"" + tempExePathAfterRename + L"\" \"" + finalExePathInNewFolder + L"\"\n\n"
-            L"start \"\" \"" + finalExePathInNewFolder + L"\"\n"
-            L"(goto) 2>nul & del \"%~f0\"";
-    } else {
-        batchScriptContent =
-            L"@echo off\n"
-            L"pushd \"%~dp0\"\n\n"
-            L"echo Updating in progress...\n"
-            L"timeout /t 2 /nobreak > NUL\n"
-            L"del /F /Q \"%~1\"\n"
-            L"move \"%~2\" \"%~1\"\n\n"
-            L"start \"\" \"%~1\"\n"
-            L"(goto) 2>nul & del \"%~f0\"";
+    const DWORD tempDirLength = GetTempPathW(MAX_PATH, tempDir);
+    if (tempDirLength == 0 || tempDirLength >= MAX_PATH) {
+        DeleteFileW(tempExePath.c_str());
+        if (errorMessage) {
+            *errorMessage = "Could not resolve the Windows temporary folder.";
+        }
+        return false;
     }
+    const std::wstring batchFilePath = std::wstring(tempDir) + L"updater-" + GenerateRandomHexString() + L".bat";
+    const std::wstring backupExePath =
+        currentExePath + L".old-" + GenerateRandomHexString();
+    const std::wstring batchScriptContent =
+        L"@echo off\r\n"
+        L"timeout /t 1 /nobreak > NUL\r\n"
+        L"set /a SMU_ATTEMPTS=0\r\n"
+        L":move_current\r\n"
+        L"move /Y \"%~1\" \"%~3\" > NUL\r\n"
+        L"if not errorlevel 1 goto current_moved\r\n"
+        L"set /a SMU_ATTEMPTS+=1\r\n"
+        L"if %SMU_ATTEMPTS% GEQ 20 goto move_current_failed\r\n"
+        L"timeout /t 1 /nobreak > NUL\r\n"
+        L"goto move_current\r\n"
+        L":current_moved\r\n"
+        L"move /Y \"%~2\" \"%~1\" > NUL\r\n"
+        L"if errorlevel 1 goto install_failed\r\n"
+        L"start \"\" \"%~1\"\r\n"
+        L"if errorlevel 1 goto launch_failed\r\n"
+        L"del /F /Q \"%~3\" > NUL 2>&1\r\n"
+        L"goto cleanup\r\n"
+        L":move_current_failed\r\n"
+        L"del /F /Q \"%~2\" > NUL 2>&1\r\n"
+        L"if exist \"%~1\" start \"\" \"%~1\"\r\n"
+        L"goto cleanup\r\n"
+        L":install_failed\r\n"
+        L"move /Y \"%~3\" \"%~1\" > NUL\r\n"
+        L"if errorlevel 1 goto install_restore_failed\r\n"
+        L"del /F /Q \"%~2\" > NUL 2>&1\r\n"
+        L"start \"\" \"%~1\"\r\n"
+        L"goto cleanup\r\n"
+        L":install_restore_failed\r\n"
+        L"del /F /Q \"%~2\" > NUL 2>&1\r\n"
+        L"goto cleanup\r\n"
+        L":launch_failed\r\n"
+        L"del /F /Q \"%~1\" > NUL 2>&1\r\n"
+        L"move /Y \"%~3\" \"%~1\" > NUL\r\n"
+        L"start \"\" \"%~1\"\r\n"
+        L":cleanup\r\n"
+        L"(goto) 2>nul & del /F /Q \"%~f0\"";
 
     HANDLE batchFile = CreateFileW(batchFilePath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (batchFile == INVALID_HANDLE_VALUE) {
@@ -326,18 +620,58 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string& newVersi
         return false;
     }
 
-    const std::string batchUtf8 = converter.to_bytes(batchScriptContent);
+    const int batchUtf8Size = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        batchScriptContent.c_str(),
+        static_cast<int>(batchScriptContent.size()),
+        nullptr,
+        0,
+        nullptr,
+        nullptr);
+    if (batchUtf8Size <= 0) {
+        CloseHandle(batchFile);
+        DeleteFileW(batchFilePath.c_str());
+        DeleteFileW(tempExePath.c_str());
+        if (errorMessage) {
+            *errorMessage = "Could not encode the updater script.";
+        }
+        return false;
+    }
+    std::string batchUtf8(static_cast<std::size_t>(batchUtf8Size), '\0');
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        batchScriptContent.c_str(),
+        static_cast<int>(batchScriptContent.size()),
+        batchUtf8.data(),
+        batchUtf8Size,
+        nullptr,
+        nullptr);
     DWORD batchBytesWritten = 0;
-    WriteFile(batchFile, batchUtf8.c_str(), static_cast<DWORD>(batchUtf8.size()), &batchBytesWritten, nullptr);
+    const bool batchWritten =
+        WriteFile(
+            batchFile,
+            batchUtf8.data(),
+            static_cast<DWORD>(batchUtf8.size()),
+            &batchBytesWritten,
+            nullptr) &&
+        batchBytesWritten == batchUtf8.size();
     CloseHandle(batchFile);
-
-    std::wstring params;
-    if (!shouldRenameFolder) {
-        params = L"\"" + currentExePath + L"\" \"" + tempExePath + L"\" \"" + currentExeName + L"\"";
+    if (!batchWritten) {
+        DeleteFileW(batchFilePath.c_str());
+        DeleteFileW(tempExePath.c_str());
+        if (errorMessage) {
+            *errorMessage = "Could not finish writing the updater script.";
+        }
+        return false;
     }
 
+    const std::wstring params =
+        L"\"" + currentExePath + L"\" \"" + tempExePath + L"\" \"" + backupExePath + L"\"";
     HINSTANCE result = ShellExecuteW(nullptr, L"open", batchFilePath.c_str(), params.c_str(), nullptr, SW_HIDE);
     if (reinterpret_cast<intptr_t>(result) <= 32) {
+        DeleteFileW(batchFilePath.c_str());
         DeleteFileW(tempExePath.c_str());
         if (errorMessage) {
             *errorMessage = "Could not launch the updater script.";

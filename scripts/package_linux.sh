@@ -8,6 +8,7 @@ cmake -S "$ROOT_DIR" -B "$BUILD_DIR" \
   -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
   -DSMU_BUNDLE_SDL3="${SMU_BUNDLE_SDL3:-ON}" \
   -DSMU_LINK_SDL3_STATIC="${SMU_LINK_SDL3_STATIC:-OFF}" \
+  -DSMU_ENABLE_SOURCE_TREE_FALLBACK=OFF \
   "$@"
 
 cmake --build "$BUILD_DIR" --target package-linux-dir --parallel
@@ -19,8 +20,11 @@ NETHELPER_BIN="$PACKAGE_DIR/nethelper"
 echo "Building nethelper..."
 (
   cd "$ROOT_DIR/platform/linux/nethelper"
-  go mod download
-  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build \
+  GOOS=linux CGO_ENABLED=0 go build \
+    -mod=vendor \
+    -trimpath \
+    -buildvcs=false \
+    -ldflags="-s -w" \
     -o "$NETHELPER_BIN" \
     .
 )
@@ -47,8 +51,16 @@ test -f "$PACKAGE_DIR/assets/smu_icon.bmp"
 test -x "$PACKAGE_DIR/run.sh"
 test -x "$PACKAGE_DIR/scripts/install_linux_permissions.sh"
 test -f "$PACKAGE_DIR/LINUX_SETUP.md"
+test -f "$PACKAGE_DIR/LICENSE"
+test -f "$PACKAGE_DIR/PRIVACY.md"
+test -f "$PACKAGE_DIR/THIRD_PARTY_NOTICES.md"
+test -f "$PACKAGE_DIR/licenses/SDL.txt"
+test -f "$PACKAGE_DIR/licenses/AppImage-type2-runtime.txt"
+test -f "$PACKAGE_DIR/licenses/go-iptables-LICENSE.txt"
+test -f "$PACKAGE_DIR/licenses/go-iptables-NOTICE.txt"
+test -f "$PACKAGE_DIR/licenses/WinDivert-LGPL-3.0.txt"
 
 echo
 echo "Package diagnostics passed. Copy the whole SpencerMacroUtilities folder to a compatible Linux system and run ./run.sh."
 echo "If input permissions are missing, run: sudo ./scripts/install_linux_permissions.sh"
-echo "Recommended distribution formats: portable tarball now; AppImage or distro packages later."
+echo "For distributable AppImage, Debian, RPM, and portable archives, run: python3 scripts/build.py --linux-release"
