@@ -1,4 +1,6 @@
 #pragma once
+#include "smu_version.h"
+
 #include <atomic>
 #include <vector>
 #include <string>
@@ -271,7 +273,7 @@ inline int strncpy_s(char* destination, size_t destination_size, const char* sou
 
 namespace Globals {
     // CURRENT VERSION NUMBER OF PROGRAM
-    inline std::string localVersion = "3.2.1";
+    inline std::string localVersion = SMU_VERSION_STRING;
 
     // --- Application & Window State ---
     inline HWND hwnd = NULL;
@@ -636,7 +638,8 @@ namespace Globals {
     
     // Helper to get the active theme easily in the main loop
     inline Theme& GetCurrentTheme() {
-        if (current_theme_index < 0 || current_theme_index >= themes.size()) {
+        if (current_theme_index < 0 ||
+            static_cast<std::size_t>(current_theme_index) >= themes.size()) {
             return custom_theme;
         }
         return themes[current_theme_index];

@@ -1,0 +1,459 @@
+name: Build SMU Packages
+
+on:
+  workflow_call:
+    inputs:
+      release_mode:
+        description: Require release signing credentials and produce signed packages.
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      SIGNPATH_API_TOKEN:
+        required: false
+      SIGNPATH_ORGANIZATION_ID:
+        required: false
+      SIGNPATH_PROJECT_SLUG:
+        required: false
+      SIGNPATH_SIGNING_POLICY:
+        required: false
+      SMU_MACOS_RELEASE_CERTIFICATE_BASE64:
+        required: false
+      SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD:
+        required: false
+      SMU_MACOS_RELEASE_SIGN_IDENTITY:
+        required: false
+    outputs:
+      app_version:
+        description: Application version from the canonical version file.
+        value: ${{ jobs.prepare.outputs.app_version }}
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: Require SignPath and the stable macOS release certificate.
+        required: true
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  LC_ALL: C.UTF-8
+  SOURCE_DATE_EPOCH: '0'
+  TZ: UTC
+
+jobs:
+  prepare:
+    name: Validate package metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+    steps:
+      - name: Checkout ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Read and validate version
+        id: version
+        shell: bash
+        run: |
+          python3 scripts/version.py --check
+          app_version="$(python3 scripts/version.py)"
+          if [[ ! "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "The canonical version is not MAJOR.MINOR.PATCH: $app_version" >&2
+            exit 1
+          fi
+          echo "app_version=$app_version" >> "$GITHUB_OUTPUT"
+
+      - name: Test version tooling
+        run: python3 -m unittest tests.test_version
+
+  linux:
+    name: Build Linux bundle
+    needs: prepare
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up build Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install supported CMake
+        run: |
+          python -m pip install --disable-pip-version-check 'cmake==3.31.6'
+          cmake --version
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: platform/linux/nethelper/go.mod
+          cache-dependency-path: platform/linux/nethelper/go.sum
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            libgl1-mesa-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxext-dev \
+            libxfixes-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxkbcommon-dev \
+            libxrandr-dev \
+            libxss-dev \
+            libxtst-dev \
+            libdecor-0-dev \
+            libwayland-dev \
+            ninja-build \
+            pkg-config \
+            unzip \
+            wayland-protocols \
+            zip
+
+      - name: Install pinned nFPM
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Test Linux network helper
+        run: |
+          cd platform/linux/nethelper
+          go test -mod=vendor ./...
+          go vet -mod=vendor ./...
+
+      - name: Build all Linux formats
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: bash scripts/package_linux_release.sh
+
+      - name: Verify X11 and Wayland SDL backends
+        shell: bash
+        run: |
+          grep -qx 'SDL_X11:BOOL=ON' build/linux-release/CMakeCache.txt
+          grep -qx 'SDL_WAYLAND:BOOL=ON' build/linux-release/CMakeCache.txt
+          config="$(
+            find build/linux-release/_deps/sdl3-build \
+              -path '*/build_config/SDL_build_config.h' \
+              -print \
+              -quit
+          )"
+          test -n "$config"
+          grep -q '^#define SDL_VIDEO_DRIVER_X11 1$' "$config"
+          grep -q '^#define SDL_VIDEO_DRIVER_WAYLAND 1$' "$config"
+
+      - name: Test Linux updater
+        run: |
+          cmake --build build/linux-release --target smu_linux_updater_test --parallel
+          ctest --test-dir build/linux-release --output-on-failure -R '^linux-updater$'
+
+      - name: Verify Linux bundle contents
+        shell: bash
+        run: |
+          bundle="dist/release/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Linux-x86_64.zip"
+          unzip -t "$bundle"
+          listing="$(unzip -Z1 "$bundle")"
+          grep -qx "Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Linux-x86_64.AppImage" <<<"$listing"
+          grep -qx "spencer-macro-utilities_${{ needs.prepare.outputs.app_version }}_amd64.deb" <<<"$listing"
+          grep -qx "spencer-macro-utilities-${{ needs.prepare.outputs.app_version }}-1.x86_64.rpm" <<<"$listing"
+          grep -qx "Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Linux-x86_64-portable.tar.gz" <<<"$listing"
+          grep -qx "LINUX_SETUP.md" <<<"$listing"
+          grep -qx "LICENSE" <<<"$listing"
+          grep -qx "PRIVACY.md" <<<"$listing"
+          grep -qx "THIRD_PARTY_NOTICES.md" <<<"$listing"
+          grep -qx "licenses/SDL.txt" <<<"$listing"
+          grep -qx "licenses/AppImage-type2-runtime.txt" <<<"$listing"
+          grep -qx "licenses/go-iptables-LICENSE.txt" <<<"$listing"
+          grep -qx "licenses/go-iptables-NOTICE.txt" <<<"$listing"
+          grep -qx "licenses/WinDivert-LGPL-3.0.txt" <<<"$listing"
+          grep -qx "SHA256SUMS" <<<"$listing"
+
+      - name: Upload Linux release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Linux-x86_64.zip
+          path: dist/release/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Linux-x86_64.zip
+          archive: false
+          if-no-files-found: error
+
+  nix:
+    name: Validate Nix package and module
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Check locked flake
+        run: nix flake check --no-update-lock-file --print-build-logs
+
+  windows:
+    name: Build Windows package
+    needs: prepare
+    runs-on: windows-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Require SignPath release credentials
+        if: inputs.release_mode
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
+        run: |
+          $missing = @(
+            'SIGNPATH_API_TOKEN',
+            'SIGNPATH_ORGANIZATION_ID',
+            'SIGNPATH_PROJECT_SLUG',
+            'SIGNPATH_SIGNING_POLICY'
+          ) | Where-Object { -not (Get-Item "env:$_").Value }
+          if ($missing.Count -gt 0) {
+            throw "Missing SignPath release secrets: $($missing -join ', ')"
+          }
+
+      - name: Configure Windows build
+        run: cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
+
+      - name: Build Windows app
+        run: cmake --build build/windows --config Release --target suspend --parallel
+
+      - name: Upload unsigned executable for SignPath
+        if: inputs.release_mode
+        id: signpath-input
+        uses: actions/upload-artifact@v7
+        with:
+          name: signpath-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/windows/Release/suspend.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign executable with SignPath
+        if: inputs.release_mode
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ secrets.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ secrets.SIGNPATH_SIGNING_POLICY }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          github-artifact-id: ${{ steps.signpath-input.outputs.artifact-id }}
+          github-token: ${{ github.token }}
+          artifact-configuration-slug: initial
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - name: Stage Windows package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-files | Out-Null
+          if ('${{ inputs.release_mode }}' -eq 'true') {
+            $executable = Get-ChildItem signed -Filter suspend.exe -File -Recurse |
+              Select-Object -First 1
+            if (-not $executable) {
+              throw 'SignPath did not return suspend.exe.'
+            }
+            $signature = Get-AuthenticodeSignature $executable.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "SignPath signature validation failed: $($signature.Status)"
+            }
+          } else {
+            $executable = Get-Item build/windows/Release/suspend.exe
+          }
+
+          $stage = 'build/windows-release'
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item $executable.FullName "$stage/suspend.exe"
+          Copy-Item README.md "$stage/README.md"
+          Copy-Item LICENSE "$stage/LICENSE"
+          Copy-Item PRIVACY.md "$stage/PRIVACY.md"
+          Copy-Item THIRD_PARTY_NOTICES.md "$stage/THIRD_PARTY_NOTICES.md"
+          New-Item -ItemType Directory -Force "$stage/licenses" | Out-Null
+          Copy-Item third_party/SDL/LICENSE.txt "$stage/licenses/SDL.txt"
+          Copy-Item `
+            third_party/appimage-runtime/LICENSE `
+            "$stage/licenses/AppImage-type2-runtime.txt"
+          Copy-Item `
+            platform/linux/nethelper/vendor/github.com/coreos/go-iptables/LICENSE `
+            "$stage/licenses/go-iptables-LICENSE.txt"
+          Copy-Item `
+            platform/linux/nethelper/vendor/github.com/coreos/go-iptables/NOTICE `
+            "$stage/licenses/go-iptables-NOTICE.txt"
+          Copy-Item `
+            third_party/windivert/LICENSE-LGPL-3.0.txt `
+            "$stage/licenses/WinDivert-LGPL-3.0.txt"
+
+          # Keep the historical primary ZIP name. V3.0/V3.1 use the checked-in
+          # URL template, and V3.2 selects the first ZIP in the release asset
+          # list. This name sorts before the platform-specific Linux/macOS ZIPs.
+          $archive = "release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $archive -CompressionLevel Optimal -Force
+
+      - name: Verify signed package contents
+        if: inputs.release_mode
+        shell: pwsh
+        run: |
+          $verifyDir = 'build/windows-release-verify'
+          Expand-Archive `
+            "release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip" `
+            $verifyDir
+          $signature = Get-AuthenticodeSignature "$verifyDir/suspend.exe"
+          if ($signature.Status -ne 'Valid') {
+            throw "Packaged executable signature validation failed: $($signature.Status)"
+          }
+          @(
+            'LICENSE',
+            'PRIVACY.md',
+            'THIRD_PARTY_NOTICES.md',
+            'licenses/SDL.txt',
+            'licenses/AppImage-type2-runtime.txt',
+            'licenses/go-iptables-LICENSE.txt',
+            'licenses/go-iptables-NOTICE.txt'
+            'licenses/WinDivert-LGPL-3.0.txt'
+          ) | ForEach-Object {
+            if (-not (Test-Path -LiteralPath "$verifyDir/$_" -PathType Leaf)) {
+              throw "Packaged notice is missing: $_"
+            }
+          }
+
+      - name: Upload Windows release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip
+          path: release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip
+          archive: false
+          if-no-files-found: error
+
+  macos:
+    name: Build universal macOS package
+    needs: prepare
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Configure macOS signing identity
+        shell: bash
+        env:
+          SMU_MACOS_RELEASE_CERTIFICATE_BASE64: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_CERTIFICATE_BASE64 || '' }}
+          SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD || '' }}
+          SMU_MACOS_RELEASE_SIGN_IDENTITY: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_SIGN_IDENTITY || '' }}
+        run: |
+          if [[ "${{ inputs.release_mode }}" != "true" ]]; then
+            echo "Using ad-hoc signing for this validation artifact."
+            echo "SMU_MACOS_SIGN_IDENTITY=-" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if [[ -z "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" ||
+                -z "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" ]]; then
+            echo "The stable macOS release certificate secrets are required." >&2
+            exit 1
+          fi
+
+          keychain_password="$(openssl rand -hex 24)"
+          keychain_path="$RUNNER_TEMP/smu-macos-release.keychain-db"
+          certificate_path="$RUNNER_TEMP/smu-macos-release.p12"
+          certificate_pem="$RUNNER_TEMP/smu-macos-release.cert.pem"
+          echo "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          openssl pkcs12 \
+            -in "$certificate_path" \
+            -nokeys \
+            -passin "pass:$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
+            -out "$certificate_pem"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security add-trusted-cert -r trustRoot -p codeSign -k "$keychain_path" "$certificate_pem"
+          security list-keychains -d user -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          echo "SMU_MACOS_SIGN_IDENTITY=${SMU_MACOS_RELEASE_SIGN_IDENTITY:-SMU macOS Release}" >> "$GITHUB_ENV"
+
+      - name: Build universal macOS package
+        run: bash scripts/package_macos.sh
+
+      - name: Verify universal signed app
+        shell: bash
+        run: |
+          app="out/build/macos-universal-release/package-macos/suspend.app"
+          binary="$app/Contents/MacOS/suspend"
+          architectures="$(lipo -archs "$binary")"
+          grep -qw arm64 <<<"$architectures"
+          grep -qw x86_64 <<<"$architectures"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          test -f "$app/Contents/Resources/LICENSE"
+          test -f "$app/Contents/Resources/PRIVACY.md"
+          test -f "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
+          test -f "$app/Contents/Resources/licenses/SDL.txt"
+          test -f "$app/Contents/Resources/licenses/AppImage-type2-runtime.txt"
+          test -f "$app/Contents/Resources/licenses/WinDivert-LGPL-3.0.txt"
+
+      - name: Name macOS release assets
+        shell: bash
+        run: |
+          mkdir -p release-files
+          package_dir="out/build/macos-universal-release/package-macos"
+          cp \
+            "$package_dir/SpencerMacroUtilities-macOS-universal.zip" \
+            "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.zip"
+          cp \
+            "$package_dir/SpencerMacroUtilities-macOS-universal.dmg" \
+            "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg"
+
+      - name: Upload macOS ZIP release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.zip
+          path: release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.zip
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload macOS DMG release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg
+          path: release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg
+          archive: false
+          if-no-files-found: error

@@ -14,9 +14,12 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Absolute mouse | yes | yes via X11 | no / limited | yes with Accessibility |
 | Pixel reads | yes | yes via X11 | unplanned | yes with Screen Recording |
 | Freeze | yes | yes | yes | yes when process signals are permitted |
-| Lag switch | yes | yes | yes | no |
+| Hard-block lag switch | yes | yes | yes | no |
+| Fake lag | yes | yes¹ | yes¹ | no |
 
-On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs, and the Linux lag-switch backend is not implemented yet. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
+On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs. The Linux lag-switch backend supports hard blocking and fake lag for the static Roblox IPv4 range plus the UDMUX and RCC addresses discovered from Sober's player log, all traffic, or explicit IPv4 addresses and ports. Fake lag refuses to replace custom traffic-control configuration. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
+
+¹ Linux fake lag requires `tc`/`ip` from `iproute2`, an IFB-capable kernel, and an untouched default `fq_codel` qdisc on the active interface.
 
 ## Quick Start
 
@@ -773,7 +776,7 @@ Freeze is available on Windows and Linux. On Linux, native Wayland sessions cann
 
 ### Lag Switch
 
-Lag switch is currently implemented on Windows. The Lua API still exists on Linux and macOS, but `getLagSwitchStatus()` reports that the native lag-switch backend is unavailable there.
+Lag-switch controls are implemented on Windows and Linux. Windows supports hard blocking and fake lag. Linux supports hard blocking and fake lag for all traffic, the static Roblox range plus UDMUX/RCC addresses discovered from Sober's player log, or explicit IPv4 addresses and ports; fake lag refuses interfaces with custom traffic-control configuration. The Lua API still exists on macOS, but `getLagSwitchStatus()` reports that the native backend is unavailable there.
 
 ## Legacy / Saved App Settings Reference
 

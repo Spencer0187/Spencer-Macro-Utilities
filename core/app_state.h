@@ -1,5 +1,7 @@
 #pragma once
 
+#include "smu_version.h"
+
 #include <atomic>
 #include <string>
 
@@ -10,7 +12,7 @@ struct AppState {
     std::atomic<bool> done{false};
     std::atomic<unsigned int> robloxFps{120};
 
-    std::string localVersion = "3.2.1";
+    std::string localVersion = SMU_VERSION_STRING;
 
     int screenWidth = 1280;
     int screenHeight = 800;

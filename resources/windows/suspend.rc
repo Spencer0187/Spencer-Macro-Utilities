@@ -1,6 +1,7 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "resource.h"
+#include "smu_version.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -75,8 +76,8 @@ SMU_TUTORIAL_WALLWALK_JPG RCDATA                "../../assets/macro_tutorials/wa
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
+ FILEVERSION SMU_VERSION_FILE
+ PRODUCTVERSION SMU_VERSION_FILE
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -93,12 +94,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Spencer's Open Source Macro Industries"
             VALUE "FileDescription", "Spencers Macro Utilities"
-            VALUE "FileVersion", "3.0"
+            VALUE "FileVersion", SMU_VERSION_STRING
             VALUE "InternalName", "suspend.exe"
             VALUE "LegalCopyright", "Copyright (C) 2025"
             VALUE "OriginalFilename", "suspend.exe"
             VALUE "ProductName", "Spencers Macro Utilities"
-            VALUE "ProductVersion", "3.0.0"
+            VALUE "ProductVersion", SMU_VERSION_STRING
         END
     END
     BLOCK "VarFileInfo"
@@ -132,4 +133,3 @@ IDR_SMC_WINDIVERT_SYS1  SMC_WINDIVERT_SYS       "..\\..\\third_party\\windivert\
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
-

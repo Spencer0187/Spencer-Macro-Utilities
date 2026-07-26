@@ -584,8 +584,6 @@ void StartUpdateCheck(bool force)
         const bool shouldOpenUpdatePrompt =
             status.checkSucceeded &&
             status.updateAvailable &&
-            status.autoApplySupported &&
-            status.selectedAsset.has_value() &&
             status.latestRelease.has_value();
 
         {
@@ -663,7 +661,7 @@ void StartApplyUpdate()
     g_updateUiState.updateConfirmOpen = true;
 }
 
-void RenderUpdateConfirmationModal()
+void RenderUpdateConfirmationModal(AppContext& context)
 {
     smu::updater::UpdaterStatus statusSnapshot;
     bool shouldOpen = false;
@@ -694,6 +692,9 @@ void RenderUpdateConfirmationModal()
         const std::string assetName = statusSnapshot.selectedAsset
             ? statusSnapshot.selectedAsset->name
             : "No matching asset";
+        const bool canAutoApply =
+            statusSnapshot.autoApplySupported &&
+            statusSnapshot.selectedAsset.has_value();
 
         ImGui::TextWrapped("A new version of Spencer Macro Utilities is available.");
         ImGui::Spacing();
@@ -701,12 +702,28 @@ void RenderUpdateConfirmationModal()
         ImGui::Text("Latest version: %s", latestVersion.c_str());
         ImGui::Text("Package: %s", assetName.c_str());
         ImGui::Spacing();
-        ImGui::TextWrapped("Do you want to download and install this update now?");
+        if (canAutoApply) {
+            ImGui::TextWrapped("Do you want to download and install this update now?");
+        } else {
+#if defined(__linux__)
+            ImGui::TextWrapped(
+                "This Linux installation cannot safely replace itself. Open the official release "
+                "and update with the same AppImage, Debian, RPM, portable, or Nix method you used before.");
+#elif defined(__APPLE__)
+            ImGui::TextWrapped(
+                "This copy cannot safely replace itself. Copy SMU out of the mounted DMG into "
+                "Applications, or install the new release manually.");
+#else
+            ImGui::TextWrapped(
+                "This copy cannot safely replace itself. Open the official release and install "
+                "the update manually.");
+#endif
+        }
         ImGui::Separator();
 
         if (isApplying) {
             ImGui::TextUnformatted("Downloading update...");
-        } else {
+        } else if (canAutoApply) {
             if (ImGui::Button("Yes", ImVec2(90.0f, 0.0f))) {
                 {
                     std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
@@ -737,6 +754,37 @@ void RenderUpdateConfirmationModal()
                     g_updateUiState.updateConfirmOpen = false;
                     g_updateUiState.updatePromptDismissed = true;
                     g_updateUiState.actionMessage = "Update cancelled.";
+                }
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SetItemDefaultFocus();
+        } else {
+            const bool canOpenRelease =
+                statusSnapshot.latestRelease.has_value() &&
+                !statusSnapshot.latestRelease->htmlUrl.empty() &&
+                static_cast<bool>(context.openExternalUrl);
+            ImGui::BeginDisabled(!canOpenRelease);
+            if (ImGui::Button("Open download page", ImVec2(170.0f, 0.0f))) {
+                context.openExternalUrl(statusSnapshot.latestRelease->htmlUrl.c_str());
+                {
+                    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+                    g_updateUiState.updateConfirmOpen = false;
+                    g_updateUiState.updatePromptDismissed = true;
+                    g_updateUiState.actionMessage = "Opened the official release page.";
+                }
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine();
+
+            if (ImGui::Button("Not now", ImVec2(100.0f, 0.0f))) {
+                {
+                    std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+                    g_updateUiState.updateConfirmOpen = false;
+                    g_updateUiState.updatePromptDismissed = true;
+                    g_updateUiState.actionMessage = "Update skipped.";
                 }
                 ImGui::CloseCurrentPopup();
             }
@@ -1342,7 +1390,11 @@ smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
     config.currentlyBlocking = g_windivert_blocking.load(std::memory_order_relaxed);
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
+#if defined(_WIN32) || defined(__linux__)
     config.fakeLagEnabled = lagswitchlag;
+#else
+    config.fakeLagEnabled = false;
+#endif
     config.inboundFakeLag = lagswitchlaginbound;
     config.outboundFakeLag = lagswitchlagoutbound;
     config.fakeLagDelayMs = lagswitchlagdelay;
@@ -1350,7 +1402,11 @@ smu::platform::LagSwitchConfig BuildLagSwitchConfigFromUiState()
     config.targetMode = lagswitchtargetroblox ? smu::platform::LagSwitchTargetMode::Roblox : smu::platform::LagSwitchTargetMode::All;
     config.useUdp = true;
     config.useTcp = lagswitchusetcp;
+#if defined(_WIN32)
     config.preventDisconnect = prevent_disconnect;
+#else
+    config.preventDisconnect = false;
+#endif
     config.autoUnblock = lagswitch_autounblock;
     config.maxDurationSeconds = lagswitch_max_duration;
     config.unblockDurationMs = lagswitch_unblock_ms;
@@ -1685,7 +1741,7 @@ void RefreshProcessStatus(AppContext& context)
     processFound = !pids.empty();
 }
 
-void RenderUpdaterPanel()
+void RenderUpdaterPanel(AppContext& context)
 {
     StartUpdateCheck(false);
 
@@ -1748,8 +1804,29 @@ void RenderUpdaterPanel()
     ImGui::EndDisabled();
 
     if (checkedOnce && status.updateAvailable && !status.autoApplySupported) {
+#if defined(__linux__)
+        ImGui::TextColored(GetCurrentTheme().warning_color,
+            "This Linux package cannot replace itself. Download the release and reinstall it "
+            "with the same AppImage, Debian, RPM, portable, or Nix method you used before.");
+#elif defined(__APPLE__)
+        ImGui::TextColored(GetCurrentTheme().warning_color,
+            "This copy cannot replace itself. Install SMU in a writable folder such as "
+            "Applications, or download and install the release manually.");
+#else
         ImGui::TextColored(GetCurrentTheme().warning_color,
             "Update check available; automatic installation is unavailable in this launch mode.");
+#endif
+    }
+
+    const bool canOpenRelease = checkedOnce &&
+        status.updateAvailable &&
+        status.latestRelease.has_value() &&
+        !status.latestRelease->htmlUrl.empty() &&
+        static_cast<bool>(context.openExternalUrl);
+    if (canOpenRelease) {
+        if (ImGui::Button("Open release download page")) {
+            context.openExternalUrl(status.latestRelease->htmlUrl.c_str());
+        }
     }
 
     if (!actionMessage.empty()) {
@@ -1780,6 +1857,8 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         g_storedSettingsWindowPos = ClampWindowPosToMainViewport(ImGui::GetWindowPos(), ImGui::GetWindowSize());
         g_hasStoredSettingsWindowPos = true;
         ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
+
+        RenderUpdaterPanel(context);
 
         ImGui::TextUnformatted("Your Current Windows Display Scale Value (10-500%):");
         ImGui::SetNextItemWidth(150);
@@ -1889,7 +1968,11 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
 
     ImGui::PushStyleColor(ImGuiCol_Text, macrotoggled ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
     ImGui::AlignTextToFramePadding();
+#if defined(_WIN32)
     ImGui::Checkbox("Macro Toggle (Anti-AFK remains!)", &macrotoggled);
+#else
+    ImGui::Checkbox("Macro Toggle", &macrotoggled);
+#endif
     ImGui::PopStyleColor();
 
     ImGui::SameLine(ImGui::GetWindowWidth() - 790);
@@ -1945,16 +2028,16 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     ImVec2 textSizeCalc = ImGui::CalcTextSize("Toggle Anti-AFK (?)");
     ImGui::InvisibleButton("##tooltip", textSizeCalc);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Anti-AFK only works on Windows right now due to Linux restraints.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first.");
+        ImGui::SetTooltip("Anti-AFK is currently available on Windows only.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first.");
     }
     ImGui::SetCursorScreenPos(ImVec2(tooltipCursorPos.x + textSizeCalc.x, tooltipCursorPos.y));
     ImGui::SameLine(ImGui::GetCursorScreenPos().x + 5);
-#if defined(__linux__)
+#if !defined(_WIN32)
     antiafktoggle = false;
     ImGui::BeginDisabled(true);
 #endif
     ImGui::Checkbox("##AntiAFKToggle", &antiafktoggle);
-#if defined(__linux__)
+#if !defined(_WIN32)
     ImGui::EndDisabled();
 #endif
 
@@ -3036,13 +3119,37 @@ void RenderSelectedSection(AppContext& context)
     }
 
     if (selected_section == 15) {
+#if defined(__APPLE__)
+        prevent_disconnect = false;
+        lagswitchlag = false;
+#endif
+
+#if defined(__APPLE__)
+        auto backend = smu::platform::GetNetworkLagBackend();
+        ImGui::TextWrapped("Network Lag Switch");
+        ImGui::Separator();
+        ImGui::TextColored(GetCurrentTheme().warning_color, "Unavailable on macOS");
+        ImGui::TextWrapped(
+            "A safe macOS lag switch requires a Developer ID-signed, Apple-entitled "
+            "Network Extension. This build does not install or pretend to provide one.");
+        if (backend) {
+            ImGui::Spacing();
+            ImGui::TextWrapped("%s", backend->unsupportedReason().c_str());
+        }
+#else
         auto backend = smu::platform::GetNetworkLagBackend();
 
         ImGui::Checkbox("Switch from Hold Key to Toggle Key", &islagswitchswitch);
         ImGui::Separator();
         ImGui::TextWrapped("Explanation:");
         ImGui::TextWrapped("This macro allows you to temporarily block or delay Roblox network traffic. Use the direction checkboxes below to choose whether other players stop seeing you, you stop seeing them, or both.");
+#if defined(__linux__)
+        ImGui::TextColored(
+            GetCurrentTheme().warning_color,
+            "Linux fake lag uses a guarded traffic-control helper. It refuses interfaces with custom traffic-control settings rather than replacing them.");
+#endif
         ImGui::Separator();
+#if defined(_WIN32)
         ImVec2 tooltipCursorPos = ImGui::GetCursorScreenPos();
         ImGui::Checkbox("Prevent Roblox Disconnection (", &prevent_disconnect);
         ImGui::SameLine(0, 0);
@@ -3058,6 +3165,7 @@ void RenderSelectedSection(AppContext& context)
         }
         ImGui::SetCursorScreenPos(ImVec2(tooltipCursorPos.x, tooltipCursorPos.y + 6));
         ImGui::NewLine();
+#endif
 
         bool filterChanged = false;
         if (ImGui::Checkbox("Only Lag Switch Roblox", &lagswitchtargetroblox)) filterChanged = true;
@@ -3089,6 +3197,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::PopStyleColor();
         }
 
+#if defined(_WIN32) || defined(__linux__)
         ImGui::Separator();
         if (ImGui::Checkbox("Fake Lag (Simulate High Ping)", &lagswitchlag)) filterChanged = true;
         if (!lagswitchlag) ImGui::BeginDisabled();
@@ -3111,17 +3220,18 @@ void RenderSelectedSection(AppContext& context)
         ImGui::Unindent();
         if (!lagswitchlag) ImGui::EndDisabled();
         ImGui::Separator();
+#endif
 
         if (filterChanged && bWinDivertEnabled) RestartLagSwitchCapture();
         else SyncLagSwitchBackendConfig();
 
+#if defined(_WIN32)
         ImGui::Checkbox("Show Lagswitch Status Overlay", &show_lag_overlay);
         if (!show_lag_overlay) ImGui::BeginDisabled();
         ImGui::Indent();
         ImGui::Checkbox("Hide When Not Actively Lagswitching", &overlay_hide_inactive);
         int screenW = static_cast<int>(ImGui::GetIO().DisplaySize.x);
         int screenH = static_cast<int>(ImGui::GetIO().DisplaySize.y);
-#if defined(_WIN32)
         // Use the full Windows virtual desktop (all monitors) instead of the SDL window size.
         const int virtualMinX = GetSystemMetrics(SM_XVIRTUALSCREEN);
         const int virtualMinY = GetSystemMetrics(SM_YVIRTUALSCREEN);
@@ -3135,13 +3245,6 @@ void RenderSelectedSection(AppContext& context)
         const int sliderMaxX = virtualMinX + virtualW;
         const int sliderMinY = virtualMinY;
         const int sliderMaxY = virtualMinY + virtualH;
-#else
-        if (overlay_x == -1) overlay_x = static_cast<int>(screenW * 0.8f);
-        const int sliderMinX = 0;
-        const int sliderMaxX = screenW;
-        const int sliderMinY = 0;
-        const int sliderMaxY = screenH;
-#endif
         ImGui::PushItemWidth(500);
         ImGui::SliderInt("Overlay X", &overlay_x, sliderMinX, sliderMaxX);
         ImGui::SliderInt("Overlay Y", &overlay_y, sliderMinY, sliderMaxY);
@@ -3158,6 +3261,7 @@ void RenderSelectedSection(AppContext& context)
         if (!overlay_use_bg) ImGui::EndDisabled();
         ImGui::Unindent();
         if (!show_lag_overlay) ImGui::EndDisabled();
+#endif
 
         ImGui::Separator();
         ImGui::NewLine();
@@ -3248,6 +3352,7 @@ void RenderSelectedSection(AppContext& context)
             ImGui::Separator();
             ImGui::TextColored(GetCurrentTheme().warning_color, "%s", backend ? backend->unsupportedReason().c_str() : "Network lagswitch backend is unavailable.");
         }
+#endif
     }
 }
 
@@ -3408,7 +3513,7 @@ void RenderAppUi(AppContext& context)
     RenderPlatformWarningNotifications();
     RenderMacOSPermissionSetup(context);
     RenderLinuxInputSetup(context);
-    RenderUpdateConfirmationModal();
+    RenderUpdateConfirmationModal(context);
     RenderAdministratorRequiredPopup();
     RenderScriptFileDialogFallback();
     RenderImportTrustModal();

@@ -1736,7 +1736,11 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
     config.enabled = bWinDivertEnabled;
     config.inboundHardBlock = lagswitchinbound;
     config.outboundHardBlock = lagswitchoutbound;
+#if defined(_WIN32) || defined(__linux__)
     config.fakeLagEnabled = lagswitchlag;
+#else
+    config.fakeLagEnabled = false;
+#endif
     config.inboundFakeLag = lagswitchlaginbound;
     config.outboundFakeLag = lagswitchlagoutbound;
     config.fakeLagDelayMs = lagswitchlagdelay;
@@ -1744,7 +1748,11 @@ void MacroRuntime::processLagSwitchMacro(bool foregroundAllowed)
     config.targetMode = lagswitchtargetroblox ? smu::platform::LagSwitchTargetMode::Roblox : smu::platform::LagSwitchTargetMode::All;
     config.useTcp = lagswitchusetcp;
     config.useUdp = true;
+#if defined(_WIN32)
     config.preventDisconnect = prevent_disconnect;
+#else
+    config.preventDisconnect = false;
+#endif
     config.autoUnblock = lagswitch_autounblock;
     config.maxDurationSeconds = lagswitch_max_duration;
     config.unblockDurationMs = lagswitch_unblock_ms;

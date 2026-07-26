@@ -1,243 +1,149 @@
-# Spencer Macro Client
-An open-source, cross-platform Windows, Linux, and macOS C++ Roblox ImGui macro with many features.
+# Spencer Macro Utilities
 
-### Is this A CHEAT???
-No, it's a macro; it doesn't communicate with Roblox memory in any way.
+A native Windows, Linux, and macOS Roblox macro client with built-in movement tools and a full cross-platform Lua scripting API.
 
-### Known Issues
-- If it doesn't launch at all in Windows, go into properties and select "Unblock" on the file.
+[![Latest release](https://img.shields.io/github/v/release/Spencer0187/Spencer-Macro-Utilities?label=release)](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
+[![Build status](https://github.com/Spencer0187/Spencer-Macro-Utilities/actions/workflows/build.yml/badge.svg)](https://github.com/Spencer0187/Spencer-Macro-Utilities/actions/workflows/build.yml)
+[![Downloads](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases)
+[![License](https://img.shields.io/github/license/Spencer0187/Spencer-Macro-Utilities)](LICENSE)
 
-- Downgrading from a version with more features to a version with fewer features can cause the program to crash on launch. It is not recommended to downgrade. If required, delete your RMCsettings.json file.
+SMU sends normal keyboard and mouse input. It does not read or modify Roblox memory.
 
-![GitHub Releases](https://img.shields.io/github/downloads/Spencer0187/Spencer-Macro-Utilities/total.svg)
+## Download
 
-## [Link to Latest Version](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest)
-- Windows Installation: Run the executable "suspend" file.
-- Linux Native Installation: Run the native `suspend` build. Follow the setup screens instructions.
-- macOS Installation: Drag `suspend.app` to Applications, use Privacy & Security > Open Anyway when macOS warns that the app is unidentified, then follow the in-app permission setup screen.
+Official packages are available on the [Releases page](https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest).
 
-## Join the Roblox Glitching Discord! (I can help you with support)
-https://discord.gg/roblox-glitching-community-998572881892094012
+| Platform | Download | Install |
+| --- | --- | --- |
+| Windows 10/11 x64 | `Spencer-Macro-Utilities-<version>.zip` | Extract the ZIP and run `suspend.exe`. If Windows blocks it, open Properties and select **Unblock**. |
+| Linux x86_64 | `Spencer-Macro-Utilities-V<version>-Linux-x86_64.zip` | Choose the AppImage, `.deb`, `.rpm`, or portable tarball inside. Follow `LINUX_SETUP.md` once for input permissions. |
+| macOS 11+ | `Spencer-Macro-Utilities-V<version>-macOS-universal.dmg` or `.zip` | Drag `suspend.app` to Applications, then approve the first launch in **System Settings → Privacy & Security**. |
+| Nix / NixOS | repository flake | Run or install the flake package; a NixOS module is included for device permissions. |
 
-# Current Features (Fully explained in-program):
+The macOS build is universal for Apple Silicon and Intel. Linux packages run the interface as your normal user; SMU uses the desktop authentication prompt only for the small permission/network helper when required.
+The RPM is built for Fedora/RHEL-family package names. openSUSE users should use the AppImage or portable archive until that RPM has native openSUSE validation.
 
-1. Anti-AFK at all times (even if Roblox isn't shown) - Windows Only
-2. Customizable UI buttons (Drag to Swap Locations)
-3. Custom Lua Macro Scripts
-4. Wall Helicopter High Jump
-5. Speedglitch
-6. Automatic Ledge Bouncing
-7. Automatic Laugh Clipping
-8. Dropless Item Desync Hitboxes
-9. Freeze Macro
-10. Unequip Speedglitch (Deprecated, Roblox patched)
-11. Wallhop/Mouse-Move Macro (Supports multiple instances natively in the GUI)
-12. Walless Lag High Jump (14 Studs)
-13. Press a Key for One Frame
-14. Wall-Walk
-15. Item-Clip
-16. Spam a Key/Button (Supports multiple instances natively in the GUI)
-17. Intelligent Bhop/Bunnyhop
+For help, join the [Roblox Glitching Community Discord](https://discord.gg/roblox-glitching-community-998572881892094012).
 
-## Lua Macro Scripts
+## Features
 
-Custom macros can be written as Lua scripts and imported as `.smus`, `.hss`, `.lua`, or `.txt` files. See [docs/lua_macro_scripting.md](docs/lua_macro_scripting.md) for the scripting format, metadata comments, and the Lua API. Scripts can define `onSettings()` and use the `ui` table to render their own persistent ImGui controls.
+- Wallhop/rotation with multiple independent selections, horizontal and vertical movement, degree or pixel modes, and a configurable jump key
+- Wall Helicopter High Jump, Speedglitch, Walless Lag High Jump, Item Clip, Item Desync, Laugh Clip, Wall-Walk, Ledge Bounce, Floor Bounce, and Smart Bunnyhop
+- Process freeze, key press, key spam, customizable hotkeys, automatic profile saving, and drag-to-reorder controls
+- Network lag switch with hard blocking or fake lag, direction, protocol, Roblox targeting, and automatic release controls on Windows and Linux
+- A complete Lua macro API with managed input, timing, cancellation, screen pixels, process and lag controls, saved settings, and custom interface widgets
+- Script import by file picker or drag and drop, read-only previews, resource limits, and cleanup when a script is stopped
+- Custom themes, scalable interface layouts, copyable notifications, and per-profile macro configuration
 
-# AUTOMATICALLY SAVES YOUR SETTINGS WHEN CLOSED
+See [the scripting guide](docs/lua_macro_scripting.md) for the script format and API.
 
-## The UI is customizable, drag your buttons to re-order them
+<img width="1200" alt="Spencer Macro Utilities macro interface" src="https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08" />
 
-<img width="1446" height="1053" alt="Macro Screenshot2" src="https://github.com/user-attachments/assets/428bc456-dfba-4fe7-8635-e7a2d3deab08" />
+## Platform support
 
-<img width="1446" height="1053" alt="Macro Screenshot3" src="https://github.com/user-attachments/assets/67332f63-2bb2-4b99-88ad-9169b5148adf" />
+| Capability | Windows | Linux | macOS |
+| --- | :---: | :---: | :---: |
+| Built-in macros | Yes | Yes | Yes |
+| Lua scripting API | Yes | Yes | Yes |
+| Global keyboard and mouse input | Yes | Yes¹ | Yes² |
+| Foreground Roblox detection | Yes | X11/XWayland³ | Yes |
+| Process freeze | Yes | Yes | Yes |
+| Network hard-block lag switch | Yes | Yes⁴ | Not yet⁵ |
+| Fake lag | Yes | Yes⁴ | No |
+| Global lag-switch overlay | Yes | No | No |
+| Always-on Anti-AFK | Yes | No | No |
 
-<img width="1446" height="1053" alt="Macro Screenshot1" src="https://github.com/user-attachments/assets/cd5b028c-7571-4e95-a2ec-1589fba2eb94" />
+1. Linux needs one-time access to `/dev/input` and `/dev/uinput`; the app provides the setup flow.
+2. macOS needs Accessibility permission. Screen Recording permission is needed for script pixel reads.
+3. Native Wayland restricts foreground-app detection, absolute pointer positioning, and screen reads. SMU explains unavailable behavior instead of silently failing.
+4. Linux hard-block and fake-lag rules match selected machine-wide traffic rather than a Sober process. Roblox mode combines the static Roblox range with the UDMUX and RCC addresses discovered from Sober's player log. Fake lag refuses to replace custom traffic-control configuration on the active interface.
+5. A safe macOS lag switch needs a Developer ID-signed, Apple-entitled Network Extension. See [the feasibility review](docs/macos-lagswitch-feasibility.md).
 
-https://github.com/user-attachments/assets/a2c63feb-b947-4247-802c-34bf6cf8c2ce
+## Updates
 
-## Code Signing Policy
+SMU checks the official GitHub repository over HTTPS and only accepts release assets from that repository.
 
-Windows builds use free code signing provided by [SignPath.io](https://about.signpath.io/), with certificates issued by [SignPath Foundation](https://signpath.org/). macOS builds are not Apple Developer ID signed and are not notarized. They are signed with a stable self-signed project certificate so macOS privacy permissions are less likely to become stale after updates, but users still need to approve first launch through macOS Privacy & Security.
+| Installation | Update behavior |
+| --- | --- |
+| Windows official ZIP | Downloads the Windows ZIP and installs only a valid trusted signed executable. |
+| Linux AppImage in a writable folder | Downloads the all-in-one Linux ZIP and replaces the AppImage in place. |
+| Linux `.deb`, `.rpm`, portable, or Nix | Shows the new version when `curl` is available; reinstall with the same package method. |
+| macOS app installed in a writable folder | Replaces the app only when the new bundle is valid and signed by the same release certificate. |
+| macOS app opened from the DMG | Shows the new version; copy the app to Applications before updating. |
 
-| [<img src="https://avatars.githubusercontent.com/u/34448643?s=25&v=4" width="25">](https://about.signpath.io/) | Free code signing provided by [**SignPath.io**](https://about.signpath.io/), certificate by [**SignPath Foundation**](https://signpath.org/) |
-|----------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+See each release’s **Important Platform Notes** before installing. Downgrading across settings-format changes is not supported; if an old build cannot load a newer profile, back up and remove its settings file.
 
-## Debugging Instructions
-  (To receive generated logs)
-  - Windows: Open Command Prompt in the directory of suspend.exe, run `set DEBUG=1`, and then run suspend.exe within Command Prompt.
-  - Linux: Run using `DEBUG=1 ./suspend`.
-  - macOS: Run the app binary with `DEBUG=1 ./suspend.app/Contents/MacOS/suspend` from the built bundle.
-  - Developer-only MacroRuntime performance profiling on Windows: set `SMU_MACRORUNTIME_PERF=1` before launching. This appends `SMU MacroRuntime profile` blocks to `SMC.log` every few seconds.
+## Build from source
 
-## Compilation
-
-### Windows CMake:
-Open the repository folder directly in Visual Studio 2022 as a CMake project, or use VS Code with CMake Tools.
-
-```powershell
-cmake -S . -B build/windows -G "Visual Studio 17 2022" -A x64
-cmake --build build/windows --config Release --target suspend
-```
-
-## Linux Native Backend
-
-### Install build dependencies
-
-Install the dependency set for your distro family.
-
-#### Ubuntu / Debian
-
-```bash
-sudo apt-get update && sudo apt-get install -y \
-  build-essential cmake pkg-config golang-go \
-  libgl1-mesa-dev \
-  libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
-  libxfixes-dev libxi-dev libxss-dev libxtst-dev \
-  libxinerama-dev libxkbcommon-dev
-```
-
-This command also generally applies to Ubuntu/Debian-based distributions that keep compatible package names, such as Linux Mint, Pop!_OS, Zorin OS, elementary OS, and KDE neon.
-
-#### Fedora
-
-```bash
-sudo dnf makecache --refresh && sudo dnf install -y \
-  gcc gcc-c++ make cmake pkgconf-pkg-config golang \
-  mesa-libGL-devel \
-  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
-  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
-  libXinerama-devel libxkbcommon-devel
-```
-
-Alternatively, Fedora users can install the broader development tools group:
-
-```bash
-sudo dnf makecache --refresh && sudo dnf install -y \
-  @development-tools cmake pkgconf-pkg-config golang \
-  mesa-libGL-devel \
-  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
-  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
-  libXinerama-devel libxkbcommon-devel
-```
-
-#### Arch Linux / Manjaro
-
-```bash
-sudo pacman -Syu --needed \
-  base-devel cmake pkgconf go \
-  libglvnd mesa \
-  libx11 libxext libxrandr libxcursor libxfixes libxi \
-  libxss libxtst libxinerama libxkbcommon
-```
-
-#### openSUSE Tumbleweed / Leap
-
-```bash
-sudo zypper refresh && sudo zypper install -y \
-  -t pattern devel_basis \
-  cmake pkgconf go \
-  Mesa-libGL-devel \
-  libX11-devel libXext-devel libXrandr-devel libXcursor-devel \
-  libXfixes-devel libXi-devel libXScrnSaver-devel libXtst-devel \
-  libXinerama-devel libxkbcommon-devel
-```
-
-### Go requirement
-
-Go is required when building the Linux portable folder or AppImage because the Linux network lagswitch helper is compiled from `platform/linux/nethelper`.
-
-The helper module currently requests Go `1.26.2`. With Go toolchain auto-download enabled, a modern Go install can automatically fetch the requested toolchain during `go mod download`, `go test`, or `go build`.
-
-If your distro package ships an older Go version that does not support toolchain auto-download, install a current Go release from the official Go downloads page before running the Linux package scripts.
-
-### Configure and build
+Clone the repository, enter it, and use the cross-platform build command:
 
 ```bash
 git clone https://github.com/Spencer0187/Spencer-Macro-Utilities.git
 cd Spencer-Macro-Utilities
-cmake -S . -B build/linux -DCMAKE_BUILD_TYPE=Release
-cmake --build build/linux --target suspend
+python3 scripts/build.py
 ```
 
-### Build a portable folder
+On Linux, build an AppImage locally with:
 
 ```bash
-cmake --build build/linux --target package-linux-dir
+python3 scripts/build.py --appimage
 ```
 
-This creates:
-
-```text
-build/linux/SpencerMacroUtilities/
-```
-
-The folder contains `suspend`, `run.sh`, `LINUX_SETUP.md`, `scripts/install_linux_permissions.sh`, runtime assets, and bundled SDL3 when `SMU_BUNDLE_SDL3=ON`.
-
-Copy the whole folder to a compatible Linux system and launch it with:
+Or create the complete Linux release ZIP after installing nFPM:
 
 ```bash
-./run.sh
+python3 scripts/build.py --linux-release
 ```
 
-The app starts unprivileged. If native input permissions are missing, it shows setup options inside the UI.
+Nix users can build or run the locked flake directly:
 
-Runtime notes for the native Linux backend:
-- Input injection uses `/dev/uinput`.
-- Input state reading uses `/dev/input/event*`.
-- The backend needs group-based access to those devices. Run `sudo ./scripts/install_linux_permissions.sh` once, then log out and back in or reboot if access is still missing.
-- The app may launch the setup script with `pkexec`, but it does not relaunch the whole GUI as root and does not read your password.
-- Runtime assets are loaded from `assets/` next to the executable.
-- X11 foreground detection requires X11 development/runtime support and `_NET_ACTIVE_WINDOW` / `_NET_WM_PID`. Lua `moveMouseAbs()` and `getPixelColor()` on Linux also require X11/XWayland cursor-position/screen-read access; native Wayland sessions without usable X11 access report descriptive script errors instead of attempting unsupported absolute-coordinate behavior. Wayland support is currently in development.
-- Wayland foreground process detection is intentionally unsupported.
-- Linux network lagswitch support uses the bundled `nethelper` daemon. Build the portable folder or AppImage through the package scripts so `nethelper` is compiled and staged next to `suspend`.
-
-### macOS Universal App Bundle:
-
-Install the Xcode Command Line Tools first:
 ```bash
-xcode-select --install
+nix build
+nix run
 ```
 
-Configure and build the local architecture:
+The same command builds an unsigned Windows executable on Windows, a portable directory on Linux, and a universal app package on macOS. Dependency lists, outputs, Nix commands, and direct CMake instructions are in [docs/building.md](docs/building.md).
+
+Release maintainers can bump the single canonical version with:
+
 ```bash
-cmake --preset macos-release
-cmake --build --preset macos-release --target suspend
-open out/build/macos-release/suspend.app
+python3 scripts/version.py --bump patch
+# or: --bump minor / --bump major
 ```
 
-Build the universal Intel + Apple Silicon package:
-```bash
-bash scripts/package_macos.sh
-```
+The app, packages, updater metadata, and release workflow all read that version. See [docs/releasing.md](docs/releasing.md) for the complete signed draft-release checklist.
 
-The universal preset sets `CMAKE_OSX_ARCHITECTURES` to `arm64;x86_64`, builds a single signed `suspend.app`, verifies the bundle executable with `lipo`, and stages both `SpencerMacroUtilities-macOS-universal.zip` and a drag-to-install dmg when `hdiutil` is present. Set `SMU_MACOS_SIGN_IDENTITY` to use a stable local code-signing certificate instead of ad-hoc signing.
+## Platform setup and troubleshooting
 
-Runtime notes for the native macOS backend:
-- Accessibility permission enables global synthetic keyboard and mouse output.
-- Screen Recording permission enables Lua screen pixel reads on the active monitor containing the cursor.
-- macOS releases are not notarized. First launch requires System Settings > Privacy & Security > Open Anyway. Do not disable Gatekeeper globally.
-- If permissions still show missing after an update, use the in-app `Reset macOS Permission Entries` button, re-enable Accessibility and Screen Recording, then restart SMU.
-- If macOS quarantine gets stuck, run `xattr -dr com.apple.quarantine /Applications/suspend.app`.
-- Permission changes are controlled by macOS. Use the in-app Restart & Check Permissions button after granting a permission.
-- User settings are stored in `~/Library/Application Support/Spencer Macro Utilities/SMCSettings.json`, including when SMU is launched from a dmg.
-- macOS auto-update can replace a writable installed `.app` bundle from the universal zip release asset. A read-only dmg launch can check for updates but must be installed to Applications before automatic replacement is possible.
-- Foreground Roblox detection uses the frontmost macOS app. Process freeze uses macOS process stop/continue signals where the OS permits it.
-- Lagswitch support is intentionally unsupported on macOS.
+- [Linux setup and permissions](LINUX_SETUP.md)
+- [macOS setup, permissions, and first launch](MACOS_SETUP.md)
+- [Local and release builds](docs/building.md)
+- [Nix flake review and integration](docs/nix-flake-review-v3.3.0.md)
+- [v3.3.0 performance validation](docs/performance-validation-v3.3.0.md)
 
-See [`MACOS_SETUP.md`](MACOS_SETUP.md) for build, unsigned-release, permission repair, and optional Developer ID notes.
+To enable logs, start SMU with `DEBUG=1` on Linux/macOS or `set DEBUG=1` in Windows Command Prompt. Windows maintainers can additionally enable MacroRuntime profiling with `SMU_MACRORUNTIME_PERF=1`.
 
----
+## Code signing policy
 
-### Team Roles
-- **Committer and Approver**: [Project Owner (Spencer)](https://github.com/Spencer0187/) | [Discord](https://discord.com/users/618407079622737931)
-- **Linux Maintainer**: [quuut](https://github.com/quuuut) | [Discord](https://discord.com/users/750631921079287839)
-- **Maintainer and Packager**: [Floofy](https://github.com/FloofyIV) | [Discord](https://discord.com/users/966112150915518474)
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
-### Privacy Policy
-This application makes client-side HTTP requests solely for version checking and updates. No user data is collected or transmitted to any servers.
+- Committers and reviewers: [Spencer](https://github.com/Spencer0187), [Floofy](https://github.com/FloofyIV), and [quuut](https://github.com/quuuut)
+- Signing approver: [Spencer](https://github.com/Spencer0187)
 
-## Credits
+Every Windows release signing request requires approval through SignPath. The release workflow builds from the selected repository commit, verifies the returned Authenticode signature, and only then packages the executable.
 
-- Freezing code framework based on [craftwar/suspend](https://github.com/craftwar/suspend)
-- ImGui GUI library [ocornut/imgui](https://github.com/ocornut/imgui)
-- WinDivert used for Lagswitching Capabilities [basil00/WinDivert](https://github.com/basil00/WinDivert)
+macOS releases use a stable project self-signed certificate so permission identity survives updates, but they are not Apple Developer ID-signed or notarized. First launch therefore requires **Open Anyway**; SMU never asks users to disable Gatekeeper.
+
+SMU has no telemetry or user accounts. It makes a once-per-session HTTPS request to GitHub's public release API to check for updates and downloads an official release asset only after the user confirms installation. See the [privacy policy](PRIVACY.md).
+
+## Team and credits
+
+- Project owner: [Spencer](https://github.com/Spencer0187/)
+- Linux maintainer: [quuut](https://github.com/quuuut)
+- Maintainer and packager: [Floofy](https://github.com/FloofyIV)
+- Process freezing framework: [craftwar/suspend](https://github.com/craftwar/suspend)
+- Interface: [Dear ImGui](https://github.com/ocornut/imgui)
+- Windows network filtering: [WinDivert](https://github.com/basil00/WinDivert)
+
+SMU is licensed under the terms in [LICENSE](LICENSE).
+Third-party copyright and license information is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
