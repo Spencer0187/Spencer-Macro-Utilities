@@ -6,11 +6,13 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include "../core/key_codes.h"
 #include "../platform/network_backend.h"
+#include "../platform/platform_types.h"
 
 namespace smu::platform {
 class InputBackend;
@@ -72,6 +74,7 @@ private:
     mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollKnown_{};
     mutable std::array<unsigned char, smu::core::SMU_VK_MOUSE_WHEEL_DOWN + 1> inputPollPressed_{};
     mutable bool inputPollCacheActive_ = false;
+    std::optional<smu::platform::PlatformKeyCode> transientHotkeyInput_;
     mutable std::mutex workerMutex_;
     struct WorkerSlot {
         std::thread thread;

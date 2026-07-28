@@ -473,6 +473,12 @@ void MacroRuntime::resetInputPollCache()
     inputPollKnown_.fill(0);
     inputPollPressed_.fill(0);
     inputPollCacheActive_ = true;
+    transientHotkeyInput_.reset();
+
+    // While the UI is binding, leave transient events for the UI to consume.
+    if (inputPollBackend_ && !g_keybindCaptureActive.load(std::memory_order_acquire)) {
+        transientHotkeyInput_ = inputPollBackend_->consumeNextTransientInput();
+    }
 }
 
 bool MacroRuntime::cachedIsKeyPressed(unsigned int key) const
@@ -860,12 +866,15 @@ bool MacroRuntime::isHotkeyPressed(unsigned int combinedKey) const
     }
 
     const unsigned int key = combinedKey & HOTKEY_KEY_MASK;
-    if (key == 0 || key == smu::core::SMU_VK_MOUSE_WHEEL_UP || key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+    if (key == 0) {
         return false;
     }
 
     if (!areHotkeyModifiersPressed(combinedKey)) {
         return false;
+    }
+    if (key == smu::core::SMU_VK_MOUSE_WHEEL_UP || key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+        return transientHotkeyInput_ && *transientHotkeyInput_ == key;
     }
     return isModifierPressed(key);
 }
@@ -881,7 +890,14 @@ void MacroRuntime::processFreezeMacro(bool foregroundAllowed)
     }
 
     const bool pressed = isHotkeyPressed(vk_mbutton);
-    if (isfreezeswitch) {
+    const unsigned int freezeKey = vk_mbutton & HOTKEY_KEY_MASK;
+    // Wheel directions are momentary input, so they cannot provide meaningful
+    // hold-to-freeze semantics. Treat them as a toggle even when the setting
+    // still has its default hold mode.
+    const bool toggleFreeze = isfreezeswitch ||
+        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
+        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_DOWN;
+    if (toggleFreeze) {
         if (pressed && !freezeWasPressed_ && foregroundAllowed) {
             setTargetSuspended(!freezeSuspended_);
         }
@@ -903,7 +919,7 @@ void MacroRuntime::processFreezeMacro(bool foregroundAllowed)
     if (elapsedMs >= static_cast<long long>(maxfreezetime * 1000.0f)) {
         setTargetSuspended(false);
         std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, maxfreezeoverride)));
-        if (running_.load(std::memory_order_acquire) && (isfreezeswitch || isHotkeyPressed(vk_mbutton))) {
+        if (running_.load(std::memory_order_acquire) && (toggleFreeze || isHotkeyPressed(vk_mbutton))) {
             setTargetSuspended(true);
         }
     }

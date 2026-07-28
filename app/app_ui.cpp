@@ -1108,6 +1108,24 @@ unsigned int BindKeyMode(unsigned int* keyVar, unsigned int currentkey, int curr
             return currentkey;
         }
 
+        if (const auto transientInput = backend->consumeNextTransientInput()) {
+            const unsigned int finalCombo = NormalizeBoundHotkey(
+                (*transientInput & HOTKEY_KEY_MASK) | currentModifiers);
+
+            state.bindingMode = false;
+            state.waitingForReleaseBeforeCapture = false;
+            state.firstRun = true;
+            state.pendingModifierKey = 0;
+            state.pendingModifierCombo = 0;
+
+            GetKeyNameFromHex(finalCombo, state.keyBufferHuman, sizeof(state.keyBufferHuman));
+            FormatHexKeyString(finalCombo, state.keyBuffer, sizeof(state.keyBuffer));
+            state.buttonText = "Click to Bind Key";
+
+            FinishKeybindCapture();
+            return finalCombo;
+        }
+
         for (int key = 1; key < static_cast<int>(state.keyWasPressed.size()); ++key) {
             const bool currentlyPressed = IsKeyPressed(static_cast<smu::core::KeyCode>(key));
             const bool wasPressed = state.keyWasPressed[key];
