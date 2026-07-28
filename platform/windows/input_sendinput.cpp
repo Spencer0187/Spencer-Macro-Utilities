@@ -149,6 +149,8 @@ std::atomic<bool> g_bunnyhopPhysicalKeyHookRunning{false};
 std::atomic<bool> g_bunnyhopPhysicalKeyHookReady{false};
 std::atomic<DWORD> g_bunnyhopPhysicalKeyHookThreadId{0};
 HHOOK g_bunnyhopPhysicalKeyHook = nullptr;
+HHOOK g_bindingMouseWheelHook = nullptr;
+std::atomic<PlatformKeyCode> g_pendingBindingInput{kNoKey};
 
 void TagInjectedInput(INPUT& input)
 {
@@ -164,6 +166,13 @@ bool IsInjectedKeyboardEvent(const KBDLLHOOKSTRUCT& event)
 {
     return (event.flags & LLKHF_INJECTED) != 0 ||
            (event.flags & LLKHF_LOWER_IL_INJECTED) != 0 ||
+           event.dwExtraInfo == kInjectedInputTag;
+}
+
+bool IsInjectedMouseEvent(const MSLLHOOKSTRUCT& event)
+{
+    return (event.flags & LLMHF_INJECTED) != 0 ||
+           (event.flags & LLMHF_LOWER_IL_INJECTED) != 0 ||
            event.dwExtraInfo == kInjectedInputTag;
 }
 
@@ -206,6 +215,24 @@ LRESULT CALLBACK BunnyhopPhysicalKeyHookProc(int nCode, WPARAM wParam, LPARAM lP
     return CallNextHookEx(g_bunnyhopPhysicalKeyHook, nCode, wParam, lParam);
 }
 
+LRESULT CALLBACK BindingMouseWheelHookProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION && wParam == WM_MOUSEWHEEL && lParam) {
+        const auto* event = reinterpret_cast<const MSLLHOOKSTRUCT*>(lParam);
+        if (!IsInjectedMouseEvent(*event)) {
+            const short delta = GET_WHEEL_DELTA_WPARAM(event->mouseData);
+            if (delta != 0) {
+                g_pendingBindingInput.store(delta > 0
+                        ? smu::platform::kMouseWheelUp
+                        : smu::platform::kMouseWheelDown,
+                    std::memory_order_release);
+            }
+        }
+    }
+
+    return CallNextHookEx(g_bindingMouseWheelHook, nCode, wParam, lParam);
+}
+
 void StartBunnyhopPhysicalKeyHook()
 {
     bool expected = false;
@@ -234,6 +261,12 @@ void StartBunnyhopPhysicalKeyHook()
                 kWindowsBunnyhopHookWarningId, true);
         }
 
+        g_bindingMouseWheelHook = SetWindowsHookExW(
+            WH_MOUSE_LL,
+            BindingMouseWheelHookProc,
+            GetModuleHandleW(nullptr),
+            0);
+
         g_bunnyhopPhysicalKeyHookReady.store(true, std::memory_order_release);
 
         while (g_bunnyhopPhysicalKeyHookRunning.load(std::memory_order_acquire)) {
@@ -249,6 +282,10 @@ void StartBunnyhopPhysicalKeyHook()
         if (g_bunnyhopPhysicalKeyHook) {
             UnhookWindowsHookEx(g_bunnyhopPhysicalKeyHook);
             g_bunnyhopPhysicalKeyHook = nullptr;
+        }
+        if (g_bindingMouseWheelHook) {
+            UnhookWindowsHookEx(g_bindingMouseWheelHook);
+            g_bindingMouseWheelHook = nullptr;
         }
 
         g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
@@ -281,6 +318,7 @@ void StopBunnyhopPhysicalKeyHook()
     }
 
     g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
+    g_pendingBindingInput.store(kNoKey, std::memory_order_release);
 }
 
 bool IsGuiWindowForegroundForBudget()
@@ -1049,6 +1087,12 @@ public:
             }
         }
         return std::nullopt;
+    }
+
+    std::optional<PlatformKeyCode> consumeNextTransientInput() override
+    {
+        const PlatformKeyCode key = g_pendingBindingInput.exchange(kNoKey, std::memory_order_acq_rel);
+        return key == kNoKey ? std::nullopt : std::optional<PlatformKeyCode>{key};
     }
 
     std::string formatKeyName(PlatformKeyCode key) const override

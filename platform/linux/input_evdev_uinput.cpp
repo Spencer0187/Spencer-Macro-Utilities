@@ -833,6 +833,7 @@ void EvdevUinputInputBackend::shutdown()
     for (auto& state : keyStates_) {
         state.store(false, std::memory_order_relaxed);
     }
+    pendingBindingInput_.store(kNoKey, std::memory_order_relaxed);
     Globals::g_isVk_BunnyhopHeldDown.store(false, std::memory_order_release);
     initialized_.store(false, std::memory_order_release);
 }
@@ -982,6 +983,12 @@ std::optional<PlatformKeyCode> EvdevUinputInputBackend::getCurrentPressedKey() c
     return std::nullopt;
 }
 
+std::optional<PlatformKeyCode> EvdevUinputInputBackend::consumeNextTransientInput()
+{
+    const PlatformKeyCode key = pendingBindingInput_.exchange(kNoKey, std::memory_order_acq_rel);
+    return key == kNoKey ? std::nullopt : std::optional<PlatformKeyCode>{key};
+}
+
 std::string EvdevUinputInputBackend::formatKeyName(PlatformKeyCode key) const
 {
     return KeyNameFallback(key);
@@ -1034,6 +1041,9 @@ void EvdevUinputInputBackend::readerThread(std::string devicePath)
         if (bytesRead == sizeof(event)) {
             if (event.type == EV_KEY) {
                 setKeyStateFromEvdev(event.code, event.value != 0);
+            } else if (event.type == EV_REL && event.code == REL_WHEEL && event.value != 0) {
+                pendingBindingInput_.store(event.value > 0 ? kMouseWheelUp : kMouseWheelDown,
+                    std::memory_order_release);
             }
             continue;
         }

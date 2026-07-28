@@ -744,6 +744,12 @@ public:
         return std::nullopt;
     }
 
+    std::optional<PlatformKeyCode> consumeNextTransientInput() override
+    {
+        const PlatformKeyCode key = pendingBindingInput_.exchange(kNoKey, std::memory_order_acq_rel);
+        return key == kNoKey ? std::nullopt : std::optional<PlatformKeyCode>{key};
+    }
+
     std::string formatKeyName(PlatformKeyCode key) const override
     {
         return KeyName(key);
@@ -805,6 +811,14 @@ private:
                     type == kCGEventOtherMouseDown);
             }
             break;
+        case kCGEventScrollWheel: {
+            const std::int64_t delta = CGEventGetIntegerValueField(event, kCGScrollWheelEventDeltaAxis1);
+            if (delta != 0) {
+                pendingBindingInput_.store(delta > 0 ? kMouseWheelUp : kMouseWheelDown,
+                    std::memory_order_release);
+            }
+            break;
+        }
         default:
             break;
         }
@@ -883,7 +897,8 @@ private:
             CGEventMaskBit(kCGEventRightMouseDown) |
             CGEventMaskBit(kCGEventRightMouseUp) |
             CGEventMaskBit(kCGEventOtherMouseDown) |
-            CGEventMaskBit(kCGEventOtherMouseUp);
+            CGEventMaskBit(kCGEventOtherMouseUp) |
+            CGEventMaskBit(kCGEventScrollWheel);
 
         CFMachPortRef eventTap = CGEventTapCreate(
             kCGSessionEventTap,
@@ -948,6 +963,7 @@ private:
     std::atomic_bool initialized_{false};
     std::atomic_bool readInitialized_{false};
     std::array<std::atomic_bool, 258> keyStates_{};
+    std::atomic<PlatformKeyCode> pendingBindingInput_{kNoKey};
     std::thread runLoopThread_;
     std::mutex runLoopMutex_;
     CFRunLoopRef runLoop_ = nullptr;

@@ -28,9 +28,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
-#include <thread>
-#include <atomic>
-#include <condition_variable>
 #include <vector>
 
 #include "../platform/logging.h"
@@ -55,7 +52,6 @@ namespace smu::app {
 namespace {
 
 using FrameClock = std::chrono::steady_clock;
-using FrameTimePoint = FrameClock::time_point;
 
 struct WindowSize {
     int width = 0;
@@ -78,25 +74,6 @@ constexpr DWORD kMsgfltAllow = MSGFLT_ALLOW;
 constexpr DWORD kMsgfltAllow = 1;
 #endif
 #endif
-
-FrameTimePoint FrameTimePointFromTicks(std::int64_t ticks)
-{
-    return FrameTimePoint(FrameClock::duration(ticks));
-}
-
-std::int64_t FrameTimePointToTicks(FrameTimePoint timePoint)
-{
-    return static_cast<std::int64_t>(timePoint.time_since_epoch().count());
-}
-
-void ExtendAtomicDeadline(std::atomic<std::int64_t>& deadlineTicks, FrameTimePoint deadline)
-{
-    const std::int64_t desired = FrameTimePointToTicks(deadline);
-    std::int64_t current = deadlineTicks.load(std::memory_order_relaxed);
-    while (current < desired &&
-        !deadlineTicks.compare_exchange_weak(current, desired, std::memory_order_release, std::memory_order_relaxed)) {
-    }
-}
 
 std::filesystem::path GetExecutableDirectory()
 {
@@ -465,9 +442,8 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         }
     };
 
-    // Create ImGui context on main thread, but initialize backends and run the render loop
-    // on a dedicated render thread that owns the GL context. The main thread will poll
-    // events and forward them to ImGui once the backend is ready.
+    // SDL's OpenGL and window APIs are main-thread APIs. Keep the ImGui backends,
+    // rendering, buffer swaps, and teardown on this same thread on every platform.
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -477,10 +453,15 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
 #if defined(__APPLE__)
     SDL_GL_SetSwapInterval(1);
+#endif
     if (!ImGui_ImplSDL3_InitForOpenGL(window, glContext)) {
         LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");
     }
+#if defined(__APPLE__)
     if (!ImGui_ImplOpenGL3_Init("#version 150")) {
+#else
+    if (!ImGui_ImplOpenGL3_Init("#version 130")) {
+#endif
         LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
     }
     LoadMacroTutorialTextures();
@@ -504,13 +485,24 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     };
 
     auto processEvent = [&](const SDL_Event& event) {
+#if defined(__APPLE__)
         ImGui_ImplSDL3_ProcessEvent(&event);
+#else
+        // Batch wheel events below to preserve the Linux scroll behavior from the
+        // former event/render split. All other events go directly to ImGui here.
+        if (event.type != SDL_EVENT_MOUSE_WHEEL) {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+        }
+#endif
         HandleDroppedFileEvent(event);
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
             state.done.store(true, std::memory_order_release);
             state.running.store(false, std::memory_order_release);
             Globals::done.store(true, std::memory_order_release);
             Globals::running.store(false, std::memory_order_release);
+#if defined(_WIN32)
+            smu::platform::windows::CleanupLagswitchOverlay();
+#endif
             return true;
         }
         if (event.type == SDL_EVENT_WINDOW_RESIZED ||
@@ -529,16 +521,44 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     auto handlePendingEvents = [&](const SDL_Event* firstEvent = nullptr) {
         bool quitRequested = false;
         bool sawEvent = false;
+        bool sawWheelInput = false;
+        float wheelX = 0.0f;
+        float wheelY = 0.0f;
         SDL_Event event{};
 
-        if (firstEvent) {
+        auto flushWheel = [&]() {
+            if (!sawWheelInput) {
+                return;
+            }
+            ImGuiIO& eventIo = ImGui::GetIO();
+            eventIo.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            eventIo.AddMouseWheelEvent(wheelX, wheelY);
+            sawWheelInput = false;
+            wheelX = 0.0f;
+            wheelY = 0.0f;
+        };
+
+        auto handleEvent = [&](const SDL_Event& currentEvent) {
             sawEvent = true;
-            quitRequested = processEvent(*firstEvent);
+#if !defined(__APPLE__)
+            if (currentEvent.type == SDL_EVENT_MOUSE_WHEEL) {
+                wheelX += -currentEvent.wheel.x;
+                wheelY += currentEvent.wheel.y;
+                sawWheelInput = true;
+                return processEvent(currentEvent);
+            }
+#endif
+            flushWheel();
+            return processEvent(currentEvent);
+        };
+
+        if (firstEvent) {
+            quitRequested = handleEvent(*firstEvent);
         }
         while (SDL_PollEvent(&event)) {
-            sawEvent = true;
-            quitRequested = processEvent(event) || quitRequested;
+            quitRequested = handleEvent(event) || quitRequested;
         }
+        flushWheel();
         if (sawEvent) {
             requestActiveRedraw();
         }
@@ -618,262 +638,6 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
-#else
-    std::atomic<bool> renderRunning{true};
-    std::atomic<bool> backendReady{false};
-    std::atomic<int> renderWidth{state.rawWindowWidth > 0 ? state.rawWindowWidth : state.screenWidth};
-    std::atomic<int> renderHeight{state.rawWindowHeight > 0 ? state.rawWindowHeight : state.screenHeight};
-    std::atomic<std::uint64_t> redrawGeneration{1};
-    std::atomic<std::int64_t> activeUntilTicks{FrameTimePointToTicks(FrameClock::now())};
-    std::mutex backendMutex;
-    std::condition_variable backendCv;
-    std::mutex framePacingMutex;
-    std::mutex imguiMutex;
-    std::condition_variable framePacingCv;
-    SDL_GLContext renderGlContext = nullptr;
-
-    std::thread renderThread([&]() {
-        renderGlContext = SDL_GL_CreateContext(window);
-        if (!renderGlContext) {
-            LogCritical(std::string("Failed OpenGL initialization: SDL_GL_CreateContext failed: ") + SDL_GetError());
-            backendReady.store(true);
-            backendCv.notify_one();
-            return;
-        }
-
-        if (!SDL_GL_MakeCurrent(window, renderGlContext)) {
-            LogCritical(std::string("Failed OpenGL initialization: SDL_GL_MakeCurrent failed: ") + SDL_GetError());
-            SDL_GL_DestroyContext(renderGlContext);
-            renderGlContext = nullptr;
-            backendReady.store(true);
-            backendCv.notify_one();
-            return;
-        }
-
-        SDL_GL_SetSwapInterval(0);
-
-        if (!ImGui_ImplSDL3_InitForOpenGL(window, renderGlContext)) {
-            LogCritical("Failed ImGui initialization: SDL3 backend initialization failed.");
-        }
-#if defined(__APPLE__)
-        constexpr const char* glslVersion = "#version 150";
-#else
-        constexpr const char* glslVersion = "#version 130";
-#endif
-        if (!ImGui_ImplOpenGL3_Init(glslVersion)) {
-            LogCritical("Failed OpenGL initialization: ImGui OpenGL backend initialization failed.");
-        }
-        LoadMacroTutorialTextures();
-
-        backendReady.store(true);
-        backendCv.notify_one();
-
-        constexpr int kActiveFps = 60;
-        constexpr int kIdleFps = 8;
-        constexpr auto inputBurstDuration = std::chrono::milliseconds(250);
-        const auto activeFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
-            std::chrono::duration<double>(1.0 / static_cast<double>(kActiveFps)));
-        const auto idleFrameDuration = std::chrono::duration_cast<FrameClock::duration>(
-            std::chrono::duration<double>(1.0 / static_cast<double>(kIdleFps)));
-        auto nextActiveFrameTime = FrameClock::now();
-        auto nextIdleFrameTime = nextActiveFrameTime;
-        std::uint64_t handledRedrawGeneration = 0;
-
-        auto loadActiveUntil = [&]() {
-            return FrameTimePointFromTicks(activeUntilTicks.load(std::memory_order_acquire));
-        };
-
-        while (renderRunning.load() && state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
-            const std::uint64_t observedRedrawGeneration = redrawGeneration.load(std::memory_order_acquire);
-            const auto now = FrameClock::now();
-            const auto activeUntil = loadActiveUntil();
-            const bool redrawRequested = observedRedrawGeneration != handledRedrawGeneration;
-            const bool activeFrameDue = now < activeUntil && now >= nextActiveFrameTime;
-            const bool idleFrameDue = now >= nextIdleFrameTime;
-
-            if (!redrawRequested && !activeFrameDue && !idleFrameDue) {
-                const auto wakeDeadline = (now < activeUntil)
-                    ? std::min(nextActiveFrameTime, nextIdleFrameTime)
-                    : nextIdleFrameTime;
-
-                std::unique_lock<std::mutex> lk(framePacingMutex);
-                framePacingCv.wait_until(lk, wakeDeadline, [&]() {
-                    return !renderRunning.load(std::memory_order_acquire) ||
-                        !state.running.load(std::memory_order_acquire) ||
-                        state.done.load(std::memory_order_acquire) ||
-                        redrawGeneration.load(std::memory_order_acquire) != handledRedrawGeneration;
-                });
-                continue;
-            }
-
-            const int w = std::max(1, renderWidth.load());
-            const int h = std::max(1, renderHeight.load());
-            glViewport(0, 0, w, h);
-            glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
-            glClear(GL_COLOR_BUFFER_BIT);
-
-            bool uiInteractionActive = false;
-            {
-                std::lock_guard<std::mutex> imguiLock(imguiMutex);
-                ImGui_ImplOpenGL3_NewFrame();
-                ImGui_ImplSDL3_NewFrame();
-                ImGui::NewFrame();
-
-                RenderAppUi(context);
-
-                const ImGuiIO& frameIo = ImGui::GetIO();
-                const bool mouseButtonDown = frameIo.MouseDown[0] || frameIo.MouseDown[1] || frameIo.MouseDown[2] ||
-                    frameIo.MouseDown[3] || frameIo.MouseDown[4];
-                uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
-
-                ImGui::Render();
-                ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-            }
-            SDL_GL_SwapWindow(window);
-
-            handledRedrawGeneration = observedRedrawGeneration;
-            const auto nowAfterRender = FrameClock::now();
-            if (uiInteractionActive) {
-                ExtendAtomicDeadline(activeUntilTicks, nowAfterRender + inputBurstDuration);
-            }
-            nextActiveFrameTime = nowAfterRender + activeFrameDuration;
-            nextIdleFrameTime = nowAfterRender + idleFrameDuration;
-        }
-
-        // Shutdown GL/ImGui resources on the render thread that owns the context.
-        UnloadMacroTutorialTextures();
-        ImGui_ImplOpenGL3_Shutdown();
-        ImGui_ImplSDL3_Shutdown();
-        // Make no context current before destroying
-        SDL_GL_MakeCurrent(window, nullptr);
-        if (renderGlContext) {
-            SDL_GL_DestroyContext(renderGlContext);
-            renderGlContext = nullptr;
-        }
-    });
-
-    // Wait for backend to be ready before processing events / forwarding to ImGui.
-    {
-        std::unique_lock<std::mutex> lk(backendMutex);
-        backendCv.wait(lk, [&]() { return backendReady.load() || !state.running.load(); });
-    }
-
-    constexpr auto inputBurstDuration = std::chrono::milliseconds(250);
-    auto requestActiveRedraw = [&]() {
-        redrawGeneration.fetch_add(1, std::memory_order_release);
-        ExtendAtomicDeadline(activeUntilTicks, FrameClock::now() + inputBurstDuration);
-        framePacingCv.notify_one();
-    };
-
-    auto processEvent = [&](const SDL_Event& event) {
-        if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-            state.done.store(true, std::memory_order_release);
-            state.running.store(false, std::memory_order_release);
-            Globals::done.store(true, std::memory_order_release);
-            Globals::running.store(false, std::memory_order_release);
-#if defined(_WIN32)
-            // Destroy the Win32 overlay promptly so it doesn't linger if shutdown is delayed.
-            smu::platform::windows::CleanupLagswitchOverlay();
-#endif
-            return true;
-        }
-
-        if (event.type == SDL_EVENT_WINDOW_RESIZED ||
-            event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED ||
-            event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
-            event.type == SDL_EVENT_WINDOW_MOVED) {
-            if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED ||
-                event.type == SDL_EVENT_WINDOW_MOVED) {
-                ApplyWindowMinimumSize(window);
-            }
-            UpdateWindowMetrics(window);
-            renderWidth.store(state.rawWindowWidth > 0 ? state.rawWindowWidth : state.screenWidth);
-            renderHeight.store(state.rawWindowHeight > 0 ? state.rawWindowHeight : state.screenHeight);
-        }
-
-        if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-            return false;
-        }
-
-        {
-            std::lock_guard<std::mutex> imguiLock(imguiMutex);
-            HandleDroppedFileEvent(event);
-            // Forward non-wheel input to ImGui while holding the shared context lock.
-            ImGui_ImplSDL3_ProcessEvent(&event);
-        }
-        requestActiveRedraw();
-        return false;
-    };
-
-    // Event loop runs on the main thread; the render thread wakes when new work arrives.
-    while (state.running.load(std::memory_order_acquire) && !state.done.load(std::memory_order_acquire)) {
-        SDL_Event event;
-        if (!SDL_WaitEventTimeout(&event, 1000)) {
-            continue;
-        }
-
-        bool quitRequested = false;
-        bool sawWheelInput = false;
-        bool sawOtherInput = false;
-        float wheelX = 0.0f;
-        float wheelY = 0.0f;
-
-        auto flushWheel = [&]() {
-            if (!sawWheelInput) {
-                return;
-            }
-            std::lock_guard<std::mutex> imguiLock(imguiMutex);
-            ImGuiIO& io = ImGui::GetIO();
-            io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-            io.AddMouseWheelEvent(wheelX, wheelY);
-            sawWheelInput = false;
-            wheelX = 0.0f;
-            wheelY = 0.0f;
-        };
-
-        auto handleEvent = [&](const SDL_Event& currentEvent) {
-            if (currentEvent.type == SDL_EVENT_MOUSE_WHEEL) {
-                wheelX += -currentEvent.wheel.x;
-                wheelY += currentEvent.wheel.y;
-                sawWheelInput = true;
-                return processEvent(currentEvent);
-            }
-            sawOtherInput = true;
-            flushWheel();
-            return processEvent(currentEvent);
-        };
-
-        quitRequested = handleEvent(event);
-        while (SDL_PollEvent(&event)) {
-            quitRequested = handleEvent(event) || quitRequested;
-        }
-        flushWheel();
-        if (sawWheelInput || sawOtherInput) {
-            requestActiveRedraw();
-        }
-        if (quitRequested) {
-            break;
-        }
-    }
-
-    // Signal render thread to exit and join.
-    renderRunning.store(false);
-    framePacingCv.notify_one();
-    if (renderThread.joinable()) {
-        renderThread.join();
-    }
-
-    UpdateWindowMetrics(window);
-    ShutdownSharedProfiles();
-    ResetFloatingUiWindowState();
-
-    // ImGui context was created on main thread; destroy it here after render thread cleaned up backends.
-    ImGui::DestroyContext();
-    SDL_GL_DestroyContext(glContext);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return 0;
-#endif
 }
 
 } // namespace smu::app

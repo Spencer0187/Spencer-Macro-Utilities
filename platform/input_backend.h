@@ -77,6 +77,12 @@ public:
     }
 
     virtual std::optional<PlatformKeyCode> getCurrentPressedKey() const = 0;
+    // Returns a transient physical input such as mouse-wheel movement, which
+    // cannot be represented by isKeyPressed().
+    virtual std::optional<PlatformKeyCode> consumeNextTransientInput()
+    {
+        return std::nullopt;
+    }
     virtual std::string formatKeyName(PlatformKeyCode key) const = 0;
 };
 

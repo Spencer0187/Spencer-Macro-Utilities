@@ -38,6 +38,7 @@ public:
     std::optional<PixelColor> getPixelColor(int x, int y, std::string* errorMessage = nullptr) const override;
     std::string screenReadUnavailableReason() const override;
     std::optional<PlatformKeyCode> getCurrentPressedKey() const override;
+    std::optional<PlatformKeyCode> consumeNextTransientInput() override;
     std::string formatKeyName(PlatformKeyCode key) const override;
 
 private:
@@ -58,6 +59,7 @@ private:
     std::vector<std::thread> readerThreads_;
     mutable std::mutex emitMutex_;
     std::array<std::atomic_bool, 258> keyStates_{};
+    std::atomic<PlatformKeyCode> pendingBindingInput_{kNoKey};
 };
 
 std::shared_ptr<InputBackend> CreateEvdevUinputInputBackend();
