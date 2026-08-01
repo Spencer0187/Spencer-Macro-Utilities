@@ -118,8 +118,6 @@ The app, packages, updater metadata, and release workflow all read that version.
 - [Linux setup and permissions](LINUX_SETUP.md)
 - [macOS setup, permissions, and first launch](MACOS_SETUP.md)
 - [Local and release builds](docs/building.md)
-- [Nix flake review and integration](docs/nix-flake-review-v3.3.0.md)
-- [v3.3.0 performance validation](docs/performance-validation-v3.3.0.md)
 
 To enable logs, start SMU with `DEBUG=1` on Linux/macOS or `set DEBUG=1` in Windows Command Prompt. Windows maintainers can additionally enable MacroRuntime profiling with `SMU_MACRORUNTIME_PERF=1`.
 
