@@ -54,12 +54,18 @@ openssl req \
   -keyout "$KEY_PATH" \
   -out "$CERT_PATH"
 
+# Apple Security.framework still rejects the modern PKCS#12 defaults used by
+# OpenSSL 3 (notably SHA-256 MAC/PBES2). Use interoperable legacy PKCS#12
+# algorithms for the macOS keychain import performed by CI.
 openssl pkcs12 \
   -export \
   -inkey "$KEY_PATH" \
   -in "$CERT_PATH" \
   -name "$IDENTITY_NAME" \
   -out "$P12_PATH" \
+  -keypbe PBE-SHA1-3DES \
+  -certpbe PBE-SHA1-3DES \
+  -macalg sha1 \
   -passout "pass:$P12_PASSWORD"
 
 chmod 600 "$KEY_PATH" "$P12_PATH"
