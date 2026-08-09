@@ -505,7 +505,7 @@ namespace Globals {
     // --- Section Management ---
     inline constexpr int section_amounts = 16;
     inline int section_order[16] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
-    inline bool section_toggles[16] = {true, true, true, true, true, false, true, true, true, false, false, false, false, false, false, false};
+    inline bool section_toggles[16] = {true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false};
     inline bool disable_outside_roblox[16] = {true, true, false, true, true, true, false, false, true, true, true, false, true, true, true, false};
     inline int selected_section = -1;
     inline int dragged_section = -1;
@@ -721,7 +721,7 @@ namespace Globals {
         bool toggle_flick       = true;
         bool wallhopcamfix      = false;
         bool disable_outside_roblox = false;
-        bool section_enabled    = true;
+        bool section_enabled    = false;
         unsigned int vk_trigger = smu::core::SMU_VK_XBUTTON2;
         unsigned int vk_jumpkey = smu::core::SMU_VK_SPACE;
         // Runtime
@@ -749,7 +749,7 @@ namespace Globals {
         char PressKeyDelayChar[256];
         char PressKeyBonusDelayChar[256];
         bool presskeyinroblox  = false;
-        bool section_enabled   = true;
+        bool section_enabled   = false;
         // Runtime
         std::atomic<bool> thread_active{false};
         bool should_exit = false;

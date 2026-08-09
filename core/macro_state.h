@@ -12,7 +12,7 @@ inline constexpr int kMacroSectionCount = 16;
 struct MacroSection {
     std::string title;
     std::string description;
-    bool enabled = true;
+    bool enabled = false;
     bool disableOutsideRoblox = true;
     KeyCode keybind = SMU_VK_NONE;
 };
