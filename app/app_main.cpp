@@ -213,24 +213,23 @@ struct WindowOpacityController {
     }
 };
 
-void SetFramebufferAlpha(float alpha)
+void SetFramebufferOpacityBlendMode(const ImDrawList*, const ImDrawCmd*)
 {
-    GLboolean previousColorMask[4] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
-    GLfloat previousClearColor[4] = {};
-    const GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
-    glGetBooleanv(GL_COLOR_WRITEMASK, previousColorMask);
-    glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClearColor);
+    // Wayland compositors consume premultiplied-alpha surface contents. This
+    // blend mode makes a final transparent ImGui rectangle multiply the
+    // existing framebuffer's RGB and alpha by the rectangle's source alpha.
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_ZERO, GL_SRC_ALPHA);
+}
 
-    glDisable(GL_SCISSOR_TEST);
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    glClearColor(0.0f, 0.0f, 0.0f, std::clamp(alpha, 0.0f, 1.0f));
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    glColorMask(previousColorMask[0], previousColorMask[1], previousColorMask[2], previousColorMask[3]);
-    glClearColor(previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
-    if (scissorWasEnabled) {
-        glEnable(GL_SCISSOR_TEST);
-    }
+void QueueFramebufferOpacityPass(float opacity)
+{
+    const float clampedOpacity = std::clamp(opacity, 0.0f, 1.0f);
+    const ImU32 multiplier = ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, clampedOpacity));
+    ImDrawList* foreground = ImGui::GetForegroundDrawList();
+    foreground->AddCallback(SetFramebufferOpacityBlendMode, nullptr);
+    foreground->AddRectFilled(ImVec2(0.0f, 0.0f), ImGui::GetIO().DisplaySize, multiplier);
+    foreground->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 
 void ApplyWindowIcon(SDL_Window* window)
@@ -725,18 +724,16 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
             frameIo.MouseDown[3] || frameIo.MouseDown[4];
         const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
 
+        if (nativeWayland && opacityController->useFramebufferAlpha) {
+            QueueFramebufferOpacityPass(opacityController->framebufferAlpha());
+        }
+
         ImGui::Render();
 
         glViewport(0, 0, std::max(1, state.rawWindowWidth), std::max(1, state.rawWindowHeight));
         glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        if (nativeWayland) {
-            // Keep the transparent surface uniformly opaque when SDL can use
-            // wp_alpha_modifier_v1, or apply the requested opacity directly to
-            // the buffer when that optional compositor protocol is unavailable.
-            SetFramebufferAlpha(opacityController->framebufferAlpha());
-        }
         SDL_GL_SwapWindow(window);
 
         handledRedrawGeneration = redrawGeneration;
