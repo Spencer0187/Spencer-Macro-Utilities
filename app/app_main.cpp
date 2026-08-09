@@ -26,7 +26,10 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -137,6 +140,98 @@ constexpr const char kWindowIconWarningId[] = "window_icon_unavailable";
 constexpr const char kNativeDarkTitleBarWarningId[] = "native_dark_titlebar_unavailable";
 constexpr const char kWindowOpacityWarningId[] = "window_opacity_unavailable";
 constexpr const char kWindowAlwaysOnTopWarningId[] = "window_always_on_top_unavailable";
+
+#if defined(__linux__)
+bool IsWaylandSessionEnvironment()
+{
+    const char* waylandDisplay = std::getenv("WAYLAND_DISPLAY");
+    if (waylandDisplay && waylandDisplay[0] != '\0') {
+        return true;
+    }
+
+    const char* sessionType = std::getenv("XDG_SESSION_TYPE");
+    return sessionType && SDL_strcasecmp(sessionType, "wayland") == 0;
+}
+
+void PreferNativeWaylandWhenAvailable()
+{
+    // Preserve SDL_VIDEO_DRIVER/SDL_VIDEODRIVER and any programmatic hint so
+    // users can still explicitly select a backend. Supplying an ordered list
+    // bypasses SDL's automatic fifo-v1 performance heuristic, which otherwise
+    // chooses XWayland on Wayland compositors that do not expose that protocol.
+    const char* configuredDriver = SDL_GetHint(SDL_HINT_VIDEO_DRIVER);
+    if (IsWaylandSessionEnvironment() && (!configuredDriver || configuredDriver[0] == '\0')) {
+        SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "wayland,x11");
+    }
+}
+#endif
+
+bool IsCurrentSdlVideoDriver(const char* expected)
+{
+    const char* currentDriver = SDL_GetCurrentVideoDriver();
+    return currentDriver && std::strcmp(currentDriver, expected) == 0;
+}
+
+struct WindowOpacityController {
+    SDL_Window* window = nullptr;
+    bool nativeWayland = false;
+    bool canUseFramebufferAlpha = false;
+    bool useFramebufferAlpha = false;
+    bool loggedFramebufferFallback = false;
+    float opacity = 1.0f;
+
+    bool apply(float opacityPercent)
+    {
+        opacity = std::clamp(opacityPercent / 100.0f, 0.2f, 1.0f);
+        if (SDL_SetWindowOpacity(window, opacity)) {
+            useFramebufferAlpha = false;
+            return true;
+        }
+
+        if (!nativeWayland || !canUseFramebufferAlpha) {
+            return false;
+        }
+
+        // Core Wayland compositing supports alpha-bearing surface buffers even
+        // when the optional wp_alpha_modifier_v1 protocol is absent. The render
+        // loop supplies uniform framebuffer alpha for that portable fallback.
+        useFramebufferAlpha = true;
+        if (!loggedFramebufferFallback) {
+            const char* error = SDL_GetError();
+            LogInfo(std::string("Wayland compositor-side window opacity is unavailable; ") +
+                "using framebuffer alpha instead" +
+                ((error && error[0] != '\0') ? std::string(": ") + error : std::string(".")));
+            loggedFramebufferFallback = true;
+        }
+        SDL_ClearError();
+        return true;
+    }
+
+    float framebufferAlpha() const
+    {
+        return useFramebufferAlpha ? opacity : 1.0f;
+    }
+};
+
+void SetFramebufferAlpha(float alpha)
+{
+    GLboolean previousColorMask[4] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
+    GLfloat previousClearColor[4] = {};
+    const GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+    glGetBooleanv(GL_COLOR_WRITEMASK, previousColorMask);
+    glGetFloatv(GL_COLOR_CLEAR_VALUE, previousClearColor);
+
+    glDisable(GL_SCISSOR_TEST);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    glClearColor(0.0f, 0.0f, 0.0f, std::clamp(alpha, 0.0f, 1.0f));
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glColorMask(previousColorMask[0], previousColorMask[1], previousColorMask[2], previousColorMask[3]);
+    glClearColor(previousClearColor[0], previousClearColor[1], previousClearColor[2], previousClearColor[3]);
+    if (scissorWasEnabled) {
+        glEnable(GL_SCISSOR_TEST);
+    }
+}
 
 void ApplyWindowIcon(SDL_Window* window)
 {
@@ -352,10 +447,16 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     }
 
     SDL_SetMainReady();
+#if defined(__linux__)
+    PreferNativeWaylandWhenAvailable();
+#endif
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         LogCritical(std::string("Failed SDL initialization: ") + SDL_GetError());
         return 1;
     }
+    const bool nativeWayland = IsCurrentSdlVideoDriver("wayland");
+    LogInfo(std::string("SDL video driver: ") +
+        (SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "unknown"));
     SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
 
 #if defined(__APPLE__)
@@ -371,8 +472,16 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    if (nativeWayland) {
+        SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+    }
 
     SDL_WindowFlags windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
+#if defined(__linux__)
+    if (nativeWayland) {
+        windowFlags |= SDL_WINDOW_TRANSPARENT;
+    }
+#endif
 #if defined(__APPLE__)
     windowFlags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
 #endif
@@ -417,8 +526,15 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     SDL_GL_SetSwapInterval(0);
     UpdateWindowMetrics(window);
 
-    const float opacity = std::clamp(state.windowOpacityPercent / 100.0f, 0.2f, 1.0f);
-    if (!SDL_SetWindowOpacity(window, opacity)) {
+    int framebufferAlphaBits = 0;
+    const bool canUseWaylandFramebufferAlpha = nativeWayland &&
+        SDL_GL_GetAttribute(SDL_GL_ALPHA_SIZE, &framebufferAlphaBits) && framebufferAlphaBits > 0;
+
+    auto opacityController = std::make_shared<WindowOpacityController>();
+    opacityController->window = window;
+    opacityController->nativeWayland = nativeWayland;
+    opacityController->canUseFramebufferAlpha = canUseWaylandFramebufferAlpha;
+    if (!opacityController->apply(state.windowOpacityPercent)) {
         LogWarning("SDL window opacity could not be applied on this platform.",
             kWindowOpacityWarningId, true);
     }
@@ -432,9 +548,8 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     context.setAlwaysOnTop = [window](bool enabled) {
         return SDL_SetWindowAlwaysOnTop(window, enabled);
     };
-    context.setWindowOpacityPercent = [window](float opacityPercent) {
-        const float opacity = std::clamp(opacityPercent / 100.0f, 0.2f, 1.0f);
-        return SDL_SetWindowOpacity(window, opacity);
+    context.setWindowOpacityPercent = [opacityController](float opacityPercent) {
+        return opacityController->apply(opacityPercent);
     };
     context.openExternalUrl = [](const char* url) {
         if (url && url[0] != '\0') {
@@ -616,6 +731,12 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        if (nativeWayland) {
+            // Keep the transparent surface uniformly opaque when SDL can use
+            // wp_alpha_modifier_v1, or apply the requested opacity directly to
+            // the buffer when that optional compositor protocol is unavailable.
+            SetFramebufferAlpha(opacityController->framebufferAlpha());
+        }
         SDL_GL_SwapWindow(window);
 
         handledRedrawGeneration = redrawGeneration;

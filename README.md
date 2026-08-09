@@ -61,6 +61,8 @@ See [the scripting guide](docs/lua_macro_scripting.md) for the script format and
 4. Linux hard-block and fake-lag rules match selected machine-wide traffic rather than a Sober process. Roblox mode combines the static Roblox range with the UDMUX and RCC addresses discovered from Sober's player log. Fake lag refuses to replace custom traffic-control configuration on the active interface.
 5. A safe macOS lag switch needs a Developer ID-signed, Apple-entitled Network Extension. We are not paying for that.
 
+On a Wayland session, SMU prefers SDL's native Wayland backend and falls back to X11/XWayland only if native initialization fails. An explicit `SDL_VIDEO_DRIVER` (or legacy `SDL_VIDEODRIVER`) setting is always preserved. Native Wayland window opacity works both with compositors that support `wp_alpha_modifier_v1` and through an alpha-buffer fallback on compositors that do not.
+
 ## Updates
 
 SMU checks the official GitHub repository over HTTPS and only accepts release assets from that repository.
