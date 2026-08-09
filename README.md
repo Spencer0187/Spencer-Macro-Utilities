@@ -17,7 +17,7 @@ Official packages are available on the [Releases page](https://github.com/Spence
 | --- | --- | --- |
 | Windows 10/11 x64 | `xyz.exe` or `xyz.zip` | Extract the ZIP and run `suspend.exe`. If Windows blocks it, open Properties and select **Unblock**. |
 | macOS 11+ | `xyz-macOS-universal.dmg` or `.zip` | Drag `suspend.app` to Applications, then approve the first launch in **System Settings → Privacy & Security**. |
-| Generic Linux x86_64 | `xyz-Linux-x86_64.zip` | Choose the AppImage or portable tarball inside. Follow `LINUX_SETUP.md` once for input permissions. |
+| Generic Linux x86_64 | `xyz-Linux-x86_64.zip` or `.AppImage` | Choose the AppImage or portable tarball inside. Follow `LINUX_SETUP.md` once for input permissions. |
 | Arch | read `install` | Use any AUR helper to install the `spencers-macro-git` AUR package, eg: `yay -Sy spencers-macro-git` |
 | Debian | `xyz.deb` | Use the `apt` package manager to install it with this **exemplary** command as root: `apt install /path/to/xyz.deb` |
 | Fedora | `xyz.rpm` | Use the `dnf` package manager to install it with this **exemplary** command as root: `dnf install /path/to/xyz.rpm` |
