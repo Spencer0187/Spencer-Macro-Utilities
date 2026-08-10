@@ -213,6 +213,7 @@ struct WindowOpacityController {
     }
 };
 
+#if defined(__linux__)
 void SetFramebufferOpacityBlendMode(const ImDrawList*, const ImDrawCmd*)
 {
     // Wayland compositors consume premultiplied-alpha surface contents. This
@@ -231,6 +232,7 @@ void QueueFramebufferOpacityPass(float opacity)
     foreground->AddRectFilled(ImVec2(0.0f, 0.0f), ImGui::GetIO().DisplaySize, multiplier);
     foreground->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
+#endif
 
 void ApplyWindowIcon(SDL_Window* window)
 {
@@ -724,9 +726,11 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
             frameIo.MouseDown[3] || frameIo.MouseDown[4];
         const bool uiInteractionActive = mouseButtonDown || ImGui::IsAnyItemActive();
 
+#if defined(__linux__)
         if (nativeWayland && opacityController->useFramebufferAlpha) {
             QueueFramebufferOpacityPass(opacityController->framebufferAlpha());
         }
+#endif
 
         ImGui::Render();
 
