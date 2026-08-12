@@ -421,7 +421,10 @@ std::string LinuxAbsolutePointerUnavailableReason()
     if (IsNativeWaylandSession()) {
         const WaylandScreenCast& screenCast = WaylandScreenCast::instance();
         if (!screenCast.isSupported()) {
-            return "absolute screen coordinates are unavailable on native Wayland, and this build does not include PipeWire ScreenCast support for pixel reads.";
+            return "absolute screen coordinates are unavailable on native Wayland, and this build does not include the desktop portal support required for screen reads or pointer control.";
+        }
+        if (screenCast.hasRemoteDesktopControl()) {
+            return "Wayland RemoteDesktop lets moveMouseAbs target the selected monitor, but does not reveal the current global cursor position. Relative operations that need that position, including moveMouse in absolute mode and moveDegrees in absolute mode, remain unavailable.";
         }
         if (!screenCast.isActive()) {
             return "absolute screen coordinates are unavailable on native Wayland. moveMouseAbs cannot use a global cursor position; to use getPixelColor or getPixelRect, open Settings and choose Enable Wayland Screen Capture.";
@@ -1087,11 +1090,24 @@ void EvdevUinputInputBackend::moveMouseRaw(int dx, int dy)
 
 bool EvdevUinputInputBackend::moveMouseAbsolute(int x, int y, std::string* errorMessage)
 {
+    if (IsNativeWaylandSession()) {
+        return WaylandScreenCast::instance().movePointerAbsolute(x, y, errorMessage);
+    }
     return MoveMouseAbsoluteX11(x, y, errorMessage);
+}
+
+bool EvdevUinputInputBackend::prefersDirectAbsolutePositioning() const
+{
+    return IsNativeWaylandSession() && WaylandScreenCast::instance().hasRemoteDesktopControl();
 }
 
 std::optional<CursorPosition> EvdevUinputInputBackend::getCursorPosition() const
 {
+    if (IsNativeWaylandSession()) {
+        // A RemoteDesktop portal can inject a pointer position but deliberately
+        // does not disclose the user's current global cursor location.
+        return std::nullopt;
+    }
     return GetX11CursorPosition();
 }
 

@@ -17,7 +17,7 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Hard-block lag switch | yes | yes | yes | no |
 | Fake lag | yes | yes¹ | yes¹ | no |
 
-On Linux, absolute mouse coordinates rely on X11/XWayland access. Pixel reads use X11/XWayland where available, or on native Wayland a user-approved ScreenCast portal monitor stream. Native Wayland still blocks global cursor-position APIs. The Linux lag-switch backend supports hard blocking and fake lag for the static Roblox IPv4 range plus the UDMUX and RCC addresses discovered from Sober's player log, all traffic, or explicit IPv4 addresses and ports. Fake lag refuses to replace custom traffic-control configuration. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
+On Linux, absolute mouse coordinates use X11/XWayland where available. On native Wayland, `moveMouseAbs()` can use a user-approved RemoteDesktop portal monitor session, while pixel reads use ScreenCast. Native Wayland still blocks global cursor-position APIs, so portal control can place the pointer but cannot report its current location. The Linux lag-switch backend supports hard blocking and fake lag for the static Roblox IPv4 range plus the UDMUX and RCC addresses discovered from Sober's player log, all traffic, or explicit IPv4 addresses and ports. Fake lag refuses to replace custom traffic-control configuration. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
 
 ¹ Linux fake lag requires `tc`/`ip` from `iproute2`, an IFB-capable kernel, and an untouched default `fq_codel` qdisc on the active interface.
 
@@ -809,18 +809,18 @@ Use `setMouseMotionMode("absolute")` when you want desktop-style pointer targeti
 
 - Windows uses normalized absolute `SendInput` coordinates.
 - Linux/X11 uses X11 absolute pointer warping.
-- Native Wayland sessions without usable X11 access cannot provide this global absolute-pointer path.
+- Native Wayland uses a user-approved `org.freedesktop.portal.RemoteDesktop` session for `moveMouseAbs()`. The first use pauses the script for SMU's confirmation and the portal monitor/pointer-control dialog. It targets the selected monitor; it does not expose the current global cursor position.
 - macOS uses CoreGraphics cursor coordinates and requires Accessibility permission for global pointer movement.
 
-When absolute targeting is unavailable on Linux, script errors explain why, for example that the current session lacks usable X11/XWayland cursor-position access.
+On native Wayland, `moveMouse()` in absolute motion mode and `moveDegrees()` in absolute mode remain unavailable because they require the current global cursor position. When absolute targeting is otherwise unavailable on Linux, script errors explain why.
 
 ### Pixel Reads
 
-`getPixelColor()` and `getPixelRect()` read from the active monitor containing the cursor.
+`getPixelColor()` and `getPixelRect()` read from the active monitor containing the cursor on platforms that expose it. On native Wayland, they read from the monitor explicitly selected in the portal.
 
 - Windows reuses a cached monitor frame when possible and refreshes that cache roughly once per monitor refresh interval. Repeated polling is efficient and suitable for high-frequency color checks and moderate real-time scanning.
 - Linux/X11 uses an X11 screen-read path.
-- Native Wayland uses a user-approved `org.freedesktop.portal.ScreenCast` session and a cached PipeWire frame. The first `getPixelColor()` or `getPixelRect()` call opens an SMU confirmation; accepting it opens the portal monitor picker and pauses the script until the first frame arrives. You can also use **Settings → Enable Wayland Screen Capture**. The selected monitor becomes the coordinate space for pixel reads for the lifetime of that capture session; portal selection does not grant global cursor lookup or absolute mouse positioning.
+- Native Wayland uses a user-approved `org.freedesktop.portal.ScreenCast` session and a cached PipeWire frame. The first `getPixelColor()` or `getPixelRect()` call opens an SMU confirmation; accepting it opens the portal monitor picker and pauses the script until the first frame arrives. You can also use **Settings → Enable Wayland Screen Capture**. The selected monitor becomes the coordinate space for pixel reads for the lifetime of that capture session. ScreenCast alone does not grant global cursor lookup or absolute mouse positioning; the separate RemoteDesktop permission is required for `moveMouseAbs()`.
 - If ScreenCast support is missing, unavailable, stopped, or declined, the waiting pixel call fails with a script error and the script follows its normal error/stop path. SMU never falls back to an XWayland root-window read from a native Wayland session.
 - macOS uses Screen Recording permission and samples the same active-monitor coordinate space used by `moveMouseAbs()`.
 

@@ -58,7 +58,7 @@ See [the scripting guide](docs/lua_macro_scripting.md) for the script format and
 
 1. Linux needs one-time access to `/dev/input` and `/dev/uinput`; the app provides the setup flow.
 2. macOS needs Accessibility permission. Screen Recording permission is needed for script pixel reads.
-3. On Wayland, foreground-app detection and absolute pointer positioning remain restricted. The first Lua pixel read opens an in-app confirmation; accepting it opens the desktop portal's monitor picker and pauses the script until its first frame is ready. The selected monitor is the pixel API coordinate space for that session. If the portal is unavailable or the user declines, SMU returns a script error instead of attempting an X11 root-window read.
+3. On Wayland, foreground-app detection remains restricted. The first Lua pixel read opens an in-app confirmation; accepting it opens the desktop portal's monitor picker and pauses the script until its first frame is ready. `moveMouseAbs()` separately asks for RemoteDesktop pointer-control permission and targets that session's selected monitor. The portal never reveals the current global cursor position, so relative operations that require it remain unavailable. If the portal is unavailable or the user declines, SMU returns a script error instead of attempting an X11 root-window read.
 4. Linux hard-block and fake-lag rules match selected machine-wide traffic rather than a Sober process. Roblox mode combines the static Roblox range with the UDMUX and RCC addresses discovered from Sober's player log. Fake lag refuses to replace custom traffic-control configuration on the active interface.
 5. A safe macOS lag switch needs a Developer ID-signed, Apple-entitled Network Extension. We are not paying for that.
 

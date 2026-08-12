@@ -332,26 +332,26 @@ bool MoveMouseAbs(double x, double y, const std::string& mode, bool useAbsoluteM
         return false;
     }
 
-    const auto cursor = backend->getCursorPosition();
-    if (!cursor) {
-        const std::string reason = backend->absolutePointerUnavailableReason();
-        SetError(errorMessage, reason.empty() ? "cursor position is not available on this platform/session" : reason);
-        return false;
-    }
-
     int targetX = 0;
     int targetY = 0;
     if (!ResolveAbsolutePoint(*bounds, x, y, mode, targetX, targetY, errorMessage)) {
         return false;
     }
 
-    if (useAbsoluteMotion) {
+    const bool useDirectPositioning = useAbsoluteMotion || backend->prefersDirectAbsolutePositioning();
+    if (useDirectPositioning) {
         std::string backendError;
         if (!backend->moveMouseAbsolute(targetX, targetY, &backendError)) {
             SetError(errorMessage, backendError.empty() ? backend->absolutePointerUnavailableReason() : backendError);
             return false;
         }
     } else {
+        const auto cursor = backend->getCursorPosition();
+        if (!cursor) {
+            const std::string reason = backend->absolutePointerUnavailableReason();
+            SetError(errorMessage, reason.empty() ? "cursor position is not available on this platform/session" : reason);
+            return false;
+        }
         const long long deltaX = static_cast<long long>(targetX) - static_cast<long long>(cursor->x);
         const long long deltaY = static_cast<long long>(targetY) - static_cast<long long>(cursor->y);
         if (deltaX < static_cast<long long>(std::numeric_limits<int>::min()) ||

@@ -17,6 +17,10 @@
 #if defined(SMU_HAS_WAYLAND_SCREENCAST) && SMU_HAS_WAYLAND_SCREENCAST
 #include <dbus/dbus.h>
 #include <pipewire/pipewire.h>
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+#include <libei.h>
+#include <poll.h>
+#endif
 #include <spa/buffer/buffer.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/raw.h>
@@ -30,6 +34,7 @@ namespace {
 constexpr const char kPortalBusName[] = "org.freedesktop.portal.Desktop";
 constexpr const char kPortalObjectPath[] = "/org/freedesktop/portal/desktop";
 constexpr const char kScreenCastInterface[] = "org.freedesktop.portal.ScreenCast";
+constexpr const char kRemoteDesktopInterface[] = "org.freedesktop.portal.RemoteDesktop";
 constexpr const char kRequestInterface[] = "org.freedesktop.portal.Request";
 constexpr const char kSessionInterface[] = "org.freedesktop.portal.Session";
 
@@ -113,7 +118,7 @@ DBusMessage* CallPortalMethod(DBusConnection* connection, DBusMessage* request, 
     DBusMessage* reply = dbus_connection_send_with_reply_and_block(connection, request, -1, &error);
     dbus_message_unref(request);
     if (!reply) {
-        SetError(errorMessage, "ScreenCast portal request failed: " + DbusErrorMessage(error, "no reply"));
+        SetError(errorMessage, "Desktop portal request failed: " + DbusErrorMessage(error, "no reply"));
         dbus_error_free(&error);
         return nullptr;
     }
@@ -167,7 +172,37 @@ bool GetStringFromDict(DBusMessageIter* dict, const char* wantedKey, std::string
     return false;
 }
 
-bool GetStreamNodeFromDict(DBusMessageIter* dict, std::uint32_t* nodeId)
+bool GetIntPairFromVariant(DBusMessageIter* variant, int* first, int* second)
+{
+    if (!variant || dbus_message_iter_get_arg_type(variant) != DBUS_TYPE_STRUCT) {
+        return false;
+    }
+    DBusMessageIter values;
+    dbus_message_iter_recurse(variant, &values);
+    if (dbus_message_iter_get_arg_type(&values) != DBUS_TYPE_INT32) {
+        return false;
+    }
+    dbus_int32_t rawFirst = 0;
+    dbus_message_iter_get_basic(&values, &rawFirst);
+    if (!dbus_message_iter_next(&values) || dbus_message_iter_get_arg_type(&values) != DBUS_TYPE_INT32) {
+        return false;
+    }
+    dbus_int32_t rawSecond = 0;
+    dbus_message_iter_get_basic(&values, &rawSecond);
+    if (rawFirst <= 0 || rawSecond <= 0) {
+        return false;
+    }
+    if (first) {
+        *first = rawFirst;
+    }
+    if (second) {
+        *second = rawSecond;
+    }
+    return true;
+}
+
+bool GetStreamNodeFromDict(DBusMessageIter* dict, std::uint32_t* nodeId,
+    int* logicalWidth = nullptr, int* logicalHeight = nullptr, std::string* mappingId = nullptr)
 {
     DBusMessageIter entry;
     dbus_message_iter_recurse(dict, &entry);
@@ -195,7 +230,81 @@ bool GetStreamNodeFromDict(DBusMessageIter* dict, std::uint32_t* nodeId)
                     dbus_uint32_t rawNodeId = 0;
                     dbus_message_iter_get_basic(&stream, &rawNodeId);
                     *nodeId = rawNodeId;
+                    if (logicalWidth || logicalHeight) {
+                        if (!dbus_message_iter_next(&stream) ||
+                            dbus_message_iter_get_arg_type(&stream) != DBUS_TYPE_ARRAY) {
+                            return false;
+                        }
+                        DBusMessageIter properties;
+                        dbus_message_iter_recurse(&stream, &properties);
+                        int fallbackWidth = 0;
+                        int fallbackHeight = 0;
+                        DBusMessageIter property;
+                        while (dbus_message_iter_get_arg_type(&properties) == DBUS_TYPE_DICT_ENTRY) {
+                            dbus_message_iter_recurse(&properties, &property);
+                            const char* propertyName = nullptr;
+                            if (dbus_message_iter_get_arg_type(&property) == DBUS_TYPE_STRING) {
+                                dbus_message_iter_get_basic(&property, &propertyName);
+                                if (dbus_message_iter_next(&property) &&
+                                    dbus_message_iter_get_arg_type(&property) == DBUS_TYPE_VARIANT && propertyName) {
+                                    DBusMessageIter propertyValue;
+                                    dbus_message_iter_recurse(&property, &propertyValue);
+                                    if (std::strcmp(propertyName, "logical_size") == 0 ||
+                                        std::strcmp(propertyName, "size") == 0) {
+                                        if (std::strcmp(propertyName, "logical_size") == 0) {
+                                            (void)GetIntPairFromVariant(&propertyValue, logicalWidth, logicalHeight);
+                                        } else {
+                                            (void)GetIntPairFromVariant(&propertyValue, &fallbackWidth, &fallbackHeight);
+                                        }
+                                    } else if (mappingId && std::strcmp(propertyName, "mapping_id") == 0 &&
+                                        dbus_message_iter_get_arg_type(&propertyValue) == DBUS_TYPE_STRING) {
+                                        const char* value = nullptr;
+                                        dbus_message_iter_get_basic(&propertyValue, &value);
+                                        if (value) {
+                                            *mappingId = value;
+                                        }
+                                    }
+                                }
+                            }
+                            dbus_message_iter_next(&properties);
+                        }
+                        if ((logicalWidth && *logicalWidth <= 0) || (logicalHeight && *logicalHeight <= 0)) {
+                            if (logicalWidth) {
+                                *logicalWidth = fallbackWidth;
+                            }
+                            if (logicalHeight) {
+                                *logicalHeight = fallbackHeight;
+                            }
+                        }
+                    }
                     return rawNodeId != 0;
+                }
+            }
+        }
+        dbus_message_iter_next(&entry);
+    }
+    return false;
+}
+
+bool GetUintFromDict(DBusMessageIter* dict, const char* wantedKey, std::uint32_t* value)
+{
+    DBusMessageIter entry;
+    dbus_message_iter_recurse(dict, &entry);
+    while (dbus_message_iter_get_arg_type(&entry) == DBUS_TYPE_DICT_ENTRY) {
+        DBusMessageIter pair;
+        dbus_message_iter_recurse(&entry, &pair);
+        const char* key = nullptr;
+        if (dbus_message_iter_get_arg_type(&pair) == DBUS_TYPE_STRING) {
+            dbus_message_iter_get_basic(&pair, &key);
+            if (dbus_message_iter_next(&pair) && dbus_message_iter_get_arg_type(&pair) == DBUS_TYPE_VARIANT) {
+                DBusMessageIter variant;
+                dbus_message_iter_recurse(&pair, &variant);
+                if (key && std::strcmp(key, wantedKey) == 0 &&
+                    dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_UINT32) {
+                    dbus_uint32_t rawValue = 0;
+                    dbus_message_iter_get_basic(&variant, &rawValue);
+                    *value = rawValue;
+                    return true;
                 }
             }
         }
@@ -210,6 +319,10 @@ bool WaitForPortalResponse(
     const char* expectedStringKey,
     std::string* stringValue,
     std::uint32_t* streamNodeId,
+    int* logicalWidth,
+    int* logicalHeight,
+    std::string* mappingId,
+    std::uint32_t* selectedDevices,
     std::string* errorMessage)
 {
     const std::string matchRule = "type='signal',interface='" + std::string(kRequestInterface) +
@@ -280,7 +393,10 @@ bool WaitForPortalResponse(
         if (expectedStringKey && stringValue) {
             parsed = GetStringFromDict(&iter, expectedStringKey, stringValue);
         } else if (streamNodeId) {
-            parsed = GetStreamNodeFromDict(&iter, streamNodeId);
+            parsed = GetStreamNodeFromDict(&iter, streamNodeId, logicalWidth, logicalHeight, mappingId);
+            if (parsed && selectedDevices) {
+                (void)GetUintFromDict(&iter, "devices", selectedDevices);
+            }
         } else {
             parsed = true;
         }
@@ -299,6 +415,7 @@ bool WaitForPortalResponse(
 
 bool CallSessionMethod(
     DBusConnection* connection,
+    const char* interfaceName,
     const std::string& method,
     const std::string& sessionHandle,
     std::uint32_t sourceTypes,
@@ -306,7 +423,7 @@ bool CallSessionMethod(
     std::string* errorMessage)
 {
     DBusMessage* request = dbus_message_new_method_call(
-        kPortalBusName, kPortalObjectPath, kScreenCastInterface, method.c_str());
+        kPortalBusName, kPortalObjectPath, interfaceName, method.c_str());
     if (!request) {
         SetError(errorMessage, "Could not allocate a ScreenCast portal request.");
         return false;
@@ -321,7 +438,8 @@ bool CallSessionMethod(
         return false;
     }
 
-    // ScreenCast.Start is (osa{sv}): unlike SelectSources it requires a
+    // Both ScreenCast.Start and RemoteDesktop.Start are (osa{sv}): unlike
+    // their Select* calls they require a
     // parent-window identifier between the session object path and options.
     // SMU does not have a stable portal parent handle, so the documented empty
     // string is used and the portal presents its dialog unparented.
@@ -337,9 +455,9 @@ bool CallSessionMethod(
     DBusMessageIter options;
     if (!OpenDict(&args, &options) ||
         !AppendStringOption(&options, "handle_token", MakeToken("smu_request")) ||
-        (method == "SelectSources" &&
-            (!AppendUintOption(&options, "types", sourceTypes) ||
-             !AppendBoolOption(&options, "multiple", false))) ||
+        ((method == "SelectSources" || method == "SelectDevices") &&
+            !AppendUintOption(&options, "types", sourceTypes)) ||
+        (method == "SelectSources" && !AppendBoolOption(&options, "multiple", false)) ||
         !CloseDict(&args, &options)) {
         dbus_message_unref(request);
         SetError(errorMessage, "Could not build ScreenCast portal options.");
@@ -355,10 +473,11 @@ bool CallSessionMethod(
     return ok;
 }
 
-bool CreatePortalSession(DBusConnection* connection, std::string* sessionHandle, std::string* errorMessage)
+bool CreatePortalSession(DBusConnection* connection, const char* interfaceName,
+    std::string* sessionHandle, std::string* errorMessage)
 {
     DBusMessage* request = dbus_message_new_method_call(
-        kPortalBusName, kPortalObjectPath, kScreenCastInterface, "CreateSession");
+        kPortalBusName, kPortalObjectPath, interfaceName, "CreateSession");
     if (!request) {
         SetError(errorMessage, "Could not allocate a ScreenCast portal request.");
         return false;
@@ -382,15 +501,16 @@ bool CreatePortalSession(DBusConnection* connection, std::string* sessionHandle,
     const bool gotHandle = ReadRequestHandle(reply, &requestHandle, errorMessage);
     dbus_message_unref(reply);
     return gotHandle && WaitForPortalResponse(
-        connection, requestHandle, "session_handle", sessionHandle, nullptr, errorMessage);
+        connection, requestHandle, "session_handle", sessionHandle, nullptr, nullptr, nullptr, nullptr, nullptr, errorMessage);
 }
 
-int OpenPipeWireRemote(DBusConnection* connection, const std::string& sessionHandle, std::string* errorMessage)
+int OpenPortalRemote(DBusConnection* connection, const char* interfaceName, const char* methodName,
+    const std::string& sessionHandle, std::string* errorMessage)
 {
     DBusMessage* request = dbus_message_new_method_call(
-        kPortalBusName, kPortalObjectPath, kScreenCastInterface, "OpenPipeWireRemote");
+        kPortalBusName, kPortalObjectPath, interfaceName, methodName);
     if (!request) {
-        SetError(errorMessage, "Could not allocate the ScreenCast PipeWire request.");
+        SetError(errorMessage, "Could not allocate the desktop portal remote-connection request.");
         return -1;
     }
     DBusMessageIter args;
@@ -400,7 +520,7 @@ int OpenPipeWireRemote(DBusConnection* connection, const std::string& sessionHan
     if (dbus_message_iter_append_basic(&args, DBUS_TYPE_OBJECT_PATH, &rawSessionHandle) == FALSE ||
         !OpenDict(&args, &options) || !CloseDict(&args, &options)) {
         dbus_message_unref(request);
-        SetError(errorMessage, "Could not build the ScreenCast PipeWire request.");
+        SetError(errorMessage, "Could not build the desktop portal remote-connection request.");
         return -1;
     }
     DBusMessage* reply = CallPortalMethod(connection, request, errorMessage);
@@ -410,16 +530,39 @@ int OpenPipeWireRemote(DBusConnection* connection, const std::string& sessionHan
     DBusMessageIter iter;
     if (!dbus_message_iter_init(reply, &iter) || dbus_message_iter_get_arg_type(&iter) != DBUS_TYPE_UNIX_FD) {
         dbus_message_unref(reply);
-        SetError(errorMessage, "ScreenCast portal did not provide a PipeWire connection.");
+        SetError(errorMessage, "Desktop portal did not provide the requested remote connection.");
         return -1;
     }
     int fd = -1;
     dbus_message_iter_get_basic(&iter, &fd);
     dbus_message_unref(reply);
     if (fd < 0) {
-        SetError(errorMessage, "ScreenCast portal returned an invalid PipeWire connection.");
+        SetError(errorMessage, "Desktop portal returned an invalid remote connection.");
     }
     return fd;
+}
+
+int OpenPipeWireRemote(DBusConnection* connection, const std::string& sessionHandle, std::string* errorMessage)
+{
+    return OpenPortalRemote(connection, kScreenCastInterface, "OpenPipeWireRemote", sessionHandle, errorMessage);
+}
+
+int OpenEisRemote(DBusConnection* connection, const std::string& sessionHandle, std::string* errorMessage)
+{
+    return OpenPortalRemote(connection, kRemoteDesktopInterface, "ConnectToEIS", sessionHandle, errorMessage);
+}
+
+bool EnsureDbusThreading(std::string* errorMessage)
+{
+    static std::once_flag initialized;
+    static bool available = false;
+    std::call_once(initialized, [] {
+        available = dbus_threads_init_default() != FALSE;
+    });
+    if (!available) {
+        SetError(errorMessage, "Could not initialize D-Bus thread support for the desktop portal.");
+    }
+    return available;
 }
 
 #endif
@@ -427,6 +570,18 @@ int OpenPipeWireRemote(DBusConnection* connection, const std::string& sessionHan
 } // namespace
 
 class WaylandScreenCast::Impl {
+private:
+    enum class ActivationKind {
+        ScreenCast,
+        RemoteDesktop
+    };
+
+    enum class ActivationState {
+        Idle,
+        AwaitingUser,
+        Starting
+    };
+
 public:
     bool supported() const
     {
@@ -441,6 +596,12 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         return active_;
+    }
+
+    bool hasRemoteDesktopControl() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return active_ && remoteDesktopActive_;
     }
 
     std::string status() const
@@ -485,6 +646,9 @@ public:
         return false;
 #else
         stop();
+        if (!EnsureDbusThreading(errorMessage)) {
+            return false;
+        }
         {
             std::lock_guard<std::mutex> lock(mutex_);
             status_ = "Requesting monitor access from the desktop portal...";
@@ -525,15 +689,15 @@ public:
         std::string sessionHandle;
         std::string portalError;
         std::uint32_t nodeId = 0;
-        bool ok = CreatePortalSession(connection, &sessionHandle, &portalError);
+        bool ok = CreatePortalSession(connection, kScreenCastInterface, &sessionHandle, &portalError);
         std::string requestHandle;
         if (ok) {
-            ok = CallSessionMethod(connection, "SelectSources", sessionHandle, 1, &requestHandle, &portalError) &&
-                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, nullptr, &portalError);
+            ok = CallSessionMethod(connection, kScreenCastInterface, "SelectSources", sessionHandle, 1, &requestHandle, &portalError) &&
+                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &portalError);
         }
         if (ok) {
-            ok = CallSessionMethod(connection, "Start", sessionHandle, 0, &requestHandle, &portalError) &&
-                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, &nodeId, &portalError);
+            ok = CallSessionMethod(connection, kScreenCastInterface, "Start", sessionHandle, 0, &requestHandle, &portalError) &&
+                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, &nodeId, nullptr, nullptr, nullptr, nullptr, &portalError);
         }
         const int pipeWireFd = ok ? OpenPipeWireRemote(connection, sessionHandle, &portalError) : -1;
         if (!ok || pipeWireFd < 0 || !startPipeWire(pipeWireFd, nodeId, &portalError)) {
@@ -572,6 +736,149 @@ public:
 #endif
     }
 
+    bool startRemoteDesktop(std::string* errorMessage)
+    {
+#if !defined(SMU_HAS_WAYLAND_SCREENCAST) || !SMU_HAS_WAYLAND_SCREENCAST
+        SetError(errorMessage, "This SMU build was compiled without PipeWire ScreenCast and RemoteDesktop portal support.");
+        return false;
+#else
+        stop();
+        if (!EnsureDbusThreading(errorMessage)) {
+            return false;
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            status_ = "Requesting Wayland absolute pointer and monitor access from the desktop portal...";
+        }
+
+        DBusError dbusError;
+        dbus_error_init(&dbusError);
+        DBusConnection* connection = dbus_bus_get_private(DBUS_BUS_SESSION, &dbusError);
+        if (!connection) {
+            const std::string reason = DbusErrorMessage(dbusError, "session bus is unavailable");
+            dbus_error_free(&dbusError);
+            SetError(errorMessage, "Wayland RemoteDesktop requires the desktop session D-Bus: " + reason);
+            return false;
+        }
+        dbus_error_free(&dbusError);
+        dbus_connection_set_exit_on_disconnect(connection, FALSE);
+
+        DBusError responseMatchError;
+        dbus_error_init(&responseMatchError);
+        dbus_bus_add_match(connection,
+            "type='signal',interface='org.freedesktop.portal.Request',member='Response'",
+            &responseMatchError);
+        dbus_connection_flush(connection);
+        if (dbus_error_is_set(&responseMatchError)) {
+            const std::string reason = DbusErrorMessage(responseMatchError, "D-Bus match registration failed");
+            dbus_error_free(&responseMatchError);
+            dbus_connection_close(connection);
+            dbus_connection_unref(connection);
+            SetError(errorMessage, "Could not subscribe to RemoteDesktop portal responses: " + reason);
+            return false;
+        }
+        dbus_error_free(&responseMatchError);
+
+        std::string sessionHandle;
+        std::string portalError;
+        std::string requestHandle;
+        std::uint32_t nodeId = 0;
+        std::uint32_t selectedDevices = 0;
+        int logicalWidth = 0;
+        int logicalHeight = 0;
+        std::string mappingId;
+        bool ok = CreatePortalSession(connection, kRemoteDesktopInterface, &sessionHandle, &portalError);
+        if (ok) {
+            ok = CallSessionMethod(connection, kRemoteDesktopInterface, "SelectDevices", sessionHandle, 2,
+                    &requestHandle, &portalError) &&
+                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, &portalError);
+        }
+        if (ok) {
+            ok = CallSessionMethod(connection, kScreenCastInterface, "SelectSources", sessionHandle, 1,
+                    &requestHandle, &portalError) &&
+                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, nullptr,
+                    nullptr, nullptr, nullptr, nullptr, &portalError);
+        }
+        if (ok) {
+            ok = CallSessionMethod(connection, kRemoteDesktopInterface, "Start", sessionHandle, 0,
+                    &requestHandle, &portalError) &&
+                WaitForPortalResponse(connection, requestHandle, nullptr, nullptr, &nodeId,
+                    &logicalWidth, &logicalHeight, &mappingId, &selectedDevices, &portalError);
+            if (ok && (selectedDevices & 2U) == 0U) {
+                portalError = "The desktop portal did not grant pointer control.";
+                ok = false;
+            }
+        }
+        const int pipeWireFd = ok ? OpenPipeWireRemote(connection, sessionHandle, &portalError) : -1;
+        if (!ok || pipeWireFd < 0 || !startPipeWire(pipeWireFd, nodeId, &portalError)) {
+            CloseSession(connection, sessionHandle);
+            dbus_connection_close(connection);
+            dbus_connection_unref(connection);
+            SetError(errorMessage, portalError.empty() ? "Could not start Wayland RemoteDesktop." : portalError);
+            std::lock_guard<std::mutex> lock(mutex_);
+            status_ = errorMessage ? *errorMessage : "Wayland RemoteDesktop could not start.";
+            return false;
+        }
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+        if (!mappingId.empty()) {
+            std::string eisError;
+            const int eisFd = OpenEisRemote(connection, sessionHandle, &eisError);
+            if (eisFd >= 0) {
+                if (!startEis(eisFd, mappingId, &eisError)) {
+                    stopEis();
+                    stopPipeWire();
+                    CloseSession(connection, sessionHandle);
+                    dbus_connection_close(connection);
+                    dbus_connection_unref(connection);
+                    SetError(errorMessage, eisError.empty()
+                        ? "Wayland RemoteDesktop could not initialize absolute pointer control."
+                        : eisError);
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    status_ = errorMessage ? *errorMessage : "Wayland RemoteDesktop could not initialize EIS.";
+                    return false;
+                }
+                LogInfo("Wayland RemoteDesktop is using the EIS absolute pointer transport.");
+            } else {
+                LogWarning("Wayland RemoteDesktop EIS is unavailable; using the legacy portal absolute-pointer transport: " + eisError);
+            }
+        } else {
+            LogWarning("Wayland RemoteDesktop stream did not include a mapping_id; using the legacy portal absolute-pointer transport.");
+        }
+#endif
+
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            portalConnection_ = connection;
+            sessionHandle_ = std::move(sessionHandle);
+            remoteDesktopActive_ = true;
+            remoteDesktopStreamNode_ = nodeId;
+            remoteDesktopLogicalWidth_ = logicalWidth;
+            remoteDesktopLogicalHeight_ = logicalHeight;
+            remoteDesktopMappingId_ = std::move(mappingId);
+            active_ = true;
+            status_ = "Wayland RemoteDesktop is active. Pixel reads and moveMouseAbs target the monitor selected in the portal.";
+            const bool receivedFrame = frameCv_.wait_for(lock, std::chrono::seconds(5), [this] {
+                return (frameWidth_ > 0 && frameHeight_ > 0 && !frame_.empty()) || !active_;
+            });
+            if (!receivedFrame || !active_ || frame_.empty()) {
+                const std::string failure = !active_ ? status_
+                    : "Wayland RemoteDesktop did not deliver a frame within 5 seconds.";
+                lock.unlock();
+                stop();
+                SetError(errorMessage, failure);
+                return false;
+            }
+            if (remoteDesktopLogicalWidth_ <= 0 || remoteDesktopLogicalHeight_ <= 0) {
+                remoteDesktopLogicalWidth_ = frameWidth_;
+                remoteDesktopLogicalHeight_ = frameHeight_;
+            }
+        }
+        LogInfo("Wayland RemoteDesktop session started with pointer control.");
+        return true;
+#endif
+    }
+
     void stop()
     {
 #if defined(SMU_HAS_WAYLAND_SCREENCAST) && SMU_HAS_WAYLAND_SCREENCAST
@@ -583,12 +890,20 @@ public:
             portalConnection_ = nullptr;
             sessionHandle = std::move(sessionHandle_);
             active_ = false;
+            remoteDesktopActive_ = false;
+            remoteDesktopStreamNode_ = 0;
+            remoteDesktopLogicalWidth_ = 0;
+            remoteDesktopLogicalHeight_ = 0;
+            remoteDesktopMappingId_.clear();
             frame_.clear();
             frameWidth_ = 0;
             frameHeight_ = 0;
             status_ = "Wayland ScreenCast is inactive.";
         }
         frameCv_.notify_all();
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+        stopEis();
+#endif
         stopPipeWire();
         if (connection) {
             CloseSession(connection, sessionHandle);
@@ -598,28 +913,143 @@ public:
 #endif
     }
 
+    bool movePointerAbsolute(int x, int y, std::string* errorMessage)
+    {
+#if !defined(SMU_HAS_WAYLAND_SCREENCAST) || !SMU_HAS_WAYLAND_SCREENCAST
+        (void)x;
+        (void)y;
+        SetError(errorMessage, "This SMU build was compiled without Wayland RemoteDesktop portal support.");
+        return false;
+#else
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!active_ || !remoteDesktopActive_ || !portalConnection_ || sessionHandle_.empty() ||
+            remoteDesktopStreamNode_ == 0 || frameWidth_ <= 0 || frameHeight_ <= 0) {
+            SetError(errorMessage,
+                "absolute mouse positioning on Wayland requires enabling Wayland Absolute Mouse Control and selecting a monitor.");
+            return false;
+        }
+        if (x < 0 || y < 0 || x >= frameWidth_ || y >= frameHeight_) {
+            SetError(errorMessage, "requested pointer position is outside the selected Wayland monitor.");
+            return false;
+        }
+
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+        if (eis_) {
+            return movePointerUsingEis(x, y, errorMessage);
+        }
+#endif
+
+        const int logicalWidth = remoteDesktopLogicalWidth_ > 0 ? remoteDesktopLogicalWidth_ : frameWidth_;
+        const int logicalHeight = remoteDesktopLogicalHeight_ > 0 ? remoteDesktopLogicalHeight_ : frameHeight_;
+        const double logicalX = frameWidth_ > 1
+            ? static_cast<double>(x) * static_cast<double>(logicalWidth - 1) / static_cast<double>(frameWidth_ - 1)
+            : 0.0;
+        const double logicalY = frameHeight_ > 1
+            ? static_cast<double>(y) * static_cast<double>(logicalHeight - 1) / static_cast<double>(frameHeight_ - 1)
+            : 0.0;
+
+        DBusMessage* request = dbus_message_new_method_call(
+            kPortalBusName, kPortalObjectPath, kRemoteDesktopInterface, "NotifyPointerMotionAbsolute");
+        if (!request) {
+            SetError(errorMessage, "Could not allocate a RemoteDesktop pointer-motion request.");
+            return false;
+        }
+        DBusMessageIter args;
+        DBusMessageIter options;
+        dbus_message_iter_init_append(request, &args);
+        const char* sessionHandle = sessionHandle_.c_str();
+        dbus_uint32_t streamNode = remoteDesktopStreamNode_;
+        double rawX = logicalX;
+        double rawY = logicalY;
+        if (dbus_message_iter_append_basic(&args, DBUS_TYPE_OBJECT_PATH, &sessionHandle) == FALSE ||
+            !OpenDict(&args, &options) || !CloseDict(&args, &options) ||
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &streamNode) == FALSE ||
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_DOUBLE, &rawX) == FALSE ||
+            dbus_message_iter_append_basic(&args, DBUS_TYPE_DOUBLE, &rawY) == FALSE) {
+            dbus_message_unref(request);
+            SetError(errorMessage, "Could not build a RemoteDesktop absolute pointer-motion request.");
+            return false;
+        }
+        DBusMessage* reply = CallPortalMethod(portalConnection_, request, errorMessage);
+        if (!reply) {
+            return false;
+        }
+        dbus_message_unref(reply);
+        return true;
+#endif
+    }
+
     bool requestActivationForScript(const std::function<bool()>& isCancelled, std::string* errorMessage)
     {
-        if (active()) {
+        return requestActivation(ActivationKind::ScreenCast, isCancelled, errorMessage);
+    }
+
+    bool hasPendingActivationRequest() const
+    {
+        std::lock_guard<std::mutex> lock(activationMutex_);
+        return activationState_ == ActivationState::AwaitingUser && activationKind_ == ActivationKind::ScreenCast;
+    }
+
+    void approveActivationRequest()
+    {
+        approveActivation(ActivationKind::ScreenCast);
+    }
+
+    void declineActivationRequest()
+    {
+        declineActivation(ActivationKind::ScreenCast);
+    }
+
+    bool requestRemoteDesktopActivationForScript(const std::function<bool()>& isCancelled, std::string* errorMessage)
+    {
+        return requestActivation(ActivationKind::RemoteDesktop, isCancelled, errorMessage);
+    }
+
+    bool hasPendingRemoteDesktopActivationRequest() const
+    {
+        std::lock_guard<std::mutex> lock(activationMutex_);
+        return activationState_ == ActivationState::AwaitingUser && activationKind_ == ActivationKind::RemoteDesktop;
+    }
+
+    void approveRemoteDesktopActivationRequest()
+    {
+        approveActivation(ActivationKind::RemoteDesktop);
+    }
+
+    void declineRemoteDesktopActivationRequest()
+    {
+        declineActivation(ActivationKind::RemoteDesktop);
+    }
+
+private:
+    bool requestActivation(ActivationKind kind, const std::function<bool()>& isCancelled, std::string* errorMessage)
+    {
+        const bool alreadyActive = kind == ActivationKind::RemoteDesktop ? hasRemoteDesktopControl() : active();
+        if (alreadyActive) {
             return true;
         }
         if (!supported()) {
-            SetError(errorMessage, "This SMU build was compiled without PipeWire ScreenCast support.");
+            SetError(errorMessage, "This SMU build was compiled without PipeWire desktop portal support.");
             return false;
         }
 
         std::unique_lock<std::mutex> lock(activationMutex_);
-        if (active()) {
+        const bool nowActive = kind == ActivationKind::RemoteDesktop ? hasRemoteDesktopControl() : active();
+        if (nowActive) {
             return true;
         }
         if (activationState_ == ActivationState::Idle) {
             activationState_ = ActivationState::AwaitingUser;
+            activationKind_ = kind;
             ++activationGeneration_;
+        } else if (activationKind_ != kind) {
+            SetError(errorMessage, "another Wayland portal permission request is already awaiting a decision");
+            return false;
         }
         const unsigned long long generation = activationGeneration_;
         while (activationCompletedGeneration_ < generation) {
             if (isCancelled && isCancelled()) {
-                SetError(errorMessage, "script was stopped while waiting for Wayland screen-capture permission");
+                SetError(errorMessage, "script was stopped while waiting for Wayland portal permission");
                 return false;
             }
             activationCv_.wait_for(lock, std::chrono::milliseconds(100));
@@ -627,24 +1057,16 @@ public:
         if (activationSucceeded_) {
             return true;
         }
-        SetError(errorMessage, activationError_.empty()
-                ? "Wayland screen capture was declined."
-                : activationError_);
+        SetError(errorMessage, activationError_.empty() ? "Wayland portal permission was declined." : activationError_);
         return false;
     }
 
-    bool hasPendingActivationRequest() const
-    {
-        std::lock_guard<std::mutex> lock(activationMutex_);
-        return activationState_ == ActivationState::AwaitingUser;
-    }
-
-    void approveActivationRequest()
+    void approveActivation(ActivationKind kind)
     {
         unsigned long long generation = 0;
         {
             std::lock_guard<std::mutex> lock(activationMutex_);
-            if (activationState_ != ActivationState::AwaitingUser) {
+            if (activationState_ != ActivationState::AwaitingUser || activationKind_ != kind) {
                 return;
             }
             activationState_ = ActivationState::Starting;
@@ -652,37 +1074,173 @@ public:
         }
 
         std::string error;
-        const bool success = start(&error);
-
+        const bool success = kind == ActivationKind::RemoteDesktop
+            ? startRemoteDesktop(&error)
+            : start(&error);
         {
             std::lock_guard<std::mutex> lock(activationMutex_);
             activationState_ = ActivationState::Idle;
             activationCompletedGeneration_ = generation;
             activationSucceeded_ = success;
             activationError_ = success ? std::string() : (error.empty()
-                ? "Wayland screen capture could not be started."
+                ? "Wayland portal session could not be started."
                 : error);
         }
         activationCv_.notify_all();
     }
 
-    void declineActivationRequest()
+    void declineActivation(ActivationKind kind)
     {
         {
             std::lock_guard<std::mutex> lock(activationMutex_);
-            if (activationState_ != ActivationState::AwaitingUser) {
+            if (activationState_ != ActivationState::AwaitingUser || activationKind_ != kind) {
                 return;
             }
             activationState_ = ActivationState::Idle;
             activationCompletedGeneration_ = activationGeneration_;
             activationSucceeded_ = false;
-            activationError_ = "Wayland screen capture was declined. getPixelColor and getPixelRect require selecting a monitor.";
+            activationError_ = kind == ActivationKind::RemoteDesktop
+                ? "Wayland absolute mouse control was declined. moveMouseAbs requires selecting a monitor and allowing pointer control."
+                : "Wayland screen capture was declined. getPixelColor and getPixelRect require selecting a monitor.";
         }
         activationCv_.notify_all();
     }
 
 #if defined(SMU_HAS_WAYLAND_SCREENCAST) && SMU_HAS_WAYLAND_SCREENCAST
 private:
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+    bool startEis(int fd, const std::string& mappingId, std::string* errorMessage)
+    {
+        eis_ = ei_new_sender(nullptr);
+        if (!eis_ || ei_setup_backend_fd(eis_, fd) != 0) {
+            if (eis_) {
+                ei_unref(eis_);
+                eis_ = nullptr;
+            }
+            SetError(errorMessage, "Could not connect libei to the RemoteDesktop portal.");
+            return false;
+        }
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (std::chrono::steady_clock::now() < deadline) {
+            struct pollfd pollFd { ei_get_fd(eis_), POLLIN, 0 };
+            const int result = poll(&pollFd, 1, 250);
+            if (result < 0) {
+                SetError(errorMessage, "Could not wait for the Wayland EIS pointer device.");
+                return false;
+            }
+            if (result == 0) {
+                continue;
+            }
+            ei_dispatch(eis_);
+            processEisEvents(mappingId);
+            if (eisPointer_ && eisPointerReady_) {
+                return true;
+            }
+        }
+        SetError(errorMessage, "The RemoteDesktop portal did not provide an absolute pointer device for the selected monitor.");
+        return false;
+    }
+
+    void processEisEvents(const std::string& mappingId)
+    {
+        while (ei_event* event = ei_get_event(eis_)) {
+            const ei_event_type type = ei_event_get_type(event);
+            if (type == EI_EVENT_SEAT_ADDED) {
+                if (ei_seat* seat = ei_event_get_seat(event)) {
+                    ei_seat_bind_capabilities(seat, EI_DEVICE_CAP_POINTER_ABSOLUTE, nullptr);
+                }
+            } else if (type == EI_EVENT_DEVICE_ADDED) {
+                ei_device* device = ei_event_get_device(event);
+                if (device && ei_device_has_capability(device, EI_DEVICE_CAP_POINTER_ABSOLUTE)) {
+                    for (std::size_t index = 0; ei_region* region = ei_device_get_region(device, index); ++index) {
+                        const char* regionMappingId = ei_region_get_mapping_id(region);
+                        if (regionMappingId && mappingId == regionMappingId) {
+                            if (eisPointer_) {
+                                ei_device_unref(eisPointer_);
+                            }
+                            eisPointer_ = ei_device_ref(device);
+                            eisRegionX_ = ei_region_get_x(region);
+                            eisRegionY_ = ei_region_get_y(region);
+                            eisRegionWidth_ = ei_region_get_width(region);
+                            eisRegionHeight_ = ei_region_get_height(region);
+                            eisPointerReady_ = false;
+                            break;
+                        }
+                    }
+                }
+            } else if (type == EI_EVENT_DEVICE_RESUMED &&
+                ei_event_get_device(event) == eisPointer_) {
+                ei_device_start_emulating(eisPointer_, ++eisSequence_);
+                eisPointerReady_ = true;
+            } else if (type == EI_EVENT_DEVICE_PAUSED &&
+                ei_event_get_device(event) == eisPointer_) {
+                eisPointerReady_ = false;
+            } else if (type == EI_EVENT_DEVICE_REMOVED &&
+                ei_event_get_device(event) == eisPointer_) {
+                ei_device_unref(eisPointer_);
+                eisPointer_ = nullptr;
+                eisPointerReady_ = false;
+            } else if (type == EI_EVENT_DISCONNECT) {
+                if (eisPointer_) {
+                    ei_device_unref(eisPointer_);
+                    eisPointer_ = nullptr;
+                }
+                eisPointerReady_ = false;
+            }
+            ei_event_unref(event);
+        }
+    }
+
+    bool movePointerUsingEis(int x, int y, std::string* errorMessage)
+    {
+        if (!eis_ || !eisPointer_ || !eisPointerReady_ || eisRegionWidth_ == 0 || eisRegionHeight_ == 0) {
+            SetError(errorMessage, "Wayland absolute mouse control was disconnected by the desktop portal.");
+            return false;
+        }
+        struct pollfd pollFd { ei_get_fd(eis_), POLLIN, 0 };
+        if (poll(&pollFd, 1, 0) > 0) {
+            ei_dispatch(eis_);
+            processEisEvents(remoteDesktopMappingId_);
+        }
+        if (!eisPointer_ || !eisPointerReady_) {
+            SetError(errorMessage, "Wayland absolute mouse control is paused by the desktop portal.");
+            return false;
+        }
+        const double normalizedX = (static_cast<double>(x) + 0.5) / static_cast<double>(frameWidth_);
+        const double normalizedY = (static_cast<double>(y) + 0.5) / static_cast<double>(frameHeight_);
+        const double maxX = static_cast<double>(eisRegionX_ + eisRegionWidth_) - 0.001;
+        const double maxY = static_cast<double>(eisRegionY_ + eisRegionHeight_) - 0.001;
+        const double mappedX = std::clamp(static_cast<double>(eisRegionX_) + normalizedX * eisRegionWidth_,
+            static_cast<double>(eisRegionX_), maxX);
+        const double mappedY = std::clamp(static_cast<double>(eisRegionY_) + normalizedY * eisRegionHeight_,
+            static_cast<double>(eisRegionY_), maxY);
+        ei_device_pointer_motion_absolute(eisPointer_, mappedX, mappedY);
+        ei_device_frame(eisPointer_, ei_now(eis_));
+        return true;
+    }
+
+    void stopEis()
+    {
+        if (eisPointer_) {
+            if (eisPointerReady_) {
+                ei_device_stop_emulating(eisPointer_);
+            }
+            ei_device_unref(eisPointer_);
+            eisPointer_ = nullptr;
+        }
+        eisPointerReady_ = false;
+        eisRegionX_ = 0;
+        eisRegionY_ = 0;
+        eisRegionWidth_ = 0;
+        eisRegionHeight_ = 0;
+        if (eis_) {
+            ei_unref(eis_);
+            eis_ = nullptr;
+        }
+    }
+#endif
+
     static void OnStreamStateChanged(void* data, enum pw_stream_state, enum pw_stream_state state, const char* error)
     {
         auto* self = static_cast<Impl*>(data);
@@ -881,6 +1439,7 @@ private:
     mutable std::mutex mutex_;
     std::condition_variable frameCv_;
     bool active_ = false;
+    bool remoteDesktopActive_ = false;
     std::string status_ = "Wayland ScreenCast is inactive.";
     std::vector<std::uint8_t> frame_;
     int frameWidth_ = 0;
@@ -890,6 +1449,20 @@ private:
     spa_video_format videoFormat_ = SPA_VIDEO_FORMAT_UNKNOWN;
     DBusConnection* portalConnection_ = nullptr;
     std::string sessionHandle_;
+    std::uint32_t remoteDesktopStreamNode_ = 0;
+    int remoteDesktopLogicalWidth_ = 0;
+    int remoteDesktopLogicalHeight_ = 0;
+    std::string remoteDesktopMappingId_;
+#if defined(SMU_HAS_LIBEI) && SMU_HAS_LIBEI
+    ei* eis_ = nullptr;
+    ei_device* eisPointer_ = nullptr;
+    bool eisPointerReady_ = false;
+    std::uint32_t eisSequence_ = 0;
+    std::uint32_t eisRegionX_ = 0;
+    std::uint32_t eisRegionY_ = 0;
+    std::uint32_t eisRegionWidth_ = 0;
+    std::uint32_t eisRegionHeight_ = 0;
+#endif
     pw_thread_loop* loop_ = nullptr;
     pw_context* context_ = nullptr;
     pw_core* core_ = nullptr;
@@ -899,22 +1472,17 @@ private:
 private:
     mutable std::mutex mutex_;
     bool active_ = false;
+    bool remoteDesktopActive_ = false;
     std::string status_ = "Wayland ScreenCast is unavailable in this build.";
     std::vector<std::uint8_t> frame_;
     int frameWidth_ = 0;
     int frameHeight_ = 0;
 #endif
 
-private:
-    enum class ActivationState {
-        Idle,
-        AwaitingUser,
-        Starting
-    };
-
     mutable std::mutex activationMutex_;
     std::condition_variable activationCv_;
     ActivationState activationState_ = ActivationState::Idle;
+    ActivationKind activationKind_ = ActivationKind::ScreenCast;
     unsigned long long activationGeneration_ = 0;
     unsigned long long activationCompletedGeneration_ = 0;
     bool activationSucceeded_ = false;
@@ -948,6 +1516,11 @@ bool WaylandScreenCast::isActive() const
     return impl_->active();
 }
 
+bool WaylandScreenCast::hasRemoteDesktopControl() const
+{
+    return impl_->hasRemoteDesktopControl();
+}
+
 std::string WaylandScreenCast::status() const
 {
     return impl_->status();
@@ -959,6 +1532,14 @@ bool WaylandScreenCast::start(std::string* errorMessage)
         errorMessage->clear();
     }
     return impl_->start(errorMessage);
+}
+
+bool WaylandScreenCast::startRemoteDesktop(std::string* errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return impl_->startRemoteDesktop(errorMessage);
 }
 
 void WaylandScreenCast::stop()
@@ -987,6 +1568,38 @@ void WaylandScreenCast::approveActivationRequest()
 void WaylandScreenCast::declineActivationRequest()
 {
     impl_->declineActivationRequest();
+}
+
+bool WaylandScreenCast::requestRemoteDesktopActivationForScript(
+    const std::function<bool()>& isCancelled, std::string* errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return impl_->requestRemoteDesktopActivationForScript(isCancelled, errorMessage);
+}
+
+bool WaylandScreenCast::hasPendingRemoteDesktopActivationRequest() const
+{
+    return impl_->hasPendingRemoteDesktopActivationRequest();
+}
+
+void WaylandScreenCast::approveRemoteDesktopActivationRequest()
+{
+    impl_->approveRemoteDesktopActivationRequest();
+}
+
+void WaylandScreenCast::declineRemoteDesktopActivationRequest()
+{
+    impl_->declineRemoteDesktopActivationRequest();
+}
+
+bool WaylandScreenCast::movePointerAbsolute(int x, int y, std::string* errorMessage)
+{
+    if (errorMessage) {
+        errorMessage->clear();
+    }
+    return impl_->movePointerAbsolute(x, y, errorMessage);
 }
 
 std::optional<ScreenBounds> WaylandScreenCast::selectedMonitorBounds() const

@@ -44,6 +44,11 @@ public:
         (void)y;
         return false;
     }
+
+    // Most backends implement moveMouseAbs() by reading the current cursor and
+    // emitting a relative delta. Portal-based Wayland absolute control instead
+    // accepts the final coordinate directly, without exposing cursor position.
+    virtual bool prefersDirectAbsolutePositioning() const { return false; }
     virtual void mouseWheel(int delta) = 0;
 
     virtual std::optional<CursorPosition> getCursorPosition() const

@@ -300,6 +300,9 @@ void RefreshWaylandScreenCaptureContext(smu::app::AppContext& context)
     context.linuxWaylandScreenCaptureActive = screenCast.isActive();
     context.linuxWaylandScreenCapturePromptPending = screenCast.hasPendingActivationRequest();
     context.linuxWaylandScreenCaptureStatus = screenCast.status();
+    context.linuxWaylandRemoteDesktopActive = screenCast.hasRemoteDesktopControl();
+    context.linuxWaylandRemoteDesktopPromptPending = screenCast.hasPendingRemoteDesktopActivationRequest();
+    context.linuxWaylandRemoteDesktopStatus = screenCast.status();
 }
 
 } // namespace
@@ -352,6 +355,24 @@ int main(int argc, char** argv)
     };
     context.declineLinuxWaylandScreenCapturePrompt = [&context]() {
         smu::platform::linux::WaylandScreenCast::instance().declineActivationRequest();
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.startLinuxWaylandRemoteDesktop = [&context]() {
+        std::string error;
+        if (!smu::platform::linux::WaylandScreenCast::instance().startRemoteDesktop(&error)) {
+            context.linuxWaylandRemoteDesktopStatus = error.empty()
+                ? "Could not start Wayland RemoteDesktop."
+                : error;
+            LogWarning(context.linuxWaylandRemoteDesktopStatus);
+        }
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.approveLinuxWaylandRemoteDesktopPrompt = [&context]() {
+        smu::platform::linux::WaylandScreenCast::instance().approveRemoteDesktopActivationRequest();
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.declineLinuxWaylandRemoteDesktopPrompt = [&context]() {
+        smu::platform::linux::WaylandScreenCast::instance().declineRemoteDesktopActivationRequest();
         RefreshWaylandScreenCaptureContext(context);
     };
 

@@ -18,6 +18,12 @@ On a native Wayland desktop, Lua `getPixelColor()` and `getPixelRect()` use the 
 
 The sharing permission is explicit and lasts only for the running SMU process. Stop capture from the same Settings panel at any time. While capture is active, the selected monitor becomes the coordinate space for pixel API calls: `(0, 0)` is its top-left and the monitor's captured pixel size is used by `pixels`, `percent`, and scaled coordinate modes. This does not enable global cursor lookup or `moveMouseAbs()` on Wayland.
 
+## Wayland Absolute Mouse Control
+
+Native Wayland can use `org.freedesktop.portal.RemoteDesktop` for user-approved absolute pointer positioning. Calling Lua `moveMouseAbs()` opens an SMU confirmation the first time it is needed; accepting it asks the desktop portal for **pointer control** and one monitor. SMU then sends the requested position through the portal, using the selected monitor as the coordinate space. You can also enable this manually from **Settings → Enable Wayland Absolute Mouse Control**.
+
+RemoteDesktop replaces a screen-capture-only session with a combined pointer-control and ScreenCast session, so a new monitor selection may be required. The portal allows SMU to place the pointer but does **not** reveal the current global cursor location. Therefore `moveMouseAbs()` works, while `moveMouse()` in absolute motion mode and `moveDegrees()` in absolute mode still cannot be derived from the current pointer position on native Wayland.
+
 The portal implementation and PipeWire must be installed and running in the desktop session. KDE Plasma/KWin, GNOME, and other portal-enabled Wayland desktops normally provide them. If the portal is missing, disabled, unsupported, or permission is declined, the waiting pixel call receives a descriptive Lua error and the script stops through its normal error path. SMU does not fall back to `XGetImage` through XWayland.
 
 The included RPM uses Fedora/RHEL-family dependency names. On openSUSE, use the AppImage or portable archive unless you have independently validated and adapted the RPM dependencies.
