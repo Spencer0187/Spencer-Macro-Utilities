@@ -78,7 +78,9 @@ jobs:
   linux:
     name: Build Linux bundle
     needs: prepare
-    runs-on: ubuntu-22.04
+    # libei-dev, required for the Wayland RemoteDesktop EIS transport, is
+    # available in Ubuntu 24.04 but not in the former 22.04 release runner.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
