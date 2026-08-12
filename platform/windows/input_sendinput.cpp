@@ -12,12 +12,14 @@
 #include <atomic>
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -387,6 +389,126 @@ bool IsKeyPressedNative(WORD vkKey)
 bool IsMouseButtonVirtualKey(WORD vk)
 {
     return vk >= VK_LBUTTON && vk <= VK_XBUTTON2;
+}
+
+std::optional<std::wstring> Utf8ToWide(std::string_view text)
+{
+    if (text.empty()) {
+        return std::wstring{};
+    }
+    if (text.size() > static_cast<std::size_t>(INT_MAX)) {
+        return std::nullopt;
+    }
+
+    const int sourceLength = static_cast<int>(text.size());
+    const int wideLength = MultiByteToWideChar(
+        CP_UTF8,
+        MB_ERR_INVALID_CHARS,
+        text.data(),
+        sourceLength,
+        nullptr,
+        0);
+    if (wideLength <= 0) {
+        return std::nullopt;
+    }
+
+    std::wstring result(static_cast<std::size_t>(wideLength), L'\0');
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), sourceLength,
+                            result.data(), wideLength) != wideLength) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+bool TypeUnicodeTextNative(std::string_view text, int delayMs)
+{
+    const auto wideText = Utf8ToWide(text);
+    if (!wideText) {
+        return false;
+    }
+
+    const auto safeDelay = std::chrono::milliseconds(std::max(0, delayMs));
+    for (wchar_t character : *wideText) {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = 0;
+        input.ki.wScan = static_cast<WORD>(character);
+        input.ki.dwFlags = KEYEVENTF_UNICODE;
+        TagInjectedInput(input);
+        DispatchTaggedInputs(&input, 1);
+
+        input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+        TagInjectedInput(input);
+        DispatchTaggedInputs(&input, 1);
+
+        std::this_thread::sleep_for(safeDelay);
+    }
+    return true;
+}
+
+HKL ForegroundKeyboardLayout()
+{
+    const HWND foreground = GetForegroundWindow();
+    if (foreground) {
+        const DWORD threadId = GetWindowThreadProcessId(foreground, nullptr);
+        if (threadId != 0) {
+            if (const HKL layout = GetKeyboardLayout(threadId)) {
+                return layout;
+            }
+        }
+    }
+    return GetKeyboardLayout(0);
+}
+
+bool PressCharacterNative(char character, int delayMs)
+{
+    const wchar_t wideCharacter = static_cast<unsigned char>(character);
+    const SHORT encoded = VkKeyScanExW(wideCharacter, ForegroundKeyboardLayout());
+    if (encoded == -1) {
+        return false;
+    }
+
+    const BYTE virtualKey = LOBYTE(encoded);
+    const BYTE modifiers = HIBYTE(encoded);
+    if (virtualKey == 0 || (modifiers & 0xF8) != 0) {
+        return false;
+    }
+
+    std::vector<INPUT> keyDowns;
+    keyDowns.reserve(4);
+    auto pushKeyDown = [&keyDowns](WORD key) {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = key;
+        TagInjectedInput(input);
+        keyDowns.push_back(input);
+    };
+
+    if (modifiers & 0x04) pushKeyDown(VK_MENU);
+    if (modifiers & 0x02) pushKeyDown(VK_CONTROL);
+    if (modifiers & 0x01) pushKeyDown(VK_SHIFT);
+    pushKeyDown(virtualKey);
+    DispatchTaggedInputs(keyDowns.data(), keyDowns.size());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, delayMs)));
+
+    std::vector<INPUT> keyUps;
+    keyUps.reserve(keyDowns.size());
+    auto pushKeyUp = [&keyUps](WORD key) {
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = key;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        TagInjectedInput(input);
+        keyUps.push_back(input);
+    };
+
+    pushKeyUp(virtualKey);
+    if (modifiers & 0x01) pushKeyUp(VK_SHIFT);
+    if (modifiers & 0x02) pushKeyUp(VK_CONTROL);
+    if (modifiers & 0x04) pushKeyUp(VK_MENU);
+    DispatchTaggedInputs(keyUps.data(), keyUps.size());
+    return true;
 }
 
 bool IsExtendedVirtualKey(WORD vk)
@@ -1120,6 +1242,16 @@ public:
 };
 
 } // namespace
+
+bool TypeUnicodeText(std::string_view text, int delayMs)
+{
+    return TypeUnicodeTextNative(text, delayMs);
+}
+
+bool PressCharacter(char character, int delayMs)
+{
+    return PressCharacterNative(character, delayMs);
+}
 
 std::shared_ptr<smu::platform::InputBackend> CreateWindowsInputBackend()
 {
