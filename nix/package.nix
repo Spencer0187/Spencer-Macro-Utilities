@@ -8,6 +8,7 @@
   go,
   alsa-lib,
   dbus,
+  libei,
   libdecor,
   libGL,
   libpulseaudio,
@@ -42,6 +43,7 @@ let
   runtimeLibraries = [
     alsa-lib
     dbus
+    libei
     libdecor
     libGL
     libpulseaudio

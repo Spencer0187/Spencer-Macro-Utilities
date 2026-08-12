@@ -124,6 +124,7 @@ jobs:
             libxtst-dev \
             libdecor-0-dev \
             libdbus-1-dev \
+            libei-dev \
             libpipewire-0.3-dev \
             libwayland-dev \
             ninja-build \
@@ -168,8 +169,11 @@ jobs:
         run: |
           grep -qx 'SMU_WAYLAND_SCREENCAST_ENABLED:INTERNAL=ON' \
             build/linux-release/CMakeCache.txt
+          grep -qx 'SMU_WAYLAND_EIS_ENABLED:INTERNAL=ON' \
+            build/linux-release/CMakeCache.txt
           ldd build/linux-release/suspend | grep -q 'libpipewire-0.3.so.0'
           ldd build/linux-release/suspend | grep -q 'libdbus-1.so.3'
+          ldd build/linux-release/suspend | grep -q 'libei.so.1'
 
       - name: Test Linux updater
         run: |

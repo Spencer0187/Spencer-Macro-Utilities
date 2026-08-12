@@ -22,6 +22,7 @@ overrides:
       - libxinerama1
       - libpipewire-0.3-0
       - libdbus-1-3
+      - libei1
       - xdg-desktop-portal
       - libdecor-0-0
       - libwayland-client0
@@ -40,6 +41,7 @@ overrides:
       - libXinerama
       - pipewire-libs
       - dbus-libs
+      - libei
       - xdg-desktop-portal
       - libdecor
       - libwayland-client

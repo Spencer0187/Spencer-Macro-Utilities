@@ -78,6 +78,27 @@ bool EnsureWaylandScreenCaptureForPixelScript(ScriptInstance& instance, std::str
 #endif
 }
 
+bool EnsureWaylandRemoteDesktopForAbsoluteMouseScript(ScriptInstance& instance, std::string* errorMessage)
+{
+#if defined(__linux__)
+    if (smu::platform::linux::DetectDisplayServer() != smu::platform::linux::DisplayServer::Wayland) {
+        return true;
+    }
+
+    smu::platform::linux::WaylandScreenCast& portal = smu::platform::linux::WaylandScreenCast::instance();
+    if (portal.hasRemoteDesktopControl()) {
+        return true;
+    }
+    return portal.requestRemoteDesktopActivationForScript([&instance] {
+        return instance.isStopRequested();
+    }, errorMessage);
+#else
+    (void)instance;
+    (void)errorMessage;
+    return true;
+#endif
+}
+
 // Allow effectively infinite sleeps; the scheduler clamps to time_point::max().
 constexpr std::int64_t kMaxSingleSleepMs = std::numeric_limits<std::int64_t>::max();
 constexpr std::int64_t kMaxSingleSleepMicros = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours(24)).count();
@@ -1853,6 +1874,9 @@ int LuaMoveMouseAbs(lua_State* L)
 
     std::string error;
     ScriptInstance& instance = RequireInstance(L);
+    if (!EnsureWaylandRemoteDesktopForAbsoluteMouseScript(instance, &error)) {
+        return luaL_error(L, "moveMouseAbs failed: %s", error.c_str());
+    }
     if (!MoveMouseAbs(x, y, modeText ? modeText : "pixels",
             instance.mouseMotionMode() != ScriptInstance::MouseMotionMode::Raw,
             &error)) {

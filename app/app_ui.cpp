@@ -1605,6 +1605,50 @@ void RenderWaylandScreenCapturePrompt(AppContext& context)
 #endif
 }
 
+void RenderWaylandRemoteDesktopPrompt(AppContext& context)
+{
+#if defined(__linux__)
+    if (!context.linuxWaylandRemoteDesktopPromptPending) {
+        return;
+    }
+
+    ImGui::OpenPopup("Enable Wayland Absolute Mouse Control?");
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(590.0f, 0.0f), ImGuiCond_Appearing);
+
+    bool keepOpen = true;
+    if (ImGui::BeginPopupModal("Enable Wayland Absolute Mouse Control?", &keepOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped(
+            "A running Lua script called moveMouseAbs(). On Wayland, SMU needs explicit permission to control "
+            "the pointer and capture one monitor through the desktop portal.");
+        ImGui::TextWrapped(
+            "Enable opens your desktop's permission dialog. The script remains paused until pointer control and "
+            "the selected monitor's first frame are ready. This does not let SMU read the current global cursor position.");
+        ImGui::Separator();
+        if (ImGui::Button("Enable Pointer Control and Select Monitor")) {
+            if (context.approveLinuxWaylandRemoteDesktopPrompt) {
+                context.approveLinuxWaylandRemoteDesktopPrompt();
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Don't Enable")) {
+            if (context.declineLinuxWaylandRemoteDesktopPrompt) {
+                context.declineLinuxWaylandRemoteDesktopPrompt();
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!keepOpen && context.declineLinuxWaylandRemoteDesktopPrompt) {
+        context.declineLinuxWaylandRemoteDesktopPrompt();
+    }
+#else
+    (void)context;
+#endif
+}
+
 void RenderMacOSPermissionSetup(AppContext& context)
 {
 #if defined(__APPLE__)
@@ -1950,6 +1994,23 @@ void RenderSettingsMenu(AppContext& context, bool* open)
                 if (ImGui::Button("Enable Wayland Screen Capture")) {
                     if (context.startLinuxWaylandScreenCapture) {
                         context.startLinuxWaylandScreenCapture();
+                    }
+                }
+            }
+            ImGui::Separator();
+
+            ImGui::TextUnformatted("Wayland Absolute Mouse Control");
+            ImGui::TextWrapped(
+                "Allow moveMouseAbs() to place the pointer on the selected monitor. This replaces a screen-capture-only "
+                "session with a RemoteDesktop + ScreenCast session and needs separate pointer-control permission.");
+            if (context.linuxWaylandRemoteDesktopActive) {
+                ImGui::TextColored(GetCurrentTheme().success_color, "Status: %s",
+                    context.linuxWaylandRemoteDesktopStatus.c_str());
+            } else {
+                ImGui::TextWrapped("Status: %s", context.linuxWaylandRemoteDesktopStatus.c_str());
+                if (ImGui::Button("Enable Wayland Absolute Mouse Control")) {
+                    if (context.startLinuxWaylandRemoteDesktop) {
+                        context.startLinuxWaylandRemoteDesktop();
                     }
                 }
             }
@@ -3611,6 +3672,7 @@ void RenderAppUi(AppContext& context)
     RenderMacOSPermissionSetup(context);
     RenderLinuxInputSetup(context);
     RenderWaylandScreenCapturePrompt(context);
+    RenderWaylandRemoteDesktopPrompt(context);
     RenderUpdateConfirmationModal(context);
     RenderAdministratorRequiredPopup();
     RenderScriptFileDialogFallback();

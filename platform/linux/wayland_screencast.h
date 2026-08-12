@@ -18,11 +18,15 @@ public:
 
     bool isSupported() const;
     bool isActive() const;
+    bool hasRemoteDesktopControl() const;
     std::string status() const;
 
     // Opens the desktop portal's monitor picker and begins a PipeWire capture.
     // This must be called from the application/UI thread, not from a Lua worker.
     bool start(std::string* errorMessage = nullptr);
+    // Replaces any ScreenCast-only session with a combined RemoteDesktop +
+    // ScreenCast session. The portal separately grants control of the pointer.
+    bool startRemoteDesktop(std::string* errorMessage = nullptr);
     void stop();
 
     // Lua workers use this to request an in-app confirmation. The worker waits
@@ -33,6 +37,16 @@ public:
     bool hasPendingActivationRequest() const;
     void approveActivationRequest();
     void declineActivationRequest();
+
+    bool requestRemoteDesktopActivationForScript(const std::function<bool()>& isCancelled,
+        std::string* errorMessage = nullptr);
+    bool hasPendingRemoteDesktopActivationRequest() const;
+    void approveRemoteDesktopActivationRequest();
+    void declineRemoteDesktopActivationRequest();
+
+    // Coordinates are in the selected monitor's captured pixel space and are
+    // mapped to the portal stream's logical coordinate space internally.
+    bool movePointerAbsolute(int x, int y, std::string* errorMessage = nullptr);
 
     std::optional<ScreenBounds> selectedMonitorBounds() const;
     std::optional<PixelColor> sample(int x, int y, std::string* errorMessage = nullptr) const;
