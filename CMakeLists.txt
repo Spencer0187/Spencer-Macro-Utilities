@@ -57,6 +57,7 @@ set(SMU_WINDIVERT_LICENSE_FILE "${SMU_WINDIVERT_DIR}/LICENSE-LGPL-3.0.txt")
 option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable output folder." ON)
 option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
 option(SMU_ENABLE_SOURCE_TREE_FALLBACK "Allow development builds to locate assets in this source checkout." ON)
+option(SMU_REQUIRE_WAYLAND_SCREENCAST "Fail Linux configuration when PipeWire ScreenCast support is unavailable." OFF)
 
 add_library(lua_static STATIC
     "${SMU_LUA_DIR}/src/lapi.c"
@@ -325,9 +326,16 @@ elseif(UNIX AND NOT APPLE)
     target_link_libraries(smu_platform_linux PRIVATE Threads::Threads)
 
     if(TARGET PkgConfig::PIPEWIRE AND TARGET PkgConfig::DBUS)
+        set(SMU_WAYLAND_SCREENCAST_ENABLED ON CACHE INTERNAL "Whether this build includes Wayland ScreenCast support")
         target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_WAYLAND_SCREENCAST=1)
         target_link_libraries(smu_platform_linux PRIVATE PkgConfig::PIPEWIRE PkgConfig::DBUS)
     else()
+        if(SMU_REQUIRE_WAYLAND_SCREENCAST)
+            message(FATAL_ERROR
+                "Wayland ScreenCast support is required, but libpipewire-0.3 and/or dbus-1 development files were not found. "
+                "Install the PipeWire and D-Bus development packages, or configure with -DSMU_REQUIRE_WAYLAND_SCREENCAST=OFF for a development build.")
+        endif()
+        set(SMU_WAYLAND_SCREENCAST_ENABLED OFF CACHE INTERNAL "Whether this build includes Wayland ScreenCast support")
         target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_WAYLAND_SCREENCAST=0)
         message(WARNING "PipeWire and D-Bus development files were not found; Wayland ScreenCast pixel reads will compile as unavailable.")
     endif()
