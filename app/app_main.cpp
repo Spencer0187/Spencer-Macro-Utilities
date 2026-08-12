@@ -29,7 +29,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -364,6 +366,30 @@ bool HandleDroppedFileEvent(const SDL_Event& event)
 }
 
 #if defined(_WIN32)
+std::string FormatHResult(HRESULT result)
+{
+    std::ostringstream stream;
+    stream << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8)
+           << static_cast<unsigned long>(result);
+    return stream.str();
+}
+
+bool LogNativeTitleBarAttributeFailure(const char* attributeName, HRESULT result)
+{
+    const std::string message = std::string("Native title bar ") + attributeName +
+        " is unavailable (HRESULT " + FormatHResult(result) + ").";
+
+    // Caption attributes were added in Windows 11. Older Windows versions
+    // reject them with E_INVALIDARG, which is an expected capability miss.
+    if (result == E_INVALIDARG) {
+        LogInfo(message);
+        return false;
+    }
+
+    LogWarning("Failed to apply " + message, kNativeDarkTitleBarWarningId, true);
+    return true;
+}
+
 void ApplyDarkTitleBar(SDL_Window* window)
 {
     SDL_PropertiesID props = SDL_GetWindowProperties(window);
@@ -383,15 +409,17 @@ void ApplyDarkTitleBar(SDL_Window* window)
     const BOOL darkModeEnabled = TRUE;
     HRESULT darkModeResult = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkModeEnabled, sizeof(darkModeEnabled));
     if (FAILED(darkModeResult)) {
-        LogWarning("Failed to apply immersive dark mode to the native title bar.",
-            kNativeDarkTitleBarWarningId, true);
+        if (!LogNativeTitleBarAttributeFailure("immersive dark mode", darkModeResult)) {
+            // DWMWA_USE_IMMERSIVE_DARK_MODE and DWMWA_CAPTION_COLOR both require
+            // Windows 11, so do not make a second unsupported call on this OS.
+            return;
+        }
     }
 
     const COLORREF captionColor = RGB(0, 0, 0);
     HRESULT captionResult = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &captionColor, sizeof(captionColor));
     if (FAILED(captionResult)) {
-        LogWarning("Failed to apply native title bar caption color.",
-            kNativeDarkTitleBarWarningId, true);
+        LogNativeTitleBarAttributeFailure("caption color", captionResult);
     }
 }
 #endif
