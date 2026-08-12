@@ -79,7 +79,11 @@ void ConfigureWindowsTiming()
             LogWarning("Windows refused process power-throttling configuration; first error=" +
                 FormatWindowsError(firstError) + ", retry error=" + FormatWindowsError(GetLastError()) + ".");
         } else {
-            LogWarning("Windows refused the ignore-timer-resolution power-throttling flag; execution-speed throttling was still disabled. Error=" +
+            // This mask was added with Windows 11. Older Windows versions still
+            // honor the timeBeginPeriod request above; they simply cannot opt out
+            // of Windows 11's hidden-window timer-resolution policy. The retry
+            // succeeded, so this is a normal compatibility path, not a user issue.
+            LogInfo("Windows does not support the ignore-timer-resolution power-throttling flag; using the compatible execution-speed-only policy. Error=" +
                 FormatWindowsError(firstError) + ".");
         }
     }
