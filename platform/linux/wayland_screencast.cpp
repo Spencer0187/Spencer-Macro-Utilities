@@ -321,6 +321,19 @@ bool CallSessionMethod(
         return false;
     }
 
+    // ScreenCast.Start is (osa{sv}): unlike SelectSources it requires a
+    // parent-window identifier between the session object path and options.
+    // SMU does not have a stable portal parent handle, so the documented empty
+    // string is used and the portal presents its dialog unparented.
+    if (method == "Start") {
+        const char* parentWindow = "";
+        if (dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &parentWindow) == FALSE) {
+            dbus_message_unref(request);
+            SetError(errorMessage, "Could not add the ScreenCast portal parent window.");
+            return false;
+        }
+    }
+
     DBusMessageIter options;
     if (!OpenDict(&args, &options) ||
         !AppendStringOption(&options, "handle_token", MakeToken("smu_request")) ||
