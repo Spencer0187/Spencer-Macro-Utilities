@@ -24,6 +24,7 @@ public:
     void holdKey(PlatformKeyCode key, bool extended = false) override;
     void releaseKey(PlatformKeyCode key, bool extended = false) override;
     void pressKey(PlatformKeyCode key, int delayMs = 50) override;
+    bool pressCharacter(char character, int delayMs = 50) override;
     void holdKeyChord(PlatformKeyCode combinedKey) override;
     void releaseKeyChord(PlatformKeyCode combinedKey) override;
     void moveMouse(int dx, int dy) override;

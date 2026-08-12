@@ -463,50 +463,55 @@ HKL ForegroundKeyboardLayout()
 bool PressCharacterNative(char character, int delayMs)
 {
     const wchar_t wideCharacter = static_cast<unsigned char>(character);
-    const SHORT encoded = VkKeyScanExW(wideCharacter, ForegroundKeyboardLayout());
+    const HKL layout = ForegroundKeyboardLayout();
+    const SHORT encoded = VkKeyScanExW(wideCharacter, layout);
     if (encoded == -1) {
-        return false;
+        return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
     }
 
     const BYTE virtualKey = LOBYTE(encoded);
     const BYTE modifiers = HIBYTE(encoded);
     if (virtualKey == 0 || (modifiers & 0xF8) != 0) {
-        return false;
+        return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
     }
+
+    auto scanCodeFor = [layout](WORD key) -> UINT {
+        return MapVirtualKeyExW(key, MAPVK_VK_TO_VSC_EX, layout);
+    };
+    auto appendScanKey = [&scanCodeFor](std::vector<INPUT>& inputs, WORD key, bool keyUp) -> bool {
+        const UINT mapped = scanCodeFor(key);
+        if (mapped == 0) {
+            return false;
+        }
+
+        INPUT input = {};
+        input.type = INPUT_KEYBOARD;
+        input.ki.wScan = static_cast<WORD>(mapped & 0xFFu);
+        input.ki.dwFlags = KEYEVENTF_SCANCODE | (keyUp ? KEYEVENTF_KEYUP : 0);
+        if ((mapped & 0xFF00u) == 0xE000u) {
+            input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+        }
+        TagInjectedInput(input);
+        inputs.push_back(input);
+        return true;
+    };
 
     std::vector<INPUT> keyDowns;
     keyDowns.reserve(4);
-    auto pushKeyDown = [&keyDowns](WORD key) {
-        INPUT input = {};
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = key;
-        TagInjectedInput(input);
-        keyDowns.push_back(input);
-    };
-
-    if (modifiers & 0x04) pushKeyDown(VK_MENU);
-    if (modifiers & 0x02) pushKeyDown(VK_CONTROL);
-    if (modifiers & 0x01) pushKeyDown(VK_SHIFT);
-    pushKeyDown(virtualKey);
+    if ((modifiers & 0x04) && !appendScanKey(keyDowns, VK_MENU, false)) return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
+    if ((modifiers & 0x02) && !appendScanKey(keyDowns, VK_CONTROL, false)) return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
+    if ((modifiers & 0x01) && !appendScanKey(keyDowns, VK_SHIFT, false)) return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
+    if (!appendScanKey(keyDowns, virtualKey, false)) return TypeUnicodeTextNative(std::string_view(&character, 1), delayMs);
     DispatchTaggedInputs(keyDowns.data(), keyDowns.size());
 
     std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, delayMs)));
 
     std::vector<INPUT> keyUps;
     keyUps.reserve(keyDowns.size());
-    auto pushKeyUp = [&keyUps](WORD key) {
-        INPUT input = {};
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = key;
-        input.ki.dwFlags = KEYEVENTF_KEYUP;
-        TagInjectedInput(input);
-        keyUps.push_back(input);
-    };
-
-    pushKeyUp(virtualKey);
-    if (modifiers & 0x01) pushKeyUp(VK_SHIFT);
-    if (modifiers & 0x02) pushKeyUp(VK_CONTROL);
-    if (modifiers & 0x04) pushKeyUp(VK_MENU);
+    appendScanKey(keyUps, virtualKey, true);
+    if (modifiers & 0x01) appendScanKey(keyUps, VK_SHIFT, true);
+    if (modifiers & 0x02) appendScanKey(keyUps, VK_CONTROL, true);
+    if (modifiers & 0x04) appendScanKey(keyUps, VK_MENU, true);
     DispatchTaggedInputs(keyUps.data(), keyUps.size());
     return true;
 }
@@ -550,7 +555,7 @@ WORD ScanCodeForVirtualKey(WORD vk)
     case VK_RMENU:
         return 0x38;
     default:
-        return static_cast<WORD>(MapVirtualKeyA(vk, MAPVK_VK_TO_VSC));
+        return static_cast<WORD>(MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, ForegroundKeyboardLayout()) & 0xFFu);
     }
 }
 
@@ -686,7 +691,10 @@ void HoldChordNative(unsigned int combinedKey)
         }
     } else {
         mainInput.type = INPUT_KEYBOARD;
-        mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+        mainInput.ki.wScan = ScanCodeForVirtualKey(vk);
+        if (mainInput.ki.wScan == 0) {
+            return;
+        }
         mainInput.ki.dwFlags = KEYEVENTF_SCANCODE;
     }
 
@@ -725,7 +733,10 @@ void ReleaseChordNative(unsigned int combinedKey)
         }
     } else {
         mainInput.type = INPUT_KEYBOARD;
-        mainInput.ki.wScan = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+        mainInput.ki.wScan = ScanCodeForVirtualKey(vk);
+        if (mainInput.ki.wScan == 0) {
+            return;
+        }
         mainInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
     }
     TagInjectedInput(mainInput);
@@ -1139,6 +1150,11 @@ public:
         holdKey(key);
         std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
         releaseKey(key);
+    }
+
+    bool pressCharacter(char character, int delayMs = 50) override
+    {
+        return PressCharacterNative(character, delayMs);
     }
 
     void holdKeyChord(PlatformKeyCode combinedKey) override

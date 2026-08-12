@@ -19,6 +19,15 @@ public:
     virtual void holdKey(PlatformKeyCode key, bool extended = false) = 0;
     virtual void releaseKey(PlatformKeyCode key, bool extended = false) = 0;
     virtual void pressKey(PlatformKeyCode key, int delayMs = 50) = 0;
+    // Resolves a printable character using the active platform keyboard layout.
+    // Backends return false when their native layout service cannot produce it,
+    // allowing the shared text path to fall back to its compatibility mapping.
+    virtual bool pressCharacter(char character, int delayMs = 50)
+    {
+        (void)character;
+        (void)delayMs;
+        return false;
+    }
     virtual void holdKeyChord(PlatformKeyCode combinedKey) = 0;
     virtual void releaseKeyChord(PlatformKeyCode combinedKey) = 0;
     virtual void moveMouse(int dx, int dy) = 0;

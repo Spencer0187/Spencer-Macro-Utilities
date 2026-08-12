@@ -602,6 +602,7 @@ elseif(APPLE)
     find_library(SMU_COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
     find_library(SMU_COREGRAPHICS_FRAMEWORK CoreGraphics REQUIRED)
     find_library(SMU_APPLICATIONSERVICES_FRAMEWORK ApplicationServices REQUIRED)
+    find_library(SMU_CARBON_FRAMEWORK Carbon REQUIRED)
 
     set(SMU_VENDORED_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL")
     if(EXISTS "${SMU_VENDORED_SDL3_DIR}/CMakeLists.txt")
@@ -743,6 +744,7 @@ elseif(APPLE)
         ${SMU_COREFOUNDATION_FRAMEWORK}
         ${SMU_COREGRAPHICS_FRAMEWORK}
         ${SMU_APPLICATIONSERVICES_FRAMEWORK}
+        ${SMU_CARBON_FRAMEWORK}
     )
 
     set_target_properties(suspend PROPERTIES
