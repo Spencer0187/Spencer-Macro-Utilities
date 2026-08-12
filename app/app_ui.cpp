@@ -1558,6 +1558,50 @@ void RenderLinuxInputSetup(AppContext& context)
 #endif
 }
 
+void RenderWaylandScreenCapturePrompt(AppContext& context)
+{
+#if defined(__linux__)
+    if (!context.linuxWaylandScreenCapturePromptPending) {
+        return;
+    }
+
+    ImGui::OpenPopup("Enable Wayland Screen Capture?");
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(560.0f, 0.0f), ImGuiCond_Appearing);
+
+    bool keepOpen = true;
+    if (ImGui::BeginPopupModal("Enable Wayland Screen Capture?", &keepOpen, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped(
+            "A running Lua script called getPixelColor() or getPixelRect(). On Wayland, SMU must ask the desktop "
+            "portal for permission to capture one monitor.");
+        ImGui::TextWrapped(
+            "Enable will open your desktop's monitor picker. The script stays paused until a monitor is selected "
+            "and the first frame is ready.");
+        ImGui::Separator();
+        if (ImGui::Button("Enable and Select Monitor")) {
+            if (context.approveLinuxWaylandScreenCapturePrompt) {
+                context.approveLinuxWaylandScreenCapturePrompt();
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Don't Enable")) {
+            if (context.declineLinuxWaylandScreenCapturePrompt) {
+                context.declineLinuxWaylandScreenCapturePrompt();
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+    if (!keepOpen && context.declineLinuxWaylandScreenCapturePrompt) {
+        context.declineLinuxWaylandScreenCapturePrompt();
+    }
+#else
+    (void)context;
+#endif
+}
+
 void RenderMacOSPermissionSetup(AppContext& context)
 {
 #if defined(__APPLE__)
@@ -1877,6 +1921,38 @@ void RenderSettingsMenu(AppContext& context, bool* open)
         ImGui::BeginChild("SettingsList", ImVec2(0, 0), true);
 
         RenderUpdaterPanel(context);
+
+#if defined(__linux__)
+        if (context.refreshLinuxWaylandScreenCapture) {
+            context.refreshLinuxWaylandScreenCapture();
+        }
+        if (context.capabilities.displayServer == "wayland") {
+            ImGui::TextUnformatted("Wayland Screen Capture");
+            ImGui::TextWrapped(
+                "Pixel scripts need explicit permission to capture one monitor. "
+                "The selected monitor becomes the coordinate space for getPixelColor() and getPixelRect() while capture is active.");
+            if (!context.linuxWaylandScreenCaptureSupported) {
+                ImGui::TextColored(GetCurrentTheme().error_color,
+                    "This build does not include PipeWire ScreenCast support.");
+            } else if (context.linuxWaylandScreenCaptureActive) {
+                ImGui::TextColored(GetCurrentTheme().success_color, "Status: %s",
+                    context.linuxWaylandScreenCaptureStatus.c_str());
+                if (ImGui::Button("Stop Wayland Screen Capture")) {
+                    if (context.stopLinuxWaylandScreenCapture) {
+                        context.stopLinuxWaylandScreenCapture();
+                    }
+                }
+            } else {
+                ImGui::TextWrapped("Status: %s", context.linuxWaylandScreenCaptureStatus.c_str());
+                if (ImGui::Button("Enable Wayland Screen Capture")) {
+                    if (context.startLinuxWaylandScreenCapture) {
+                        context.startLinuxWaylandScreenCapture();
+                    }
+                }
+            }
+            ImGui::Separator();
+        }
+#endif
 
         ImGui::TextUnformatted("Your Current Windows Display Scale Value (10-500%):");
         ImGui::SetNextItemWidth(150);
@@ -3521,10 +3597,17 @@ void RenderAppUi(AppContext& context)
     smu::platform::windows::UpdateLagswitchOverlay();
 #endif
 
+#if defined(__linux__)
+    if (context.refreshLinuxWaylandScreenCapture) {
+        context.refreshLinuxWaylandScreenCapture();
+    }
+#endif
+
     RenderPlatformCriticalNotifications();
     RenderPlatformWarningNotifications();
     RenderMacOSPermissionSetup(context);
     RenderLinuxInputSetup(context);
+    RenderWaylandScreenCapturePrompt(context);
     RenderUpdateConfirmationModal(context);
     RenderAdministratorRequiredPopup();
     RenderScriptFileDialogFallback();

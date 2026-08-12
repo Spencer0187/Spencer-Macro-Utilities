@@ -12,6 +12,11 @@
 #include "../platform/network_backend.h"
 #include "../platform/text_input_backend.h"
 
+#if defined(__linux__)
+#include "../platform/linux/display_server.h"
+#include "../platform/linux/wayland_screencast.h"
+#endif
+
 #include <algorithm>
 #include <cstdio>
 #include <array>
@@ -48,6 +53,29 @@ ScriptInstance& RequireInstance(lua_State* L)
     }
     luaL_error(L, "SMU script context is not available");
     throw 0;
+}
+
+bool EnsureWaylandScreenCaptureForPixelScript(ScriptInstance& instance, std::string* errorMessage)
+{
+#if defined(__linux__)
+    if (smu::platform::linux::DetectDisplayServer() != smu::platform::linux::DisplayServer::Wayland) {
+        return true;
+    }
+
+    smu::platform::linux::WaylandScreenCast& screenCast =
+        smu::platform::linux::WaylandScreenCast::instance();
+    if (screenCast.isActive()) {
+        return true;
+    }
+
+    return screenCast.requestActivationForScript([&instance] {
+        return instance.isStopRequested();
+    }, errorMessage);
+#else
+    (void)instance;
+    (void)errorMessage;
+    return true;
+#endif
 }
 
 // Allow effectively infinite sleeps; the scheduler clamps to time_point::max().
@@ -1852,6 +1880,10 @@ int LuaGetPixelColor(lua_State* L)
     const PixelOutputFormat format = CheckPixelOutputFormat(L, 4);
 
     std::string error;
+    ScriptInstance& instance = RequireInstance(L);
+    if (!EnsureWaylandScreenCaptureForPixelScript(instance, &error)) {
+        return luaL_error(L, "getPixelColor failed: %s", error.c_str());
+    }
     const auto color = GetPixelColor(x, y, modeText ? modeText : "pixels", &error);
     if (!color) {
         if (error.empty()) {
@@ -1929,6 +1961,10 @@ int LuaGetPixelRect(lua_State* L)
     const PixelOutputFormat format = CheckPixelOutputFormat(L, 6);
 
     std::string error;
+    ScriptInstance& instance = RequireInstance(L);
+    if (!EnsureWaylandScreenCaptureForPixelScript(instance, &error)) {
+        return luaL_error(L, "getPixelRect failed: %s", error.c_str());
+    }
     const auto pixels = GetPixelRect(x1, y1, x2, y2, modeText ? modeText : "pixels", &error);
     if (!pixels) {
         if (error.empty()) {

@@ -1,5 +1,8 @@
 #include "input_evdev_uinput.h"
 
+#include "display_server.h"
+#include "wayland_screencast.h"
+
 #include "../logging.h"
 #include "../../core/keymapping.h"
 #include "../../core/legacy_globals.h"
@@ -278,6 +281,11 @@ std::optional<ScreenBounds> GetX11ActiveMonitorBounds()
 #endif
 }
 
+bool IsNativeWaylandSession()
+{
+    return DetectDisplayServer() == DisplayServer::Wayland;
+}
+
 std::string LinuxScreenReadUnavailableReason();
 
 std::uint8_t ComponentFromMask(unsigned long pixel, unsigned long mask)
@@ -387,6 +395,14 @@ X11PixelSampler& GetX11PixelSampler()
 
 std::optional<PixelColor> GetX11PixelColor(int x, int y, std::string* errorMessage)
 {
+    // XWayland may expose DISPLAY while the application itself is running on a
+    // native Wayland desktop. Its root window is not an authorized view of the
+    // compositor's output and KWin reports BadMatch for XGetImage. Do not let
+    // an asynchronous X error terminate the entire application; the portal
+    // path below is the supported Wayland screen-read implementation.
+    if (IsNativeWaylandSession()) {
+        return WaylandScreenCast::instance().sample(x, y, errorMessage);
+    }
     return GetX11PixelSampler().sample(x, y, errorMessage);
 }
 
@@ -401,6 +417,16 @@ bool EnvEquals(const char* name, const char* expected)
 
 std::string LinuxAbsolutePointerUnavailableReason()
 {
+    if (IsNativeWaylandSession()) {
+        const WaylandScreenCast& screenCast = WaylandScreenCast::instance();
+        if (!screenCast.isSupported()) {
+            return "absolute screen coordinates are unavailable on native Wayland, and this build does not include PipeWire ScreenCast support for pixel reads.";
+        }
+        if (!screenCast.isActive()) {
+            return "absolute screen coordinates are unavailable on native Wayland. moveMouseAbs cannot use a global cursor position; to use getPixelColor or getPixelRect, open Settings and choose Enable Wayland Screen Capture.";
+        }
+        return "absolute mouse positioning is unavailable on native Wayland. The active ScreenCast monitor will become available to pixel APIs after PipeWire delivers its first frame.";
+    }
 #if defined(SMU_HAS_X11) && SMU_HAS_X11
     const bool appearsWayland = EnvEquals("XDG_SESSION_TYPE", "wayland");
     const char* displayEnv = std::getenv("DISPLAY");
@@ -431,6 +457,13 @@ std::string LinuxAbsolutePointerUnavailableReason()
 
 std::string LinuxScreenReadUnavailableReason()
 {
+    if (IsNativeWaylandSession()) {
+        const WaylandScreenCast& screenCast = WaylandScreenCast::instance();
+        if (!screenCast.isSupported()) {
+            return "screen pixel color sampling is unavailable. This SMU build was compiled without PipeWire ScreenCast support.";
+        }
+        return "screen pixel color sampling is unavailable. On Wayland, open Settings and choose Enable Wayland Screen Capture, then approve the monitor-selection dialog.";
+    }
 #if defined(SMU_HAS_X11) && SMU_HAS_X11
     const bool appearsWayland = EnvEquals("XDG_SESSION_TYPE", "wayland");
     const char* displayEnv = std::getenv("DISPLAY");
@@ -949,6 +982,9 @@ std::optional<ScreenBounds> EvdevUinputInputBackend::getScreenBounds() const
 
 std::optional<ScreenBounds> EvdevUinputInputBackend::getActiveMonitorBounds() const
 {
+    if (IsNativeWaylandSession()) {
+        return WaylandScreenCast::instance().selectedMonitorBounds();
+    }
     return GetX11ActiveMonitorBounds();
 }
 

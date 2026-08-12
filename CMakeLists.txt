@@ -265,6 +265,12 @@ elseif(UNIX AND NOT APPLE)
     find_package(OpenGL REQUIRED)
     find_package(Threads REQUIRED)
     find_package(X11 QUIET)
+    find_package(PkgConfig QUIET)
+
+    if(PkgConfig_FOUND)
+        pkg_check_modules(PIPEWIRE QUIET IMPORTED_TARGET libpipewire-0.3)
+        pkg_check_modules(DBUS QUIET IMPORTED_TARGET dbus-1)
+    endif()
 
     set(SMU_VENDORED_SDL3_DIR "${SMU_THIRD_PARTY_DIR}/SDL")
     if(EXISTS "${SMU_VENDORED_SDL3_DIR}/CMakeLists.txt")
@@ -304,6 +310,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_LINUX_DIR}/input_evdev_uinput.cpp"
         "${SMU_PLATFORM_LINUX_DIR}/input_permissions.cpp"
         "${SMU_PLATFORM_LINUX_DIR}/process_proc_cgroup.cpp"
+        "${SMU_PLATFORM_LINUX_DIR}/wayland_screencast.cpp"
     )
 
     add_library(smu_platform_linux STATIC ${SMU_LINUX_PLATFORM_SOURCES})
@@ -316,6 +323,14 @@ elseif(UNIX AND NOT APPLE)
     )
 
     target_link_libraries(smu_platform_linux PRIVATE Threads::Threads)
+
+    if(TARGET PkgConfig::PIPEWIRE AND TARGET PkgConfig::DBUS)
+        target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_WAYLAND_SCREENCAST=1)
+        target_link_libraries(smu_platform_linux PRIVATE PkgConfig::PIPEWIRE PkgConfig::DBUS)
+    else()
+        target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_WAYLAND_SCREENCAST=0)
+        message(WARNING "PipeWire and D-Bus development files were not found; Wayland ScreenCast pixel reads will compile as unavailable.")
+    endif()
 
     if(X11_FOUND)
         target_compile_definitions(smu_platform_linux PRIVATE SMU_HAS_X11=1)
