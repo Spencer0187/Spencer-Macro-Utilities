@@ -781,7 +781,6 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     UpdateWindowMetrics(window);
-    ShutdownSharedProfiles();
     ResetFloatingUiWindowState();
     ImGui::DestroyContext();
     SDL_GL_DestroyContext(glContext);

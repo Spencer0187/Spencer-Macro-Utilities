@@ -15,6 +15,7 @@ constexpr const char kSettingsLoadFailedWarningId[] = "settings_load_failed";
 
 void InitializeSharedProfiles()
 {
+    std::lock_guard<std::recursive_mutex> persistenceLock(GetProfilePersistenceMutex());
     using namespace Globals;
     auto& state = smu::core::GetAppState();
 
@@ -30,9 +31,13 @@ void InitializeSharedProfiles()
 
     G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
     LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
-    // Snapshot compile-time defaults as the read-only (default) profile (must come before loading any user profile)
-    SaveDefaultProfile(G_SETTINGS_FILEPATH);
-    if (!TryLoadLastActiveProfile(G_SETTINGS_FILEPATH) && G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+    // Capture defaults without touching the user's file. Format detection and
+    // recovery must happen before any startup write.
+    CaptureDefaultProfileSnapshot();
+    const bool loaded = TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+    if (loaded) {
+        SaveDefaultProfile(G_SETTINGS_FILEPATH);
+    } else if (G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
         G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
         LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.",
             kSettingsLoadFailedWarningId, true);
@@ -50,6 +55,7 @@ void InitializeSharedProfiles()
 
 void SaveSharedProfilesNow()
 {
+    std::lock_guard<std::recursive_mutex> persistenceLock(GetProfilePersistenceMutex());
     using namespace Globals;
     auto& state = smu::core::GetAppState();
 

@@ -7,6 +7,7 @@
 
 #include "app_context.h"
 #include "app_main.h"
+#include "app_profile_bridge.h"
 #include "macro_runtime.h"
 #include "../platform/logging.h"
 #include "../platform/input_backend.h"
@@ -145,6 +146,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
     const int result = smu::app::RunSharedApp(context);
 
     macroRuntime.stop();
+    smu::app::ShutdownSharedProfiles();
 
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         networkBackend->shutdown();
