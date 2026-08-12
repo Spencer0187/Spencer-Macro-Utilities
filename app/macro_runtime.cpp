@@ -44,6 +44,22 @@ namespace {
 using namespace std::chrono_literals;
 using namespace Globals;
 
+void OpenChatForMacro()
+{
+    if (chatoverride) {
+        if (!smu::platform::pressCharacter('/', 50)) {
+            HoldKeyBinded(vk_chatkey);
+            std::this_thread::sleep_for(50ms);
+            ReleaseKeyBinded(vk_chatkey);
+        }
+        return;
+    }
+
+    HoldKeyBinded(vk_chatkey);
+    std::this_thread::sleep_for(50ms);
+    ReleaseKeyBinded(vk_chatkey);
+}
+
 #if defined(_WIN32)
 enum class RuntimeProfileSection : std::size_t {
     ResetInputCache,
@@ -1175,13 +1191,11 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
     const std::string customText = CustomTextChar;
     const std::string emoteText = text;
     runWorker([this, customText, emoteText] {
-        HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(50ms);
-        ReleaseKeyBinded(vk_chatkey);
+        OpenChatForMacro();
         std::this_thread::sleep_for(25ms);
 
         const bool custom = !customText.empty();
-        smu::platform::pasteText(custom ? customText : emoteText, std::max(0, PasteDelay));
+        smu::platform::pasteText(custom ? customText : emoteText, std::max(0, PasteDelay), useoldpaste);
         std::this_thread::sleep_for(100ms);
         HoldKeyBinded(vk_enterkey);
         std::this_thread::sleep_for(35ms);
@@ -1278,11 +1292,9 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
     }
 
     runWorker([this] {
-        HoldKeyBinded(vk_chatkey);
-        std::this_thread::sleep_for(50ms);
-        ReleaseKeyBinded(vk_chatkey);
+        OpenChatForMacro();
         std::this_thread::sleep_for(25ms);
-        smu::platform::pasteText("/e laugh", std::max(0, PasteDelay));
+        smu::platform::pasteText("/e laugh", std::max(0, PasteDelay), useoldpaste);
         std::this_thread::sleep_for(100ms);
         HoldKeyBinded(vk_enterkey);
         std::this_thread::sleep_for(35ms);

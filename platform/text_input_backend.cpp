@@ -3,6 +3,10 @@
 #include "input_backend.h"
 #include "../core/key_codes.h"
 
+#if defined(_WIN32)
+#include "windows/input_sendinput.h"
+#endif
+
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -190,13 +194,33 @@ bool typeText(InputBackend& input, std::string_view text, int delayMs)
     return typedAny;
 }
 
-bool pasteText(std::string_view text, int delayMs)
+bool pasteText(std::string_view text, int delayMs, bool useUnicode)
 {
+#if defined(_WIN32)
+    if (useUnicode) {
+        return windows::TypeUnicodeText(text, delayMs);
+    }
+#else
+    (void)useUnicode;
+#endif
+
     auto input = GetInputBackend();
     if (!input) {
         return false;
     }
     return typeText(*input, text, delayMs);
+}
+
+bool pressCharacter(char character, int delayMs)
+{
+#if defined(_WIN32)
+    if (windows::PressCharacter(character, delayMs)) {
+        return true;
+    }
+#endif
+
+    const std::string_view text(&character, 1);
+    return pasteText(text, delayMs, false);
 }
 
 } // namespace smu::platform

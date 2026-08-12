@@ -20,6 +20,7 @@ KeyAction CharToKeyAction_Global(char c);
 KeyAction charToKeyAction(char c);
 
 bool typeText(InputBackend& input, std::string_view text, int delayMs);
-bool pasteText(std::string_view text, int delayMs);
+bool pasteText(std::string_view text, int delayMs, bool useUnicode = false);
+bool pressCharacter(char character, int delayMs = 50);
 
 } // namespace smu::platform
