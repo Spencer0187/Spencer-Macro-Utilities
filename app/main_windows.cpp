@@ -145,8 +145,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
     const int result = smu::app::RunSharedApp(context);
 
-    macroRuntime.stop();
+    // Save while imported script records still exist; MacroRuntime::stop() clears them.
     smu::app::ShutdownSharedProfiles();
+    macroRuntime.stop();
 
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         networkBackend->shutdown();

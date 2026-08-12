@@ -3,7 +3,7 @@
 namespace smu::app {
 
 void InitializeSharedProfiles();
-void SaveSharedProfilesNow();
+bool SaveSharedProfilesNow();
 void ShutdownSharedProfiles();
 void RenderSharedProfileManager();
 

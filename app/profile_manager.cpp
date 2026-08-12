@@ -1245,7 +1245,21 @@ static bool ValidateProfileData(const json& settings) {
 		return true;
 	})) return false;
 
-	return !settings.contains("imported_scripts") || settings["imported_scripts"].is_array();
+	if (settings.contains("imported_scripts")) {
+		if (!settings["imported_scripts"].is_array()) return false;
+		for (const auto& item : settings["imported_scripts"]) {
+			if (!item.is_object() || !item.contains("path") || !item["path"].is_string() ||
+				item["path"].get<std::string>().empty()) {
+				return false;
+			}
+			if (item.contains("hotkey") && !IsValidUnsignedSetting(item["hotkey"])) return false;
+			if (item.contains("enabled") && !item["enabled"].is_boolean()) return false;
+			if (item.contains("disable_outside_roblox") && !item["disable_outside_roblox"].is_boolean()) return false;
+			if (item.contains("ui_state") && !item["ui_state"].is_object()) return false;
+		}
+	}
+
+	return true;
 }
 
 static bool ApplyProfileData(const json& settings) {
@@ -2043,8 +2057,13 @@ std::string PromoteDefaultProfileIfDirty(const std::string& filepath) {
 	auto names = GetProfileNames(filepath);
 	std::string new_name = GenerateNewProfileName(names);
 
+	const std::string previous_name = G_CURRENTLY_LOADED_PROFILE_NAME;
 	G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
-	SaveSettings(filepath, new_name);
+	if (!SaveSettings(filepath, new_name)) {
+		G_CURRENTLY_LOADED_PROFILE_NAME = previous_name;
+		LogWarning("Could not promote '(default)' edits because the settings file could not be saved.");
+		return "";
+	}
 
 	LogInfo("Auto-saved '(default)' edits as '" + new_name + "'.");
 	return new_name;
@@ -2145,6 +2164,16 @@ namespace ProfileUI {
 	static std::string s_G_LOADED_PROFILE_NAME_at_confirm_start = "";
 	bool delete_action_requested_this_frame = false;
 
+	static bool SaveCurrentProfileBeforeReplacement() {
+		if (G_SETTINGS_FILEPATH.empty() || G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+			return true;
+		}
+		if (G_CURRENTLY_LOADED_PROFILE_NAME == "(default)") {
+			return !PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH).empty();
+		}
+		return SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
+	}
+
 	void RefreshProfileListAndSelection() {
 		std::string previously_selected_name;
 		if (s_selected_profile_idx >= 0 && s_selected_profile_idx < (int)s_profile_names.size()) {
@@ -2239,14 +2268,19 @@ namespace ProfileUI {
 					profileToSave = GenerateNewProfileName(s_profile_names);
 				}
 
+				const std::string previous_profile_name = G_CURRENTLY_LOADED_PROFILE_NAME;
 				G_CURRENTLY_LOADED_PROFILE_NAME = profileToSave;
-				SaveSettings(G_SETTINGS_FILEPATH, profileToSave);
-				RefreshProfileListAndSelection();
-				auto it = std::find(s_profile_names.begin(), s_profile_names.end(), profileToSave);
-				if (it != s_profile_names.end()) {
-					s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+				if (SaveSettings(G_SETTINGS_FILEPATH, profileToSave)) {
+					RefreshProfileListAndSelection();
+					auto it = std::find(s_profile_names.begin(), s_profile_names.end(), profileToSave);
+					if (it != s_profile_names.end()) {
+						s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+					}
+					s_editing_profile_idx = -1;
+				} else {
+					G_CURRENTLY_LOADED_PROFILE_NAME = previous_profile_name;
+					LogWarning("Save To aborted because the settings file could not be updated.");
 				}
-				s_editing_profile_idx = -1;
 			}
 
 			// --- "Load" Button ---
@@ -2255,7 +2289,11 @@ namespace ProfileUI {
 
 			if (ImGui::Button("Load", ImVec2(actionButtonWidth, 0))) {
 				if (profile_is_selected) {
-					LoadSettings(G_SETTINGS_FILEPATH, s_profile_names[s_selected_profile_idx]);
+					if (SaveCurrentProfileBeforeReplacement()) {
+						LoadSettings(G_SETTINGS_FILEPATH, s_profile_names[s_selected_profile_idx]);
+					} else {
+						LogWarning("Profile load aborted because the current profile could not be saved.");
+					}
 					s_editing_profile_idx = -1;
 				}
 			}
@@ -2340,14 +2378,19 @@ namespace ProfileUI {
 					if (source_name == "(default)") {
 						// Duplicate (default): capture live globals, not stale file data
 						std::string new_name = GenerateNewProfileName(s_profile_names);
+						const std::string previous_profile_name = G_CURRENTLY_LOADED_PROFILE_NAME;
 						G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
-						SaveSettings(G_SETTINGS_FILEPATH, new_name);
-						RefreshProfileListAndSelection();
-						auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
-						if (it != s_profile_names.end()) {
-							s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+						if (SaveSettings(G_SETTINGS_FILEPATH, new_name)) {
+							RefreshProfileListAndSelection();
+							auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
+							if (it != s_profile_names.end()) {
+								s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
+							}
+						} else {
+							G_CURRENTLY_LOADED_PROFILE_NAME = previous_profile_name;
+							LogWarning("Profile duplication aborted because the settings file could not be updated.");
 						}
-					} else {
+					} else if (SaveCurrentProfileBeforeReplacement()) {
 						std::string new_name = GenerateUniqueProfileName(source_name, s_profile_names);
 						if (DuplicateProfileInFile(G_SETTINGS_FILEPATH, source_name, new_name)) {
 							LoadSettings(G_SETTINGS_FILEPATH, new_name);
@@ -2357,6 +2400,8 @@ namespace ProfileUI {
 								s_selected_profile_idx = distance_to_int(std::distance(s_profile_names.begin(), it));
 							}
 						}
+					} else {
+						LogWarning("Profile duplication aborted because the current profile could not be saved.");
 					}
 					s_editing_profile_idx = -1;
 				}

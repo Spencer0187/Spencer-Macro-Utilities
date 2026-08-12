@@ -1372,6 +1372,9 @@ void RenderImportTrustModal()
                     } else {
                         g_import_error.clear();
                     }
+                    if (ok && !smu::app::SaveSharedProfilesNow()) {
+                        g_import_error = "Script imported, but the settings file could not be updated.";
+                    }
                 } else if (!ok) {
                     if (importResult == ScriptImportResult::AlreadyImported) {
                         g_import_error = "Script is already imported.";
