@@ -17,7 +17,7 @@ Supported file extensions: `.smus`, `.hss`, `.lua`, `.txt`
 | Hard-block lag switch | yes | yes | yes | no |
 | Fake lag | yes | yes¹ | yes¹ | no |
 
-On Linux today, absolute mouse coordinates and pixel reads rely on X11/XWayland access. Native Wayland usually blocks global cursor-position and arbitrary screen-read APIs. The Linux lag-switch backend supports hard blocking and fake lag for the static Roblox IPv4 range plus the UDMUX and RCC addresses discovered from Sober's player log, all traffic, or explicit IPv4 addresses and ports. Fake lag refuses to replace custom traffic-control configuration. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
+On Linux, absolute mouse coordinates rely on X11/XWayland access. Pixel reads use X11/XWayland where available, or on native Wayland a user-approved ScreenCast portal monitor stream. Native Wayland still blocks global cursor-position APIs. The Linux lag-switch backend supports hard blocking and fake lag for the static Roblox IPv4 range plus the UDMUX and RCC addresses discovered from Sober's player log, all traffic, or explicit IPv4 addresses and ports. Fake lag refuses to replace custom traffic-control configuration. On macOS, SMU asks for Accessibility before synthetic input and global key state reads, and Screen Recording before screen pixel reads.
 
 ¹ Linux fake lag requires `tc`/`ip` from `iproute2`, an IFB-capable kernel, and an untouched default `fq_codel` qdisc on the active interface.
 
@@ -153,7 +153,7 @@ function onExecute()
 end
 ```
 
-On Linux, `getPixelColor()` currently requires X11/XWayland access.
+On Linux/X11, `getPixelColor()` uses X11 screen access. On native Wayland, the first pixel call opens an SMU confirmation. If you enable capture, SMU opens the desktop portal monitor picker and pauses the script until the selected monitor's first frame is ready. Pixel calls then target that monitor while the capture session is active. Declining the request raises a normal Lua script error at that call.
 
 ### Poll Efficiently in a Tight Loop
 
@@ -819,8 +819,9 @@ When absolute targeting is unavailable on Linux, script errors explain why, for 
 `getPixelColor()` and `getPixelRect()` read from the active monitor containing the cursor.
 
 - Windows reuses a cached monitor frame when possible and refreshes that cache roughly once per monitor refresh interval. Repeated polling is efficient and suitable for high-frequency color checks and moderate real-time scanning.
-- Linux currently uses an X11/XWayland screen-read path.
-- Native Wayland sessions without usable X11 access cannot currently provide arbitrary global screen reads.
+- Linux/X11 uses an X11 screen-read path.
+- Native Wayland uses a user-approved `org.freedesktop.portal.ScreenCast` session and a cached PipeWire frame. The first `getPixelColor()` or `getPixelRect()` call opens an SMU confirmation; accepting it opens the portal monitor picker and pauses the script until the first frame arrives. You can also use **Settings → Enable Wayland Screen Capture**. The selected monitor becomes the coordinate space for pixel reads for the lifetime of that capture session; portal selection does not grant global cursor lookup or absolute mouse positioning.
+- If ScreenCast support is missing, unavailable, stopped, or declined, the waiting pixel call fails with a script error and the script follows its normal error/stop path. SMU never falls back to an XWayland root-window read from a native Wayland session.
 - macOS uses Screen Recording permission and samples the same active-monitor coordinate space used by `moveMouseAbs()`.
 
 ### Freeze and Foreground Detection

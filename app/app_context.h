@@ -19,6 +19,9 @@ struct AppContext {
     bool platformAccessibilityPermissionGranted = false;
     bool platformScreenRecordingPermissionGranted = false;
     bool linuxInputSetupRequired = false;
+    bool linuxWaylandScreenCaptureSupported = false;
+    bool linuxWaylandScreenCaptureActive = false;
+    bool linuxWaylandScreenCapturePromptPending = false;
     std::string inputBackendError;
     std::string processBackendError;
     std::string networkBackendError;
@@ -32,6 +35,7 @@ struct AppContext {
     std::string linuxInputSudoCommand;
     std::string linuxInputSetupDocsPath;
     std::string linuxInputSetupActionMessage;
+    std::string linuxWaylandScreenCaptureStatus;
     std::size_t detectedProcessCount = 0;
     std::function<bool(bool)> setAlwaysOnTop;
     std::function<bool(float)> setWindowOpacityPercent;
@@ -39,6 +43,11 @@ struct AppContext {
     std::function<void()> installLinuxPermissionsGraphical;
     std::function<void()> installLinuxPermissionsTerminal;
     std::function<void()> refreshLinuxInputPermissions;
+    std::function<void()> startLinuxWaylandScreenCapture;
+    std::function<void()> stopLinuxWaylandScreenCapture;
+    std::function<void()> refreshLinuxWaylandScreenCapture;
+    std::function<void()> approveLinuxWaylandScreenCapturePrompt;
+    std::function<void()> declineLinuxWaylandScreenCapturePrompt;
     std::function<void()> requestAccessibilityPermission;
     std::function<void()> requestScreenRecordingPermission;
     std::function<void()> resetMacOSPermissionEntries;

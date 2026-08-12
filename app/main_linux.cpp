@@ -9,6 +9,7 @@
 #include "../platform/linux/input_evdev_uinput.h"
 #include "../platform/linux/input_permissions.h"
 #include "../platform/linux/process_proc_cgroup.h"
+#include "../platform/linux/wayland_screencast.h"
 #include "../platform/logging.h"
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
@@ -290,6 +291,16 @@ void InitializeLinuxInputBackend(
     LogInfo("Linux input backend initialized.");
 }
 
+void RefreshWaylandScreenCaptureContext(smu::app::AppContext& context)
+{
+    smu::platform::linux::WaylandScreenCast& screenCast =
+        smu::platform::linux::WaylandScreenCast::instance();
+    context.linuxWaylandScreenCaptureSupported = screenCast.isSupported();
+    context.linuxWaylandScreenCaptureActive = screenCast.isActive();
+    context.linuxWaylandScreenCapturePromptPending = screenCast.hasPendingActivationRequest();
+    context.linuxWaylandScreenCaptureStatus = screenCast.status();
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -314,6 +325,34 @@ int main(int argc, char** argv)
     context.linuxInputInstallerPath = ResolveLinuxSetupScriptPath();
     context.linuxInputSudoCommand = BuildManualSudoCommand(context.linuxInputInstallerPath);
     context.linuxInputSetupDocsPath = ResolveLinuxSetupDocsPath();
+    RefreshWaylandScreenCaptureContext(context);
+    context.refreshLinuxWaylandScreenCapture = [&context]() {
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.startLinuxWaylandScreenCapture = [&context]() {
+        std::string error;
+        if (!smu::platform::linux::WaylandScreenCast::instance().start(&error)) {
+            context.linuxWaylandScreenCaptureStatus = error.empty()
+                ? "Could not start Wayland ScreenCast."
+                : error;
+            LogWarning(context.linuxWaylandScreenCaptureStatus);
+            RefreshWaylandScreenCaptureContext(context);
+            return;
+        }
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.stopLinuxWaylandScreenCapture = [&context]() {
+        smu::platform::linux::WaylandScreenCast::instance().stop();
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.approveLinuxWaylandScreenCapturePrompt = [&context]() {
+        smu::platform::linux::WaylandScreenCast::instance().approveActivationRequest();
+        RefreshWaylandScreenCaptureContext(context);
+    };
+    context.declineLinuxWaylandScreenCapturePrompt = [&context]() {
+        smu::platform::linux::WaylandScreenCast::instance().declineActivationRequest();
+        RefreshWaylandScreenCaptureContext(context);
+    };
 
     std::shared_ptr<smu::platform::InputBackend> inputBackend;
     InitializeLinuxInputBackend(context, inputBackend);
@@ -410,6 +449,7 @@ int main(int argc, char** argv)
     if (inputBackend) {
         inputBackend->shutdown();
     }
+    smu::platform::linux::WaylandScreenCast::instance().stop();
 
     LogInfo("Spencer Macro Utilities native Linux app stopped.");
     return result;

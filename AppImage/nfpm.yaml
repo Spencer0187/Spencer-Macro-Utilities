@@ -20,6 +20,9 @@ overrides:
       - policykit-1
       - libx11-6
       - libxinerama1
+      - libpipewire-0.3-0
+      - libdbus-1-3
+      - xdg-desktop-portal
       - libdecor-0-0
       - libwayland-client0
       - libglx0
@@ -35,6 +38,9 @@ overrides:
       - polkit
       - libX11
       - libXinerama
+      - pipewire-libs
+      - dbus-libs
+      - xdg-desktop-portal
       - libdecor
       - libwayland-client
       - libglvnd-glx

@@ -22,6 +22,8 @@
   iptables,
   kmod,
   polkit,
+  pipewire,
+  xdg-desktop-portal,
   zenity,
 }:
 
@@ -34,6 +36,7 @@ let
     iptables
     kmod
     polkit
+    xdg-desktop-portal
     zenity
   ];
   runtimeLibraries = [
@@ -42,6 +45,7 @@ let
     libdecor
     libGL
     libpulseaudio
+    pipewire
     libxkbcommon
     udev
     wayland

@@ -10,7 +10,15 @@ SMU never asks for your sudo password inside its own ImGui interface. Authentica
 
 ## Runtime Tools
 
-SMU uses `curl` for update checks, `pkexec` for graphical authentication, `iptables` for hard blocking, and `iproute2` (`tc` and `ip`) for optional fake lag. The Debian and RPM packages declare these dependencies, and the Nix package supplies them. AppImage and portable users should install `curl`, Polkit, `iptables`, `iproute2`, and `kmod` with their distribution's package manager if those commands are not already present.
+SMU uses `curl` for update checks, `pkexec` for graphical authentication, `iptables` for hard blocking, and `iproute2` (`tc` and `ip`) for optional fake lag. The Debian and RPM packages declare these dependencies, and the Nix package supplies them. AppImage and portable users should install `curl`, Polkit, `iptables`, `iproute2`, and `kmod` with their distribution's package manager if those commands are not already present. Native Wayland pixel reads additionally need PipeWire and `xdg-desktop-portal` with the backend for the current desktop.
+
+## Wayland Screen Capture
+
+On a native Wayland desktop, Lua `getPixelColor()` and `getPixelRect()` use the standard `org.freedesktop.portal.ScreenCast` portal and PipeWire. The first pixel call opens an SMU confirmation dialog. Selecting **Enable and Select Monitor** opens the desktop permission dialog and pauses that script until a monitor is selected and the first frame is ready. You can also start or stop capture manually from **Settings → Enable Wayland Screen Capture**. SMU keeps a current frame from that monitor in memory and samples it locally; it never asks the portal for individual pixels.
+
+The sharing permission is explicit and lasts only for the running SMU process. Stop capture from the same Settings panel at any time. While capture is active, the selected monitor becomes the coordinate space for pixel API calls: `(0, 0)` is its top-left and the monitor's captured pixel size is used by `pixels`, `percent`, and scaled coordinate modes. This does not enable global cursor lookup or `moveMouseAbs()` on Wayland.
+
+The portal implementation and PipeWire must be installed and running in the desktop session. KDE Plasma/KWin, GNOME, and other portal-enabled Wayland desktops normally provide them. If the portal is missing, disabled, unsupported, or permission is declined, the waiting pixel call receives a descriptive Lua error and the script stops through its normal error path. SMU does not fall back to `XGetImage` through XWayland.
 
 The included RPM uses Fedora/RHEL-family dependency names. On openSUSE, use the AppImage or portable archive unless you have independently validated and adapted the RPM dependencies.
 
