@@ -5,6 +5,7 @@
 #include "permissions_macos.h"
 
 #include <ApplicationServices/ApplicationServices.h>
+#include <Carbon/Carbon.h>
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 
@@ -20,6 +21,7 @@
 #include <cmath>
 #include <cstdint>
 #include <future>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <optional>
@@ -378,6 +380,132 @@ bool PostKeyboardEvent(PlatformKeyCode key, bool down)
     return PostTaggedEvent(CGEventCreateKeyboardEvent(nullptr, macKey, down));
 }
 
+struct MacCharacterKey {
+    CGKeyCode keyCode = 0;
+    bool shift = false;
+    bool option = false;
+};
+
+std::optional<MacCharacterKey> ResolveCharacterKey(char character)
+{
+    TISInputSourceRef inputSource = TISCopyCurrentKeyboardLayoutInputSource();
+    if (!inputSource) {
+        return std::nullopt;
+    }
+
+    const CFDataRef layoutData = static_cast<CFDataRef>(
+        TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData));
+    if (!layoutData || CFDataGetLength(layoutData) < static_cast<CFIndex>(sizeof(UCKeyboardLayout))) {
+        CFRelease(inputSource);
+        return std::nullopt;
+    }
+
+    const auto* layout = reinterpret_cast<const UCKeyboardLayout*>(CFDataGetBytePtr(layoutData));
+    static constexpr std::array<UInt32, 4> kModifierStates = {
+        0,
+        shiftKey,
+        optionKey,
+        shiftKey | optionKey,
+    };
+
+    const UniChar wanted = static_cast<unsigned char>(character);
+    for (CGKeyCode keyCode = 0; keyCode < 128; ++keyCode) {
+        for (UInt32 modifierState : kModifierStates) {
+            UInt32 deadKeyState = 0;
+            UniChar output[4] = {};
+            UniCharCount outputLength = 0;
+            const OSStatus result = UCKeyTranslate(
+                layout,
+                keyCode,
+                kUCKeyActionDown,
+                (modifierState >> 8) & 0xFFu,
+                LMGetKbdType(),
+                kUCKeyTranslateNoDeadKeysBit,
+                &deadKeyState,
+                static_cast<UniCharCount>(std::size(output)),
+                &outputLength,
+                output);
+            if (result == noErr && outputLength == 1 && output[0] == wanted) {
+                CFRelease(inputSource);
+                return MacCharacterKey{
+                    keyCode,
+                    (modifierState & shiftKey) != 0,
+                    (modifierState & optionKey) != 0,
+                };
+            }
+        }
+    }
+
+    CFRelease(inputSource);
+    return std::nullopt;
+}
+
+bool PostUnicodeCharacter(char character, int delayMs)
+{
+    if (!AccessibilityAllowsOutput()) {
+        return false;
+    }
+
+    const UniChar unicodeCharacter = static_cast<unsigned char>(character);
+    CGEventRef keyDown = CGEventCreateKeyboardEvent(nullptr, 0, true);
+    if (!keyDown) {
+        return false;
+    }
+    CGEventKeyboardSetUnicodeString(keyDown, 1, &unicodeCharacter);
+    if (!PostTaggedEvent(keyDown)) {
+        return false;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(std::max(delayMs, 0)));
+
+    CGEventRef keyUp = CGEventCreateKeyboardEvent(nullptr, 0, false);
+    if (!keyUp) {
+        return false;
+    }
+    CGEventKeyboardSetUnicodeString(keyUp, 1, &unicodeCharacter);
+    return PostTaggedEvent(keyUp);
+}
+
+bool PressCharacterWithActiveLayout(char character, int delayMs)
+{
+    if (!AccessibilityAllowsOutput()) {
+        return false;
+    }
+
+    const auto resolved = ResolveCharacterKey(character);
+    if (!resolved) {
+        return PostUnicodeCharacter(character, delayMs);
+    }
+
+    const auto postKey = [](CGKeyCode keyCode, bool down) {
+        return PostTaggedEvent(CGEventCreateKeyboardEvent(nullptr, keyCode, down));
+    };
+    bool optionHeld = false;
+    bool shiftHeld = false;
+    if (resolved->option) {
+        optionHeld = postKey(kVK_Option, true);
+    }
+    if (optionHeld && resolved->shift) {
+        shiftHeld = postKey(kVK_Shift, true);
+    } else if (!resolved->option && resolved->shift) {
+        shiftHeld = postKey(kVK_Shift, true);
+    }
+
+    const bool modifiersReady = (!resolved->option || optionHeld) && (!resolved->shift || shiftHeld);
+    const bool keyDown = modifiersReady && postKey(resolved->keyCode, true);
+    if (!keyDown) {
+        if (shiftHeld) postKey(kVK_Shift, false);
+        if (optionHeld) postKey(kVK_Option, false);
+        return PostUnicodeCharacter(character, delayMs);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(std::max(delayMs, 0)));
+    postKey(resolved->keyCode, false);
+    if (shiftHeld) postKey(kVK_Shift, false);
+    if (optionHeld) postKey(kVK_Option, false);
+    return true;
+}
+
 struct MouseButtonDescription {
     CGEventType downType = kCGEventNull;
     CGEventType upType = kCGEventNull;
@@ -605,6 +733,11 @@ public:
         holdKey(key, false);
         std::this_thread::sleep_for(std::chrono::milliseconds(std::max(delayMs, 0)));
         releaseKey(key, false);
+    }
+
+    bool pressCharacter(char character, int delayMs) override
+    {
+        return PressCharacterWithActiveLayout(character, delayMs);
     }
 
     void holdKeyChord(PlatformKeyCode combinedKey) override

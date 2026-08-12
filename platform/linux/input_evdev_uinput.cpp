@@ -8,6 +8,7 @@
 #include "../../core/legacy_globals.h"
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cstdint>
 #include <chrono>
@@ -658,6 +659,99 @@ std::optional<int> ChordKeyToEvdev(PlatformKeyCode key)
     return VkToEvdev(key);
 }
 
+struct X11CharacterKey {
+    int evdevKey = 0;
+    std::vector<int> modifierEvdevKeys;
+};
+
+std::optional<X11CharacterKey> ResolveCharacterWithX11(char character)
+{
+#if defined(SMU_HAS_X11) && SMU_HAS_X11
+    Display* display = XOpenDisplay(nullptr);
+    if (!display) {
+        return std::nullopt;
+    }
+
+    int minimumKeyCode = 0;
+    int maximumKeyCode = 0;
+    XDisplayKeycodes(display, &minimumKeyCode, &maximumKeyCode);
+    const Window root = DefaultRootWindow(display);
+    // Shift and the two usual level-three modifier candidates cover normal
+    // layouts and AltGr without accidentally sending Ctrl/Super shortcuts.
+    static constexpr std::array<unsigned int, 6> kCandidateStates = {
+        0,
+        ShiftMask,
+        Mod1Mask,
+        Mod5Mask,
+        ShiftMask | Mod1Mask,
+        ShiftMask | Mod5Mask,
+    };
+
+    for (int keyCodeValue = minimumKeyCode;
+         keyCodeValue <= maximumKeyCode;
+         ++keyCodeValue) {
+        const KeyCode keyCode = static_cast<KeyCode>(keyCodeValue);
+        for (const unsigned int state : kCandidateStates) {
+            XKeyEvent event = {};
+            event.type = KeyPress;
+            event.display = display;
+            event.window = root;
+            event.root = root;
+            event.same_screen = True;
+            event.keycode = keyCode;
+            event.state = state;
+
+            char translated[8] = {};
+            KeySym keysym = NoSymbol;
+            const int translatedLength = XLookupString(&event, translated, sizeof(translated), &keysym, nullptr);
+            if (translatedLength != 1 || translated[0] != character || keyCode < 8) {
+                continue;
+            }
+
+            XModifierKeymap* modifierMap = XGetModifierMapping(display);
+            if (!modifierMap) {
+                XCloseDisplay(display);
+                return std::nullopt;
+            }
+
+            X11CharacterKey result;
+            result.evdevKey = static_cast<int>(keyCode) - 8;
+            bool modifiersValid = result.evdevKey > 0 && result.evdevKey <= KEY_MAX;
+            for (int modifierIndex = 0; modifierIndex < 8 && modifiersValid; ++modifierIndex) {
+                if ((state & (1u << modifierIndex)) == 0) {
+                    continue;
+                }
+                const KeyCode* const keys = modifierMap->modifiermap + modifierIndex * modifierMap->max_keypermod;
+                KeyCode modifierKey = 0;
+                for (int i = 0; i < modifierMap->max_keypermod; ++i) {
+                    if (keys[i] >= 8) {
+                        modifierKey = keys[i];
+                        break;
+                    }
+                }
+                const int evdevKey = static_cast<int>(modifierKey) - 8;
+                if (modifierKey == 0 || evdevKey <= 0 || evdevKey > KEY_MAX) {
+                    modifiersValid = false;
+                    break;
+                }
+                result.modifierEvdevKeys.push_back(evdevKey);
+            }
+            XFreeModifiermap(modifierMap);
+            XCloseDisplay(display);
+            if (modifiersValid) {
+                return result;
+            }
+            return std::nullopt;
+        }
+    }
+
+    XCloseDisplay(display);
+#else
+    (void)character;
+#endif
+    return std::nullopt;
+}
+
 std::string KeyNameFallback(PlatformKeyCode key)
 {
     static const std::unordered_map<PlatformKeyCode, std::string> names = {
@@ -908,6 +1002,32 @@ void EvdevUinputInputBackend::pressKey(PlatformKeyCode key, int delayMs)
     holdKey(key);
     std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
     releaseKey(key);
+}
+
+bool EvdevUinputInputBackend::pressCharacter(char character, int delayMs)
+{
+    const auto resolved = ResolveCharacterWithX11(character);
+    if (!resolved) {
+        // Native Wayland does not expose another application's active XKB
+        // state. Returning false keeps the existing compatibility path as a
+        // fallback rather than guessing a layout.
+        return false;
+    }
+
+    for (const int modifier : resolved->modifierEvdevKeys) {
+        emit(EV_KEY, modifier, 1);
+    }
+    emit(EV_KEY, resolved->evdevKey, 1);
+    emitSyn();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(std::max(delayMs, 0)));
+
+    emit(EV_KEY, resolved->evdevKey, 0);
+    for (auto it = resolved->modifierEvdevKeys.rbegin(); it != resolved->modifierEvdevKeys.rend(); ++it) {
+        emit(EV_KEY, *it, 0);
+    }
+    emitSyn();
+    return true;
 }
 
 void EvdevUinputInputBackend::holdKeyChord(PlatformKeyCode combinedKey)

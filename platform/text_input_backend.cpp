@@ -171,6 +171,11 @@ bool typeText(InputBackend& input, std::string_view text, int delayMs)
     bool typedAny = false;
 
     for (char c : text) {
+        if (input.pressCharacter(c, safeDelayMs)) {
+            typedAny = true;
+            continue;
+        }
+
         const KeyAction action = charToKeyAction(c);
         if (!action.valid) {
             continue;
@@ -213,11 +218,10 @@ bool pasteText(std::string_view text, int delayMs, bool useUnicode)
 
 bool pressCharacter(char character, int delayMs)
 {
-#if defined(_WIN32)
-    if (windows::PressCharacter(character, delayMs)) {
+    auto input = GetInputBackend();
+    if (input && input->pressCharacter(character, delayMs)) {
         return true;
     }
-#endif
 
     const std::string_view text(&character, 1);
     return pasteText(text, delayMs, false);
