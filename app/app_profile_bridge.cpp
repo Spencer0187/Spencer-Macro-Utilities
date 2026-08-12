@@ -53,14 +53,14 @@ void InitializeSharedProfiles()
     state.alwaysOnTop = ontoptoggle;
 }
 
-void SaveSharedProfilesNow()
+bool SaveSharedProfilesNow()
 {
     std::lock_guard<std::recursive_mutex> persistenceLock(GetProfilePersistenceMutex());
     using namespace Globals;
     auto& state = smu::core::GetAppState();
 
     if (G_SETTINGS_FILEPATH.empty()) {
-        return;
+        return false;
     }
 
     screen_width = state.screenWidth;
@@ -70,11 +70,16 @@ void SaveSharedProfilesNow()
     WindowPosX = state.windowPosX;
     WindowPosY = state.windowPosY;
 
-    PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH);
+    if (G_CURRENTLY_LOADED_PROFILE_NAME == "(default)" &&
+        PromoteDefaultProfileIfDirty(G_SETTINGS_FILEPATH).empty()) {
+        return false;
+    }
 
     if (!G_CURRENTLY_LOADED_PROFILE_NAME.empty() && G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
-        SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
+        return SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
     }
+
+    return false;
 }
 
 void ShutdownSharedProfiles()
