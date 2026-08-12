@@ -8,30 +8,37 @@
 #include "imgui.h"
 #include "json.hpp"
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <optional>
 #include <system_error>
 #include <set>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <unordered_map>
 #include <type_traits>
 #include <vector>
 #if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+#include <windows.h>
 #include <shlobj.h>
 #endif
 #if defined(__linux__)
+#include <fcntl.h>
 #include <pwd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
+#include <fcntl.h>
 #include <mach-o/dyld.h>
 #include <sys/stat.h>
 #endif
@@ -59,6 +66,9 @@ using NumericVar = std::variant<int*, float*, unsigned int*>;
 namespace {
 
 std::mutex g_notificationSuppressionMutex;
+std::recursive_mutex g_profilePersistenceMutex;
+std::optional<json> g_default_profile_snapshot;
+std::atomic_uint64_t g_settings_temp_counter{0};
 std::set<std::string> g_suppressedNotificationIds;
 
 std::vector<std::string> GetSuppressedNotificationIdsSnapshot()
@@ -92,6 +102,10 @@ void LoadSuppressedNotificationIds(const json& metadata)
 }
 
 } // namespace
+
+std::recursive_mutex& GetProfilePersistenceMutex() {
+	return g_profilePersistenceMutex;
+}
 
 // ============================================================================
 //  VARIABLE MAPS — Data-driven save/load tables
@@ -258,6 +272,7 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 struct JsonFileResult {
 	json data;
 	bool success;
+	bool loaded_from_backup = false;
 	std::string error;
 };
 
@@ -463,11 +478,13 @@ bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
 		return false;
 	}
 
-	const fs::path filename = path.filename();
+	const std::string filename = path.filename().string();
 	const bool isSettingsFile = filename == "SMCSettings.json" ||
 		filename == "SMCSettings.json.bak" ||
 		filename == "RMCSettings.json" ||
-		filename == "RMCSettings.json.bak";
+		filename == "RMCSettings.json.bak" ||
+		filename.rfind("SMCSettings.json.tmp-", 0) == 0 ||
+		filename.rfind("RMCSettings.json.tmp-", 0) == 0;
 
 	if (!isSettingsFile) {
 		return true;
@@ -539,15 +556,23 @@ bool RemoveFileNoThrow(const fs::path& path) {
 
 } // namespace
 
-static JsonFileResult ReadJsonFile(const std::string& filepath) {
+static fs::path SettingsBackupPath(const fs::path& settingsPath) {
+	return fs::path(settingsPath.string() + ".bak");
+}
+
+static bool HasSettingsSource(const std::string& filepath) {
+	return PathExists(filepath) || PathExists(SettingsBackupPath(filepath));
+}
+
+static JsonFileResult ReadJsonFileDirect(const fs::path& filepath) {
 	JsonFileResult result;
 	result.success = false;
 
 	errno = 0;
-	std::ifstream file(filepath);
+	std::ifstream file(filepath, std::ios::binary);
 	if (!file.is_open()) {
 		const int openErrno = errno;
-		result.error = "Could not open file: " + filepath;
+		result.error = "Could not open file: " + filepath.string();
 		if (openErrno != 0) {
 			result.error += " (" + std::string(std::strerror(openErrno)) + ")";
 		}
@@ -556,15 +581,106 @@ static JsonFileResult ReadJsonFile(const std::string& filepath) {
 
 	try {
 		file >> result.data;
+		if (file.bad()) {
+			result.error = "I/O error while reading file: " + filepath.string();
+			return result;
+		}
 		result.success = true;
-	} catch (const json::parse_error& e) {
-		result.error = std::string("JSON parse error: ") + e.what();
+	} catch (const json::exception& e) {
+		result.error = std::string("JSON read error: ") + e.what();
 	}
 	file.close();
 	return result;
 }
 
-// Write JSON to file, replacing the previous version in place.
+static JsonFileResult ReadJsonFile(const std::string& filepath) {
+	JsonFileResult result = ReadJsonFileDirect(filepath);
+	if (result.success) {
+		return result;
+	}
+
+	const fs::path backupPath = SettingsBackupPath(filepath);
+	JsonFileResult backup = ReadJsonFileDirect(backupPath);
+	if (backup.success) {
+		backup.loaded_from_backup = true;
+		LogWarning("Primary settings file could not be read; using backup " + backupPath.string() + ".");
+		return backup;
+	}
+
+	if (!backup.error.empty()) {
+		result.error += "; backup unavailable: " + backup.error;
+	}
+	return result;
+}
+
+static bool FlushFileToDisk(const fs::path& path) {
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+	HANDLE handle = CreateFileW(path.wstring().c_str(), GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (handle == INVALID_HANDLE_VALUE) {
+		LogWarning("Could not reopen settings temp file for durable flush: " + FormatPathForLog(path));
+		return false;
+	}
+	const BOOL flushed = FlushFileBuffers(handle);
+	CloseHandle(handle);
+	if (!flushed) {
+		LogWarning("Could not durably flush settings temp file: " + FormatPathForLog(path));
+	}
+	return flushed != FALSE;
+#elif defined(__linux__) || defined(__APPLE__)
+	const int fd = open(path.c_str(), O_RDONLY);
+	if (fd < 0) {
+		LogWarning("Could not reopen settings temp file for durable flush: " + FormatPathForLog(path));
+		return false;
+	}
+	const bool flushed = fsync(fd) == 0;
+	close(fd);
+	if (!flushed) {
+		LogWarning("Could not durably flush settings temp file: " + FormatPathForLog(path));
+	}
+	return flushed;
+#else
+	(void)path;
+	return true;
+#endif
+}
+
+static void FlushDirectoryToDisk(const fs::path& directory) {
+#if defined(__linux__) || defined(__APPLE__)
+	const int fd = open(directory.c_str(), O_RDONLY | O_DIRECTORY);
+	if (fd >= 0) {
+		(void)fsync(fd);
+		close(fd);
+	}
+#else
+	(void)directory;
+#endif
+}
+
+static bool ReplaceSettingsFile(const fs::path& source, const fs::path& destination) {
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+	if (!MoveFileExW(source.wstring().c_str(), destination.wstring().c_str(),
+		MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+		LogWarning("Could not atomically replace settings file " + FormatPathForLog(destination) +
+			" (error " + std::to_string(static_cast<unsigned long>(GetLastError())) + ").");
+		return false;
+	}
+	return true;
+#else
+	std::error_code ec;
+	fs::rename(source, destination, ec);
+	if (ec) {
+		LogWarning("Could not atomically replace settings file " + FormatPathForLog(destination) +
+			": " + ec.message());
+		return false;
+	}
+	return true;
+#endif
+}
+
+// Write JSON through a same-directory temp file and atomically replace the
+// live file. The previous valid primary is copied to .bak before replacement.
 static bool WriteJsonFile(const std::string& filepath, const json& data) {
 	const fs::path settingsPath(filepath);
 	if (!EnsureParentDirectoryExists(settingsPath)) {
@@ -572,23 +688,71 @@ static bool WriteJsonFile(const std::string& filepath, const json& data) {
 		return false;
 	}
 
+	std::string serialized;
+	try {
+		serialized = data.dump(4);
+	} catch (const json::exception& e) {
+		LogCritical("Failed to serialize settings for " + filepath + ": " + e.what());
+		return false;
+	}
+
+	const auto counter = g_settings_temp_counter.fetch_add(1, std::memory_order_relaxed);
+	const auto threadHash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+	const auto timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+	const fs::path tempPath = fs::path(filepath + ".tmp-" + std::to_string(timestamp) +
+		"-" + std::to_string(threadHash) + "-" + std::to_string(counter));
+
 	errno = 0;
-	std::ofstream outfile(filepath);
+	std::ofstream outfile(tempPath, std::ios::binary | std::ios::trunc);
 	if (!outfile.is_open()) {
 		const int openErrno = errno;
-		LogCritical("Failed to save settings to " + filepath + ": could not open file for writing" +
+		LogCritical("Failed to save settings to " + filepath + ": could not open temp file for writing" +
 			(openErrno != 0 ? std::string(" (") + std::strerror(openErrno) + ")" : std::string(".")));
 		return false;
 	}
 
-	outfile << data.dump(4);
+	outfile.write(serialized.data(), static_cast<std::streamsize>(serialized.size()));
+	outfile.flush();
 	outfile.close();
 	if (!outfile) {
-		LogCritical("Failed to save settings to " + filepath + ": write did not complete successfully.");
+		LogCritical("Failed to save settings to " + filepath + ": temp-file write did not complete successfully.");
+		std::error_code ec;
+		fs::remove(tempPath, ec);
 		return false;
 	}
 
+	if (!AdjustSettingsFileOwnershipAndPermissions(tempPath) || !FlushFileToDisk(tempPath)) {
+		std::error_code ec;
+		fs::remove(tempPath, ec);
+		return false;
+	}
+
+	if (PathExists(settingsPath)) {
+		const JsonFileResult current = ReadJsonFileDirect(settingsPath);
+		if (current.success) {
+			if (!CopySettingsFile(settingsPath, SettingsBackupPath(settingsPath))) {
+				LogCritical("Refusing to replace settings because the backup could not be created: " + filepath);
+				std::error_code ec;
+				fs::remove(tempPath, ec);
+				return false;
+			}
+		} else if (!ReadJsonFileDirect(SettingsBackupPath(settingsPath)).success) {
+			LogCritical("Refusing to replace unreadable settings file without a valid backup: " + filepath);
+			std::error_code ec;
+			fs::remove(tempPath, ec);
+			return false;
+		} else {
+			LogWarning("Replacing an unreadable primary settings file using its valid backup: " + filepath);
+		}
+	}
+
+	if (!ReplaceSettingsFile(tempPath, settingsPath)) {
+		std::error_code ec;
+		fs::remove(tempPath, ec);
+		return false;
+	}
 	AdjustSettingsFileOwnershipAndPermissions(settingsPath);
+	FlushDirectoryToDisk(settingsPath.parent_path());
 	return true;
 }
 
@@ -957,7 +1121,137 @@ static json SerializeProfileData() {
 	return data;
 }
 
-static void DeserializeProfileData(const json& settings) {
+void CaptureDefaultProfileSnapshot() {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
+	g_default_profile_snapshot = SerializeProfileData();
+}
+
+static bool IsValidUnsignedSetting(const json& value) {
+	if (value.is_number_unsigned()) {
+		return true;
+	}
+	if (!value.is_number_integer()) {
+		return false;
+	}
+	try {
+		return value.get<std::int64_t>() >= 0;
+	} catch (const json::exception&) {
+		return false;
+	}
+}
+
+static bool ValidateProfileData(const json& settings) {
+	if (!settings.is_object()) {
+		return false;
+	}
+
+	for (const auto& [key, _] : bool_vars) {
+		if (settings.contains(key) && !settings[key].is_boolean()) {
+			return false;
+		}
+	}
+	for (const auto& [key, _] : numeric_vars) {
+		if (settings.contains(key) && !settings[key].is_number()) {
+			return false;
+		}
+	}
+	for (const auto& [key, _] : char_arrays) {
+		if (settings.contains(key) && !settings[key].is_string()) {
+			return false;
+		}
+	}
+	if (settings.contains("text") && !settings["text"].is_string()) {
+		return false;
+	}
+	if (settings.contains("screen_width") && !settings["screen_width"].is_number_integer()) {
+		return false;
+	}
+	if (settings.contains("screen_height") && !settings["screen_height"].is_number_integer()) {
+		return false;
+	}
+
+	if (settings.contains("section_toggles")) {
+		if (!settings["section_toggles"].is_array()) return false;
+		for (const auto& value : settings["section_toggles"]) {
+			if (!value.is_boolean()) return false;
+		}
+	}
+	if (settings.contains("disable_outside_roblox")) {
+		if (!settings["disable_outside_roblox"].is_array()) return false;
+		for (const auto& value : settings["disable_outside_roblox"]) {
+			if (!value.is_boolean()) return false;
+		}
+	}
+	if (settings.contains("section_order_vector")) {
+		if (!settings["section_order_vector"].is_array()) return false;
+		for (const auto& value : settings["section_order_vector"]) {
+			if (!value.is_number_integer()) return false;
+		}
+	}
+
+	const auto validateArray = [&](const char* name, const auto& validateItem) {
+		if (!settings.contains(name)) return true;
+		if (!settings[name].is_array()) return false;
+		for (const auto& item : settings[name]) {
+			if (!item.is_object() || !validateItem(item)) return false;
+		}
+		return true;
+	};
+
+	if (!validateArray("extra_wallhop_instances", [](const json& item) {
+		for (const char* key : {"vk_trigger", "vk_jumpkey"}) {
+			if (item.contains(key) && !IsValidUnsignedSetting(item[key])) return false;
+		}
+		for (const char* key : {"wallhop_dx", "wallhop_dy", "wallhop_vertical", "WallhopDelay", "WallhopBonusDelay"}) {
+			if (item.contains(key) && !item[key].is_number()) return false;
+		}
+		for (const char* key : {"wallhopswitch", "toggle_jump", "toggle_flick", "wallhopcamfix", "disable_outside_roblox", "section_enabled"}) {
+			if (item.contains(key) && !item[key].is_boolean()) return false;
+		}
+		for (const char* key : {"WallhopPixels", "WallhopVerticalChar", "WallhopDelayChar", "WallhopBonusDelayChar", "WallhopDegrees"}) {
+			if (item.contains(key) && !item[key].is_string()) return false;
+		}
+		return true;
+	})) return false;
+
+	if (!validateArray("extra_presskey_instances", [](const json& item) {
+		for (const char* key : {"vk_trigger", "vk_presskey"}) {
+			if (item.contains(key) && !IsValidUnsignedSetting(item[key])) return false;
+		}
+		for (const char* key : {"PressKeyDelay", "PressKeyBonusDelay"}) {
+			if (item.contains(key) && !item[key].is_number()) return false;
+		}
+		for (const char* key : {"PressKeyDelayChar", "PressKeyBonusDelayChar"}) {
+			if (item.contains(key) && !item[key].is_string()) return false;
+		}
+		for (const char* key : {"disable_outside_roblox", "presskeyinroblox", "section_enabled"}) {
+			if (item.contains(key) && !item[key].is_boolean()) return false;
+		}
+		return true;
+	})) return false;
+
+	if (!validateArray("extra_spamkey_instances", [](const json& item) {
+		for (const char* key : {"vk_trigger", "vk_spamkey"}) {
+			if (item.contains(key) && !IsValidUnsignedSetting(item[key])) return false;
+		}
+		for (const char* key : {"spam_delay", "real_delay"}) {
+			if (item.contains(key) && !item[key].is_number()) return false;
+		}
+		if (item.contains("SpamDelay") && !item["SpamDelay"].is_string()) return false;
+		for (const char* key : {"isspamswitch", "disable_outside_roblox", "section_enabled"}) {
+			if (item.contains(key) && !item[key].is_boolean()) return false;
+		}
+		return true;
+	})) return false;
+
+	return !settings.contains("imported_scripts") || settings["imported_scripts"].is_array();
+}
+
+static bool ApplyProfileData(const json& settings) {
+	if (!ValidateProfileData(settings)) {
+		return false;
+	}
+
 	// SMU_FIX_PROFILE_MULTI_INSTANCE_REBUILD:
 	// Multi-macro instance vectors are process-lifetime globals. Loading a
 	// profile must rebuild them from the selected profile snapshot instead
@@ -1221,6 +1515,7 @@ static void DeserializeProfileData(const json& settings) {
 		}
 	} catch (const json::exception& e) {
 		LogWarning(std::string("Error deserializing profile data: ") + e.what());
+		return false;
 	}
 
 	// SMU_FIX_PROFILE_MULTI_INSTANCE_REBUILD: keep rebuilt profile state valid.
@@ -1236,7 +1531,31 @@ static void DeserializeProfileData(const json& settings) {
 	if (selected_wallhop_instance < 0 ||
 		selected_wallhop_instance >= static_cast<int>(wallhop_instances.size())) {
 		selected_wallhop_instance = 0;
-	}}
+	}
+	return true;
+}
+
+static bool DeserializeProfileData(const json& settings) {
+	if (!ValidateProfileData(settings)) {
+		return false;
+	}
+
+	json previous_state;
+	try {
+		previous_state = SerializeProfileData();
+	} catch (const json::exception& e) {
+		LogWarning(std::string("Could not snapshot current profile before load: ") + e.what());
+		return false;
+	}
+
+	if (ApplyProfileData(settings)) {
+		return true;
+	}
+
+	LogWarning("Profile application failed; restoring the previous in-memory profile.");
+	(void)ApplyProfileData(previous_state);
+	return false;
+}
 
 // ============================================================================
 //  THEME SERIALIZATION — Save/Load theme data to/from metadata
@@ -1445,6 +1764,7 @@ void SetNotificationSuppressed(const std::string& id, bool suppressed) {
 // ============================================================================
 
 std::vector<std::string> GetProfileNames(const std::string& filepath) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	std::vector<std::string> names;
 
 	auto result = ReadJsonFile(filepath);
@@ -1500,6 +1820,7 @@ static std::string GenerateNewProfileName(const std::vector<std::string>& existi
 // ============================================================================
 
 bool SaveSettings(const std::string& filepath, const std::string& profile_name) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	if (profile_name.empty() || profile_name == "(default)") {
 		return false;
 	}
@@ -1512,7 +1833,7 @@ bool SaveSettings(const std::string& filepath, const std::string& profile_name) 
 
 	// Read existing file to preserve other profiles, or start fresh
 	json root = json::object();
-	if (PathExists(filepath)) {
+	if (HasSettingsSource(filepath)) {
 		auto file_result = ReadJsonFile(filepath);
 		if (file_result.success && file_result.data.is_object()) {
 			if (IsProfileFormat(file_result.data)) {
@@ -1526,7 +1847,8 @@ bool SaveSettings(const std::string& filepath, const std::string& profile_name) 
 				root = file_result.data;
 			}
 		} else if (!file_result.success) {
-			LogWarning("Could not read existing settings file before save: " + filepath + ": " + file_result.error);
+			LogCritical("Refusing to overwrite settings after read failure: " + filepath + ": " + file_result.error);
+			return false;
 		}
 	}
 
@@ -1546,15 +1868,19 @@ bool SaveSettings(const std::string& filepath, const std::string& profile_name) 
 // ============================================================================
 
 bool SaveDefaultProfile(const std::string& filepath) {
-	json default_data = SerializeProfileData();
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
+	const json default_data = g_default_profile_snapshot.has_value()
+		? *g_default_profile_snapshot
+		: SerializeProfileData();
 
 	json root = json::object();
-	if (PathExists(filepath)) {
+	if (HasSettingsSource(filepath)) {
 		auto file_result = ReadJsonFile(filepath);
 		if (file_result.success && file_result.data.is_object()) {
 			root = file_result.data;
 		} else if (!file_result.success) {
-			LogWarning("Could not read existing settings file before saving defaults: " + filepath + ": " + file_result.error);
+			LogCritical("Refusing to overwrite settings after read failure while saving defaults: " + filepath + ": " + file_result.error);
+			return false;
 		}
 	}
 
@@ -1574,16 +1900,18 @@ bool SaveDefaultProfile(const std::string& filepath) {
 // ============================================================================
 //  CORE API: LoadSettings
 //  Loads a named profile from the settings file into global state.
-//  Falls back through: exact match → last_active → any profile → legacy flat.
+//  Explicit profile loads require an exact profile match. Startup fallback is
+//  handled separately by TryLoadLastActiveProfile.
 // ============================================================================
 
-void LoadSettings(std::string filepath, std::string profile_name) {
-	if (profile_name.empty()) return;
+bool LoadSettings(std::string filepath, std::string profile_name) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
+	if (profile_name.empty()) return false;
 
 	auto file_result = ReadJsonFile(filepath);
 	if (!file_result.success) {
 		LogWarning("Settings load skipped for " + filepath + ": " + file_result.error + ". Using in-memory defaults.");
-		return;
+		return false;
 	}
 
 	json& root = file_result.data;
@@ -1597,10 +1925,10 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 	bool found = false;
 
 	if (IsProfileFormat(root) || (root.is_object() && !IsLegacyFlatFormat(root))) {
-		// New-format or unknown-but-structured file: use FindBestProfile
-		actual_profile = FindBestProfile(root, profile_name);
-		if (!actual_profile.empty() && root.contains(actual_profile)) {
-			settings_to_load = root[actual_profile];
+		// New-format or unknown-but-structured file: explicit loads are exact.
+		if (root.contains(profile_name) && root[profile_name].is_object()) {
+			actual_profile = profile_name;
+			settings_to_load = root[profile_name];
 			found = true;
 		}
 	} else if (IsLegacyFlatFormat(root)) {
@@ -1613,12 +1941,16 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 
 	if (!found) {
 		LogWarning("Profile '" + profile_name + "' was not found in " + filepath + ".");
-		return;
+		return false;
 	}
 
-	DeserializeProfileData(settings_to_load);
+	if (!DeserializeProfileData(settings_to_load)) {
+		LogWarning("Profile '" + actual_profile + "' was rejected because its data is invalid.");
+		return false;
+	}
 	G_CURRENTLY_LOADED_PROFILE_NAME = actual_profile;
 	LogInfo("Loaded settings profile '" + actual_profile + "' from " + filepath + ".");
+	return true;
 }
 
 // ============================================================================
@@ -1628,9 +1960,10 @@ void LoadSettings(std::string filepath, std::string profile_name) {
 // ============================================================================
 
 bool TryLoadLastActiveProfile(std::string filepath) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	auto file_result = ReadJsonFile(filepath);
 	if (!file_result.success) {
-		if (!PathExists(filepath)) {
+		if (!HasSettingsSource(filepath)) {
 			G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
 			const bool created = SaveSettings(filepath, G_CURRENTLY_LOADED_PROFILE_NAME);
 			if (created) {
@@ -1652,11 +1985,16 @@ bool TryLoadLastActiveProfile(std::string filepath) {
 
 	// Handle legacy flat format: convert in-place
 	if (IsLegacyFlatFormat(root)) {
-		DeserializeProfileData(root);
+		if (!DeserializeProfileData(root)) {
+			LogWarning("Legacy settings file was rejected because its data is invalid: " + filepath);
+			return false;
+		}
 		G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-		SaveSettings(filepath, "Profile 1");
-		LogInfo("Converted legacy settings file to 'Profile 1'.");
-		return true;
+		const bool converted = SaveSettings(filepath, "Profile 1");
+		if (converted) {
+			LogInfo("Converted legacy settings file to 'Profile 1'.");
+		}
+		return converted;
 	}
 
 	if (!root.is_object()) {
@@ -1678,7 +2016,10 @@ bool TryLoadLastActiveProfile(std::string filepath) {
 
 	// Load the found profile
 	if (root.contains(best) && root[best].is_object()) {
-		DeserializeProfileData(root[best]);
+		if (!DeserializeProfileData(root[best])) {
+			LogWarning("Profile '" + best + "' was rejected because its data is invalid.");
+			return false;
+		}
 		G_CURRENTLY_LOADED_PROFILE_NAME = best;
 		LogInfo("Loaded last active profile '" + best + "' from " + filepath + ".");
 		return true;
@@ -1695,6 +2036,7 @@ bool TryLoadLastActiveProfile(std::string filepath) {
 // ============================================================================
 
 std::string PromoteDefaultProfileIfDirty(const std::string& filepath) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	if (G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") return "";
 
 	auto names = GetProfileNames(filepath);
@@ -1712,6 +2054,7 @@ std::string PromoteDefaultProfileIfDirty(const std::string& filepath) {
 // ============================================================================
 
 bool DeleteProfileFromFile(const std::string& filepath, const std::string& profile_name) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	if (profile_name == "(default)") return false;
 
 	auto file_result = ReadJsonFile(filepath);
@@ -1733,6 +2076,7 @@ bool DeleteProfileFromFile(const std::string& filepath, const std::string& profi
 }
 
 bool RenameProfileInFile(const std::string& filepath, const std::string& old_name, const std::string& new_name) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	if (old_name == new_name) return true;
 	if (old_name == "(default)" || new_name == "(default)") return false;
 
@@ -1760,6 +2104,7 @@ bool RenameProfileInFile(const std::string& filepath, const std::string& old_nam
 }
 
 bool DuplicateProfileInFile(const std::string& filepath, const std::string& source_name, const std::string& new_name) {
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
 	auto file_result = ReadJsonFile(filepath);
 	if (!file_result.success || !file_result.data.is_object()) return false;
 
@@ -1790,6 +2135,7 @@ namespace ProfileUI {
 
 	static bool s_profiles_initialized = false;
 	static std::string s_rename_error_msg = "";
+	static std::string s_last_saved_selection_name;
 
 	// Delete button confirmation state
 	static int s_delete_button_confirmation_stage = 0;
@@ -1853,7 +2199,6 @@ namespace ProfileUI {
 			float buttons_height = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetStyle().ItemSpacing.y * 2.0f;
 			float list_height = num_items_to_show * list_item_height + ImGui::GetStyle().WindowPadding.y * 2;
 			float menuHeight = buttons_height + list_height + ImGui::GetStyle().SeparatorTextAlign.y;
-			int old_s_selected_profile_idx = -1;
 			menuHeight = std::min(menuHeight, 300.0f);
 
 			ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
@@ -1865,12 +2210,17 @@ namespace ProfileUI {
 			float actionButtonWidth = (ImGui::GetContentRegionAvail().x - ImGui::GetStyle().ItemSpacing.x * 2) / 3.0f;
 			bool profile_is_selected = (s_selected_profile_idx != -1 && s_selected_profile_idx < (int)s_profile_names.size());
 
-			// Auto-save current profile when selection changes
-			if (old_s_selected_profile_idx != s_selected_profile_idx) {
-				SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
-			}
-			if (profile_is_selected) {
-				old_s_selected_profile_idx = s_selected_profile_idx;
+			// Auto-save current profile once when the selected profile changes.
+			const std::string selected_profile_name = profile_is_selected
+				? s_profile_names[s_selected_profile_idx]
+				: std::string{};
+			if (selected_profile_name != s_last_saved_selection_name) {
+				if (!s_last_saved_selection_name.empty() &&
+					!G_CURRENTLY_LOADED_PROFILE_NAME.empty() &&
+					G_CURRENTLY_LOADED_PROFILE_NAME != "(default)") {
+					SaveSettings(G_SETTINGS_FILEPATH, G_CURRENTLY_LOADED_PROFILE_NAME);
+				}
+				s_last_saved_selection_name = selected_profile_name;
 			}
 
 			// --- "Save To" Button ---
@@ -1905,7 +2255,6 @@ namespace ProfileUI {
 			if (ImGui::Button("Load", ImVec2(actionButtonWidth, 0))) {
 				if (profile_is_selected) {
 					LoadSettings(G_SETTINGS_FILEPATH, s_profile_names[s_selected_profile_idx]);
-					G_CURRENTLY_LOADED_PROFILE_NAME = s_profile_names[s_selected_profile_idx];
 					s_editing_profile_idx = -1;
 				}
 			}
@@ -2001,7 +2350,6 @@ namespace ProfileUI {
 						std::string new_name = GenerateUniqueProfileName(source_name, s_profile_names);
 						if (DuplicateProfileInFile(G_SETTINGS_FILEPATH, source_name, new_name)) {
 							LoadSettings(G_SETTINGS_FILEPATH, new_name);
-							G_CURRENTLY_LOADED_PROFILE_NAME = new_name;
 							RefreshProfileListAndSelection();
 							auto it = std::find(s_profile_names.begin(), s_profile_names.end(), new_name);
 							if (it != s_profile_names.end()) {

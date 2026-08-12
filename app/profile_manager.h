@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <variant>
@@ -8,12 +9,14 @@
 
 // --- File Resolution ---
 std::string ResolveSettingsFilePath();
+std::recursive_mutex& GetProfilePersistenceMutex();
 
 // --- Core Settings Logic ---
 bool SaveSettings(const std::string& filepath, const std::string& profile_name);
-void LoadSettings(std::string filepath, std::string profile_name);
+bool LoadSettings(std::string filepath, std::string profile_name);
 bool TryLoadLastActiveProfile(std::string filepath);
 bool SaveDefaultProfile(const std::string& filepath);
+void CaptureDefaultProfileSnapshot();
 std::string PromoteDefaultProfileIfDirty(const std::string& filepath);
 
 using SavedSettingValue = std::variant<bool, std::int64_t, double, std::string>;

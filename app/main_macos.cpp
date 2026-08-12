@@ -2,6 +2,7 @@
 
 #include "app_context.h"
 #include "app_main.h"
+#include "app_profile_bridge.h"
 #include "macro_runtime.h"
 
 #include "../core/app_state.h"
@@ -353,6 +354,7 @@ int main(int argc, char** argv)
     const int result = smu::app::RunSharedApp(context);
 
     macroRuntime.stop();
+    smu::app::ShutdownSharedProfiles();
 
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         networkBackend->shutdown();
