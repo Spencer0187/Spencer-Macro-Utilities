@@ -41,6 +41,7 @@
 #include <fcntl.h>
 #include <mach-o/dyld.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 using namespace Globals;
