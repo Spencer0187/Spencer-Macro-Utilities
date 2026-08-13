@@ -243,6 +243,7 @@ For new scripts, prefer script-local `settings.*` values created with `ui.*`. Us
 | `sleep(ms)` | Sleep for the specified number of milliseconds |
 | `sleepMicros(us)` | Sleep for the specified number of microseconds, clamped to a 24-hour maximum. Uses a cancellable native high-precision wait path |
 | `nowMicros()` | Return the current monotonic time in microseconds |
+| `getUnixTimestamp()` | Return the current real-world time as whole seconds since 1970-01-01 00:00:00 UTC |
 | `getSMUVersion()` | Return the current application version |
 | `getPlatform()` | Return `windows`, `linux`, `macos`, or `unknown` |
 | `getScriptHotkey()` | Return this script's current activation hotkey as a combined hotkey value, or `nil` if it is unbound |
