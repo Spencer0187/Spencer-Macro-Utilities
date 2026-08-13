@@ -1436,6 +1436,17 @@ int LuaNowMicros(lua_State* L)
     return 1;
 }
 
+int LuaGetUnixTimestamp(lua_State* L)
+{
+    using clock = std::chrono::system_clock;
+
+    const auto now = clock::now().time_since_epoch();
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+
+    lua_pushinteger(L, static_cast<lua_Integer>(seconds));
+    return 1;
+}
+
 int LuaSleep(lua_State* L)
 {
     if (IsSettingsCallbackActive(L)) {
@@ -2791,6 +2802,7 @@ void RegisterScriptApi(lua_State* L)
     Register(L, "log", LuaLog);
     Register(L, "readRobloxLog", LuaReadRobloxLog);
     Register(L, "nowMicros", LuaNowMicros);
+    Register(L, "getUnixTimestamp", LuaGetUnixTimestamp);
     Register(L, "sleep", LuaSleep);
     Register(L, "sleepMicros", LuaSleepMicros);
     Register(L, "checkpoint", LuaCheckpoint);
