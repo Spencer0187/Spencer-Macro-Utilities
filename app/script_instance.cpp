@@ -42,7 +42,7 @@ extern "C" {
 namespace smu::app {
 namespace {
 
-constexpr auto kPreciseSleepSpinThreshold = std::chrono::microseconds(800);
+constexpr auto kPreciseSleepSpinThreshold = std::chrono::microseconds(600);
 
 void CpuRelax()
 {
