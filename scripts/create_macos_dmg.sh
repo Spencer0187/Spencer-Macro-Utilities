@@ -86,6 +86,23 @@ with open(path, "wb") as handle:
 PY
 }
 
+detach_volume() {
+  local volume_path="$1"
+
+  # GitHub-hosted macOS runners can briefly keep the mounted image busy after
+  # Finder finishes applying the layout. Retry before using force; this image
+  # is disposable and has already been synced.
+  for attempt in 1 2 3 4 5; do
+    if hdiutil detach "$volume_path" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "hdiutil detach remained busy; forcing detach of $volume_path" >&2
+  hdiutil detach -force "$volume_path" >/dev/null
+}
+
 test -d "$APP_PATH"
 command -v hdiutil >/dev/null 2>&1
 
@@ -125,7 +142,7 @@ tell application "Finder"
 end tell
 APPLESCRIPT
   sync
-  hdiutil detach "$volume_path" >/dev/null
+  detach_volume "$volume_path"
 fi
 
 hdiutil convert "$RW_DMG_PATH" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" >/dev/null
