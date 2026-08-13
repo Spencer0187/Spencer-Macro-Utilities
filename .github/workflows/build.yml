@@ -453,9 +453,17 @@ jobs:
           cp \
             "$package_dir/SpencerMacroUtilities-macOS-universal.zip" \
             "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.zip"
-          cp \
-            "$package_dir/SpencerMacroUtilities-macOS-universal.dmg" \
-            "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg"
+          dmg_path="$package_dir/SpencerMacroUtilities-macOS-universal.dmg"
+          if [[ -f "$dmg_path" ]]; then
+            cp \
+              "$dmg_path" \
+              "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg"
+          elif [[ "${{ inputs.release_mode }}" == "true" ]]; then
+            echo "The macOS DMG is required for a signed release, but packaging did not produce it." >&2
+            exit 1
+          else
+            echo "The macOS DMG was unavailable; continuing with the ZIP validation artifact."
+          fi
 
       - name: Upload macOS ZIP release asset
         uses: actions/upload-artifact@v7
@@ -466,6 +474,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload macOS DMG release asset
+        if: ${{ hashFiles(format('release-files/Spencer-Macro-Utilities-V{0}-macOS-universal.dmg', needs.prepare.outputs.app_version)) != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg
