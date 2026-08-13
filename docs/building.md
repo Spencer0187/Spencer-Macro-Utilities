@@ -174,6 +174,40 @@ Run repository tests:
 python3 -m unittest discover -s tests
 ```
 
+The optional precise-sleep benchmark sweeps every threshold in a range while
+calling a Lua `sleepMicros()` loop, writes per-call timing/CPU samples to CSV,
+and prints a recommended spin threshold. The recommendation is the lowest
+measured-CPU threshold whose p99 absolute timing error is within the configured
+`--p99-error-us` limit (2 us by default). It is disabled by default because a
+full sweep is intentionally long and should be run on each target machine when
+comparing platforms:
+
+```bash
+cmake -S . -B build/sleep-benchmark \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_TESTING=ON \
+  -DSMU_BUILD_SLEEP_BENCHMARK=ON
+cmake --build build/sleep-benchmark \
+  --target smu_precise_sleep_benchmark \
+  --config Release
+```
+
+Run the resulting executable with, for example:
+
+```bash
+./build/sleep-benchmark/smu_precise_sleep_benchmark \
+  --first-threshold-us 0 \
+  --last-threshold-us 2000 \
+  --repetitions 100 \
+  --p99-error-us 2 \
+  --output sleep-benchmark.csv
+```
+
+On multi-configuration generators, the executable is under the `Release`
+subdirectory. Keep the machine idle during a run. The recommended threshold is
+printed to the terminal; the CSV can be used to inspect each threshold using
+absolute timing error (`abs(elapsed_us - target_us)`) and `cpu_us`.
+
 Compile the native Linux target:
 
 ```bash
