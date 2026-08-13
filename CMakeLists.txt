@@ -58,6 +58,7 @@ option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable out
 option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
 option(SMU_ENABLE_SOURCE_TREE_FALLBACK "Allow development builds to locate assets in this source checkout." ON)
 option(SMU_REQUIRE_WAYLAND_SCREENCAST "Fail Linux configuration when PipeWire ScreenCast support is unavailable." OFF)
+option(SMU_BUILD_SLEEP_BENCHMARK "Build the optional Lua precise-sleep benchmark." OFF)
 
 add_library(lua_static STATIC
     "${SMU_LUA_DIR}/src/lapi.c"
@@ -103,6 +104,20 @@ endif()
 set_property(TARGET lua_static PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
 )
+
+if(BUILD_TESTING AND SMU_BUILD_SLEEP_BENCHMARK)
+    find_package(Threads REQUIRED)
+    add_executable(smu_precise_sleep_benchmark
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/precise_sleep_benchmark.cpp"
+    )
+    target_include_directories(smu_precise_sleep_benchmark PRIVATE
+        "${SMU_LUA_DIR}/include"
+    )
+    target_link_libraries(smu_precise_sleep_benchmark PRIVATE
+        lua_static
+        Threads::Threads
+    )
+endif()
 
 if(BUILD_TESTING)
     add_executable(smu_roblox_log_reader_test
