@@ -303,8 +303,10 @@ bool ParseFloatingBuffer(const char* buffer, size_t capacity, float& value)
 	}
 
 	float parsed = 0.0f;
-	const auto result = std::from_chars(buffer, terminator, parsed);
-	if (result.ec != std::errc{} || result.ptr != terminator || !std::isfinite(parsed)) {
+	char* parse_end = nullptr;
+	errno = 0;
+	parsed = std::strtof(buffer, &parse_end);
+	if (errno == ERANGE || parse_end != terminator || !std::isfinite(parsed)) {
 		return false;
 	}
 
