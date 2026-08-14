@@ -1,8 +1,10 @@
 #include "profile_manager.h"
 #include "json.hpp"
+#include "legacy_globals.h"
 
 #include <cassert>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -71,6 +73,62 @@ int main()
     std::ifstream unchanged(settings, std::ios::binary);
     std::string contents((std::istreambuf_iterator<char>(unchanged)), std::istreambuf_iterator<char>());
     assert(contents == "{");
+
+    // Persisted/UI buffers must synchronize with the runtime values consumed
+    // by the macro timing code.
+    std::strcpy(Globals::PasteDelayChar, "7");
+    std::strcpy(Globals::BunnyHopDelayChar, "13");
+    std::strcpy(Globals::HHJLengthChar, "321");
+    std::strcpy(Globals::FloorBounceDelay3Char, "77");
+    std::strcpy(Globals::WallhopPixels, "345");
+    std::strcpy(Globals::WallhopVerticalChar, "12");
+    std::strcpy(Globals::WallhopDelayChar, "23");
+    std::strcpy(Globals::WallhopBonusDelayChar, "4");
+    std::strcpy(Globals::PressKeyDelayChar, "18");
+    std::strcpy(Globals::PressKeyBonusDelayChar, "3");
+    std::strcpy(Globals::SpamDelay, "7.5");
+    std::strcpy(Globals::RobloxWallWalkValueChar, "-88");
+    std::strcpy(Globals::RobloxPixelValueChar, "812");
+    std::strcpy(Globals::ItemClipDelay, "42");
+    std::strcpy(Globals::AntiAFKTimeChar, "9");
+    std::strcpy(Globals::AutoHHJKey1TimeChar, "551");
+    std::strcpy(Globals::RobloxFPSChar, "240");
+    SyncRuntimeSettingsFromBuffers();
+    assert(Globals::PasteDelay == 7);
+    assert(Globals::BunnyHopDelay == 13);
+    assert(Globals::HHJLength == 321);
+    assert(Globals::FloorBounceDelay3 == 77);
+    assert(Globals::wallhop_dx == 345);
+    assert(Globals::wallhop_dy == -345);
+    assert(Globals::wallhop_vertical == 12);
+    assert(Globals::WallhopDelay == 23);
+    assert(Globals::WallhopBonusDelay == 4);
+    assert(Globals::PressKeyDelay == 18);
+    assert(Globals::PressKeyBonusDelay == 3);
+    assert(Globals::spam_delay == 7.5f);
+    assert(Globals::real_delay == 4);
+    assert(Globals::wallwalk_strengthx == -88);
+    assert(Globals::wallwalk_strengthy == 88);
+    assert(Globals::RobloxPixelValue == 812);
+    assert(Globals::speed_strengthx == 812);
+    assert(Globals::speed_strengthy == -812);
+    assert(Globals::clip_delay == 42);
+    assert(Globals::AntiAFKTime == 9);
+    assert(Globals::AutoHHJKey1Time == 551);
+    assert(Globals::RobloxFPS.load(std::memory_order_relaxed) == 240);
+
+    // The same synchronization must update the first live instance when the
+    // application has already initialized its macro containers.
+    Globals::wallhop_instances.emplace_back();
+    Globals::presskey_instances.emplace_back();
+    Globals::spamkey_instances.emplace_back();
+    SyncRuntimeSettingsFromBuffers();
+    assert(Globals::wallhop_instances.front().WallhopDelay == 23);
+    assert(Globals::wallhop_instances.front().WallhopBonusDelay == 4);
+    assert(Globals::presskey_instances.front().PressKeyDelay == 18);
+    assert(Globals::presskey_instances.front().PressKeyBonusDelay == 3);
+    assert(Globals::spamkey_instances.front().spam_delay == 7.5f);
+    assert(Globals::spamkey_instances.front().real_delay == 4);
 
     fs::remove_all(directory);
     return 0;

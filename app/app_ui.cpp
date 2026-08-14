@@ -2225,7 +2225,7 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     ImGui::SameLine();
     ImGui::SetNextItemWidth(40.0f);
     if (ImGui::InputText("##FPS", RobloxFPSChar, sizeof(RobloxFPSChar), ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CharsNoBlank)) {
-        try { RobloxFPS = std::stoi(RobloxFPSChar); } catch (...) {}
+        SyncRobloxFPSFromBuffer();
     }
     ImGui::SameLine();
     ImGui::Text("Game Uses Cam-Fix:");
