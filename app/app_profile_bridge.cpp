@@ -29,6 +29,11 @@ void InitializeSharedProfiles()
         spamkey_instances.emplace_back();
     }
 
+    // Establish runtime values from the compile-time UI defaults before the
+    // first profile snapshot is captured. This also covers a missing or
+    // unreadable settings file.
+    SyncRuntimeSettingsFromBuffers();
+
     G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
     LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
     // Capture defaults without touching the user's file. Format detection and

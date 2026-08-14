@@ -9,8 +9,10 @@
 #include "json.hpp"
 #include <array>
 #include <atomic>
+#include <charconv>
 #include <chrono>
 #include <cerrno>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +20,7 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <system_error>
 #include <set>
@@ -264,6 +267,188 @@ const std::vector<std::pair<std::string, std::pair<char*, size_t>>> char_arrays 
 	{"FloorBounceDelay2Char", {FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char)}},
 	{"FloorBounceDelay3Char", {FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char)}},
 };
+
+namespace {
+
+bool ParseIntegerBuffer(const char* buffer, size_t capacity, int& value)
+{
+	if (!buffer || capacity == 0) {
+		return false;
+	}
+
+	const auto* terminator = static_cast<const char*>(std::memchr(buffer, '\0', capacity));
+	if (!terminator || terminator == buffer) {
+		return false;
+	}
+
+	int parsed = 0;
+	const auto result = std::from_chars(buffer, terminator, parsed);
+	if (result.ec != std::errc{} || result.ptr != terminator) {
+		return false;
+	}
+
+	value = parsed;
+	return true;
+}
+
+bool ParseFloatingBuffer(const char* buffer, size_t capacity, float& value)
+{
+	if (!buffer || capacity == 0) {
+		return false;
+	}
+
+	const auto* terminator = static_cast<const char*>(std::memchr(buffer, '\0', capacity));
+	if (!terminator || terminator == buffer) {
+		return false;
+	}
+
+	float parsed = 0.0f;
+	const auto result = std::from_chars(buffer, terminator, parsed);
+	if (result.ec != std::errc{} || result.ptr != terminator || !std::isfinite(parsed)) {
+		return false;
+	}
+
+	value = parsed;
+	return true;
+}
+
+} // namespace
+
+static void SyncRuntimeSettingsFromBuffersImpl(const std::function<bool(const char*)>& should_sync)
+{
+	struct IntegerSetting {
+		const char* key;
+		const char* buffer;
+		size_t capacity;
+		int* target;
+	};
+	const IntegerSetting integer_settings[] = {
+		{"ItemDesyncSlot", ItemDesyncSlot, sizeof(ItemDesyncSlot), &desync_slot},
+		{"ItemSpeedSlot", ItemSpeedSlot, sizeof(ItemSpeedSlot), &speed_slot},
+		{"ItemClipSlot", ItemClipSlot, sizeof(ItemClipSlot), &clip_slot},
+		{"ItemClipDelay", ItemClipDelay, sizeof(ItemClipDelay), &clip_delay},
+		{"BunnyHopDelayChar", BunnyHopDelayChar, sizeof(BunnyHopDelayChar), &BunnyHopDelay},
+		{"RobloxPixelValueChar", RobloxPixelValueChar, sizeof(RobloxPixelValueChar), &RobloxPixelValue},
+		{"RobloxWallWalkValueDelayChar", RobloxWallWalkValueDelayChar, sizeof(RobloxWallWalkValueDelayChar), &RobloxWallWalkValueDelay},
+		{"AntiAFKTimeChar", AntiAFKTimeChar, sizeof(AntiAFKTimeChar), &AntiAFKTime},
+		{"PasteDelayChar", PasteDelayChar, sizeof(PasteDelayChar), &PasteDelay},
+		{"HHJLengthChar", HHJLengthChar, sizeof(HHJLengthChar), &HHJLength},
+		{"HHJFreezeDelayOverrideChar", HHJFreezeDelayOverrideChar, sizeof(HHJFreezeDelayOverrideChar), &HHJFreezeDelayOverride},
+		{"HHJDelay1Char", HHJDelay1Char, sizeof(HHJDelay1Char), &HHJDelay1},
+		{"HHJDelay2Char", HHJDelay2Char, sizeof(HHJDelay2Char), &HHJDelay2},
+		{"HHJDelay3Char", HHJDelay3Char, sizeof(HHJDelay3Char), &HHJDelay3},
+		{"AutoHHJKey1TimeChar", AutoHHJKey1TimeChar, sizeof(AutoHHJKey1TimeChar), &AutoHHJKey1Time},
+		{"AutoHHJKey2TimeChar", AutoHHJKey2TimeChar, sizeof(AutoHHJKey2TimeChar), &AutoHHJKey2Time},
+		{"FloorBounceDelay1Char", FloorBounceDelay1Char, sizeof(FloorBounceDelay1Char), &FloorBounceDelay1},
+		{"FloorBounceDelay2Char", FloorBounceDelay2Char, sizeof(FloorBounceDelay2Char), &FloorBounceDelay2},
+		{"FloorBounceDelay3Char", FloorBounceDelay3Char, sizeof(FloorBounceDelay3Char), &FloorBounceDelay3},
+	};
+
+	for (const auto& [key, buffer, capacity, target] : integer_settings) {
+		if (!should_sync(key)) {
+			continue;
+		}
+		int parsed = 0;
+		if (ParseIntegerBuffer(buffer, capacity, parsed)) {
+			*target = parsed;
+		}
+	}
+
+	int parsed = 0;
+	if (should_sync("WallhopPixels") &&
+		ParseIntegerBuffer(WallhopPixels, sizeof(WallhopPixels), parsed) &&
+		parsed != std::numeric_limits<int>::min()) {
+		wallhop_dx = parsed;
+		wallhop_dy = -parsed;
+	}
+	if (should_sync("WallhopVerticalChar") &&
+		ParseIntegerBuffer(WallhopVerticalChar, sizeof(WallhopVerticalChar), parsed)) {
+		wallhop_vertical = parsed;
+	}
+	if (should_sync("RobloxPixelValueChar") &&
+		ParseIntegerBuffer(RobloxPixelValueChar, sizeof(RobloxPixelValueChar), parsed) &&
+		parsed != std::numeric_limits<int>::min()) {
+		RobloxPixelValue = parsed;
+		speed_strengthx = parsed;
+		speed_strengthy = -parsed;
+	}
+
+	float parsedSpamDelay = 0.0f;
+	if (should_sync("SpamDelay") &&
+		ParseFloatingBuffer(SpamDelay, sizeof(SpamDelay), parsedSpamDelay)) {
+		const double parsedRealDelay = (static_cast<double>(parsedSpamDelay) + 0.5) / 2.0;
+		if (parsedRealDelay >= static_cast<double>(std::numeric_limits<int>::min()) &&
+			parsedRealDelay <= static_cast<double>(std::numeric_limits<int>::max())) {
+			spam_delay = parsedSpamDelay;
+			real_delay = static_cast<int>(parsedRealDelay);
+		}
+	}
+
+	int parsedWallWalkValue = 0;
+	if (should_sync("RobloxWallWalkValueChar") &&
+		ParseIntegerBuffer(RobloxWallWalkValueChar, sizeof(RobloxWallWalkValueChar), parsedWallWalkValue) &&
+		parsedWallWalkValue != std::numeric_limits<int>::min()) {
+		RobloxWallWalkValue = parsedWallWalkValue;
+		wallwalk_strengthx = parsedWallWalkValue;
+		wallwalk_strengthy = -parsedWallWalkValue;
+	}
+
+	if (should_sync("RobloxFPSChar")) {
+		SyncRobloxFPSFromBuffer();
+	}
+
+	int parsedWallhopDelay = 0;
+	int parsedWallhopBonusDelay = 0;
+	if (should_sync("WallhopDelayChar") &&
+		ParseIntegerBuffer(WallhopDelayChar, sizeof(WallhopDelayChar), parsedWallhopDelay)) {
+		WallhopDelay = parsedWallhopDelay;
+	}
+	if (should_sync("WallhopBonusDelayChar") &&
+		ParseIntegerBuffer(WallhopBonusDelayChar, sizeof(WallhopBonusDelayChar), parsedWallhopBonusDelay)) {
+		WallhopBonusDelay = parsedWallhopBonusDelay;
+	}
+	if (!wallhop_instances.empty()) {
+		auto& wallhop = wallhop_instances[0];
+		if (should_sync("WallhopDelayChar")) {
+			wallhop.WallhopDelay = WallhopDelay;
+		}
+		if (should_sync("WallhopBonusDelayChar")) {
+			wallhop.WallhopBonusDelay = WallhopBonusDelay;
+		}
+	}
+
+	int parsedPressKeyDelay = 0;
+	int parsedPressKeyBonusDelay = 0;
+	if (should_sync("PressKeyDelayChar") &&
+		ParseIntegerBuffer(PressKeyDelayChar, sizeof(PressKeyDelayChar), parsedPressKeyDelay)) {
+		PressKeyDelay = parsedPressKeyDelay;
+	}
+	if (should_sync("PressKeyBonusDelayChar") &&
+		ParseIntegerBuffer(PressKeyBonusDelayChar, sizeof(PressKeyBonusDelayChar), parsedPressKeyBonusDelay)) {
+		PressKeyBonusDelay = parsedPressKeyBonusDelay;
+	}
+	if (!presskey_instances.empty()) {
+		auto& presskey = presskey_instances[0];
+		if (should_sync("PressKeyDelayChar")) {
+			presskey.PressKeyDelay = PressKeyDelay;
+		}
+		if (should_sync("PressKeyBonusDelayChar")) {
+			presskey.PressKeyBonusDelay = PressKeyBonusDelay;
+		}
+	}
+	if (!spamkey_instances.empty()) {
+		auto& spamkey = spamkey_instances[0];
+		if (should_sync("SpamDelay")) {
+			spamkey.spam_delay = spam_delay;
+			spamkey.real_delay = real_delay;
+		}
+	}
+}
+
+void SyncRuntimeSettingsFromBuffers()
+{
+	SyncRuntimeSettingsFromBuffersImpl([](const char*) { return true; });
+}
 
 // ============================================================================
 //  FILE I/O — Centralized JSON file read/write with backup safety
@@ -1322,6 +1507,13 @@ static bool ApplyProfileData(const json& settings) {
 #endif
 		}
 
+		// Character buffers are the persisted/UI representation for several
+		// legacy settings. Restore their runtime counterparts after loading so
+		// profile switches cannot leave stale process-lifetime values behind.
+		SyncRuntimeSettingsFromBuffersImpl([&settings](const char* key) {
+			return settings.contains(key) && settings[key].is_string();
+		});
+
 		// Section toggles
 		if (settings.contains("section_toggles") && settings["section_toggles"].is_array()) {
 			auto toggles = settings["section_toggles"].get<std::vector<bool>>();
@@ -1441,7 +1633,7 @@ static bool ApplyProfileData(const json& settings) {
 				w.wallhop_dx     = jw.value("wallhop_dx", 300);
 				w.wallhop_dy     = jw.value("wallhop_dy", -300);
 				w.wallhop_vertical = jw.value("wallhop_vertical", 0);
-				w.WallhopDelay   = jw.value("WallhopDelay", 17);
+				w.WallhopDelay   = jw.value("WallhopDelay", 19);
 				w.WallhopBonusDelay = jw.value("WallhopBonusDelay", 0);
 				if (jw.contains("WallhopPixels") && jw["WallhopPixels"].is_string()) {
 					std::string s = jw["WallhopPixels"].get<std::string>();

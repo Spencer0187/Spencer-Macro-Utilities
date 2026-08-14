@@ -13,6 +13,7 @@
 #include <cctype>
 #include <cstring>
 #include <deque>
+#include <limits>
 #include <thread>
 #include <cstdint>
 #include <stdexcept>
@@ -410,7 +411,7 @@ namespace Globals {
     inline int speed_slot = 3;
     inline int desync_slot = 5;
     inline int clip_slot = 7;
-    inline int clip_delay = 30;
+    inline int clip_delay = 34;
     inline int BunnyHopDelay = 10;
     inline int RobloxWallWalkValueDelay = 72720;
     inline float spam_delay = 20.0f;
@@ -422,7 +423,7 @@ namespace Globals {
     inline int real_delay = 1000;
     inline int RobloxPixelValue = 716;
     inline int RobloxWallWalkValue = -94;
-    inline int WallhopDelay = 17;
+    inline int WallhopDelay = 19;
     inline int WallhopBonusDelay = 0;
     inline int AntiAFKTime = 15;
     inline int display_scale = 100;
@@ -709,7 +710,7 @@ namespace Globals {
         int wallhop_dx          = 300;
         int wallhop_dy          = -300;
         int wallhop_vertical    = 0;
-        int WallhopDelay        = 17;
+        int WallhopDelay        = 19;
         int WallhopBonusDelay   = 0;
         char WallhopPixels[256];
         char WallhopVerticalChar[256];
@@ -811,4 +812,36 @@ namespace Globals {
     // Set by DeserializeProfileData after populating extra instances in the deques;
     // the main loop detects this flag and starts threads for the newly added slots.
     inline std::atomic<bool> g_extra_instances_loaded{false};
+
+    // RobloxFPSChar is the persisted/UI representation of the FPS setting,
+    // while RobloxFPS is the value consumed by the macro runtime. Keep the
+    // runtime value synchronized whenever the buffer is loaded or edited.
+    inline bool SyncRobloxFPSFromBuffer()
+    {
+        constexpr size_t buffer_size = sizeof(RobloxFPSChar);
+        if (RobloxFPSChar[0] == '\0') {
+            return false;
+        }
+
+        unsigned int parsed = 0;
+        const char* const buffer_end = RobloxFPSChar + buffer_size;
+        const char* cursor = RobloxFPSChar;
+        for (; cursor < buffer_end && *cursor != '\0'; ++cursor) {
+            if (*cursor < '0' || *cursor > '9') {
+                return false;
+            }
+
+            const unsigned int digit = static_cast<unsigned int>(*cursor - '0');
+            if (parsed > (std::numeric_limits<unsigned int>::max() - digit) / 10) {
+                return false;
+            }
+            parsed = parsed * 10 + digit;
+        }
+        if (cursor == buffer_end) {
+            return false;
+        }
+
+        RobloxFPS.store(parsed, std::memory_order_relaxed);
+        return true;
+    }
 }

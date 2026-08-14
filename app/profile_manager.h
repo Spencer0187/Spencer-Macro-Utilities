@@ -18,6 +18,7 @@ bool TryLoadLastActiveProfile(std::string filepath);
 bool SaveDefaultProfile(const std::string& filepath);
 void CaptureDefaultProfileSnapshot();
 std::string PromoteDefaultProfileIfDirty(const std::string& filepath);
+void SyncRuntimeSettingsFromBuffers();
 
 using SavedSettingValue = std::variant<bool, std::int64_t, double, std::string>;
 std::optional<SavedSettingValue> TryGetSavedSettingValue(const std::string& name);
