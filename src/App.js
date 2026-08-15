@@ -459,13 +459,13 @@ const App = () => {
         <Header>
           <h1>Spencer Macro Utilities</h1>
           <p>
-            Windows + Linux (Via Wine) automation tool designed for Roblox. <br />
-            No memory access, just input automation.
+            Native Windows, Linux, and macOS automation tool designed for Roblox. <br />
+            Built-in macros and a full cross-platform Lua scripting API. No Roblox memory access.
           </p>
 
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (1.8MB EXE)
+              Download Latest Release
             </Button>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities" className="secondary">
               See Github/Source Code
@@ -521,9 +521,9 @@ const App = () => {
             <div>
               <h3>Essential Features</h3>
               <ul>
-                <li>Singular .exe file (no extra files)</li>
+                <li>Native Windows, Linux, and macOS builds</li>
                 <li><strong>Update Prompt:</strong> Optional notification to update on launch</li>
-                <li>Persistent anti-AFK</li>
+                <li><strong>Windows:</strong> Persistent anti-AFK</li>
                 <li>Low resource usage</li>
               </ul>
             </div>
@@ -541,17 +541,26 @@ const App = () => {
               <h3>Advanced Functions</h3>
               <ul>
                 <li><strong>Windows WinDivert Lagswitch:</strong> Optimized for Roblox</li>
-                <li><strong>Status Overlay:</strong> See lag state while playing</li>
+                <li><strong>Windows Status Overlay:</strong> See lag state while playing</li>
                 <li>Item Desync Hitboxes</li>
-                <li>Millisecond input timing</li>
+                <li>High-resolution input timing</li>
                 <li>Suspend Processes / Freeze Roblox</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Lua Macro Scripting</h3>
+              <ul>
+                <li><strong>Custom Macro API:</strong> Build and import your own Lua macros</li>
+                <li>Keyboard, mouse, text, timing, pixel, process, and lag-switch controls</li>
+                <li>Managed hotkeys, callbacks, live status output, and per-script settings panels</li>
+                <li><a href="https://github.com/Spencer0187/Spencer-Macro-Utilities/blob/main/docs/lua_macro_scripting.md">Full Lua scripting API documentation</a></li>
               </ul>
             </div>
             <div>
               <h3>Technical Details</h3>
               <ul>
                 <li>External input simulation</li>
-                <li>No installation required</li>
+                <li>Native Windows, Linux, and macOS support</li>
                 <li>Open source C++</li>
                 <li>Active maintenance</li>
               </ul>
@@ -564,11 +573,11 @@ const App = () => {
           <ul>
             <li>
               <h3>Application Fails to Launch</h3>
-              <p>If the application does not launch, navigate to the file properties and select "Unblock" at the bottom. This is standard for downloaded executables.</p>
+              <p>On Windows, open the downloaded executable's Properties and select "Unblock" if Windows blocks it. On macOS, approve the first launch in System Settings → Privacy & Security. Linux users should follow the repository's setup guide for required input permissions.</p>
             </li>
             <li>
               <h3>Keybinds Not Working</h3>
-              <p>If keybinds are not functioning, restart your computer. Ensure you are using the latest version, as updates often contain important fixes.</p>
+              <p>Ensure the platform permissions are configured correctly and that you are using the latest version. macOS requires Accessibility permission, while Linux requires the one-time input permission setup.</p>
             </li>
           </ul>
         </KnownIssuesSection>
@@ -576,11 +585,12 @@ const App = () => {
         <FeatureShowcase>
           <div>
             <h2>Advanced Lagswitch</h2>
-            <p>Powerful network manipulation designed specifically for Roblox:</p>
+            <p>Network manipulation for supported platforms:</p>
             <ul>
-              <li>Full WinDivert integration</li>
-              <li><strong>In-Game Overlay:</strong> Enable an overlay to see the lagswitch status while playing</li>
-              <li>Customizable duration and settings</li>
+              <li><strong>Windows:</strong> WinDivert-based hard blocking and fake lag</li>
+              <li><strong>Linux:</strong> Native hard blocking and fake lag support</li>
+              <li><strong>Windows Overlay:</strong> See lagswitch status while playing</li>
+              <li>Customizable duration, direction, protocol, and Roblox targeting</li>
               <li>Safety controls to prevent accidental disconnects</li>
             </ul>
           </div>
@@ -610,15 +620,15 @@ const App = () => {
           </div>
           <div>
             <h3>Is it safe?</h3>
-            <p>Yes. The application is now <strong>digitally signed by SignPath Foundation</strong>. This guarantees that the code you download has not been tampered with and comes from a verified open-source build process.</p>
+            <p>Yes. The Windows application is <strong>digitally signed by SignPath Foundation</strong>. This verifies that the signed Windows build comes from the project's open-source release process and has not been modified after signing.</p>
           </div>
           <div>
-            <h3>Windows Defender flags it as a virus!</h3>
-            <p>While false positives can still happen due to the nature of macro behavior and WinDivert drivers, the digital signature significantly reduces this likelihood. If you still encounter issues or don't trust the pre-compiled .exe, you can download Visual Studio 2022 with the "Desktop C++" workload and compile the source code yourself from GitHub.</p>
+            <h3>Windows Defender flags the Windows build as a virus!</h3>
+            <p>False positives can still happen due to macro behavior and WinDivert drivers, though the digital signature significantly reduces this likelihood. If you do not trust a pre-compiled package, you can build SMU from the open-source repository using the included cross-platform build instructions.</p>
           </div>
           <div>
             <h3>How do I update?</h3>
-            <p>The program now includes an optional update notification on launch. Simply click "Yes" when prompted, or download the latest .exe from GitHub.</p>
+            <p>The program includes an optional update notification on launch. Accept the update when supported by your installation method, or download the latest package for your platform from GitHub Releases.</p>
           </div>
         </FAQSection>
 
@@ -626,7 +636,7 @@ const App = () => {
           <h2>Get Started</h2>
           <ButtonGroup>
             <Button href="https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest" className="primary">
-              Download (1.8MB EXE)
+              Download Latest Release
             </Button>
             <Button href="https://discord.gg/roblox-glitching-community-998572881892094012" className="secondary">
               Join Community
@@ -641,10 +651,10 @@ const App = () => {
             </DownloadCount>
           </div>
           <p style={{ marginTop: '1rem', opacity: 0.8 }}>
-            Windows 10/11 / Linux (Via Wine) · Portable EXE · No dependencies
+            Native Windows 10/11 · Linux x86_64 · macOS 11+ (Apple Silicon + Intel)
           </p>
           <p style={{ marginTop: '1rem', opacity: 0.7, fontSize: '0.9rem' }}>
-            Discord server features update pings and glitch discussion
+            Release package size varies by platform and installation format
           </p>
         </Section>
 
@@ -652,8 +662,8 @@ const App = () => {
           <p>Implementation Details:</p>
           <ul>
             <li><a href="https://github.com/ocornut/imgui">ImGui</a> interface framework</li>
-            <li><a href="https://github.com/basil00/WinDivert">WinDivert</a> network manipulation</li>
-            <li><a href="https://about.signpath.io/">SignPath.io</a> code signing services</li>
+            <li><a href="https://github.com/basil00/WinDivert">WinDivert</a> Windows network manipulation</li>
+            <li><a href="https://about.signpath.io/">SignPath.io</a> Windows code signing services</li>
           </ul>
         </Credits>
       </Container>
