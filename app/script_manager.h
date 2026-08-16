@@ -95,6 +95,7 @@ public:
     ScriptImportResult importScriptWithResult(const std::filesystem::path& path);
     bool importScriptFromSave(const std::filesystem::path& path, unsigned int hotkey, bool enabled, bool disableOutsideRoblox);
     bool reloadScript(std::size_t index);
+    bool resetScript(std::size_t index);
     bool removeScript(std::size_t index);
     bool executeScript(std::size_t index);
     bool forceStopScript(std::size_t index);

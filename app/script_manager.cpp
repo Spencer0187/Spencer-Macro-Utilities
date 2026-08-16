@@ -222,6 +222,69 @@ bool ScriptManager::reloadScript(std::size_t index)
     return loaded;
 }
 
+bool ScriptManager::resetScript(std::size_t index)
+{
+    RecordPtr record;
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (index >= scripts_.size()) {
+            return false;
+        }
+        record = scripts_[index];
+        if (!record) {
+            return false;
+        }
+    }
+
+    if (!record) {
+        return false;
+    }
+
+    if (record->running.load(std::memory_order_acquire)) {
+        if (record->instance) {
+            record->instance->requestCancel();
+        }
+        if (!WaitForScriptStop(record, std::chrono::seconds(5))) {
+            return false;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(scriptsMutex_);
+        if (!record || record->running.load(std::memory_order_acquire)) {
+            return false;
+        }
+        record->running.store(true, std::memory_order_release);
+    }
+
+    // Clear persisted UI state so onSettings() controls revert to their defaults.
+    {
+        std::lock_guard<std::mutex> uiLock(record->uiStateMutex);
+        record->uiState = nlohmann::json::object();
+    }
+
+    record->instance.reset();
+    record->loaded.store(false, std::memory_order_release);
+    record->missing.store(false, std::memory_order_release);
+    record->clearLastError();
+    record->clearLastWarning();
+
+    // Reset the script-level settings to their defaults.
+    record->enabled.store(false, std::memory_order_release);
+    record->disableOutsideRoblox.store(true, std::memory_order_release);
+
+    // Apply the hotkey from script metadata, or leave it unbound.
+    const bool loaded = loadRecord(*record);
+    if (auto hotkey = ParseScriptHotkeyMetadata(record->path)) {
+        record->hotkey.store(NormalizeScriptHotkey(*hotkey), std::memory_order_release);
+    } else {
+        record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
+    }
+
+    record->running.store(false, std::memory_order_release);
+    return loaded;
+}
+
 bool ScriptManager::removeScript(std::size_t index)
 {
     RecordPtr removed;
