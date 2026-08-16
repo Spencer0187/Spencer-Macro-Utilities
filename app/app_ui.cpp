@@ -2643,6 +2643,23 @@ void RenderSelectedImportedScript(AppContext& context)
         ImGui::EndDisabled();
     }
 
+    ImGui::SameLine();
+    if (running) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Revert Module")) {
+        const std::size_t index = static_cast<std::size_t>(g_selected_imported_script);
+        std::thread([index] {
+            ScriptManager::Get().resetScript(index);
+        }).detach();
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("Reset this script's hotkey, enable state, and all custom settings to their defaults.");
+    }
+    if (running) {
+        ImGui::EndDisabled();
+    }
+
     ImGui::Separator();
     const char* status = "Loaded";
     ImVec4 statusColor = GetCurrentTheme().success_color;
@@ -3741,16 +3758,37 @@ void RenderAppUi(AppContext& context)
 
         constexpr float kProfilesButtonWidth = 125.0f;
         const float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
-        const float revertButtonWidth = ImGui::CalcTextSize("Revert Module").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        const float revertModuleButtonWidth = ImGui::CalcTextSize("Revert Module").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        const float revertScriptButtonWidth = ImGui::CalcTextSize("Revert Module").x + ImGui::GetStyle().FramePadding.x * 2.0f;
 
         if (selected_section >= 0 && selected_section < static_cast<int>(sections.size()) && g_selected_imported_script < 0) {
-            ImGui::SameLine(childSize.x - kProfilesButtonWidth - itemSpacing - revertButtonWidth);
+            ImGui::SameLine(childSize.x - kProfilesButtonWidth - itemSpacing - revertModuleButtonWidth);
             ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
             if (ImGui::Button("Revert Module")) {
                 ResetSectionToDefaults(selected_section);
             }
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("Reset all settings for '%s' to their defaults.", sections[selected_section].title.c_str());
+            }
+        } else if (g_selected_imported_script >= 0 && g_selected_imported_script < static_cast<int>(ScriptManager::Get().count())) {
+            auto script = ScriptManager::Get().get(static_cast<std::size_t>(g_selected_imported_script));
+            const bool scriptRunning = script && script->running.load(std::memory_order_acquire);
+            ImGui::SameLine(childSize.x - kProfilesButtonWidth - itemSpacing - revertScriptButtonWidth);
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+            if (scriptRunning) {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Button("Revert Module")) {
+                const std::size_t index = static_cast<std::size_t>(g_selected_imported_script);
+                std::thread([index] {
+                    ScriptManager::Get().resetScript(index);
+                }).detach();
+            }
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("Reset this script's hotkey, enable state, and all custom settings to their defaults.");
+            }
+            if (scriptRunning) {
+                ImGui::EndDisabled();
             }
         }
 
