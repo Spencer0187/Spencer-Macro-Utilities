@@ -29,6 +29,9 @@ bool DeleteProfileFromFile(const std::string& filepath, const std::string& profi
 bool RenameProfileInFile(const std::string& filepath, const std::string& old_name, const std::string& new_name);
 bool DuplicateProfileInFile(const std::string& filepath, const std::string& source_name, const std::string& new_name);
 
+// --- Section Reset ---
+void ResetSectionToDefaults(int section_index);
+
 // --- ImGui UI ---
 namespace ProfileUI {
     void DrawProfileManagerUI();

@@ -2403,7 +2403,7 @@ namespace ProfileUI {
 		ImVec4 current_button_bg_color = ImGui::GetStyle().Colors[ImGuiCol_Button];
 		ImVec4 current_button_text_color = ImGui::GetStyle().Colors[ImGuiCol_Text];
 
-		if (ImGui::Button(s_expanded ? "Profiles <-" : "Profiles ->", ImVec2(270, 0))) {
+		if (ImGui::Button(s_expanded ? "Profiles <-" : "Profiles ->", ImVec2(125, 0))) {
 			s_expanded = !s_expanded;
 			if (s_expanded) {
 				RefreshProfileListAndSelection();
@@ -2415,7 +2415,7 @@ namespace ProfileUI {
 
 		if (s_expanded) {
 			ImVec2 buttonPos = ImGui::GetItemRectMin();
-			float menuWidth = ImGui::GetItemRectSize().x;
+			float menuWidth = 260;
 
 			float list_item_height = ImGui::GetTextLineHeightWithSpacing();
 			int num_items_to_show = std::min(10, (int)s_profile_names.size());
@@ -2425,7 +2425,7 @@ namespace ProfileUI {
 			float menuHeight = buttons_height + list_height + ImGui::GetStyle().SeparatorTextAlign.y;
 			menuHeight = std::min(menuHeight, 300.0f);
 
-			ImGui::SetNextWindowPos(ImVec2(buttonPos.x, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
+			ImGui::SetNextWindowPos(ImVec2(buttonPos.x + -135, buttonPos.y - menuHeight - ImGui::GetStyle().WindowPadding.y + 3));
 			ImGui::SetNextWindowSize(ImVec2(menuWidth, menuHeight));
 
 			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(5, 5));
@@ -2685,5 +2685,304 @@ namespace ProfileUI {
 			ImGui::End();
 			ImGui::PopStyleVar();
 		}
+	}
+}
+
+// ============================================================================
+//  ResetSectionToDefaults
+//  Restores only the settings belonging to a specific section to their
+//  compiled-in defaults (captured at startup via CaptureDefaultProfileSnapshot).
+// ============================================================================
+
+void ResetSectionToDefaults(int section_index)
+{
+	std::lock_guard<std::recursive_mutex> lock(g_profilePersistenceMutex);
+
+	if (!g_default_profile_snapshot.has_value()) {
+		LogWarning("ResetSectionToDefaults: no default snapshot available.");
+		return;
+	}
+
+	const json& defaults = *g_default_profile_snapshot;
+
+	// Helper lambdas to restore a single bool/numeric/char key from the snapshot
+	auto restoreBool = [&](const char* key) {
+		if (defaults.contains(key) && defaults[key].is_boolean()) {
+			if (const auto it = bool_vars.find(key); it != bool_vars.end() && it->second) {
+				*it->second = defaults[key].get<bool>();
+			}
+		}
+	};
+
+	auto restoreNumeric = [&](const char* key) {
+		if (!defaults.contains(key) || !defaults[key].is_number()) return;
+		if (const auto it = numeric_vars.find(key); it != numeric_vars.end()) {
+			std::visit([&](auto&& arg) {
+				using T = std::decay_t<decltype(*arg)>;
+				if (arg) *arg = defaults[key].get<T>();
+			}, it->second);
+		}
+	};
+
+	auto restoreChar = [&](const char* key) {
+		if (!defaults.contains(key) || !defaults[key].is_string()) return;
+		auto char_it = std::find_if(char_arrays.begin(), char_arrays.end(),
+			[key](const auto& entry) { return entry.first == key; });
+		if (char_it != char_arrays.end() && char_it->second.first && char_it->second.second > 0) {
+			const std::string val = defaults[key].get<std::string>();
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+			strncpy_s(char_it->second.first, char_it->second.second, val.c_str(), _TRUNCATE);
+#else
+			const size_t copy_len = std::min(val.size(), char_it->second.second - 1);
+			std::memcpy(char_it->second.first, val.data(), copy_len);
+			char_it->second.first[copy_len] = '\0';
+#endif
+		}
+	};
+
+	// Restore section_toggles[i] and disable_outside_roblox[i] for this section
+	auto restoreSectionToggle = [&](int idx) {
+		if (idx < 0 || idx >= section_amounts) return;
+		if (defaults.contains("section_toggles") && defaults["section_toggles"].is_array()) {
+			const auto& arr = defaults["section_toggles"];
+			if (static_cast<size_t>(idx) < arr.size() && arr[idx].is_boolean())
+				section_toggles[idx] = arr[idx].get<bool>();
+		}
+		if (defaults.contains("disable_outside_roblox") && defaults["disable_outside_roblox"].is_array()) {
+			const auto& arr = defaults["disable_outside_roblox"];
+			if (static_cast<size_t>(idx) < arr.size() && arr[idx].is_boolean())
+				disable_outside_roblox[idx] = arr[idx].get<bool>();
+		}
+	};
+
+	// Per-section variable lists
+	// Each case restores: the trigger key, section toggle/disable_outside, and
+	// all module-specific settings for that section.
+	switch (section_index) {
+	case 0: // Freeze
+		restoreNumeric("vk_mbutton");
+		restoreNumeric("maxfreezetime");
+		restoreNumeric("maxfreezeoverride");
+		restoreBool("isfreezeswitch");
+		restoreBool("takeallprocessids");
+		restoreSectionToggle(0);
+		// Sync legacy flat bool from the disable_outside array
+		freezeoutsideroblox = !disable_outside_roblox[0];
+		break;
+
+	case 1: // Item Desync
+		restoreNumeric("vk_f5");
+		restoreChar("ItemDesyncSlot");
+		restoreSectionToggle(1);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){ return std::string(k) == "ItemDesyncSlot"; });
+		break;
+
+	case 2: // Wall Helicopter High Jump
+		restoreNumeric("vk_xbutton1");
+		restoreBool("autotoggle");
+		restoreBool("fasthhj");
+		restoreBool("HHJFreezeDelayApply");
+		restoreChar("HHJLengthChar");
+		restoreChar("HHJFreezeDelayOverrideChar");
+		restoreChar("HHJDelay1Char");
+		restoreChar("HHJDelay2Char");
+		restoreChar("HHJDelay3Char");
+		restoreNumeric("vk_autohhjkey1");
+		restoreNumeric("vk_autohhjkey2");
+		restoreChar("AutoHHJKey1TimeChar");
+		restoreChar("AutoHHJKey2TimeChar");
+		restoreSectionToggle(2);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){
+			const std::string key(k);
+			return key == "HHJLengthChar" || key == "HHJFreezeDelayOverrideChar"
+				|| key == "HHJDelay1Char" || key == "HHJDelay2Char" || key == "HHJDelay3Char"
+				|| key == "AutoHHJKey1TimeChar" || key == "AutoHHJKey2TimeChar";
+		});
+		break;
+
+	case 3: // Speedglitch
+		restoreNumeric("vk_xkey");
+		restoreBool("isspeedswitch");
+		restoreChar("RobloxPixelValueChar");
+		restoreSectionToggle(3);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){ return std::string(k) == "RobloxPixelValueChar"; });
+		break;
+
+	case 4: // Item Unequip COM Offset
+		restoreNumeric("vk_f8");
+		restoreChar("ItemSpeedSlot");
+		restoreChar("CustomTextChar");
+		restoreNumeric("selected_dropdown");
+		restoreNumeric("vk_enterkey");
+		restoreBool("unequiptoggle");
+		restoreSectionToggle(4);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){ return std::string(k) == "ItemSpeedSlot"; });
+		// Sync text from selected_dropdown default
+		if (defaults.contains("text") && defaults["text"].is_string())
+			text = defaults["text"].get<std::string>();
+		unequipinroblox = disable_outside_roblox[4];
+		break;
+
+	case 5: // Press a Button (per-instance; resets instance[0] only)
+		if (!presskey_instances.empty()) {
+			auto& p = presskey_instances[0];
+			p.vk_trigger = defaults.value("vk_zkey", static_cast<unsigned int>(0x5A));
+			p.vk_presskey = defaults.value("vk_dkey", static_cast<unsigned int>(0x44));
+			const std::string pkDelay = defaults.value("PressKeyDelayChar", std::string("16"));
+			const std::string pkBonus = defaults.value("PressKeyBonusDelayChar", std::string("0"));
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+			strncpy_s(p.PressKeyDelayChar, sizeof(PresskeyInstance::PressKeyDelayChar), pkDelay.c_str(), _TRUNCATE);
+			strncpy_s(p.PressKeyBonusDelayChar, sizeof(PresskeyInstance::PressKeyBonusDelayChar), pkBonus.c_str(), _TRUNCATE);
+#else
+			{size_t n = std::min(pkDelay.size(), sizeof(PresskeyInstance::PressKeyDelayChar)-1); std::memcpy(p.PressKeyDelayChar, pkDelay.data(), n); p.PressKeyDelayChar[n] = '\0';}
+			{size_t n = std::min(pkBonus.size(), sizeof(PresskeyInstance::PressKeyBonusDelayChar)-1); std::memcpy(p.PressKeyBonusDelayChar, pkBonus.data(), n); p.PressKeyBonusDelayChar[n] = '\0';}
+#endif
+			try { p.PressKeyDelay = std::stoi(pkDelay); } catch (...) {}
+			try { p.PressKeyBonusDelay = std::stoi(pkBonus); } catch (...) {}
+			p.presskeyinroblox = disable_outside_roblox[5];
+		}
+		restoreSectionToggle(5);
+		presskeyinroblox = disable_outside_roblox[5];
+		break;
+
+	case 6: // Wallhop/Rotation (per-instance; resets instance[0] only)
+		if (!wallhop_instances.empty()) {
+			auto& w = wallhop_instances[0];
+			w.vk_trigger = defaults.value("vk_xbutton2", static_cast<unsigned int>(0x06));
+			w.vk_jumpkey = defaults.value("vk_wallhopjumpkey", static_cast<unsigned int>(VK_SPACE));
+			const std::string wpix = defaults.value("WallhopPixels", std::string("300"));
+			const std::string wvert = defaults.value("WallhopVerticalChar", std::string("0"));
+			const std::string wdel = defaults.value("WallhopDelayChar", std::string("19"));
+			const std::string wbdel = defaults.value("WallhopBonusDelayChar", std::string("0"));
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+			strncpy_s(w.WallhopPixels, sizeof(WallhopInstance::WallhopPixels), wpix.c_str(), _TRUNCATE);
+			strncpy_s(w.WallhopVerticalChar, sizeof(WallhopInstance::WallhopVerticalChar), wvert.c_str(), _TRUNCATE);
+			strncpy_s(w.WallhopDelayChar, sizeof(WallhopInstance::WallhopDelayChar), wdel.c_str(), _TRUNCATE);
+			strncpy_s(w.WallhopBonusDelayChar, sizeof(WallhopInstance::WallhopBonusDelayChar), wbdel.c_str(), _TRUNCATE);
+#else
+			{size_t n=std::min(wpix.size(),sizeof(WallhopInstance::WallhopPixels)-1); std::memcpy(w.WallhopPixels,wpix.data(),n); w.WallhopPixels[n]='\0';}
+			{size_t n=std::min(wvert.size(),sizeof(WallhopInstance::WallhopVerticalChar)-1); std::memcpy(w.WallhopVerticalChar,wvert.data(),n); w.WallhopVerticalChar[n]='\0';}
+			{size_t n=std::min(wdel.size(),sizeof(WallhopInstance::WallhopDelayChar)-1); std::memcpy(w.WallhopDelayChar,wdel.data(),n); w.WallhopDelayChar[n]='\0';}
+			{size_t n=std::min(wbdel.size(),sizeof(WallhopInstance::WallhopBonusDelayChar)-1); std::memcpy(w.WallhopBonusDelayChar,wbdel.data(),n); w.WallhopBonusDelayChar[n]='\0';}
+#endif
+			try { w.wallhop_dx = std::stoi(wpix); w.wallhop_dy = -std::stoi(wpix); } catch (...) {}
+			try { w.wallhop_vertical = std::stoi(wvert); } catch (...) {}
+			try { w.WallhopDelay = std::stoi(wdel); } catch (...) {}
+			try { w.WallhopBonusDelay = std::stoi(wbdel); } catch (...) {}
+			w.wallhopswitch = defaults.value("wallhopswitch", false);
+			w.toggle_jump   = defaults.value("toggle_jump", true);
+			w.toggle_flick  = defaults.value("toggle_flick", true);
+			w.wallhopcamfix = defaults.value("wallhopcamfix", false);
+			w.disable_outside_roblox = disable_outside_roblox[6];
+		}
+		restoreSectionToggle(6);
+		break;
+
+	case 7: // Walless LHJ
+		restoreNumeric("vk_f6");
+		restoreBool("wallesslhjswitch");
+		restoreSectionToggle(7);
+		break;
+
+	case 8: // Item Clip
+		restoreNumeric("vk_clipkey");
+		restoreChar("ItemClipSlot");
+		restoreChar("ItemClipDelay");
+		restoreBool("isitemclipswitch");
+		restoreSectionToggle(8);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){
+			const std::string key(k);
+			return key == "ItemClipSlot" || key == "ItemClipDelay";
+		});
+		break;
+
+	case 9: // Laugh Clip
+		restoreNumeric("vk_laughkey");
+		restoreBool("laughmoveswitch");
+		restoreSectionToggle(9);
+		break;
+
+	case 10: // Wall-Walk
+		restoreNumeric("vk_wallkey");
+		restoreBool("iswallwalkswitch");
+		restoreBool("wallwalktoggleside");
+		restoreChar("RobloxWallWalkValueChar");
+		restoreChar("RobloxWallWalkValueDelayChar");
+		restoreSectionToggle(10);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){
+			const std::string key(k);
+			return key == "RobloxWallWalkValueChar" || key == "RobloxWallWalkValueDelayChar";
+		});
+		break;
+
+	case 11: // Spam a Key (per-instance; resets instance[0] only)
+		if (!spamkey_instances.empty()) {
+			auto& s = spamkey_instances[0];
+			s.vk_trigger  = defaults.value("vk_leftbracket", static_cast<unsigned int>(0xDB));
+			s.vk_spamkey  = defaults.value("vk_spamkey", static_cast<unsigned int>(VK_SPACE));
+			s.isspamswitch = defaults.value("isspamswitch", false);
+			const std::string spDel = defaults.value("SpamDelay", std::string("16"));
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+			strncpy_s(s.SpamDelay, sizeof(SpamkeyInstance::SpamDelay), spDel.c_str(), _TRUNCATE);
+#else
+			{size_t n=std::min(spDel.size(),sizeof(SpamkeyInstance::SpamDelay)-1); std::memcpy(s.SpamDelay,spDel.data(),n); s.SpamDelay[n]='\0';}
+#endif
+			try { s.spam_delay = std::stof(spDel); s.real_delay = static_cast<int>((s.spam_delay+0.5f)/2.0f); } catch (...) {}
+			s.disable_outside_roblox = disable_outside_roblox[11];
+		}
+		restoreSectionToggle(11);
+		break;
+
+	case 12: // Ledge Bounce
+		restoreNumeric("vk_bouncekey");
+		restoreBool("bouncesidetoggle");
+		restoreBool("bouncerealignsideways");
+		restoreBool("bounceautohold");
+		restoreSectionToggle(12);
+		break;
+
+	case 13: // Smart Bunnyhop
+		restoreNumeric("vk_bunnyhopkey");
+		restoreBool("bunnyhopsmart");
+		restoreBool("chatoverride");
+		restoreChar("BunnyHopDelayChar");
+		restoreSectionToggle(13);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){ return std::string(k) == "BunnyHopDelayChar"; });
+		break;
+
+	case 14: // Floor Bounce
+		restoreNumeric("vk_floorbouncekey");
+		restoreBool("floorbouncehhj");
+		restoreChar("FloorBounceDelay1Char");
+		restoreChar("FloorBounceDelay2Char");
+		restoreChar("FloorBounceDelay3Char");
+		restoreSectionToggle(14);
+		SyncRuntimeSettingsFromBuffersImpl([](const char* k){
+			const std::string key(k);
+			return key == "FloorBounceDelay1Char" || key == "FloorBounceDelay2Char" || key == "FloorBounceDelay3Char";
+		});
+		break;
+
+	case 15: // Lag Switch
+		restoreNumeric("vk_lagswitchkey");
+		restoreBool("islagswitchswitch");
+		restoreBool("prevent_disconnect");
+		restoreBool("lagswitchoutbound");
+		restoreBool("lagswitchinbound");
+		restoreBool("lagswitchtargetroblox");
+		restoreBool("lagswitchusetcp");
+		restoreBool("lagswitch_autounblock");
+		restoreBool("lagswitchlag");
+		restoreBool("lagswitchlaginbound");
+		restoreBool("lagswitchlagoutbound");
+		restoreNumeric("lagswitch_max_duration");
+		restoreNumeric("lagswitch_unblock_ms");
+		restoreNumeric("lagswitchlagdelay");
+		restoreSectionToggle(15);
+		break;
+
+	default:
+		LogWarning("ResetSectionToDefaults: unknown section index " + std::to_string(section_index));
+		break;
 	}
 }
