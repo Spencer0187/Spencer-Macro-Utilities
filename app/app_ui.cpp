@@ -1,6 +1,7 @@
 #include "app_ui.h"
 
 #include "app_profile_bridge.h"
+#include "profile_manager.h"
 #include "app_theme_bridge.h"
 #include "input_actions.h"
 #include "linux_lagswitch_helper.h"
@@ -3708,7 +3709,7 @@ void RenderAppUi(AppContext& context)
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0.0f);
 
     if (ImGui::BeginChild("BottomControls", ImVec2(childSize.x - 1, 30), false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-        ImGui::SameLine(childSize.x - 616);
+        ImGui::SameLine(childSize.x - 602);
         ImGui::AlignTextToFramePadding();
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
         ImGui::Text("Always On-Top");
@@ -3738,7 +3739,22 @@ void RenderAppUi(AppContext& context)
         drawList->AddLine(ImVec2(childPos.x + 1, childPos.y + childSize.y - 1), ImVec2(childPos.x + childSize.x - 1, childPos.y + childSize.y - 1), bgColor, 1.0f);
         drawList->AddLine(ImVec2(childPos.x, childPos.y + childSize.y + 29), ImVec2(childPos.x + childSize.x, childPos.y + childSize.y + 29), borderColor, 1.0f);
 
-        ImGui::SameLine();
+        constexpr float kProfilesButtonWidth = 125.0f;
+        const float itemSpacing = ImGui::GetStyle().ItemSpacing.x;
+        const float revertButtonWidth = ImGui::CalcTextSize("Revert Module").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+
+        if (selected_section >= 0 && selected_section < static_cast<int>(sections.size()) && g_selected_imported_script < 0) {
+            ImGui::SameLine(childSize.x - kProfilesButtonWidth - itemSpacing - revertButtonWidth);
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+            if (ImGui::Button("Revert Module")) {
+                ResetSectionToDefaults(selected_section);
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Reset all settings for '%s' to their defaults.", sections[selected_section].title.c_str());
+            }
+        }
+
+        ImGui::SameLine(childSize.x - kProfilesButtonWidth);
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
         RenderSharedProfileManager();
     }
