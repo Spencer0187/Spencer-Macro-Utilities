@@ -814,13 +814,21 @@ void MacroRuntime::refreshTargetProcesses(bool force)
     auto backend = smu::platform::GetProcessBackend();
     if (!backend) {
         targetPIDs.clear();
+        foregroundTargetPIDs_.clear();
         processFound = false;
         return;
     }
 
+    // Keep process-control targeting separate from foreground detection.
+    // `takeallprocessids` is deliberately a control/suspend setting; making
+    // foreground restrictions depend on it causes multi-instance users to be
+    // recognized only while the newest matching Roblox process is focused.
+    const std::vector<smu::platform::PlatformPid> allPids =
+        backend->findAllProcesses(settingsBuffer);
+
     std::vector<smu::platform::PlatformPid> pids;
     if (takeallprocessids) {
-        pids = backend->findAllProcesses(settingsBuffer);
+        pids = allPids;
     } else if (auto pid = backend->findMainProcess(settingsBuffer)) {
         pids.push_back(*pid);
     }
@@ -828,11 +836,15 @@ void MacroRuntime::refreshTargetProcesses(bool force)
     const bool pidsChanged =
         targetPIDs.size() != pids.size() ||
         !std::equal(targetPIDs.begin(), targetPIDs.end(), pids.begin());
+    const bool foregroundPidsChanged =
+        foregroundTargetPIDs_.size() != allPids.size() ||
+        !std::equal(foregroundTargetPIDs_.begin(), foregroundTargetPIDs_.end(), allPids.begin());
 
     targetPIDs.assign(pids.begin(), pids.end());
+    foregroundTargetPIDs_ = allPids;
     processFound = !targetPIDs.empty();
 
-    if (pidsChanged) {
+    if (pidsChanged || foregroundPidsChanged) {
         nextForegroundCheck_ = std::chrono::steady_clock::time_point{};
     }
 }
@@ -862,7 +874,7 @@ bool MacroRuntime::foregroundAllows(bool disableOutsideRoblox)
         return false;
     }
 
-    for (unsigned int pid : targetPIDs) {
+    for (smu::platform::PlatformPid pid : foregroundTargetPIDs_) {
         if (backend->isForegroundProcess(pid)) {
             cachedForegroundAllowed_ = true;
             nextForegroundCheck_ = now + 25ms;

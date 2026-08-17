@@ -85,6 +85,9 @@ private:
     std::vector<bool> wallhopWasPressed_;
     std::vector<bool> spamKeyWasPressed_;
     std::vector<bool> importedScriptWasPressed_;
+    // Foreground restrictions must recognize every matching instance, even
+    // when process control is intentionally limited to the newest/main PID.
+    std::vector<smu::platform::PlatformPid> foregroundTargetPIDs_;
     std::vector<unsigned int> frozenPids_;
     std::chrono::steady_clock::time_point nextProcessRefresh_{};
     std::chrono::steady_clock::time_point nextForegroundCheck_{};

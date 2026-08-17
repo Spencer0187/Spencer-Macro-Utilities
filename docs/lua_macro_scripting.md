@@ -883,7 +883,7 @@ If a key is not part of the persisted setting registry, `getSavedValue()` return
 | `bouncesidetoggle` | boolean | Ledge Bounce: use the left-sided bounce path instead of the default side |
 | `laughmoveswitch` | boolean | Laugh Clip: disable the automatic `S` key hold during the clip sequence |
 | `freezeoutsideroblox` | boolean | Legacy compatibility mirror for Freeze foreground restriction. `true` means Freeze is allowed outside Roblox |
-| `takeallprocessids` | boolean | Freeze/process control: target every matching process ID instead of only the newest/main matching process |
+| `takeallprocessids` | boolean | Freeze/process control: target every matching process ID instead of only the newest/main matching process. Foreground restrictions recognize every matching process independently. |
 | `ontoptoggle` | boolean | Keep the main SMU window always on top |
 | `bunnyhopsmart` | boolean | Smart Bunnyhop: temporarily suppress bunnyhop while chat is open until Enter or left-click closes it |
 | `presskeyinroblox` | boolean | First Press a Button instance: restrict the macro to Roblox foreground focus when enabled |
