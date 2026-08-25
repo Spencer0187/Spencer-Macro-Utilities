@@ -75,11 +75,11 @@ def build_windows(config: str, cmake_args: list[str]) -> None:
             "--config",
             config,
             "--target",
-            "suspend",
+            "spencer_macro_utilities",
             "--parallel",
         ]
     )
-    print(f"\nBuilt unsigned executable: {build_dir / config / 'suspend.exe'}")
+    print(f"\nBuilt unsigned executable: {build_dir / config / 'Spencer-Macro-Utilities.exe'}")
 
 
 def build_linux(

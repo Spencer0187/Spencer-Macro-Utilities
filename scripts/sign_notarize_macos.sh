@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULT_STAGE_DIR="$ROOT_DIR/out/build/macos-universal-release/package-macos"
 STAGE_DIR="${SMU_MACOS_STAGE_DIR:-"$DEFAULT_STAGE_DIR"}"
-APP_PATH="${1:-"$STAGE_DIR/suspend.app"}"
+APP_PATH="${1:-"$STAGE_DIR/Spencer Macro Utilities.app"}"
 ZIP_PATH="$STAGE_DIR/SpencerMacroUtilities-macOS-universal.zip"
 DMG_PATH="$STAGE_DIR/SpencerMacroUtilities-macOS-universal.dmg"
 NOTARY_ZIP="$STAGE_DIR/SpencerMacroUtilities-macOS-universal-notary.zip"

@@ -9,6 +9,13 @@
 
 // --- File Resolution ---
 std::string ResolveSettingsFilePath();
+#if defined(SMU_PORTABLE_GLOBALS)
+std::string ResolveSettingsFilePathForTesting(
+    const std::string& canonicalDirectory,
+    const std::string& executableDirectory,
+    const std::string& currentDirectory);
+std::string BuildWindowsSettingsDirectoryForTesting(const std::string& localAppDataDirectory);
+#endif
 std::recursive_mutex& GetProfilePersistenceMutex();
 
 // --- Core Settings Logic ---

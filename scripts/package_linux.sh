@@ -15,7 +15,7 @@ cmake -S "$ROOT_DIR" -B "$BUILD_DIR" \
 cmake --build "$BUILD_DIR" --target package-linux-dir --parallel
 
 PACKAGE_DIR="$BUILD_DIR/SpencerMacroUtilities"
-SUSPEND_BIN="$PACKAGE_DIR/suspend"
+APP_BIN="$PACKAGE_DIR/Spencer-Macro-Utilities"
 NETHELPER_BIN="$PACKAGE_DIR/nethelper"
 
 echo "Building nethelper..."
@@ -35,15 +35,15 @@ chmod +x "$NETHELPER_BIN"
 echo
 echo "Portable folder: $PACKAGE_DIR"
 echo
-file "$SUSPEND_BIN"
+file "$APP_BIN"
 echo
-ldd "$SUSPEND_BIN" | tee "$BUILD_DIR/package-linux-ldd.txt"
+ldd "$APP_BIN" | tee "$BUILD_DIR/package-linux-ldd.txt"
 if grep -q "not found" "$BUILD_DIR/package-linux-ldd.txt"; then
   echo "ERROR: ldd reports missing shared libraries." >&2
   exit 1
 fi
 if grep -q "libSDL3" "$BUILD_DIR/package-linux-ldd.txt" && ! compgen -G "$PACKAGE_DIR/lib/libSDL3.so*" >/dev/null; then
-  echo "ERROR: suspend depends on SDL3, but no bundled libSDL3.so* was found in $PACKAGE_DIR/lib." >&2
+  echo "ERROR: Spencer-Macro-Utilities depends on SDL3, but no bundled libSDL3.so* was found in $PACKAGE_DIR/lib." >&2
   exit 1
 fi
 

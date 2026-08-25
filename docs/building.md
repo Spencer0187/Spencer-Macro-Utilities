@@ -19,7 +19,7 @@ python scripts/build.py
 Output:
 
 ```text
-build/windows-local/Release/suspend.exe
+build/windows-local/Release/Spencer-Macro-Utilities.exe
 ```
 
 Local Windows builds are intentionally unsigned. Official release builds are signed through SignPath in GitHub Actions.
@@ -212,7 +212,7 @@ Compile the native Linux target:
 
 ```bash
 cmake -S . -B build/check -DCMAKE_BUILD_TYPE=Release
-cmake --build build/check --target suspend --parallel
+cmake --build build/check --target spencer_macro_utilities --parallel
 ```
 
 Release maintainers should also follow [releasing.md](releasing.md).

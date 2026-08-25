@@ -24,18 +24,30 @@ class VersionTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 VERSION.parse_version(invalid)
 
+    def test_repository_frozen_legacy_url_contract(self) -> None:
+        url = (ROOT / ".github" / "autoupdaterurl").read_text(encoding="utf-8").strip()
+        self.assertEqual(
+            url,
+            "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/download/"
+            "V3.4.0/Spencer-Macro-Utilities-Windows.zip?legacy={VERSION}",
+        )
+        self.assertEqual(url.count("{VERSION}"), 1)
+
     def test_synchronizes_all_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / "AppImage").mkdir()
             (root / ".github").mkdir()
             (root / "version").write_text("3.2.1\n", encoding="utf-8")
-            (root / "AppImage" / "nfpm.yaml").write_text(
-                "name: smu\nversion: 3.2.1\n", encoding="utf-8"
+            frozen_legacy_url = (
+                "https://github.com/example/releases/download/V3.4.0/"
+                "Spencer-Macro-Utilities-Windows.zip?legacy={VERSION}\n"
             )
             (root / ".github" / "autoupdaterurl").write_text(
-                "https://github.com/example/releases/download/V3.2.1/file-{VERSION}.zip\n",
-                encoding="utf-8",
+                frozen_legacy_url, encoding="utf-8"
+            )
+            (root / "AppImage" / "nfpm.yaml").write_text(
+                "name: smu\nversion: 3.2.1\n", encoding="utf-8"
             )
             (root / "package.json").write_text(
                 json.dumps({"name": "smu", "version": "1.0.0"}) + "\n",
@@ -48,9 +60,9 @@ class VersionTests(unittest.TestCase):
 
             self.assertEqual(VERSION.check_synchronized(root), [])
             self.assertEqual((root / "version").read_text(encoding="utf-8"), "3.3.0\n")
-            self.assertIn(
-                "/V3.3.0/",
+            self.assertEqual(
                 (root / ".github" / "autoupdaterurl").read_text(encoding="utf-8"),
+                frozen_legacy_url,
             )
 
 

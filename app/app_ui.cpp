@@ -500,6 +500,7 @@ struct UpdateUiState {
     bool checkedOnce = false;
     bool checking = false;
     bool applying = false;
+    bool applyFailed = false;
     bool updateConfirmOpen = false;
     bool updatePromptDismissed = false;
     std::string actionMessage;
@@ -570,6 +571,7 @@ void StartUpdateCheck(bool force)
         }
         if (force) {
             g_updateUiState.updatePromptDismissed = false;
+            g_updateUiState.applyFailed = false;
         }
         g_updateUiState.checking = true;
         g_updateUiState.actionMessage = "Checking for updates...";
@@ -612,6 +614,7 @@ void StartApplyUpdateConfirmed()
         }
         release = *g_updateUiState.status.latestRelease;
         g_updateUiState.applying = true;
+        g_updateUiState.applyFailed = false;
         g_updateUiState.actionMessage = "Downloading update...";
     }
 
@@ -622,6 +625,7 @@ void StartApplyUpdateConfirmed()
         {
             std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
             g_updateUiState.applying = false;
+            g_updateUiState.applyFailed = !ok;
             g_updateUiState.actionMessage = ok
                 ? "Update installer launched. The app will restart shortly."
                 : (error.empty() ? "Update failed." : error);
@@ -761,13 +765,10 @@ void RenderUpdateConfirmationModal(AppContext& context)
 
             ImGui::SetItemDefaultFocus();
         } else {
-            const bool canOpenRelease =
-                statusSnapshot.latestRelease.has_value() &&
-                !statusSnapshot.latestRelease->htmlUrl.empty() &&
-                static_cast<bool>(context.openExternalUrl);
+            const bool canOpenRelease = static_cast<bool>(context.openExternalUrl);
             ImGui::BeginDisabled(!canOpenRelease);
-            if (ImGui::Button("Open download page", ImVec2(170.0f, 0.0f))) {
-                context.openExternalUrl(statusSnapshot.latestRelease->htmlUrl.c_str());
+            if (ImGui::Button("Open latest release", ImVec2(170.0f, 0.0f))) {
+                context.openExternalUrl(smu::updater::LatestReleasePageUrl());
                 {
                     std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
                     g_updateUiState.updateConfirmOpen = false;
@@ -1858,6 +1859,7 @@ void RenderUpdaterPanel(AppContext& context)
     smu::updater::UpdaterStatus status;
     bool checking = false;
     bool applying = false;
+    bool applyFailed = false;
     bool checkedOnce = false;
     std::string actionMessage;
     {
@@ -1865,6 +1867,7 @@ void RenderUpdaterPanel(AppContext& context)
         status = g_updateUiState.status;
         checking = g_updateUiState.checking;
         applying = g_updateUiState.applying;
+        applyFailed = g_updateUiState.applyFailed;
         checkedOnce = g_updateUiState.checkedOnce;
         actionMessage = g_updateUiState.actionMessage;
     }
@@ -1894,7 +1897,10 @@ void RenderUpdaterPanel(AppContext& context)
         ImGui::TextWrapped("Selected package: %s", status.selectedAsset->name.c_str());
     }
 
-    if (ImGui::Button("Check for updates")) {
+    const char* checkButtonLabel = checkedOnce && !status.checkSucceeded
+        ? "Retry update check"
+        : "Check for updates";
+    if (ImGui::Button(checkButtonLabel)) {
         StartUpdateCheck(true);
     }
 
@@ -1908,7 +1914,10 @@ void RenderUpdaterPanel(AppContext& context)
 
     ImGui::SameLine();
     ImGui::BeginDisabled(!canApply);
-    if (ImGui::Button(applying ? "Applying update..." : "Download and install update")) {
+    const char* applyButtonLabel = applying
+        ? "Applying update..."
+        : (applyFailed ? "Retry update" : "Download and install update");
+    if (ImGui::Button(applyButtonLabel)) {
         StartApplyUpdate();
     }
     ImGui::EndDisabled();
@@ -1928,15 +1937,14 @@ void RenderUpdaterPanel(AppContext& context)
 #endif
     }
 
-    const bool canOpenRelease = checkedOnce &&
-        status.updateAvailable &&
-        status.latestRelease.has_value() &&
-        !status.latestRelease->htmlUrl.empty() &&
-        static_cast<bool>(context.openExternalUrl);
-    if (canOpenRelease) {
-        if (ImGui::Button("Open release download page")) {
-            context.openExternalUrl(status.latestRelease->htmlUrl.c_str());
-        }
+    const bool canOpenRelease = static_cast<bool>(context.openExternalUrl);
+    ImGui::BeginDisabled(!canOpenRelease);
+    if (ImGui::Button("Open latest release")) {
+        context.openExternalUrl(smu::updater::LatestReleasePageUrl());
+    }
+    ImGui::EndDisabled();
+    if (!canOpenRelease) {
+        ImGui::TextWrapped("Latest release: %s", smu::updater::LatestReleasePageUrl());
     }
 
     if (!actionMessage.empty()) {

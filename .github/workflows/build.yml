@@ -173,9 +173,9 @@ jobs:
             build/linux-release/CMakeCache.txt
           grep -qx 'SMU_WAYLAND_EIS_ENABLED:INTERNAL=ON' \
             build/linux-release/CMakeCache.txt
-          ldd build/linux-release/suspend | grep -q 'libpipewire-0.3.so.0'
-          ldd build/linux-release/suspend | grep -q 'libdbus-1.so.3'
-          ldd build/linux-release/suspend | grep -q 'libei.so.1'
+          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libpipewire-0.3.so.0'
+          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libdbus-1.so.3'
+          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libei.so.1'
 
       - name: Test Linux updater
         run: |
@@ -265,7 +265,7 @@ jobs:
         run: cmake -S . -B build/windows -G "Visual Studio 18 2026" -A x64
 
       - name: Build Windows app
-        run: cmake --build build/windows --config Release --target suspend --parallel
+        run: cmake --build build/windows --config Release --target spencer_macro_utilities --parallel
 
       - name: Upload unsigned executable for SignPath
         if: inputs.release_mode
@@ -273,7 +273,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: signpath-input-${{ github.run_id }}-${{ github.run_attempt }}
-          path: build/windows/Release/suspend.exe
+          path: build/windows/Release/Spencer-Macro-Utilities.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -291,27 +291,48 @@ jobs:
           wait-for-completion: true
           output-artifact-directory: signed
 
-      - name: Stage Windows package
+      - name: Stage Windows packages
         shell: pwsh
         run: |
+          $version = '${{ needs.prepare.outputs.app_version }}'
+          $versionedName = "Spencer-Macro-Utilities-V${version}-Windows.exe"
+          $portableArchive = 'release-files/Spencer-Macro-Utilities-Windows.zip'
+
+          Remove-Item release-files -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force release-files | Out-Null
           if ('${{ inputs.release_mode }}' -eq 'true') {
-            $executable = Get-ChildItem signed -Filter suspend.exe -File -Recurse |
+            $executable = Get-ChildItem signed -Filter Spencer-Macro-Utilities.exe -File -Recurse |
               Select-Object -First 1
             if (-not $executable) {
-              throw 'SignPath did not return suspend.exe.'
+              throw 'SignPath did not return Spencer-Macro-Utilities.exe.'
             }
             $signature = Get-AuthenticodeSignature $executable.FullName
             if ($signature.Status -ne 'Valid') {
               throw "SignPath signature validation failed: $($signature.Status)"
             }
           } else {
-            $executable = Get-Item build/windows/Release/suspend.exe
+            $executable = Get-Item build/windows/Release/Spencer-Macro-Utilities.exe
           }
 
-          $stage = 'build/windows-release'
+          $stageRoot = 'build/windows-release'
+          Remove-Item $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+          # V3.4.0-ONLY LEGACY BRIDGE:
+          # Old V3.0-V3.3.x Windows updaters require a root-level suspend.exe.
+          # For this one release, the normal Windows ZIP itself is the bridge.
+          # V3.4.0 renames/relaunches itself before GUI initialization. As soon
+          # as the project version becomes 3.4.1, this branch is no longer used
+          # and the normal versioned nested layout below becomes the only format.
+          if ($version -eq '3.4.0') {
+            $stage = $stageRoot
+            $packagedExeName = 'suspend.exe'
+          } else {
+            $stage = "$stageRoot/Spencer-Macro-Utilities"
+            $packagedExeName = $versionedName
+          }
+
           New-Item -ItemType Directory -Force $stage | Out-Null
-          Copy-Item $executable.FullName "$stage/suspend.exe"
+          Copy-Item $executable.FullName "$stage/$packagedExeName"
           Copy-Item README.md "$stage/README.md"
           Copy-Item LICENSE "$stage/LICENSE"
           Copy-Item PRIVACY.md "$stage/PRIVACY.md"
@@ -331,21 +352,43 @@ jobs:
             third_party/windivert/LICENSE-LGPL-3.0.txt `
             "$stage/licenses/WinDivert-LGPL-3.0.txt"
 
-          # Keep the historical primary ZIP name. V3.0/V3.1 use the checked-in
-          # URL template, and V3.2 selects the first ZIP in the release asset
-          # list. This name sorts before the platform-specific Linux/macOS ZIPs.
-          $archive = "release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip"
-          Compress-Archive -Path "$stage/*" -DestinationPath $archive -CompressionLevel Optimal -Force
+          if ($version -eq '3.4.0') {
+            Compress-Archive -Path "$stage/*" -DestinationPath $portableArchive -CompressionLevel Optimal -Force
+          } else {
+            Compress-Archive -Path $stage -DestinationPath $portableArchive -CompressionLevel Optimal -Force
+          }
 
-      - name: Verify signed package contents
+          # The direct download is always correctly branded/versioned, including V3.4.0.
+          Copy-Item $executable.FullName "release-files/$versionedName"
+
+      - name: Verify signed Windows packages
         if: inputs.release_mode
         shell: pwsh
         run: |
+          $version = '${{ needs.prepare.outputs.app_version }}'
+          $versionedName = "Spencer-Macro-Utilities-V${version}-Windows.exe"
+
           $verifyDir = 'build/windows-release-verify'
-          Expand-Archive `
-            "release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip" `
-            $verifyDir
-          $signature = Get-AuthenticodeSignature "$verifyDir/suspend.exe"
+          Remove-Item $verifyDir -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive 'release-files/Spencer-Macro-Utilities-Windows.zip' $verifyDir
+
+          if ($version -eq '3.4.0') {
+            # V3.4.0-only compatibility layout. The executable is the same signed
+            # bytes as the direct download, temporarily exposed as suspend.exe.
+            $packageRoot = $verifyDir
+            $packagedExe = "$verifyDir/suspend.exe"
+            if (Test-Path -LiteralPath "$verifyDir/Spencer-Macro-Utilities" -PathType Container) {
+              throw 'V3.4.0 Windows ZIP must use the root-level legacy layout.'
+            }
+          } else {
+            $packageRoot = "$verifyDir/Spencer-Macro-Utilities"
+            $packagedExe = "$packageRoot/$versionedName"
+            if (Test-Path -LiteralPath "$verifyDir/suspend.exe" -PathType Leaf) {
+              throw 'suspend.exe must not appear in the V3.4.1+ Windows ZIP.'
+            }
+          }
+
+          $signature = Get-AuthenticodeSignature $packagedExe
           if ($signature.Status -ne 'Valid') {
             throw "Packaged executable signature validation failed: $($signature.Status)"
           }
@@ -356,19 +399,32 @@ jobs:
             'licenses/SDL.txt',
             'licenses/AppImage-type2-runtime.txt',
             'licenses/go-iptables-LICENSE.txt',
-            'licenses/go-iptables-NOTICE.txt'
+            'licenses/go-iptables-NOTICE.txt',
             'licenses/WinDivert-LGPL-3.0.txt'
           ) | ForEach-Object {
-            if (-not (Test-Path -LiteralPath "$verifyDir/$_" -PathType Leaf)) {
+            if (-not (Test-Path -LiteralPath "$packageRoot/$_" -PathType Leaf)) {
               throw "Packaged notice is missing: $_"
             }
           }
 
-      - name: Upload Windows release asset
+          $directSignature = Get-AuthenticodeSignature "release-files/$versionedName"
+          if ($directSignature.Status -ne 'Valid') {
+            throw "Standalone executable signature validation failed: $($directSignature.Status)"
+          }
+
+      - name: Upload Windows portable ZIP
         uses: actions/upload-artifact@v7
         with:
-          name: Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip
-          path: release-files/Spencer-Macro-Utilities-${{ needs.prepare.outputs.app_version }}.zip
+          name: Spencer-Macro-Utilities-Windows.zip
+          path: release-files/Spencer-Macro-Utilities-Windows.zip
+          archive: false
+          if-no-files-found: error
+
+      - name: Upload standalone Windows executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Windows.exe
+          path: release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-Windows.exe
           archive: false
           if-no-files-found: error
 
@@ -432,8 +488,8 @@ jobs:
       - name: Verify universal signed app
         shell: bash
         run: |
-          app="out/build/macos-universal-release/package-macos/suspend.app"
-          binary="$app/Contents/MacOS/suspend"
+          app="out/build/macos-universal-release/package-macos/Spencer Macro Utilities.app"
+          binary="$app/Contents/MacOS/Spencer-Macro-Utilities"
           architectures="$(lipo -archs "$binary")"
           grep -qw arm64 <<<"$architectures"
           grep -qw x86_64 <<<"$architectures"

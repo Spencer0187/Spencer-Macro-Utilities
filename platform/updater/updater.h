@@ -11,6 +11,7 @@ namespace smu::updater {
 
 std::string NormalizeVersion(std::string version);
 int CompareVersions(const std::string& lhs, const std::string& rhs);
+const char* LatestReleasePageUrl();
 
 UpdaterStatus CheckForUpdate(const std::string& localVersion);
 std::optional<ReleaseInfo> FetchLatestRelease(std::string* errorMessage = nullptr);
@@ -29,6 +30,16 @@ bool DownloadAssetToMemory(
 bool ExtractUpdatePackage(
     const std::vector<char>& packageBytes,
     const std::string& fileNameToExtract,
+    std::vector<char>& extractedData,
+    std::string* errorMessage = nullptr);
+
+// Extract one exact, safe relative path from an updater ZIP. Unlike
+// ExtractUpdatePackage(), this accepts forward-slash directory components so
+// platform packages can keep a stable outer folder without weakening ZIP path
+// traversal checks.
+bool ExtractUpdatePackageEntry(
+    const std::vector<char>& packageBytes,
+    const std::string& entryPathToExtract,
     std::vector<char>& extractedData,
     std::string* errorMessage = nullptr);
 

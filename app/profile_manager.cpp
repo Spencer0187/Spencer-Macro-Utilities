@@ -607,7 +607,15 @@ fs::path GetCurrentDirectoryPath() {
 }
 
 fs::path GetExecutableDirectoryPath() {
-#if defined(__linux__)
+#if defined(_WIN32) && !defined(SMU_PORTABLE_GLOBALS)
+	std::vector<wchar_t> buffer(32768);
+	const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+	if (length > 0 && length < buffer.size()) {
+		return fs::path(std::wstring(buffer.data(), length)).parent_path();
+	}
+	LogWarning("Could not resolve the Windows executable path (error " +
+		std::to_string(static_cast<unsigned long>(GetLastError())) + ").");
+#elif defined(__linux__)
 	std::array<char, 4096> buffer{};
 	const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
 	if (length > 0) {
@@ -635,8 +643,35 @@ fs::path GetExecutableDirectoryPath() {
 	return GetCurrentDirectoryPath();
 }
 
+fs::path BuildWindowsSettingsDirectory(const fs::path& localAppDataDirectory) {
+	if (localAppDataDirectory.empty()) {
+		return {};
+	}
+	return localAppDataDirectory / "Spencer Macro Utilities";
+}
+
 fs::path GetUserConfigDirectory(const RealUserContext& realUser) {
-#if defined(__APPLE__)
+#if defined(_WIN32)
+#if !defined(SMU_PORTABLE_GLOBALS)
+	PWSTR localAppDataPath = nullptr;
+	const HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &localAppDataPath);
+	if (SUCCEEDED(result) && localAppDataPath != nullptr) {
+		const fs::path configDirectory = BuildWindowsSettingsDirectory(fs::path(localAppDataPath));
+		CoTaskMemFree(localAppDataPath);
+		return configDirectory;
+	}
+	if (localAppDataPath != nullptr) {
+		CoTaskMemFree(localAppDataPath);
+	}
+	LogWarning("Could not resolve the Windows LocalAppData known folder; falling back to LOCALAPPDATA.");
+#endif
+	if (const char* localAppData = std::getenv("LOCALAPPDATA")) {
+		if (localAppData[0] != '\0') {
+			return BuildWindowsSettingsDirectory(fs::path(localAppData));
+		}
+	}
+	return {};
+#elif defined(__APPLE__)
 	if (!realUser.homeDirectory.empty()) {
 		return fs::path(realUser.homeDirectory) / "Library" / "Application Support" / "Spencer Macro Utilities";
 	}
@@ -672,7 +707,9 @@ bool AdjustSettingsFileOwnershipAndPermissions(const fs::path& path) {
 		filename == "RMCSettings.json" ||
 		filename == "RMCSettings.json.bak" ||
 		filename.rfind("SMCSettings.json.tmp-", 0) == 0 ||
-		filename.rfind("RMCSettings.json.tmp-", 0) == 0;
+		filename.rfind("RMCSettings.json.tmp-", 0) == 0 ||
+		filename.rfind("SMCSettings.json.corrupt-", 0) == 0 ||
+		filename.rfind("RMCSettings.json.corrupt-", 0) == 0;
 
 	if (!isSettingsFile) {
 		return true;
@@ -708,23 +745,6 @@ bool CopySettingsFile(const fs::path& source, const fs::path& destination) {
 			LogWarning("Could not copy settings file from " + FormatPathForLog(source) + " to " +
 				FormatPathForLog(destination) + ": " + ec.message());
 		}
-		return false;
-	}
-
-	AdjustSettingsFileOwnershipAndPermissions(destination);
-	return true;
-}
-
-bool RenameSettingsFile(const fs::path& source, const fs::path& destination) {
-	if (!EnsureParentDirectoryExists(destination)) {
-		return false;
-	}
-
-	std::error_code ec;
-	fs::rename(source, destination, ec);
-	if (ec) {
-		LogWarning("Could not rename settings file from " + FormatPathForLog(source) + " to " +
-			FormatPathForLog(destination) + ": " + ec.message());
 		return false;
 	}
 
@@ -869,7 +889,7 @@ static bool ReplaceSettingsFile(const fs::path& source, const fs::path& destinat
 
 // Write JSON through a same-directory temp file and atomically replace the
 // live file. The previous valid primary is copied to .bak before replacement.
-static bool WriteJsonFile(const std::string& filepath, const json& data) {
+static bool WriteJsonFile(const std::string& filepath, const json& data, bool allowReplaceUnreadablePrimary = false) {
 	const fs::path settingsPath(filepath);
 	if (!EnsureParentDirectoryExists(settingsPath)) {
 		LogCritical("Failed to save settings to " + filepath + ": parent directory is unavailable.");
@@ -925,10 +945,24 @@ static bool WriteJsonFile(const std::string& filepath, const json& data) {
 				return false;
 			}
 		} else if (!ReadJsonFileDirect(SettingsBackupPath(settingsPath)).success) {
-			LogCritical("Refusing to replace unreadable settings file without a valid backup: " + filepath);
-			std::error_code ec;
-			fs::remove(tempPath, ec);
-			return false;
+			if (!allowReplaceUnreadablePrimary) {
+				LogCritical("Refusing to replace unreadable settings file without a valid backup: " + filepath);
+				std::error_code ec;
+				fs::remove(tempPath, ec);
+				return false;
+			}
+
+			const auto corruptCounter = g_settings_temp_counter.fetch_add(1, std::memory_order_relaxed);
+			const auto corruptTimestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+			const fs::path preservedPath = fs::path(filepath + ".corrupt-" + std::to_string(corruptTimestamp) +
+				"-" + std::to_string(corruptCounter));
+			if (!CopySettingsFile(settingsPath, preservedPath)) {
+				LogCritical("Refusing migration because the unreadable primary could not be preserved: " + filepath);
+				std::error_code ec;
+				fs::remove(tempPath, ec);
+				return false;
+			}
+			LogWarning("Preserved unreadable settings file before migration: " + preservedPath.string());
 		} else {
 			LogWarning("Replacing an unreadable primary settings file using its valid backup: " + filepath);
 		}
@@ -945,108 +979,145 @@ static bool WriteJsonFile(const std::string& filepath, const json& data) {
 }
 
 // ============================================================================
-//  FILE RESOLUTION — Single function to find the settings file
-//  Search order: platform config dir, then executable dir, with SMC priority over RMC.
-//  Automatically renames RMCSettings.json → SMCSettings.json when found.
-//  On macOS, copies bundle-adjacent settings into Application Support instead of
-//  writing into the app bundle or mounted dmg.
-//  May throw std::filesystem::filesystem_error if filesystem queries,
-//  renames, or copies fail.
+//  FILE RESOLUTION — Prefer OS-standard canonical storage and migrate legacy data.
+//  Valid SMC sources always outrank valid RMC sources. Within each filename,
+//  discovery order is canonical directory, executable directory, one directory
+//  above the executable, then the historical/current working directory.
+//  Primary/backup parsing uses ReadJsonFile(), and successful migration always
+//  writes a canonical SMCSettings.json while leaving legacy sources in place.
 // ============================================================================
 
-std::string ResolveSettingsFilePath() {
-	const RealUserContext realUser = GetRealUserContext();
-	const fs::path executableDir = GetExecutableDirectoryPath();
-	const fs::path currentDir = GetCurrentDirectoryPath();
-	const fs::path configDir = GetUserConfigDirectory(realUser);
+namespace {
 
-	const fs::path executableSettings = executableDir / "SMCSettings.json";
-	const fs::path executableLegacySettings = executableDir / "RMCSettings.json";
+bool SameResolutionPath(const fs::path& left, const fs::path& right)
+{
+	return !left.empty() && !right.empty() && left.lexically_normal() == right.lexically_normal();
+}
 
-#if defined(__APPLE__)
-	if (!configDir.empty()) {
-		const fs::path configSettings = configDir / "SMCSettings.json";
-		if (PathExists(configSettings)) {
-			LogInfo("Using settings file from Application Support: " + configSettings.string());
-			return configSettings.string();
+void AppendUniqueSettingsDirectory(std::vector<fs::path>& directories, const fs::path& directory)
+{
+	if (directory.empty()) {
+		return;
+	}
+	const fs::path normalized = directory.lexically_normal();
+	for (const fs::path& existing : directories) {
+		if (existing == normalized) {
+			return;
 		}
+	}
+	directories.push_back(normalized);
+}
 
-		const fs::path legacyConfigSettings = configDir / "RMCSettings.json";
-		if (PathExists(legacyConfigSettings)) {
-			if (RenameSettingsFile(legacyConfigSettings, configSettings)) {
-				LogInfo("Migrated legacy settings file in Application Support: " + configSettings.string());
-				return configSettings.string();
+struct SettingsSourceCandidate {
+	fs::path path;
+	JsonFileResult parsed;
+};
+
+std::string ResolveSettingsFilePathFromDirectories(
+	const fs::path& canonicalDirectory,
+	const fs::path& executableDirectory,
+	const fs::path& currentDirectory)
+{
+	const fs::path canonicalSettings = canonicalDirectory.empty()
+		? fs::path{}
+		: canonicalDirectory / "SMCSettings.json";
+
+	std::vector<fs::path> discoveryDirectories;
+	AppendUniqueSettingsDirectory(discoveryDirectories, canonicalDirectory);
+	AppendUniqueSettingsDirectory(discoveryDirectories, executableDirectory);
+	if (!executableDirectory.empty()) {
+		AppendUniqueSettingsDirectory(discoveryDirectories, executableDirectory.parent_path());
+	}
+	AppendUniqueSettingsDirectory(discoveryDirectories, currentDirectory);
+
+	std::optional<SettingsSourceCandidate> selectedSource;
+	for (const char* filename : {"SMCSettings.json", "RMCSettings.json"}) {
+		for (const fs::path& directory : discoveryDirectories) {
+			const fs::path candidatePath = directory / filename;
+			if (!HasSettingsSource(candidatePath.string())) {
+				continue;
 			}
-			LogWarning("Using legacy Application Support settings path because rename failed: " + legacyConfigSettings.string());
-			return legacyConfigSettings.string();
-		}
 
-		if (PathExists(executableSettings) && CopySettingsFile(executableSettings, configSettings)) {
-			LogInfo("Copied settings file from app bundle location to Application Support: " + configSettings.string());
-			return configSettings.string();
-		}
-		if (PathExists(executableLegacySettings) && CopySettingsFile(executableLegacySettings, configSettings)) {
-			LogInfo("Copied legacy settings file from app bundle location to Application Support: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		if (EnsureParentDirectoryExists(configSettings)) {
-			LogInfo("Using Application Support settings path: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		LogWarning("Falling back from preferred Application Support settings path: " + configSettings.string());
-	}
-#endif
-
-	if (PathExists(executableSettings)) {
-		LogInfo("Using existing settings file next to executable: " + executableSettings.string());
-		return executableSettings.string();
-	}
-
-	if (PathExists(executableLegacySettings)) {
-		if (RenameSettingsFile(executableLegacySettings, executableSettings)) {
-			LogInfo("Migrated legacy settings file next to executable: " + executableSettings.string());
-			return executableSettings.string();
-		}
-		LogWarning("Using legacy executable settings path because rename failed: " + executableLegacySettings.string());
-		return executableLegacySettings.string();
-	}
-
-	if (!configDir.empty()) {
-		const fs::path configSettings = configDir / "SMCSettings.json";
-		if (PathExists(configSettings)) {
-			LogInfo("Using settings file from config directory: " + configSettings.string());
-			return configSettings.string();
-		}
-
-		const fs::path legacyConfigSettings = configDir / "RMCSettings.json";
-		if (PathExists(legacyConfigSettings)) {
-			if (RenameSettingsFile(legacyConfigSettings, configSettings)) {
-				LogInfo("Migrated legacy settings file in config directory: " + configSettings.string());
-				return configSettings.string();
+			JsonFileResult parsed = ReadJsonFile(candidatePath.string());
+			if (parsed.success) {
+				selectedSource = SettingsSourceCandidate{candidatePath, std::move(parsed)};
+				break;
 			}
-			LogWarning("Using legacy config settings path because rename failed: " + legacyConfigSettings.string());
-			return legacyConfigSettings.string();
-		}
 
-		if (EnsureParentDirectoryExists(configSettings)) {
-			LogInfo("Using config directory settings path: " + configSettings.string());
-			return configSettings.string();
+			LogWarning("Ignoring unreadable settings source " + candidatePath.string() + ": " + parsed.error);
 		}
-
-		LogWarning("Falling back from preferred config settings path: " + configSettings.string());
+		if (selectedSource.has_value()) {
+			break;
+		}
 	}
 
-	if (!currentDir.empty()) {
-		const fs::path fallbackSettings = currentDir / "SMCSettings.json";
-		LogWarning("Creating new settings file: " + fallbackSettings.string());
+	if (selectedSource.has_value()) {
+		const bool canonicalPrimaryIsAlreadyValid =
+			SameResolutionPath(selectedSource->path, canonicalSettings) &&
+			!selectedSource->parsed.loaded_from_backup;
+		if (canonicalPrimaryIsAlreadyValid) {
+			LogInfo("Using canonical settings file: " + canonicalSettings.string());
+			return canonicalSettings.string();
+		}
+
+		if (!canonicalSettings.empty() &&
+			EnsureParentDirectoryExists(canonicalSettings) &&
+			WriteJsonFile(canonicalSettings.string(), selectedSource->parsed.data, true)) {
+			LogInfo("Migrated settings from " + selectedSource->path.string() +
+				(selectedSource->parsed.loaded_from_backup ? ".bak" : std::string{}) +
+				" to canonical storage: " + canonicalSettings.string());
+			return canonicalSettings.string();
+		}
+
+		LogWarning("Could not migrate settings to canonical storage; using discovered source: " + selectedSource->path.string());
+		return selectedSource->path.string();
+	}
+
+	if (!canonicalSettings.empty() && EnsureParentDirectoryExists(canonicalSettings)) {
+		LogInfo("Using canonical settings path: " + canonicalSettings.string());
+		return canonicalSettings.string();
+	}
+
+	if (!currentDirectory.empty()) {
+		const fs::path fallbackSettings = currentDirectory / "SMCSettings.json";
+		LogWarning("Canonical settings directory is unavailable; falling back to: " + fallbackSettings.string());
+		return fallbackSettings.string();
+	}
+	if (!executableDirectory.empty()) {
+		const fs::path fallbackSettings = executableDirectory / "SMCSettings.json";
+		LogWarning("Canonical settings directory is unavailable; falling back to: " + fallbackSettings.string());
 		return fallbackSettings.string();
 	}
 
 	LogWarning("Falling back to relative settings path: SMCSettings.json");
 	return "SMCSettings.json";
 }
+
+} // namespace
+
+std::string ResolveSettingsFilePath()
+{
+	const RealUserContext realUser = GetRealUserContext();
+	return ResolveSettingsFilePathFromDirectories(
+		GetUserConfigDirectory(realUser),
+		GetExecutableDirectoryPath(),
+		GetCurrentDirectoryPath());
+}
+
+#if defined(SMU_PORTABLE_GLOBALS)
+std::string ResolveSettingsFilePathForTesting(
+	const std::string& canonicalDirectory,
+	const std::string& executableDirectory,
+	const std::string& currentDirectory)
+{
+	return ResolveSettingsFilePathFromDirectories(canonicalDirectory, executableDirectory, currentDirectory);
+}
+
+std::string BuildWindowsSettingsDirectoryForTesting(const std::string& localAppDataDirectory)
+{
+	return BuildWindowsSettingsDirectory(localAppDataDirectory).string();
+}
+#endif
 
 // ============================================================================
 //  FORMAT DETECTION — Distinguish new profile format from legacy flat format

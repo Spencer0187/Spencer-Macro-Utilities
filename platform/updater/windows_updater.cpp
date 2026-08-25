@@ -14,6 +14,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cwchar>
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -512,15 +513,23 @@ bool PlatformAutoApplySupported()
             nullptr);
 }
 
-bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const std::string&, std::string* errorMessage)
+bool ApplyUpdateFromAsset(
+    const ReleaseAsset& asset,
+    const std::string& latestVersion,
+    const std::string&,
+    std::string* errorMessage)
 {
     std::vector<char> zipData;
     if (!smu::updater::DownloadAssetToMemory(asset, zipData, errorMessage)) {
         return false;
     }
 
+    const std::string targetExeName =
+        "Spencer-Macro-Utilities-V" + latestVersion + "-Windows.exe";
+    const std::string targetEntryPath =
+        "Spencer-Macro-Utilities/" + targetExeName;
     std::vector<char> exeData;
-    if (!smu::updater::ExtractUpdatePackage(zipData, "suspend.exe", exeData, errorMessage)) {
+    if (!smu::updater::ExtractUpdatePackageEntry(zipData, targetEntryPath, exeData, errorMessage)) {
         return false;
     }
     if (exeData.size() < 64ULL * 1024ULL || exeData.size() > kMaximumDownloadBytes) {
@@ -537,6 +546,29 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
             workingDir,
             errorMessage) ||
         !ExecutableFolderCanBeWritten(workingDir, errorMessage)) {
+        return false;
+    }
+
+    const std::wstring targetExeNameWide = Utf8ToWide(targetExeName);
+    if (targetExeNameWide.empty()) {
+        if (errorMessage) {
+            *errorMessage = "Could not convert the versioned Windows update filename.";
+        }
+        return false;
+    }
+    const std::wstring targetExePath = workingDir + L"\\" + targetExeNameWide;
+    if (_wcsicmp(targetExePath.c_str(), currentExePath.c_str()) == 0) {
+        if (errorMessage) {
+            *errorMessage = "Updater refused to replace the running executable with the same versioned filename.";
+        }
+        return false;
+    }
+    if (GetFileAttributesW(targetExePath.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        if (errorMessage) {
+            *errorMessage =
+                "The target update executable already exists: " + targetExeName +
+                ". Close or remove that existing file, then retry the update.";
+        }
         return false;
     }
 
@@ -585,9 +617,9 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
         L"timeout /t 1 /nobreak > NUL\r\n"
         L"goto move_current\r\n"
         L":current_moved\r\n"
-        L"move /Y \"%~2\" \"%~1\" > NUL\r\n"
+        L"move /Y \"%~2\" \"%~4\" > NUL\r\n"
         L"if errorlevel 1 goto install_failed\r\n"
-        L"start \"\" \"%~1\"\r\n"
+        L"start \"\" \"%~4\"\r\n"
         L"if errorlevel 1 goto launch_failed\r\n"
         L"del /F /Q \"%~3\" > NUL 2>&1\r\n"
         L"goto cleanup\r\n"
@@ -605,7 +637,7 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
         L"del /F /Q \"%~2\" > NUL 2>&1\r\n"
         L"goto cleanup\r\n"
         L":launch_failed\r\n"
-        L"del /F /Q \"%~1\" > NUL 2>&1\r\n"
+        L"del /F /Q \"%~4\" > NUL 2>&1\r\n"
         L"move /Y \"%~3\" \"%~1\" > NUL\r\n"
         L"start \"\" \"%~1\"\r\n"
         L":cleanup\r\n"
@@ -668,7 +700,8 @@ bool ApplyUpdateFromAsset(const ReleaseAsset& asset, const std::string&, const s
     }
 
     const std::wstring params =
-        L"\"" + currentExePath + L"\" \"" + tempExePath + L"\" \"" + backupExePath + L"\"";
+        L"\"" + currentExePath + L"\" \"" + tempExePath + L"\" \"" +
+        backupExePath + L"\" \"" + targetExePath + L"\"";
     HINSTANCE result = ShellExecuteW(nullptr, L"open", batchFilePath.c_str(), params.c_str(), nullptr, SW_HIDE);
     if (reinterpret_cast<intptr_t>(result) <= 32) {
         DeleteFileW(batchFilePath.c_str());

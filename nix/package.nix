@@ -120,7 +120,7 @@ stdenv.mkDerivation {
     mkdir -p "$appDir" "$out/bin" "$out/share/applications" \
       "$out/share/icons/hicolor/256x256/apps" "$out/share/doc/spencer-macro-utilities"
 
-    mv "$out/suspend" "$appDir/suspend"
+    mv "$out/Spencer-Macro-Utilities" "$appDir/Spencer-Macro-Utilities"
     mv "$out/assets" "$appDir/assets"
     mv "$out/nethelper" "$appDir/nethelper-unwrapped"
 
@@ -148,11 +148,10 @@ stdenv.mkDerivation {
 
     makeWrapper "$appDir/nethelper-unwrapped" "$appDir/nethelper" \
       --prefix PATH : "${runtimePath}"
-    makeWrapper "$appDir/suspend" "$out/bin/spencer-macro-utilities" \
+    makeWrapper "$appDir/Spencer-Macro-Utilities" "$out/bin/spencer-macro-utilities" \
       --set SMU_APPDIR "$appDir" \
       --prefix PATH : "${runtimePath}" \
       --prefix LD_LIBRARY_PATH : "${runtimeLibraryPath}"
-    ln -s spencer-macro-utilities "$out/bin/suspend"
 
     install -Dm644 "$src/AppImage/SMU.png" \
       "$out/share/icons/hicolor/256x256/apps/spencer-macro-utilities.png"

@@ -10,12 +10,16 @@ struct ReleaseAsset {
     std::string name;
     std::string downloadUrl;
     std::size_t sizeBytes = 0;
+    std::string sha256;
 };
 
 struct ReleaseInfo {
     std::string tagName;
     std::string version;
     std::string htmlUrl;
+    int manifestSchemaVersion = 0;
+    std::string minimumUpdaterVersion;
+    bool manifestDriven = false;
     std::vector<ReleaseAsset> assets;
 };
 

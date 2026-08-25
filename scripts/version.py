@@ -47,15 +47,6 @@ def synchronized_contents(root: Path, version: str) -> dict[Path, str]:
         nfpm_path,
     )
 
-    updater_path = root / ".github" / "autoupdaterurl"
-    updater_text = updater_path.read_text(encoding="utf-8")
-    updates[updater_path] = replace_exact(
-        re.compile(r"/releases/download/V[^/]+/"),
-        f"/releases/download/V{version}/",
-        updater_text,
-        updater_path,
-    )
-
     package_path = root / "package.json"
     package_data = json.loads(package_path.read_text(encoding="utf-8"))
     package_data["version"] = version

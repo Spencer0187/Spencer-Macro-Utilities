@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by suspend.rc
+// Used by spencer_macro_utilities.rc
 //
 #define IDI_ICON1                       102
 #define IDR_SMC_WINDIVERT_DLL1          124

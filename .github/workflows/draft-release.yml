@@ -24,6 +24,11 @@ jobs:
     needs: build-packages
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+
       - name: Prepare draft release body
         id: release-body
         shell: bash
@@ -55,20 +60,31 @@ jobs:
           merge-multiple: true
           skip-decompress: true
 
+      - name: Generate authoritative updater manifest
+        shell: bash
+        run: |
+          python3 scripts/generate_update_manifest.py \
+            --release-dir release-files \
+            --version "${{ needs.build-packages.outputs.app_version }}" \
+            --output release-files/update-manifest.json
+
       - name: Verify release asset set
         shell: bash
         run: |
           version="${{ needs.build-packages.outputs.app_version }}"
           expected=(
-            "Spencer-Macro-Utilities-${version}.zip"
+            "Spencer-Macro-Utilities-Windows.zip"
+            "Spencer-Macro-Utilities-V${version}-Windows.exe"
             "Spencer-Macro-Utilities-V${version}-Linux-x86_64.zip"
             "Spencer-Macro-Utilities-V${version}-macOS-universal.zip"
             "Spencer-Macro-Utilities-V${version}-macOS-universal.dmg"
+            "update-manifest.json"
           )
           for asset in "${expected[@]}"; do
             test -s "release-files/$asset"
           done
           test "$(find release-files -maxdepth 1 -type f | wc -l)" -eq "${#expected[@]}"
+          python3 -m json.tool release-files/update-manifest.json >/dev/null
 
       - name: Clear assets from an existing draft
         shell: bash
@@ -115,24 +131,30 @@ jobs:
           name: Spencer Macro Utilities V${{ needs.build-packages.outputs.app_version }}
           body: ${{ steps.release-body.outputs.body }}
           draft: true
-          # V3.2 selects the first ZIP. Upload sequentially in this order, then
-          # fail the workflow below if GitHub's API does not preserve it.
+          # V3.4.0-ONLY compatibility detail: V3.2 blindly selects the first
+          # ZIP on /releases/latest, so the normal Windows ZIP must be uploaded
+          # first for that release. V3.3.x also selects this Windows-named ZIP.
+          # V3.4+ clients use update-manifest.json, so ordering is irrelevant
+          # after the one-release migration window.
           preserve_order: true
           files: |
-            release-files/Spencer-Macro-Utilities-${{ needs.build-packages.outputs.app_version }}.zip
+            release-files/Spencer-Macro-Utilities-Windows.zip
+            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-Windows.exe
             release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-Linux-x86_64.zip
             release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.zip
             release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.dmg
+            release-files/update-manifest.json
           fail_on_unmatched_files: true
 
       - name: Verify legacy updater asset ordering
+        if: needs.build-packages.outputs.app_version == '3.4.0'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="${{ needs.build-packages.outputs.app_version }}"
           release_id="${{ steps.create-release.outputs.id }}"
-          expected="Spencer-Macro-Utilities-${version}.zip"
+          expected="Spencer-Macro-Utilities-Windows.zip"
           first_zip="$(
             gh api \
               "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \

@@ -407,4 +407,4 @@ build-windows*/
 *.sln.iml
 
 # Compiled executable
-visual studio/x64/Release/suspend.exe
+visual studio/x64/Release/Spencer-Macro-Utilities.exe

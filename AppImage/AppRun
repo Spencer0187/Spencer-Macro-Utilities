@@ -5,4 +5,4 @@ export APPDIR="$HERE"
 export SMU_APPDIR="$HERE"
 export LD_LIBRARY_PATH="$HERE/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-exec "$HERE/usr/bin/suspend" "$@"
+exec "$HERE/usr/bin/Spencer-Macro-Utilities" "$@"

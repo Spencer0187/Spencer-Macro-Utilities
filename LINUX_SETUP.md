@@ -4,7 +4,7 @@ Spencer Macro Utilities reads global key state through `/dev/input/event*` and i
 
 The GUI app should run as your normal desktop user. If SMU cannot access the Linux input devices on startup, it shows an in-app setup modal that can launch a one-time installer for the required permissions.
 
-Do not run the whole GUI as root, do not run the AppImage with `sudo`, and do not launch `suspend` with `sudo`. Only the installer script should be elevated.
+Do not run the whole GUI as root, do not run the AppImage with `sudo`, and do not launch `Spencer-Macro-Utilities` with `sudo`. Only the installer script should be elevated.
 
 SMU never asks for your sudo password inside its own ImGui interface. Authentication is handled by `pkexec` or `sudo`.
 

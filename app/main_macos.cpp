@@ -16,9 +16,12 @@
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
 
+#include <CoreFoundation/CoreFoundation.h>
+
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <filesystem>
@@ -27,6 +30,7 @@
 #include <optional>
 #include <spawn.h>
 #include <string>
+#include <sys/mount.h>
 #include <system_error>
 #include <vector>
 
@@ -70,6 +74,111 @@ std::optional<std::filesystem::path> CurrentAppBundlePath()
         return std::nullopt;
     }
     return bundlePath;
+}
+
+enum class MacOSRestrictedLaunchLocation {
+    None,
+    AppTranslocation,
+    ReadOnlyDiskImage,
+    ReadOnlyMountedVolume,
+};
+
+bool IsAppTranslocationPath(const std::filesystem::path& bundlePath)
+{
+    const std::string normalized = bundlePath.lexically_normal().generic_string();
+    const bool underTranslocationRoot =
+        normalized.rfind("/private/var/folders/", 0) == 0 ||
+        normalized.rfind("/var/folders/", 0) == 0;
+    return underTranslocationRoot && normalized.find("/AppTranslocation/") != std::string::npos;
+}
+
+bool HdiutilReportsMountedDiskImage(const struct statfs& mountInfo)
+{
+    FILE* pipe = popen("/usr/bin/hdiutil info 2>/dev/null", "r");
+    if (!pipe) {
+        return false;
+    }
+
+    const std::string mountedFrom = mountInfo.f_mntfromname;
+    const std::string mountedAt = mountInfo.f_mntonname;
+    char line[4096];
+    bool matched = false;
+    while (std::fgets(line, sizeof(line), pipe)) {
+        const std::string currentLine = line;
+        if (currentLine.find(mountedFrom) != std::string::npos &&
+            currentLine.find(mountedAt) != std::string::npos) {
+            matched = true;
+            break;
+        }
+    }
+    (void)pclose(pipe);
+    return matched;
+}
+
+MacOSRestrictedLaunchLocation GetRestrictedMacOSLaunchLocation()
+{
+    const auto bundlePath = CurrentAppBundlePath();
+    if (!bundlePath) {
+        return MacOSRestrictedLaunchLocation::None;
+    }
+
+    if (IsAppTranslocationPath(*bundlePath)) {
+        return MacOSRestrictedLaunchLocation::AppTranslocation;
+    }
+
+    struct statfs mountInfo {};
+    if (statfs(bundlePath->c_str(), &mountInfo) != 0) {
+        return MacOSRestrictedLaunchLocation::None;
+    }
+
+    if ((mountInfo.f_flags & MNT_RDONLY) == 0) {
+        return MacOSRestrictedLaunchLocation::None;
+    }
+
+    const std::string mountedAt = mountInfo.f_mntonname;
+    if (mountedAt.rfind("/Volumes/", 0) != 0) {
+        return MacOSRestrictedLaunchLocation::None;
+    }
+
+    return HdiutilReportsMountedDiskImage(mountInfo)
+        ? MacOSRestrictedLaunchLocation::ReadOnlyDiskImage
+        : MacOSRestrictedLaunchLocation::ReadOnlyMountedVolume;
+}
+
+void ShowMacOSInstallRequiredAlert(MacOSRestrictedLaunchLocation location)
+{
+    const CFStringRef title = CFSTR("Install Spencer Macro Utilities First");
+    CFStringRef message = CFSTR(
+        "Spencer Macro Utilities cannot run from this read-only mounted volume. "
+        "Copy Spencer Macro Utilities.app to the Applications folder, then open the installed copy from Applications.");
+    if (location == MacOSRestrictedLaunchLocation::AppTranslocation) {
+        message = CFSTR(
+            "macOS is running Spencer Macro Utilities from App Translocation instead of its installed location. "
+            "Move Spencer Macro Utilities.app to the Applications folder, then open that installed copy from Applications.");
+    } else if (location == MacOSRestrictedLaunchLocation::ReadOnlyDiskImage) {
+        message = CFSTR(
+            "Spencer Macro Utilities cannot run directly from its read-only disk image. "
+            "Drag Spencer Macro Utilities.app to the Applications folder, eject the disk image, then open the installed copy from Applications.");
+    }
+    CFOptionFlags responseFlags = 0;
+    const SInt32 status = CFUserNotificationDisplayAlert(
+        0,
+        kCFUserNotificationStopAlertLevel,
+        nullptr,
+        nullptr,
+        nullptr,
+        title,
+        message,
+        CFSTR("Quit"),
+        nullptr,
+        nullptr,
+        &responseFlags);
+    if (status != 0) {
+        std::fprintf(
+            stderr,
+            "Spencer Macro Utilities must be installed in Applications before it can run (alert status %d).\n",
+            static_cast<int>(status));
+    }
 }
 
 bool RelaunchCurrentMacOSApp()
@@ -226,6 +335,13 @@ int main(int argc, char** argv)
 {
     (void)argc;
     (void)argv;
+
+    const MacOSRestrictedLaunchLocation restrictedLaunchLocation =
+        GetRestrictedMacOSLaunchLocation();
+    if (restrictedLaunchLocation != MacOSRestrictedLaunchLocation::None) {
+        ShowMacOSInstallRequiredAlert(restrictedLaunchLocation);
+        return EXIT_FAILURE;
+    }
 
     const bool workingDirectoryUpdated = smu::app::SetWorkingDirectoryToExecutablePath();
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());

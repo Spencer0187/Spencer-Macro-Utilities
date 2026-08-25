@@ -24,6 +24,12 @@ bool ExtractLinuxAppImageFromPackage(
     std::string* errorMessage);
 std::string BuildLinuxUpdaterScript();
 bool PlatformAutoApplySupported();
+std::string Sha256Hex(const std::vector<char>& data);
+bool IsUpdaterVersionAllowed(const ReleaseInfo& release, const std::string& updaterVersion);
+std::optional<ReleaseInfo> ParseReleaseMetadataWithManifest(
+    const std::string& releaseJson,
+    const std::string& manifestJson,
+    std::string* errorMessage);
 }
 
 namespace {
@@ -231,6 +237,164 @@ void TestAssetSelection()
     Expect(selected->name == CurrentAppImageName(), "prefer standalone AppImage over Linux ZIP");
 }
 
+std::string ReplaceOnce(std::string value, const std::string& from, const std::string& to)
+{
+    const std::size_t position = value.find(from);
+    Expect(position != std::string::npos, "find updater contract test token");
+    value.replace(position, from.size(), to);
+    return value;
+}
+
+void TestReleaseManifestContract()
+{
+    const std::string officialAsset = CurrentBundleName();
+    const std::string extraAsset = CurrentAppImageName();
+    const std::string releaseBase =
+        "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/download/V3.4.0/";
+    const std::string sha256 =
+        "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
+
+    const std::string releaseJson =
+        "{\"tag_name\":\"V3.4.0\","
+        "\"html_url\":\"https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/tag/V3.4.0\","
+        "\"assets\":["
+        "{\"name\":\"update-manifest.json\",\"browser_download_url\":\"" + releaseBase +
+            "update-manifest.json\",\"size\":321},"
+        "{\"name\":\"" + officialAsset + "\",\"browser_download_url\":\"" + releaseBase + officialAsset +
+            "\",\"size\":12345},"
+        "{\"name\":\"" + extraAsset + "\",\"browser_download_url\":\"" + releaseBase + extraAsset +
+            "\",\"size\":54321}]}";
+
+    const std::string manifestJson =
+        "{\"schema_version\":1,\"release_version\":\"3.4.0\","
+        "\"minimum_updater_version\":\"3.4.0\",\"artifacts\":{"
+        "\"linux-current\":{\"asset\":\"" + officialAsset + "\",\"size\":12345,"
+        "\"sha256\":\"" + sha256 + "\",\"url\":\"" + releaseBase + officialAsset + "\"}}}";
+
+    std::string error;
+    auto release = smu::updater::detail::ParseReleaseMetadataWithManifest(
+        releaseJson,
+        manifestJson,
+        &error);
+    Expect(release.has_value(), "accept a valid V3.4 update manifest");
+    Expect(release->manifestDriven, "mark releases parsed from the update manifest");
+    Expect(release->manifestSchemaVersion == 1, "record update manifest schema version");
+    Expect(release->minimumUpdaterVersion == "3.4.0", "record minimum updater version");
+    Expect(release->assets.size() == 1, "ignore GitHub release assets omitted from the manifest");
+    Expect(release->assets.front().name == officialAsset, "retain only the manifest-declared artifact");
+    Expect(release->assets.front().sizeBytes == 12345, "use manifest artifact byte size");
+    Expect(
+        release->assets.front().sha256 ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "normalize manifest SHA-256 to lowercase");
+    auto selected = smu::updater::SelectUpdateAsset(*release);
+    Expect(selected.has_value() && selected->name == officialAsset,
+        "do not let a higher-scoring undeclared GitHub asset influence selection");
+    Expect(
+        smu::updater::detail::IsUpdaterVersionAllowed(*release, "3.4.0"),
+        "allow the manifest minimum updater version");
+    Expect(
+        !smu::updater::detail::IsUpdaterVersionAllowed(*release, "3.3.9"),
+        "reject an updater older than minimum_updater_version");
+
+    const std::string manifestWithoutUrl = ReplaceOnce(
+        manifestJson,
+        ",\"url\":\"" + releaseBase + officialAsset + "\"",
+        "");
+    Expect(
+        smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            manifestWithoutUrl,
+            &error).has_value(),
+        "allow release-relative asset selection without an explicit manifest URL");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"schema_version\":1", "\"schema_version\":2"),
+            &error),
+        "reject unsupported update manifest schema versions");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"release_version\":\"3.4.0\"", "\"release_version\":\"3.4.1\""),
+            &error),
+        "reject a manifest for a different release tag");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"minimum_updater_version\":\"3.4.0\",", ""),
+            &error),
+        "reject a manifest without minimum_updater_version");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"minimum_updater_version\":\"3.4.0\"", "\"minimum_updater_version\":\"3.4\""),
+            &error),
+        "reject a non-canonical minimum_updater_version");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            ReplaceOnce(releaseJson, "\"name\":\"" + extraAsset + "\"", "\"name\":\"" + officialAsset + "\""),
+            manifestJson,
+            &error),
+        "reject duplicate GitHub metadata entries for one manifest asset");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"size\":12345", "\"size\":12346"),
+            &error),
+        "reject manifest and GitHub artifact size disagreement");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, sha256, "abc"),
+            &error),
+        "reject malformed manifest SHA-256 digests");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, releaseBase + officialAsset,
+                "https://example.invalid/not-official.zip"),
+            &error),
+        "reject an explicit manifest URL that differs from the official release asset URL");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            ReplaceOnce(manifestJson, "\"asset\":\"" + officialAsset + "\"",
+                "\"asset\":\"missing-update.zip\""),
+            &error),
+        "reject a manifest reference to a missing GitHub release asset");
+
+    const std::string duplicateManifest = ReplaceOnce(
+        manifestJson,
+        "}}}",
+        "},\"duplicate\":{\"asset\":\"" + officialAsset + "\",\"size\":12345,\"sha256\":\"" + sha256 + "\"}}}");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataWithManifest(
+            releaseJson,
+            duplicateManifest,
+            &error),
+        "reject duplicate manifest declarations of one release asset");
+
+    Expect(
+        std::string(smu::updater::LatestReleasePageUrl()) ==
+            "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest",
+        "manual updater escape hatch is the stable latest-release URL");
+}
+
+void TestSha256()
+{
+    const std::vector<char> empty;
+    Expect(
+        smu::updater::detail::Sha256Hex(empty) ==
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "SHA-256 empty-string known vector");
+    const std::vector<char> abc {'a', 'b', 'c'};
+    Expect(
+        smu::updater::detail::Sha256Hex(abc) ==
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        "SHA-256 abc known vector");
+}
+
 void TestCrossPlatformAssetNames()
 {
     using smu::updater::detail::ScoreLinuxAssetName;
@@ -248,6 +412,9 @@ void TestCrossPlatformAssetNames()
             "Spencer-Macro-Utilities-V3.3.0-Windows-x64.zip") >
             legacyWindowsScore,
         "prefer an explicitly named Windows ZIP over a legacy generic ZIP");
+    Expect(
+        ScoreWindowsAssetName("Spencer-Macro-Utilities-Windows.zip") > legacyWindowsScore,
+        "make the stable V3.4.0 Windows ZIP the preferred pre-manifest Windows package");
     Expect(
         ScoreWindowsAssetName(
             "Spencer-Macro-Utilities-V3.3.0-macOS-universal.zip") == 0,
@@ -353,7 +520,27 @@ void TestBundleExtraction()
             extracted,
             &error),
         "reject a Windows-style nested path requested from an update ZIP");
+
+    const std::string windowsEntry =
+        "Spencer-Macro-Utilities/Spencer-Macro-Utilities-V3.4.0-Windows.exe";
+    const std::vector<char> nestedWindowsPackage = MakeZip(windowsEntry, expected);
+    Expect(
+        smu::updater::ExtractUpdatePackageEntry(
+            nestedWindowsPackage,
+            windowsEntry,
+            extracted,
+            &error),
+        "extract an exact safe nested updater entry");
+    Expect(extracted == expected, "preserve nested updater entry bytes");
+    Expect(
+        !smu::updater::ExtractUpdatePackageEntry(
+            nestedWindowsPackage,
+            "Spencer-Macro-Utilities/../Spencer-Macro-Utilities-V3.4.0-Windows.exe",
+            extracted,
+            &error),
+        "reject traversal segments in nested updater entries");
 }
+
 
 void TestAppImageAutoApplySupport()
 {
@@ -607,6 +794,8 @@ void TestLinuxInstallFailureRestoresAndRelaunchesPreviousVersion()
 int main()
 {
     TestAssetSelection();
+    TestReleaseManifestContract();
+    TestSha256();
     TestCrossPlatformAssetNames();
     TestBundleExtraction();
     TestAppImageAutoApplySupport();

@@ -62,8 +62,7 @@ inline int ScoreWindowsAssetName(const std::string& assetName)
         score += 10;
     }
     if (AssetNameContains(name, "spencer") ||
-        AssetNameContains(name, "macro") ||
-        AssetNameContains(name, "suspend")) {
+        AssetNameContains(name, "macro")) {
         score += 8;
     }
     return score;
@@ -100,8 +99,7 @@ inline int ScoreMacOSAssetName(const std::string& assetName)
         score += 20;
     }
     if (AssetNameContains(name, "spencer") ||
-        AssetNameContains(name, "macro") ||
-        AssetNameContains(name, "suspend")) {
+        AssetNameContains(name, "macro")) {
         score += 8;
     }
     return score;

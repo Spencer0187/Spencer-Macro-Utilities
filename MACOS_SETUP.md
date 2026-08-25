@@ -14,9 +14,11 @@ Build a native Release app bundle:
 
 ```bash
 cmake --preset macos-release
-cmake --build --preset macos-release --target suspend
-open out/build/macos-release/suspend.app
+cmake --build --preset macos-release --target spencer_macro_utilities
+open out/build/macos-release/Spencer-Macro-Utilities.app
 ```
+
+The direct build uses the filesystem-safe `Spencer-Macro-Utilities.app` name. Public packages stage the user-facing bundle as `Spencer Macro Utilities.app`.
 
 Build the single universal Intel and Apple Silicon release package:
 
@@ -24,8 +26,8 @@ Build the single universal Intel and Apple Silicon release package:
 bash scripts/package_macos.sh
 ```
 
-The package script configures `macos-universal-release`, builds `suspend.app`, checks that `Contents/MacOS/suspend` contains both `arm64` and `x86_64` slices with `lipo`, verifies bundled runtime assets, and stages a zip plus a dmg when `hdiutil` is available.
-Runtime assets are bundled in `suspend.app/Contents/Resources/assets`, and the dmg includes an `Applications` alias plus a drag-to-install arrow background.
+The package script configures `macos-universal-release`, builds the `spencer_macro_utilities` target, checks that its executable contains both `arm64` and `x86_64` slices with `lipo`, verifies bundled runtime assets, then stages the public `Spencer Macro Utilities.app` bundle plus a zip and (when `hdiutil` is available) a dmg.
+The dmg contains `Spencer Macro Utilities.app`, an `Applications` link, and a centered drag-to-install arrow. If Finder cannot apply the required DMG layout, packaging fails instead of publishing an unlaid-out image.
 
 ## Permissions
 
@@ -37,23 +39,25 @@ SMU cannot grant macOS privacy permissions itself. Use the in-app macOS permissi
 
 After granting a permission, return to SMU and click Restart & Check Permissions.
 
-If SMU says a permission is missing even though System Settings shows an enabled old `suspend` or SMU entry, click Reset macOS Permission Entries in the in-app permission setup screen. SMU will run the supported `tccutil reset Accessibility com.spencer0187.smu` and `tccutil reset ScreenCapture com.spencer0187.smu` commands, then you can approve the current app again and restart.
+If SMU says a permission is missing even though System Settings shows an enabled old SMU entry, click Reset macOS Permission Entries in the in-app permission setup screen. SMU will run the supported `tccutil reset Accessibility com.spencer0187.smu` and `tccutil reset ScreenCapture com.spencer0187.smu` commands, then you can approve the current app again and restart.
 
 ## Installing GitHub Releases
 
 Because releases are not Apple Developer ID signed or notarized, macOS will warn on first launch.
 
 1. Download the universal macOS zip or dmg from GitHub Releases.
-2. Drag `suspend.app` to Applications.
-3. Try to open `suspend.app`.
+2. Drag `Spencer Macro Utilities.app` to Applications.
+3. Eject the dmg if you used it, then try to open `Spencer Macro Utilities.app` from Applications.
 4. Open System Settings > Privacy & Security and choose Open Anyway for SMU.
 5. Grant Accessibility and Screen Recording from the in-app setup flow.
 6. Click Restart & Check Permissions.
 
+SMU refuses to start macro execution from a read-only mounted dmg or from macOS App Translocation and shows install guidance instead. A normal writable app copy on an external volume is not rejected by this install-location check.
+
 Do not disable Gatekeeper globally. If quarantine gets stuck after the Open Anyway flow, use this targeted fallback:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/suspend.app
+xattr -dr com.apple.quarantine "/Applications/Spencer Macro Utilities.app"
 ```
 
 ## Settings
@@ -68,7 +72,7 @@ Local builds are signed by default so the app bundle has a complete macOS identi
 bash scripts/package_macos.sh
 ```
 
-Ad-hoc signing is enough for packaging validation, but macOS TCC can bind privacy permissions to the changing code hash. If you rebuild or update from ad-hoc artifacts, Accessibility and Screen Recording may need to be reset and re-approved even when System Settings still shows an enabled stale `suspend` entry.
+Ad-hoc signing is enough for packaging validation, but macOS TCC can bind privacy permissions to the changing code hash. If you rebuild or update from ad-hoc artifacts, Accessibility and Screen Recording may need to be reset and re-approved even when System Settings still shows an enabled stale SMU entry.
 
 Official unsigned GitHub macOS releases should use one long-lived self-signed code-signing identity named `SMU macOS Release`:
 
@@ -102,10 +106,10 @@ export DEVELOPER_ID_APPLICATION="Developer ID Application: ..."
 export APPLE_ID="..."
 export APPLE_TEAM_ID="..."
 export APPLE_APP_SPECIFIC_PASSWORD="..."
-bash scripts/sign_notarize_macos.sh
+bash scripts/sign_notarize_macos.sh "out/build/macos-universal-release/package-macos/Spencer Macro Utilities.app"
 ```
 
-`scripts/sign_notarize_macos.sh` also accepts `NOTARYTOOL_KEYCHAIN_PROFILE` instead of the Apple ID password variables. This is not required for normal GitHub releases.
+`scripts/sign_notarize_macos.sh` accepts the staged app path as its first argument and also accepts `NOTARYTOOL_KEYCHAIN_PROFILE` instead of the Apple ID password variables. Passing the branded staged path keeps Developer ID signing, notarization, stapling, zip creation, and DMG recreation on the public bundle. This is not required for normal GitHub releases.
 
 Use `docs/macos_unsigned_release_notes.md` as the macOS section of each GitHub release note.
 
@@ -113,4 +117,4 @@ Use `docs/macos_unsigned_release_notes.md` as the macOS section of each GitHub r
 
 - macOS lagswitch support is intentionally unavailable.
 - Screen pixel reads fail with a clear error until macOS reports Screen Recording permission for the app.
-- macOS auto-update can replace a writable installed `.app` bundle from the universal zip release asset. A copy launched directly from a mounted dmg can check for updates but cannot replace itself; drag it to Applications first.
+- macOS auto-update can replace a writable installed `.app` bundle from the universal zip release asset. Copies launched from a read-only dmg or App Translocation are blocked before normal app or macro execution; install the app first.

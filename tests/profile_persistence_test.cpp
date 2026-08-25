@@ -2,6 +2,11 @@
 #include "json.hpp"
 #include "legacy_globals.h"
 
+// This test intentionally uses assert() for both execution and verification.
+// Keep those expressions active in Release/CI builds where NDEBUG is normally set.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <cassert>
 #include <chrono>
 #include <cstring>
@@ -30,6 +35,185 @@ json ReadJson(const fs::path& path)
     json value;
     file >> value;
     return value;
+}
+
+std::string ReadText(const fs::path& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    assert(file.is_open());
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+json Marker(const std::string& value)
+{
+    return {{"marker", value}};
+}
+
+void AssertMarker(const fs::path& path, const std::string& expected)
+{
+    const json value = ReadJson(path);
+    assert(value.at("marker").get<std::string>() == expected);
+}
+
+struct ResolutionLayout {
+    fs::path root;
+    fs::path canonical;
+    fs::path executable;
+    fs::path current;
+};
+
+ResolutionLayout MakeResolutionLayout(const fs::path& root, const std::string& name)
+{
+    ResolutionLayout layout{
+        root / name,
+        root / name / "config",
+        root / name / "app" / "bin",
+        root / name / "cwd"
+    };
+    fs::create_directories(layout.canonical);
+    fs::create_directories(layout.executable);
+    fs::create_directories(layout.current);
+    return layout;
+}
+
+fs::path ResolveForTest(const ResolutionLayout& layout)
+{
+    return fs::path(ResolveSettingsFilePathForTesting(
+        layout.canonical.string(), layout.executable.string(), layout.current.string()));
+}
+
+void RunSettingsResolutionMigrationTests(const fs::path& root)
+{
+    const fs::path expectedWindows = fs::path("/test/localappdata") / "Spencer Macro Utilities";
+    assert(fs::path(BuildWindowsSettingsDirectoryForTesting("/test/localappdata")) == expectedWindows);
+
+    // RMC-only canonical storage migrates to SMC without removing the legacy original.
+    {
+        const auto layout = MakeResolutionLayout(root, "canonical-rmc");
+        const fs::path legacy = layout.canonical / "RMCSettings.json";
+        WriteText(legacy, Marker("canonical-rmc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "canonical-rmc");
+        AssertMarker(legacy, "canonical-rmc");
+    }
+
+    // A backup can be the only surviving copy; recovery must still create canonical SMC.
+    {
+        const auto layout = MakeResolutionLayout(root, "backup-only-rmc");
+        const fs::path legacyBackup = layout.canonical / "RMCSettings.json.bak";
+        WriteText(legacyBackup, Marker("rmc-backup").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "rmc-backup");
+        AssertMarker(legacyBackup, "rmc-backup");
+        assert(!fs::exists(layout.canonical / "RMCSettings.json"));
+    }
+
+    // SMC wins over RMC globally, even when the RMC copy is in the canonical directory.
+    {
+        const auto layout = MakeResolutionLayout(root, "smc-wins");
+        const fs::path rmc = layout.canonical / "RMCSettings.json";
+        const fs::path smc = layout.executable / "SMCSettings.json";
+        WriteText(rmc, Marker("rmc").dump());
+        WriteText(smc, Marker("smc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "smc");
+        AssertMarker(rmc, "rmc");
+        AssertMarker(smc, "smc");
+    }
+
+    // A corrupt canonical SMC must not mask valid RMC data. Preserve the corrupt bytes.
+    {
+        const auto layout = MakeResolutionLayout(root, "corrupt-smc-valid-rmc");
+        const fs::path canonicalSmc = layout.canonical / "SMCSettings.json";
+        const fs::path rmc = layout.canonical / "RMCSettings.json";
+        WriteText(canonicalSmc, "{");
+        WriteText(rmc, Marker("recovered-rmc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == canonicalSmc);
+        AssertMarker(resolved, "recovered-rmc");
+        AssertMarker(rmc, "recovered-rmc");
+
+        bool preservedCorruptPrimary = false;
+        for (const auto& entry : fs::directory_iterator(layout.canonical)) {
+            const std::string filename = entry.path().filename().string();
+            if (filename.rfind("SMCSettings.json.corrupt-", 0) == 0) {
+                preservedCorruptPrimary = ReadText(entry.path()) == "{";
+            }
+        }
+        assert(preservedCorruptPrimary);
+    }
+
+    // Executable-directory SMC discovery migrates into canonical storage.
+    {
+        const auto layout = MakeResolutionLayout(root, "exe-smc");
+        const fs::path source = layout.executable / "SMCSettings.json";
+        WriteText(source, Marker("exe-smc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "exe-smc");
+        AssertMarker(source, "exe-smc");
+    }
+
+    // Executable-directory RMC backup discovery uses normal backup recovery semantics.
+    {
+        const auto layout = MakeResolutionLayout(root, "exe-rmc-backup");
+        const fs::path sourceBackup = layout.executable / "RMCSettings.json.bak";
+        WriteText(sourceBackup, Marker("exe-rmc-backup").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "exe-rmc-backup");
+        AssertMarker(sourceBackup, "exe-rmc-backup");
+    }
+
+    // One directory above the executable remains a supported historical location.
+    {
+        const auto layout = MakeResolutionLayout(root, "parent-smc");
+        const fs::path source = layout.executable.parent_path() / "SMCSettings.json";
+        WriteText(source, Marker("parent-smc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "parent-smc");
+        AssertMarker(source, "parent-smc");
+    }
+
+    // The historical/current working directory is searched when distinct.
+    {
+        const auto layout = MakeResolutionLayout(root, "cwd-rmc");
+        const fs::path source = layout.current / "RMCSettings.json";
+        WriteText(source, Marker("cwd-rmc").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "cwd-rmc");
+        AssertMarker(source, "cwd-rmc");
+    }
+
+    // Canonical SMC backup recovery is self-healing and retains the backup.
+    {
+        const auto layout = MakeResolutionLayout(root, "canonical-smc-backup");
+        const fs::path backupOnly = layout.canonical / "SMCSettings.json.bak";
+        WriteText(backupOnly, Marker("canonical-smc-backup").dump());
+        const fs::path resolved = ResolveForTest(layout);
+        assert(resolved == layout.canonical / "SMCSettings.json");
+        AssertMarker(resolved, "canonical-smc-backup");
+        AssertMarker(backupOnly, "canonical-smc-backup");
+    }
+
+    // Migration is idempotent: once canonical SMC exists, changed legacy data cannot overwrite it.
+    {
+        const auto layout = MakeResolutionLayout(root, "idempotent");
+        const fs::path legacy = layout.executable / "RMCSettings.json";
+        WriteText(legacy, Marker("first").dump());
+        const fs::path firstResolved = ResolveForTest(layout);
+        AssertMarker(firstResolved, "first");
+        WriteText(legacy, Marker("changed-legacy").dump());
+        const fs::path secondResolved = ResolveForTest(layout);
+        assert(secondResolved == firstResolved);
+        AssertMarker(secondResolved, "first");
+        AssertMarker(legacy, "changed-legacy");
+    }
 }
 
 } // namespace
@@ -73,6 +257,8 @@ int main()
     std::ifstream unchanged(settings, std::ios::binary);
     std::string contents((std::istreambuf_iterator<char>(unchanged)), std::istreambuf_iterator<char>());
     assert(contents == "{");
+
+    RunSettingsResolutionMigrationTests(directory / "resolution-cases");
 
     // Persisted/UI buffers must synchronize with the runtime values consumed
     // by the macro timing code.

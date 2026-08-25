@@ -4,10 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRESET="${SMU_MACOS_PRESET:-macos-universal-release}"
 BUILD_DIR="$ROOT_DIR/out/build/$PRESET"
-APP_PATH="$BUILD_DIR/suspend.app"
-BINARY_PATH="$APP_PATH/Contents/MacOS/suspend"
+BUILD_TARGET="spencer_macro_utilities"
+BUILT_APP_PATH="$BUILD_DIR/Spencer-Macro-Utilities.app"
+BINARY_PATH="$BUILT_APP_PATH/Contents/MacOS/Spencer-Macro-Utilities"
+PUBLIC_APP_NAME="Spencer Macro Utilities.app"
 STAGE_DIR="${SMU_MACOS_STAGE_DIR:-"$BUILD_DIR/package-macos"}"
-STAGED_APP="$STAGE_DIR/suspend.app"
+STAGED_APP="$STAGE_DIR/$PUBLIC_APP_NAME"
 ZIP_PATH="$STAGE_DIR/SpencerMacroUtilities-macOS-universal.zip"
 DMG_PATH="$STAGE_DIR/SpencerMacroUtilities-macOS-universal.dmg"
 DMG_STAGING_DIR="$STAGE_DIR/dmg-root"
@@ -19,29 +21,29 @@ create_dmg() {
     echo "hdiutil was not found; zip artifact only." >&2
     return
   fi
-  if ! bash "$ROOT_DIR/scripts/create_macos_dmg.sh" "$STAGED_APP" "$DMG_PATH" "$DMG_STAGING_DIR"; then
-    rm -f "$DMG_PATH" "${DMG_PATH%.dmg}-rw.dmg"
-    echo "hdiutil failed; zip artifact only." >&2
-  fi
+
+  # Once DMG creation is available, packaging is strict: Finder/AppleScript
+  # layout failures must fail the package rather than publishing a broken DMG.
+  bash "$ROOT_DIR/scripts/create_macos_dmg.sh" "$STAGED_APP" "$DMG_PATH" "$DMG_STAGING_DIR"
 }
 
 cmake --preset "$PRESET" "$@"
-cmake --build --preset "$PRESET" --target suspend --parallel
+cmake --build --preset "$PRESET" --target "$BUILD_TARGET" --parallel
 
-test -d "$APP_PATH"
+test -d "$BUILT_APP_PATH"
 test -x "$BINARY_PATH"
-test -f "$APP_PATH/Contents/Resources/assets/LSANS.TTF"
-test -f "$APP_PATH/Contents/Resources/assets/smu_icon.bmp"
-test -d "$APP_PATH/Contents/Resources/assets/macro_tutorials"
-test -f "$APP_PATH/Contents/Resources/smu_icon.icns"
-test -f "$APP_PATH/Contents/Resources/LICENSE"
-test -f "$APP_PATH/Contents/Resources/PRIVACY.md"
-test -f "$APP_PATH/Contents/Resources/THIRD_PARTY_NOTICES.md"
-test -f "$APP_PATH/Contents/Resources/licenses/SDL.txt"
-test -f "$APP_PATH/Contents/Resources/licenses/AppImage-type2-runtime.txt"
-test -f "$APP_PATH/Contents/Resources/licenses/go-iptables-LICENSE.txt"
-test -f "$APP_PATH/Contents/Resources/licenses/go-iptables-NOTICE.txt"
-test -f "$APP_PATH/Contents/Resources/licenses/WinDivert-LGPL-3.0.txt"
+test -f "$BUILT_APP_PATH/Contents/Resources/assets/LSANS.TTF"
+test -f "$BUILT_APP_PATH/Contents/Resources/assets/smu_icon.bmp"
+test -d "$BUILT_APP_PATH/Contents/Resources/assets/macro_tutorials"
+test -f "$BUILT_APP_PATH/Contents/Resources/smu_icon.icns"
+test -f "$BUILT_APP_PATH/Contents/Resources/LICENSE"
+test -f "$BUILT_APP_PATH/Contents/Resources/PRIVACY.md"
+test -f "$BUILT_APP_PATH/Contents/Resources/THIRD_PARTY_NOTICES.md"
+test -f "$BUILT_APP_PATH/Contents/Resources/licenses/SDL.txt"
+test -f "$BUILT_APP_PATH/Contents/Resources/licenses/AppImage-type2-runtime.txt"
+test -f "$BUILT_APP_PATH/Contents/Resources/licenses/go-iptables-LICENSE.txt"
+test -f "$BUILT_APP_PATH/Contents/Resources/licenses/go-iptables-NOTICE.txt"
+test -f "$BUILT_APP_PATH/Contents/Resources/licenses/WinDivert-LGPL-3.0.txt"
 
 echo
 lipo -info "$BINARY_PATH"
@@ -63,7 +65,7 @@ esac
 
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR"
-ditto "$APP_PATH" "$STAGED_APP"
+ditto "$BUILT_APP_PATH" "$STAGED_APP"
 touch "$STAGED_APP"
 
 if [[ "$SMU_MACOS_ADHOC_SIGN" == "ON" ]]; then

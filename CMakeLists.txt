@@ -180,12 +180,13 @@ if(WIN32)
         "${SMU_PLATFORM_WINDOWS_DIR}/windows_backends.cpp"
         "${SMU_IMGUIFILEDIALOG_DIR}/ImGuiFileDialog.cpp"
         "${SMU_MINIZ_DIR}/miniz.c"
-        "${SMU_WINDOWS_RESOURCES_DIR}/suspend.rc"
+        "${SMU_WINDOWS_RESOURCES_DIR}/spencer_macro_utilities.rc"
     )
 
-    add_executable(suspend WIN32 ${SMU_WINDOWS_SOURCES})
+    add_executable(spencer_macro_utilities WIN32 ${SMU_WINDOWS_SOURCES})
+    set_target_properties(spencer_macro_utilities PROPERTIES OUTPUT_NAME "Spencer-Macro-Utilities")
 
-    target_include_directories(suspend PRIVATE
+    target_include_directories(spencer_macro_utilities PRIVATE
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
         "${SMU_PLATFORM_DIR}"
@@ -200,7 +201,7 @@ if(WIN32)
         "${SMU_GENERATED_DIR}"
     )
 
-    target_compile_definitions(suspend PRIVATE
+    target_compile_definitions(spencer_macro_utilities PRIVATE
         UNICODE
         _UNICODE
         _CONSOLE
@@ -209,12 +210,12 @@ if(WIN32)
         SMU_USE_PLATFORM_ENTRYPOINT=1
     )
 
-    set_property(TARGET suspend PROPERTY
+    set_property(TARGET spencer_macro_utilities PROPERTY
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
     )
 
     if(MSVC)
-        target_compile_options(suspend PRIVATE
+        target_compile_options(spencer_macro_utilities PRIVATE
             /W3
             /permissive-
             /Zc:__cplusplus
@@ -222,7 +223,7 @@ if(WIN32)
             "$<$<CONFIG:Release>:/Gw>"
         )
 
-        target_link_options(suspend PRIVATE
+        target_link_options(spencer_macro_utilities PRIVATE
             /SUBSYSTEM:WINDOWS
             "$<$<CONFIG:Debug>:/DEBUG>"
             "$<$<CONFIG:Release>:/OPT:REF>"
@@ -232,12 +233,12 @@ if(WIN32)
 
     set(SMU_SDL3_STATIC_LIB "${SMU_WINDOWS_SDL3_DIR}/lib/SDL3-static.lib")
     if(EXISTS "${SMU_SDL3_STATIC_LIB}")
-        target_link_libraries(suspend PRIVATE "${SMU_SDL3_STATIC_LIB}")
+        target_link_libraries(spencer_macro_utilities PRIVATE "${SMU_SDL3_STATIC_LIB}")
     else()
         message(WARNING "SDL3 static library was not found: ${SMU_SDL3_STATIC_LIB}")
     endif()
 
-    target_link_libraries(suspend PRIVATE
+    target_link_libraries(spencer_macro_utilities PRIVATE
         lua_static
         opengl32
         user32
@@ -263,19 +264,19 @@ if(WIN32)
         xinput
     )
 
-    # Windows runtime assets are embedded into resources/windows/suspend.rc.
-    # Do not copy an assets folder next to suspend.exe.
-    add_custom_command(TARGET suspend POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/LICENSE"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:suspend>/PRIVACY.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:suspend>/THIRD_PARTY_NOTICES.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/SDL.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/AppImage-type2-runtime.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/go-iptables-LICENSE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/go-iptables-NOTICE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/WinDivert-LGPL-3.0.txt"
-        COMMENT "Copying license notices next to suspend.exe"
+    # Windows runtime assets are embedded into resources/windows/spencer_macro_utilities.rc.
+    # Do not copy an assets folder next to Spencer-Macro-Utilities.exe.
+    add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LICENSE"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/PRIVACY.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/THIRD_PARTY_NOTICES.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/SDL.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/AppImage-type2-runtime.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-LICENSE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-NOTICE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/WinDivert-LGPL-3.0.txt"
+        COMMENT "Copying license notices next to Spencer-Macro-Utilities.exe"
     )
 elseif(UNIX AND NOT APPLE)
     find_package(OpenGL REQUIRED)
@@ -438,9 +439,10 @@ elseif(UNIX AND NOT APPLE)
         add_test(NAME linux-updater COMMAND smu_linux_updater_test)
     endif()
 
-    add_executable(suspend ${SMU_LINUX_APP_SOURCES})
+    add_executable(spencer_macro_utilities ${SMU_LINUX_APP_SOURCES})
+    set_target_properties(spencer_macro_utilities PROPERTIES OUTPUT_NAME "Spencer-Macro-Utilities")
 
-    target_include_directories(suspend PRIVATE
+    target_include_directories(spencer_macro_utilities PRIVATE
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
         "${SMU_IMGUI_DIR}"
@@ -449,9 +451,9 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_JSON_DIR}"
     )
 
-    target_compile_definitions(suspend PRIVATE SMU_PORTABLE_GLOBALS=1)
+    target_compile_definitions(spencer_macro_utilities PRIVATE SMU_PORTABLE_GLOBALS=1)
     if(SMU_ENABLE_SOURCE_TREE_FALLBACK)
-        target_compile_definitions(suspend PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+        target_compile_definitions(spencer_macro_utilities PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     endif()
 
     if(SMU_LINK_SDL3_STATIC)
@@ -472,7 +474,7 @@ elseif(UNIX AND NOT APPLE)
         message(FATAL_ERROR "SDL3 package was found, but no usable SDL3 imported target is available.")
     endif()
 
-    target_link_libraries(suspend PRIVATE
+    target_link_libraries(spencer_macro_utilities PRIVATE
         lua_static
         smu_platform_linux
         ${SMU_SDL3_TARGET}
@@ -506,7 +508,7 @@ elseif(UNIX AND NOT APPLE)
     endif()
 
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
-        set_target_properties(suspend PROPERTIES
+        set_target_properties(spencer_macro_utilities PROPERTIES
             BUILD_RPATH "$ORIGIN/lib"
             BUILD_WITH_INSTALL_RPATH TRUE
             INSTALL_RPATH "$ORIGIN/lib"
@@ -547,46 +549,46 @@ elseif(UNIX AND NOT APPLE)
             VERBATIM
         )
         add_custom_target(smu_linux_nethelper DEPENDS "${SMU_LINUX_NETHELPER_BINARY}")
-        add_dependencies(suspend smu_linux_nethelper)
+        add_dependencies(spencer_macro_utilities smu_linux_nethelper)
     else()
-        message(WARNING "Go was not found; Linux lagswitch nethelper will not be built next to suspend.")
+        message(WARNING "Go was not found; Linux lagswitch nethelper will not be built next to Spencer-Macro-Utilities.")
     endif()
 
-    add_custom_command(TARGET suspend POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/assets"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/scripts"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/LSANS.TTF"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:suspend>/assets/smu_icon.bmp"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:suspend>/assets/macro_tutorials"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "$<TARGET_FILE_DIR:suspend>/scripts/install_linux_permissions.sh"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "$<TARGET_FILE_DIR:suspend>/LINUX_SETUP.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/LICENSE"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:suspend>/PRIVACY.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:suspend>/THIRD_PARTY_NOTICES.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/SDL.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/AppImage-type2-runtime.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/go-iptables-LICENSE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/go-iptables-NOTICE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:suspend>/licenses/WinDivert-LGPL-3.0.txt"
-        COMMAND chmod 755 "$<TARGET_FILE_DIR:suspend>/scripts/install_linux_permissions.sh"
-        COMMENT "Copying Linux runtime assets next to suspend"
+    add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/macro_tutorials"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LINUX_SETUP.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LICENSE"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/PRIVACY.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/THIRD_PARTY_NOTICES.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/SDL.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/AppImage-type2-runtime.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-LICENSE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-NOTICE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/WinDivert-LGPL-3.0.txt"
+        COMMAND chmod 755 "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
+        COMMENT "Copying Linux runtime assets next to Spencer-Macro-Utilities"
     )
 
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
-        add_custom_command(TARGET suspend POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:suspend>/lib"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:suspend>/lib/$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_FILE_DIR:suspend>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:suspend>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMENT "Bundling SDL3 shared library next to suspend"
+        add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>"
+            COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
+            COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
+            COMMENT "Bundling SDL3 shared library next to Spencer-Macro-Utilities"
         )
     endif()
 
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/run.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" @ONLY)
 
-    install(TARGETS suspend RUNTIME DESTINATION ".")
+    install(TARGETS spencer_macro_utilities RUNTIME DESTINATION ".")
     install(FILES "${SMU_LINUX_FONT_ASSET}" DESTINATION "assets" RENAME "LSANS.TTF")
     install(FILES "${SMU_LINUX_ICON_ASSET}" DESTINATION "assets" RENAME "smu_icon.bmp")
     install(DIRECTORY "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" DESTINATION "assets")
@@ -615,7 +617,7 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SMU_LINUX_PACKAGE_DIR}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/assets"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:suspend>" "${SMU_LINUX_PACKAGE_DIR}/suspend"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:spencer_macro_utilities>" "${SMU_LINUX_PACKAGE_DIR}/Spencer-Macro-Utilities"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/LSANS.TTF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/smu_icon.bmp"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "${SMU_LINUX_PACKAGE_DIR}/assets/macro_tutorials"
@@ -631,8 +633,8 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "${SMU_LINUX_PACKAGE_DIR}/licenses/go-iptables-LICENSE.txt"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "${SMU_LINUX_PACKAGE_DIR}/licenses/go-iptables-NOTICE.txt"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "${SMU_LINUX_PACKAGE_DIR}/licenses/WinDivert-LGPL-3.0.txt"
-        COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/suspend" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"
-        DEPENDS suspend
+        COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/Spencer-Macro-Utilities" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"
+        DEPENDS spencer_macro_utilities
         COMMENT "Creating portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}"
     )
 
@@ -762,9 +764,10 @@ elseif(APPLE)
         "${SMU_MACOS_ICON_ASSET}"
     )
 
-    add_executable(suspend MACOSX_BUNDLE ${SMU_MACOS_APP_SOURCES})
+    add_executable(spencer_macro_utilities MACOSX_BUNDLE ${SMU_MACOS_APP_SOURCES})
+    set_target_properties(spencer_macro_utilities PROPERTIES OUTPUT_NAME "Spencer-Macro-Utilities")
 
-    target_include_directories(suspend PRIVATE
+    target_include_directories(spencer_macro_utilities PRIVATE
         "${SMU_APP_DIR}"
         "${SMU_CORE_DIR}"
         "${SMU_PLATFORM_DIR}"
@@ -775,9 +778,9 @@ elseif(APPLE)
         "${SMU_JSON_DIR}"
     )
 
-    target_compile_definitions(suspend PRIVATE SMU_PORTABLE_GLOBALS=1)
+    target_compile_definitions(spencer_macro_utilities PRIVATE SMU_PORTABLE_GLOBALS=1)
     if(SMU_ENABLE_SOURCE_TREE_FALLBACK)
-        target_compile_definitions(suspend PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+        target_compile_definitions(spencer_macro_utilities PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
     endif()
 
     if(SMU_LINK_SDL3_STATIC)
@@ -798,7 +801,7 @@ elseif(APPLE)
         message(FATAL_ERROR "SDL3 package was found, but no usable SDL3 imported target is available.")
     endif()
 
-    target_link_libraries(suspend PRIVATE
+    target_link_libraries(spencer_macro_utilities PRIVATE
         lua_static
         smu_platform_macos
         ${SMU_SDL3_TARGET}
@@ -812,38 +815,38 @@ elseif(APPLE)
         ${SMU_CARBON_FRAMEWORK}
     )
 
-    set_target_properties(suspend PROPERTIES
+    set_target_properties(spencer_macro_utilities PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "Spencer Macro Utilities"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.spencer0187.smu"
         MACOSX_BUNDLE_ICON_FILE "smu_icon.icns"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/macos/Info.plist.in"
     )
 
-    add_custom_command(TARGET suspend POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_FILE_DIR:suspend>/assets"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/LSANS.TTF" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/LSANS.TTF"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/smu_icon.bmp" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/smu_icon.bmp"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/assets/macro_tutorials"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/LICENSE"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/PRIVACY.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/THIRD_PARTY_NOTICES.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses/SDL.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses/AppImage-type2-runtime.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses/go-iptables-LICENSE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses/go-iptables-NOTICE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:suspend>/Resources/licenses/WinDivert-LGPL-3.0.txt"
-        COMMENT "Copying macOS runtime assets into suspend.app Resources"
+    add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/assets"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/LSANS.TTF" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/assets/LSANS.TTF"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_ASSETS_DIR}/smu_icon.bmp" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/assets/smu_icon.bmp"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/assets/macro_tutorials"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/LICENSE"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/PRIVACY.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/THIRD_PARTY_NOTICES.md"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses/SDL.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses/AppImage-type2-runtime.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses/go-iptables-LICENSE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses/go-iptables-NOTICE.txt"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_BUNDLE_CONTENT_DIR:spencer_macro_utilities>/Resources/licenses/WinDivert-LGPL-3.0.txt"
+        COMMENT "Copying macOS runtime assets into Spencer Macro Utilities.app Resources"
     )
 
     if(SMU_CODESIGN_EXECUTABLE)
-        add_custom_command(TARGET suspend POST_BUILD
-            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --force --deep --sign "${SMU_MACOS_SIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:suspend>"
-            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --verify --deep --strict --verbose=2 "$<TARGET_BUNDLE_DIR:suspend>"
+        add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --force --deep --sign "${SMU_MACOS_SIGN_IDENTITY}" "$<TARGET_BUNDLE_DIR:spencer_macro_utilities>"
+            COMMAND "${SMU_CODESIGN_EXECUTABLE}" --verify --deep --strict --verbose=2 "$<TARGET_BUNDLE_DIR:spencer_macro_utilities>"
             COMMENT "Signing macOS app bundle for local TCC identity"
         )
     endif()
 else()
-    message(FATAL_ERROR "Unsupported platform for the suspend target.")
+    message(FATAL_ERROR "Unsupported platform for the Spencer Macro Utilities target.")
 endif()

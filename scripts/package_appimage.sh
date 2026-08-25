@@ -109,7 +109,7 @@ cmake -S "$ROOT_DIR" -B "$BUILD_DIR" \
   -DSMU_ENABLE_SOURCE_TREE_FALLBACK=OFF \
   "$@"
 
-cmake --build "$BUILD_DIR" --target suspend --parallel
+cmake --build "$BUILD_DIR" --target spencer_macro_utilities --parallel
 
 echo "Building nethelper (Go)..."
 NETHELPER_BIN="$BUILD_DIR/nethelper"
@@ -136,11 +136,11 @@ mkdir -p "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses"
 mkdir -p "$APPDIR/scripts"
 mkdir -p "$APPDIR/licenses"
 
-cp "$BUILD_DIR/suspend" "$APPDIR/usr/bin/suspend"
+cp "$BUILD_DIR/Spencer-Macro-Utilities" "$APPDIR/usr/bin/Spencer-Macro-Utilities"
 cp "$NETHELPER_BIN" "$APPDIR/usr/bin/nethelper"
 
 cp "$ROOT_DIR/AppImage/AppRun" "$APPDIR/AppRun"
-chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/suspend" "$APPDIR/usr/bin/nethelper"
+chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/Spencer-Macro-Utilities" "$APPDIR/usr/bin/nethelper"
 
 cp -R "$BUILD_DIR/assets" "$APPDIR/usr/bin/assets"
 
@@ -189,7 +189,7 @@ cat > "$APPDIR/spencer-macro-utilities.desktop" <<'EOF_DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=Spencer Macro Utilities
-Exec=suspend
+Exec=Spencer-Macro-Utilities
 Icon=spencer-macro-utilities
 Categories=Utility;
 Terminal=false
@@ -199,7 +199,7 @@ cp "$APP_ICON_SOURCE" "$APPDIR/spencer-macro-utilities.png"
 cp "$APP_ICON_SOURCE" "$APPDIR/.DirIcon"
 
 test -x "$APPDIR/AppRun"
-test -x "$APPDIR/usr/bin/suspend"
+test -x "$APPDIR/usr/bin/Spencer-Macro-Utilities"
 test -x "$APPDIR/usr/bin/nethelper"
 
 test -d "$APPDIR/usr/bin/assets"

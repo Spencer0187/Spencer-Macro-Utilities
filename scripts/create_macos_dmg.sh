@@ -6,16 +6,35 @@ DMG_PATH="${2:?Usage: create_macos_dmg.sh APP_PATH DMG_PATH [STAGING_DIR]}"
 STAGE_DIR="${3:-"$(dirname "$DMG_PATH")/dmg-root"}"
 RW_DMG_PATH="${DMG_PATH%.dmg}-rw.dmg"
 VOLUME_NAME="Spencer Macro Utilities"
+PUBLIC_APP_NAME="Spencer Macro Utilities.app"
+WINDOW_LEFT=100
+WINDOW_TOP=100
+WINDOW_WIDTH=640
+WINDOW_HEIGHT=360
+APP_ICON_X=180
+APPLICATIONS_ICON_X=460
+ICON_Y=180
+ICON_SIZE=96
 
 write_dmg_background() {
   local output_path="$1"
-  /usr/bin/python3 - "$output_path" <<'PY'
+  /usr/bin/python3 - \
+    "$output_path" \
+    "$WINDOW_WIDTH" \
+    "$WINDOW_HEIGHT" \
+    "$APP_ICON_X" \
+    "$APPLICATIONS_ICON_X" \
+    "$ICON_Y" \
+    "$ICON_SIZE" <<'PY'
 import struct
 import sys
 import zlib
 
 path = sys.argv[1]
-width, height = 640, 360
+width, height, app_x, applications_x, icon_y, icon_size = map(int, sys.argv[2:])
+if not (0 < app_x < applications_x < width and 0 < icon_y < height):
+    raise SystemExit("invalid DMG layout geometry")
+
 bg = (35, 39, 42, 255)
 arrow = (0, 156, 190, 255)
 arrow_shadow = (12, 18, 22, 160)
@@ -56,10 +75,50 @@ def triangle(points, rgba):
             if a >= 0 and b >= 0 and c >= 0:
                 blend_pixel(x, y, rgba)
 
-rect(246, 171, 397, 183, arrow_shadow)
-triangle([(396, 158), (396, 196), (440, 177)], arrow_shadow)
-rect(240, 164, 391, 176, arrow)
-triangle([(390, 151), (390, 189), (434, 170)], arrow)
+arrow_center_y = icon_y
+edge_padding = max(20, icon_size // 4)
+arrow_start_x = app_x + icon_size // 2 + edge_padding
+arrow_tip_x = applications_x - icon_size // 2 - edge_padding
+arrow_length = arrow_tip_x - arrow_start_x
+if arrow_length < 64:
+    raise SystemExit("DMG icon spacing is too narrow for the drag arrow")
+
+arrow_head_length = min(44, max(28, arrow_length // 3))
+arrow_body_end_x = arrow_tip_x - arrow_head_length
+body_half_height = 6
+head_half_height = 19
+shadow_offset = 6
+
+rect(
+    arrow_start_x + shadow_offset,
+    arrow_center_y - body_half_height + shadow_offset,
+    arrow_body_end_x + shadow_offset,
+    arrow_center_y + body_half_height + shadow_offset,
+    arrow_shadow,
+)
+triangle(
+    [
+        (arrow_body_end_x + shadow_offset, arrow_center_y - head_half_height + shadow_offset),
+        (arrow_body_end_x + shadow_offset, arrow_center_y + head_half_height + shadow_offset),
+        (arrow_tip_x + shadow_offset, arrow_center_y + shadow_offset),
+    ],
+    arrow_shadow,
+)
+rect(
+    arrow_start_x,
+    arrow_center_y - body_half_height,
+    arrow_body_end_x,
+    arrow_center_y + body_half_height,
+    arrow,
+)
+triangle(
+    [
+        (arrow_body_end_x, arrow_center_y - head_half_height),
+        (arrow_body_end_x, arrow_center_y + head_half_height),
+        (arrow_tip_x, arrow_center_y),
+    ],
+    arrow,
+)
 
 raw = bytearray()
 for y in range(height):
@@ -105,11 +164,12 @@ detach_volume() {
 
 test -d "$APP_PATH"
 command -v hdiutil >/dev/null 2>&1
+test -x /usr/bin/osascript
 
 rm -f "$DMG_PATH" "$RW_DMG_PATH"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR/.background"
-ditto "$APP_PATH" "$STAGE_DIR/suspend.app"
+ditto "$APP_PATH" "$STAGE_DIR/$PUBLIC_APP_NAME"
 ln -s /Applications "$STAGE_DIR/Applications"
 write_dmg_background "$STAGE_DIR/.background/background.png"
 
@@ -120,30 +180,52 @@ hdiutil create \
   -format UDRW \
   "$RW_DMG_PATH" >/dev/null
 
+attached_volume_path=""
+cleanup_attached_volume() {
+  if [[ -n "$attached_volume_path" ]]; then
+    detach_volume "$attached_volume_path" || true
+  fi
+}
+trap cleanup_attached_volume EXIT
+
 mount_output="$(hdiutil attach -readwrite -noverify -noautoopen "$RW_DMG_PATH")"
 volume_path="$(printf '%s\n' "$mount_output" | grep -o '/Volumes/.*' | tail -n 1)"
-if [[ -n "$volume_path" ]]; then
-  /usr/bin/osascript >/dev/null <<'APPLESCRIPT' || true
+if [[ -z "$volume_path" ]]; then
+  echo "ERROR: hdiutil did not report a mounted volume path." >&2
+  exit 1
+fi
+attached_volume_path="$volume_path"
+finder_volume_name="${volume_path##*/}"
+window_right=$((WINDOW_LEFT + WINDOW_WIDTH))
+window_bottom=$((WINDOW_TOP + WINDOW_HEIGHT))
+
+if ! /usr/bin/osascript >/dev/null <<APPLESCRIPT
 tell application "Finder"
-  tell disk "Spencer Macro Utilities"
+  tell disk "$finder_volume_name"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set bounds of container window to {100, 100, 740, 460}
+    set bounds of container window to {$WINDOW_LEFT, $WINDOW_TOP, $window_right, $window_bottom}
     set viewOptions to icon view options of container window
     set arrangement of viewOptions to not arranged
-    set icon size of viewOptions to 96
+    set icon size of viewOptions to $ICON_SIZE
     set background picture of viewOptions to file ".background:background.png"
-    set position of item "suspend.app" of container window to {180, 180}
-    set position of item "Applications" of container window to {460, 180}
+    set position of item "$PUBLIC_APP_NAME" of container window to {$APP_ICON_X, $ICON_Y}
+    set position of item "Applications" of container window to {$APPLICATIONS_ICON_X, $ICON_Y}
     close
   end tell
 end tell
 APPLESCRIPT
-  sync
-  detach_volume "$volume_path"
+then
+  echo "ERROR: Finder failed to apply the DMG layout; refusing to publish an unlaid-out DMG." >&2
+  exit 1
 fi
+
+sync
+detach_volume "$volume_path"
+attached_volume_path=""
+trap - EXIT
 
 hdiutil convert "$RW_DMG_PATH" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" >/dev/null
 rm -f "$RW_DMG_PATH"
