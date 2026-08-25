@@ -352,10 +352,55 @@ jobs:
             third_party/windivert/LICENSE-LGPL-3.0.txt `
             "$stage/licenses/WinDivert-LGPL-3.0.txt"
 
+          function New-ZipWithForwardSlashEntries {
+            param(
+              [Parameter(Mandatory = $true)][string]$SourceDirectory,
+              [Parameter(Mandatory = $true)][string]$DestinationPath,
+              [string]$EntryPrefix = ''
+            )
+
+            Add-Type -AssemblyName System.IO.Compression
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive = [IO.Compression.ZipFile]::Open(
+              $DestinationPath,
+              [IO.Compression.ZipArchiveMode]::Create
+            )
+            try {
+              $root = (Resolve-Path -LiteralPath $SourceDirectory).Path.TrimEnd('\', '/')
+              foreach ($file in Get-ChildItem -LiteralPath $root -File -Recurse) {
+                $relativePath = $file.FullName.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
+                $entryName = if ([string]::IsNullOrEmpty($EntryPrefix)) {
+                  $relativePath
+                } else {
+                  "$EntryPrefix/$relativePath"
+                }
+                $entry = $archive.CreateEntry(
+                  $entryName,
+                  [IO.Compression.CompressionLevel]::Optimal
+                )
+                $input = [IO.File]::OpenRead($file.FullName)
+                $output = $entry.Open()
+                try {
+                  $input.CopyTo($output)
+                } finally {
+                  $output.Dispose()
+                  $input.Dispose()
+                }
+              }
+            } finally {
+              $archive.Dispose()
+            }
+          }
+
           if ($version -eq '3.4.0') {
-            Compress-Archive -Path "$stage/*" -DestinationPath $portableArchive -CompressionLevel Optimal -Force
+            New-ZipWithForwardSlashEntries `
+              -SourceDirectory $stageRoot `
+              -DestinationPath $portableArchive
           } else {
-            Compress-Archive -Path $stage -DestinationPath $portableArchive -CompressionLevel Optimal -Force
+            New-ZipWithForwardSlashEntries `
+              -SourceDirectory $stage `
+              -DestinationPath $portableArchive `
+              -EntryPrefix 'Spencer-Macro-Utilities'
           }
 
           # The direct download is always correctly branded/versioned, including V3.4.0.

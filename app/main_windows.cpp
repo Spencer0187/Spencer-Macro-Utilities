@@ -219,18 +219,17 @@ bool ScheduleV340LegacyFilenameMigration()
         "setlocal\r\n"
         "set \"SMU_OLD=%~1\"\r\n"
         "set \"SMU_NEW=%~2\"\r\n"
-        "set /a SMU_ATTEMPTS=0\r\n"
         ":wait_for_old_image\r\n"
         "del /F /Q \"%SMU_OLD%\" > NUL 2>&1\r\n"
         "if not exist \"%SMU_OLD%\" goto launch_new\r\n"
-        "set /a SMU_ATTEMPTS+=1\r\n"
-        "if %SMU_ATTEMPTS% GEQ 30 goto launch_new\r\n"
         "timeout /t 1 /nobreak > NUL\r\n"
         "goto wait_for_old_image\r\n"
         ":launch_new\r\n"
         "start \"\" \"%SMU_NEW%\"\r\n"
         "endlocal\r\n"
-        "(goto) 2>nul & del /F /Q \"%~f0\"\r\n";
+        "set \"SMU_HELPER=%~f0\"\r\n"
+        "start \"\" /B powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command \"Start-Sleep -Milliseconds 500; Remove-Item -LiteralPath $env:SMU_HELPER -Force\"\r\n"
+        "exit /B\r\n";
 
     if (!WriteLegacyFilenameMigrationScript(scriptPath, scriptContents)) {
         DeleteFileW(scriptPath.c_str());
@@ -252,6 +251,11 @@ bool ScheduleV340LegacyFilenameMigration()
         if (createdTarget) {
             DeleteFileW(targetPath.c_str());
         }
+        MessageBoxW(
+            nullptr,
+            L"Spencer Macro Utilities V3.4.0 could not resolve the Windows command interpreter needed for its filename migration. The app will continue using suspend.exe for this launch and will retry next time.",
+            L"Spencer Macro Utilities filename migration",
+            MB_OK | MB_ICONWARNING);
         return false;
     }
 
@@ -259,7 +263,7 @@ bool ScheduleV340LegacyFilenameMigration()
         std::wstring(systemDirectory, systemDirectoryLength) + L"\\cmd.exe";
     std::wstring commandLine =
         L"cmd.exe /D /Q /C \"\"" + scriptPath + L"\" \"" +
-        currentPath + L"\" \"" + targetPath + L"\"\"";
+            currentPath + L"\" \"" + targetPath + L"\"\"";
 
     STARTUPINFOW startupInfo = {};
     startupInfo.cb = sizeof(startupInfo);
