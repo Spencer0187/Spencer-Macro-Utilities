@@ -493,6 +493,15 @@ jobs:
           architectures="$(lipo -archs "$binary")"
           grep -qw arm64 <<<"$architectures"
           grep -qw x86_64 <<<"$architectures"
+          plist="$app/Contents/Info.plist"
+          [[ "$(plutil -extract CFBundleName raw -o - "$plist")" == "Spencer Macro Utilities" ]]
+          [[ "$(plutil -extract CFBundleDisplayName raw -o - "$plist")" == "Spencer Macro Utilities" ]]
+          [[ "$(plutil -extract CFBundleExecutable raw -o - "$plist")" == "Spencer-Macro-Utilities" ]]
+          [[ "$(plutil -extract CFBundleIdentifier raw -o - "$plist")" == "com.spencer0187.smu" ]]
+          [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$plist")" == "${{ needs.prepare.outputs.app_version }}" ]]
+          [[ "$(plutil -extract CFBundleVersion raw -o - "$plist")" == "${{ needs.prepare.outputs.app_version }}" ]]
+          test ! -e "$app/Contents/MacOS/suspend"
+          test ! -d "out/build/macos-universal-release/suspend.app"
           codesign --verify --deep --strict --verbose=2 "$app"
           test -f "$app/Contents/Resources/LICENSE"
           test -f "$app/Contents/Resources/PRIVACY.md"
@@ -519,6 +528,17 @@ jobs:
             exit 1
           else
             echo "The macOS DMG was unavailable; continuing with the ZIP validation artifact."
+          fi
+
+      - name: Verify macOS DMG integrity
+        shell: bash
+        run: |
+          dmg="release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg"
+          if [[ -f "$dmg" ]]; then
+            hdiutil verify "$dmg"
+          elif [[ "${{ inputs.release_mode }}" == "true" ]]; then
+            echo "The signed macOS release has no DMG to verify." >&2
+            exit 1
           fi
 
       - name: Upload macOS ZIP release asset
