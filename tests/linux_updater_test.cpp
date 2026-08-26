@@ -26,6 +26,9 @@ std::string BuildLinuxUpdaterScript();
 bool PlatformAutoApplySupported();
 std::string Sha256Hex(const std::vector<char>& data);
 bool IsUpdaterVersionAllowed(const ReleaseInfo& release, const std::string& updaterVersion);
+std::optional<ReleaseInfo> ParseReleaseMetadataSummary(
+    const std::string& releaseJson,
+    std::string* errorMessage);
 std::optional<ReleaseInfo> ParseReleaseMetadataWithManifest(
     const std::string& releaseJson,
     const std::string& manifestJson,
@@ -265,13 +268,32 @@ void TestReleaseManifestContract()
         "{\"name\":\"" + extraAsset + "\",\"browser_download_url\":\"" + releaseBase + extraAsset +
             "\",\"size\":54321}]}";
 
+    const std::string legacyReleaseJson =
+        "{\"tag_name\":\"V3.3.1\","
+        "\"html_url\":\"https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/tag/V3.3.1\","
+        "\"assets\":[]}";
+    std::string error;
+    auto legacySummary = smu::updater::detail::ParseReleaseMetadataSummary(
+        legacyReleaseJson,
+        &error);
+    Expect(legacySummary.has_value(),
+        "parse an older GitHub release summary without requiring update-manifest.json");
+    Expect(legacySummary->version == "3.3.1",
+        "normalize the older public release version before manifest lookup");
+    Expect(!legacySummary->manifestDriven && legacySummary->assets.empty(),
+        "keep release-summary parsing separate from the manifest install contract");
+    Expect(
+        !smu::updater::detail::ParseReleaseMetadataSummary(
+            ReplaceOnce(legacyReleaseJson, "V3.3.1", "V3.3.1-beta"),
+            &error),
+        "reject non-canonical latest-release tags before deciding that a manifest is unnecessary");
+
     const std::string manifestJson =
         "{\"schema_version\":1,\"release_version\":\"3.4.0\","
         "\"minimum_updater_version\":\"3.4.0\",\"artifacts\":{"
         "\"linux-current\":{\"asset\":\"" + officialAsset + "\",\"size\":12345,"
         "\"sha256\":\"" + sha256 + "\",\"url\":\"" + releaseBase + officialAsset + "\"}}}";
 
-    std::string error;
     auto release = smu::updater::detail::ParseReleaseMetadataWithManifest(
         releaseJson,
         manifestJson,

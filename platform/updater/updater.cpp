@@ -336,6 +336,44 @@ bool IsUpdaterVersionAllowed(const ReleaseInfo& release, const std::string& upda
         CompareVersions(NormalizeVersion(updaterVersion), release.minimumUpdaterVersion) >= 0;
 }
 
+std::optional<ReleaseInfo> ParseReleaseMetadataSummary(
+    const std::string& releaseJson,
+    std::string* errorMessage)
+{
+    try {
+        const auto root = nlohmann::json::parse(releaseJson);
+        if (!root.is_object()) {
+            if (errorMessage) {
+                *errorMessage = "Latest GitHub release metadata was not a JSON object.";
+            }
+            return std::nullopt;
+        }
+
+        ReleaseInfo release;
+        release.tagName = root.value("tag_name", "");
+        release.version = NormalizeVersion(release.tagName);
+        release.htmlUrl = root.value("html_url", "");
+        if (!IsCanonicalManifestVersion(release.version)) {
+            if (errorMessage) {
+                *errorMessage = "Latest GitHub release tag must use canonical MAJOR.MINOR.PATCH versioning.";
+            }
+            return std::nullopt;
+        }
+        if (!root.contains("assets") || !root["assets"].is_array()) {
+            if (errorMessage) {
+                *errorMessage = "Latest GitHub release metadata is incomplete.";
+            }
+            return std::nullopt;
+        }
+        return release;
+    } catch (const std::exception& ex) {
+        if (errorMessage) {
+            *errorMessage = std::string("Failed to parse latest GitHub release JSON: ") + ex.what();
+        }
+        return std::nullopt;
+    }
+}
+
 std::optional<ReleaseInfo> ParseReleaseMetadataWithManifest(
     const std::string& releaseJson,
     const std::string& manifestJson,
@@ -504,35 +542,21 @@ std::optional<ReleaseInfo> ParseReleaseMetadataWithManifest(
 
 } // namespace detail
 
-const char* LatestReleasePageUrl()
-{
-    return kLatestReleasePageUrl;
-}
+namespace {
 
-std::optional<ReleaseInfo> FetchLatestRelease(std::string* errorMessage)
+std::optional<ReleaseInfo> ParseReleaseContractFromResponse(
+    const std::string& response,
+    std::string* errorMessage)
 {
-    std::string response;
-    if (!detail::HttpGetString(kLatestReleaseUrl, response, errorMessage)) {
-        return std::nullopt;
-    }
-
     try {
         const auto root = nlohmann::json::parse(response);
-        if (!root.is_object()) {
-            if (errorMessage) {
-                *errorMessage = "Latest GitHub release metadata was not a JSON object.";
-            }
-            return std::nullopt;
-        }
-        const std::string tagName = root.value("tag_name", "");
-        if (tagName.empty() || !root.contains("assets") || !root["assets"].is_array()) {
-            if (errorMessage) {
-                *errorMessage = "Latest GitHub release metadata is incomplete.";
-            }
+        const auto summary = detail::ParseReleaseMetadataSummary(response, errorMessage);
+        if (!summary) {
             return std::nullopt;
         }
 
-        const std::string requiredUrlPrefix = std::string(kTrustedReleaseAssetPrefix) + tagName + "/";
+        const std::string requiredUrlPrefix =
+            std::string(kTrustedReleaseAssetPrefix) + summary->tagName + "/";
         const nlohmann::json* manifestAsset = nullptr;
         for (const auto& assetJson : root["assets"]) {
             if (!assetJson.is_object() || assetJson.value("name", "") != kUpdateManifestName) {
@@ -581,6 +605,22 @@ std::optional<ReleaseInfo> FetchLatestRelease(std::string* errorMessage)
     }
 }
 
+} // namespace
+
+const char* LatestReleasePageUrl()
+{
+    return kLatestReleasePageUrl;
+}
+
+std::optional<ReleaseInfo> FetchLatestRelease(std::string* errorMessage)
+{
+    std::string response;
+    if (!detail::HttpGetString(kLatestReleaseUrl, response, errorMessage)) {
+        return std::nullopt;
+    }
+    return ParseReleaseContractFromResponse(response, errorMessage);
+}
+
 std::optional<ReleaseAsset> SelectUpdateAsset(const ReleaseInfo& release)
 {
     const ReleaseAsset* bestAsset = nullptr;
@@ -606,24 +646,48 @@ UpdaterStatus CheckForUpdate(const std::string& localVersion)
     status.autoApplySupported = IsAutoApplySupported();
 
     std::string error;
-    auto latest = FetchLatestRelease(&error);
+    std::string releaseResponse;
+    if (!detail::HttpGetString(kLatestReleaseUrl, releaseResponse, &error)) {
+        status.message = error.empty() ? "Update check failed." : error;
+        return status;
+    }
+
+    auto summary = detail::ParseReleaseMetadataSummary(releaseResponse, &error);
+    if (!summary) {
+        status.message = error.empty() ? "Update check failed." : error;
+        return status;
+    }
+
+    status.latestVersion = summary->version;
+    const int releaseComparison = CompareVersions(status.localVersion, status.latestVersion);
+    status.updateAvailable = releaseComparison < 0;
+    if (!status.updateAvailable) {
+        // A manifest is an update-install contract, not a prerequisite for
+        // determining that the public release is older than or equal to this
+        // build. This keeps local/development builds ahead of the public
+        // release from reporting a false "manifest not found" failure.
+        status.checkSucceeded = true;
+        status.latestRelease = std::move(summary);
+        status.message = releaseComparison > 0
+            ? "This build is newer than the latest public release."
+            : "You are running the latest version.";
+        return status;
+    }
+
+    auto latest = ParseReleaseContractFromResponse(releaseResponse, &error);
     if (!latest) {
         status.message = error.empty() ? "Update check failed." : error;
         return status;
     }
 
     status.checkSucceeded = true;
-    status.latestVersion = latest->version;
-    status.updateAvailable = CompareVersions(status.localVersion, status.latestVersion) < 0;
     const bool updaterVersionAllowed = detail::IsUpdaterVersionAllowed(*latest, status.localVersion);
     if (updaterVersionAllowed) {
         status.selectedAsset = SelectUpdateAsset(*latest);
     }
     status.latestRelease = std::move(latest);
 
-    if (!status.updateAvailable) {
-        status.message = "You are running the latest version.";
-    } else if (!updaterVersionAllowed) {
+    if (!updaterVersionAllowed) {
         status.autoApplySupported = false;
         status.message = "An update is available, but it requires a newer updater. Install it manually from the official latest release page.";
     } else if (!status.selectedAsset) {
