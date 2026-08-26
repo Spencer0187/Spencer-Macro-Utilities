@@ -16,6 +16,29 @@ SPEC.loader.exec_module(MANIFEST)
 
 
 class UpdateManifestTests(unittest.TestCase):
+    def test_v340_legacy_asset_casing_and_v341_cleanup(self) -> None:
+        self.assertEqual(
+            MANIFEST.official_update_assets("3.4.0"),
+            {
+                "windows-x64": "Spencer-Macro-Utilities-Windows.zip",
+                "linux-x86_64": "Spencer-Macro-Utilities-V3.4.0-Linux-x86_64.ZIP",
+                "macos-universal": "Spencer-Macro-Utilities-V3.4.0-macOS-universal.ZIP",
+            },
+        )
+        v340_assets = MANIFEST.official_update_assets("3.4.0")
+        self.assertEqual(
+            [name for name in v340_assets.values() if name.endswith(".zip")],
+            ["Spencer-Macro-Utilities-Windows.zip"],
+        )
+        self.assertEqual(
+            MANIFEST.official_update_assets("3.4.1"),
+            {
+                "windows-x64": "Spencer-Macro-Utilities-Windows.zip",
+                "linux-x86_64": "Spencer-Macro-Utilities-V3.4.1-Linux-x86_64.zip",
+                "macos-universal": "Spencer-Macro-Utilities-V3.4.1-macOS-universal.zip",
+            },
+        )
+
     def test_build_manifest_uses_only_official_updater_assets(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             release_dir = Path(temp_dir)

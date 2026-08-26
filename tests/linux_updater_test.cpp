@@ -451,6 +451,10 @@ void TestCrossPlatformAssetNames()
             ScoreMacOSAssetName("Spencer-Macro-Utilities-V3.2.1.zip"),
         "prefer the explicit universal macOS ZIP");
     Expect(
+        ScoreMacOSAssetName(
+            "Spencer-Macro-Utilities-V3.4.0-macOS-universal.ZIP") > 0,
+        "retain V3.3 case-insensitive macOS selection for the V3.4.0 uppercase ZIP bridge name");
+    Expect(
         ScoreMacOSAssetName("Spencer-Macro-Utilities-V3.2.1.zip") == 0,
         "do not fall back to the generic Windows ZIP on macOS");
     Expect(
@@ -470,6 +474,14 @@ void TestCrossPlatformAssetNames()
     const int appImageScore =
         ScoreLinuxAssetName(CurrentVersionedAppImageName(), CurrentArchitecture());
     Expect(linuxBundleScore > 0, "accept the all-in-one Linux distribution ZIP");
+    std::string uppercaseLinuxBundle = CurrentBundleName();
+    const std::size_t linuxSuffix = uppercaseLinuxBundle.rfind(".zip");
+    if (linuxSuffix != std::string::npos) {
+        uppercaseLinuxBundle.replace(linuxSuffix, 4, ".ZIP");
+    }
+    Expect(
+        ScoreLinuxAssetName(uppercaseLinuxBundle, CurrentArchitecture()) == linuxBundleScore,
+        "retain V3.3 case-insensitive Linux selection for the V3.4.0 uppercase ZIP bridge name");
     Expect(appImageScore > linuxBundleScore, "prefer a direct matching AppImage");
     Expect(
         ScoreLinuxAssetName(OtherArchitectureName(), CurrentArchitecture()) == 0,

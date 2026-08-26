@@ -60,6 +60,22 @@ jobs:
           merge-multiple: true
           skip-decompress: true
 
+      - name: Apply V3.4.0 legacy ZIP casing
+        if: needs.build-packages.outputs.app_version == '3.4.0'
+        shell: bash
+        run: |
+          version="${{ needs.build-packages.outputs.app_version }}"
+          # Stock V3.2 accepts only the exact case-sensitive suffix ".zip" and
+          # blindly chooses the first matching release asset. GitHub release
+          # JSON does not preserve upload order, so for this one migration
+          # release make the non-Windows updater archives invisible to V3.2.
+          mv \
+            "release-files/Spencer-Macro-Utilities-V${version}-Linux-x86_64.zip" \
+            "release-files/Spencer-Macro-Utilities-V${version}-Linux-x86_64.ZIP"
+          mv \
+            "release-files/Spencer-Macro-Utilities-V${version}-macOS-universal.zip" \
+            "release-files/Spencer-Macro-Utilities-V${version}-macOS-universal.ZIP"
+
       - name: Generate authoritative updater manifest
         shell: bash
         run: |
@@ -72,11 +88,18 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.build-packages.outputs.app_version }}"
+          if [[ "$version" == "3.4.0" ]]; then
+            linux_archive="Spencer-Macro-Utilities-V${version}-Linux-x86_64.ZIP"
+            macos_archive="Spencer-Macro-Utilities-V${version}-macOS-universal.ZIP"
+          else
+            linux_archive="Spencer-Macro-Utilities-V${version}-Linux-x86_64.zip"
+            macos_archive="Spencer-Macro-Utilities-V${version}-macOS-universal.zip"
+          fi
           expected=(
             "Spencer-Macro-Utilities-Windows.zip"
             "Spencer-Macro-Utilities-V${version}-Windows.exe"
-            "Spencer-Macro-Utilities-V${version}-Linux-x86_64.zip"
-            "Spencer-Macro-Utilities-V${version}-macOS-universal.zip"
+            "$linux_archive"
+            "$macos_archive"
             "Spencer-Macro-Utilities-V${version}-macOS-universal.dmg"
             "update-manifest.json"
           )
@@ -131,22 +154,14 @@ jobs:
           name: Spencer Macro Utilities V${{ needs.build-packages.outputs.app_version }}
           body: ${{ steps.release-body.outputs.body }}
           draft: true
-          # V3.4.0-ONLY compatibility detail: V3.2 blindly selects the first
-          # ZIP on /releases/latest, so the normal Windows ZIP must be uploaded
-          # first for that release. V3.3.x also selects this Windows-named ZIP.
-          # V3.4+ clients use update-manifest.json, so ordering is irrelevant
-          # after the one-release migration window.
-          preserve_order: true
-          files: |
-            release-files/Spencer-Macro-Utilities-Windows.zip
-            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-Windows.exe
-            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-Linux-x86_64.zip
-            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.zip
-            release-files/Spencer-Macro-Utilities-V${{ needs.build-packages.outputs.app_version }}-macOS-universal.dmg
-            release-files/update-manifest.json
+          # The release asset set was verified exactly above. For V3.4.0 the
+          # Linux/macOS updater archives have uppercase .ZIP suffixes, making
+          # the Windows package the only exact lowercase .zip that stock V3.2
+          # can see. We therefore do not rely on GitHub preserving upload order.
+          files: release-files/*
           fail_on_unmatched_files: true
 
-      - name: Verify legacy updater asset ordering
+      - name: Verify V3.2 legacy updater asset visibility
         if: needs.build-packages.outputs.app_version == '3.4.0'
         shell: bash
         env:
@@ -155,13 +170,27 @@ jobs:
           version="${{ needs.build-packages.outputs.app_version }}"
           release_id="${{ steps.create-release.outputs.id }}"
           expected="Spencer-Macro-Utilities-Windows.zip"
-          first_zip="$(
+          mapfile -t v32_zip_assets < <(
             gh api \
-              "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \
-              --paginate \
-              --jq '[.[].name | select(endswith(".zip"))][0] // ""'
-          )"
-          if [[ "$first_zip" != "$expected" ]]; then
-            echo "Legacy updater compatibility failed: first ZIP is '$first_zip', expected '$expected'." >&2
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              --jq '.assets[].name | select(endswith(".zip"))'
+          )
+          if (( ${#v32_zip_assets[@]} != 1 )) || [[ "${v32_zip_assets[0]:-}" != "$expected" ]]; then
+            printf 'V3.2 compatibility failed: exact lowercase .zip assets were: %s\n' \
+              "${v32_zip_assets[*]:-(none)}" >&2
             exit 1
           fi
+
+          mapfile -t release_assets < <(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              --jq '.assets[].name'
+          )
+          for expected_asset in \
+            "Spencer-Macro-Utilities-V${version}-Linux-x86_64.ZIP" \
+            "Spencer-Macro-Utilities-V${version}-macOS-universal.ZIP"; do
+            if ! printf '%s\n' "${release_assets[@]}" | grep -Fxq "$expected_asset"; then
+              echo "V3.2 compatibility failed: missing release asset $expected_asset" >&2
+              exit 1
+            fi
+          done

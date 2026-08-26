@@ -23,10 +23,17 @@ def validate_version(value: str) -> str:
 
 def official_update_assets(version: str) -> dict[str, str]:
     version = validate_version(version)
+    # V3.4.0-ONLY legacy bridge detail: stock V3.2 blindly picks the first
+    # release asset whose name ends with the exact, case-sensitive suffix
+    # ".zip". GitHub does not preserve upload order in release JSON, so the
+    # Linux/macOS updater archives use uppercase .ZIP for this one release.
+    # V3.2 therefore sees only Spencer-Macro-Utilities-Windows.zip, while
+    # V3.3 lowercases asset names and V3.4+ uses this manifest's exact names.
+    archive_suffix = ".ZIP" if version == "3.4.0" else ".zip"
     return {
         "windows-x64": "Spencer-Macro-Utilities-Windows.zip",
-        "linux-x86_64": f"Spencer-Macro-Utilities-V{version}-Linux-x86_64.zip",
-        "macos-universal": f"Spencer-Macro-Utilities-V{version}-macOS-universal.zip",
+        "linux-x86_64": f"Spencer-Macro-Utilities-V{version}-Linux-x86_64{archive_suffix}",
+        "macos-universal": f"Spencer-Macro-Utilities-V{version}-macOS-universal{archive_suffix}",
     }
 
 

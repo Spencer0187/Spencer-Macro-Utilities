@@ -78,8 +78,8 @@ The `suspend.exe` bytes are the same signed V3.4.0 executable as the correctly n
 The compatibility requirements differ by old updater generation:
 
 - V3.0/V3.1 read `.github/autoupdaterurl`, which is permanently pinned to the V3.4.0 `Spencer-Macro-Utilities-Windows.zip` with a compatibility `?legacy={VERSION}` query token. V3.0 requires that placeholder to exist; after substitution GitHub ignores the query value and serves the same release asset.
-- V3.2 blindly chooses the first ZIP returned by the GitHub release asset API, so the V3.4.0 draft-release workflow uploads `Spencer-Macro-Utilities-Windows.zip` first and verifies that ordering.
-- V3.3.x scores Windows ZIP filenames and selects `Spencer-Macro-Utilities-Windows.zip`; its root-level `suspend.exe` extraction therefore succeeds.
+- V3.2 blindly chooses the first release asset whose filename ends with the exact case-sensitive suffix `.zip`. GitHub release JSON does **not** preserve upload order, so V3.4.0 makes the Linux/macOS updater archives end in uppercase `.ZIP`. `Spencer-Macro-Utilities-Windows.zip` is therefore the only asset V3.2 considers, independent of GitHub ordering.
+- V3.3.x lowercases asset names before scoring them, so it still recognizes the V3.4.0 Linux/macOS `.ZIP` archives and selects `Spencer-Macro-Utilities-Windows.zip` on Windows; its root-level `suspend.exe` extraction therefore succeeds.
 
 This does **not** make V3.2/V3.3 permanently bridgeable after newer releases become `/releases/latest`. The intended policy is to leave V3.4.0 as the latest release for a migration window (roughly a month). After V3.4.1 is published, dormant V3.2/V3.3 installs that never crossed the V3.4.0 window may need to update manually from GitHub.
 
@@ -98,11 +98,11 @@ No normal V3.4.1+ package should contain `suspend.exe`, and release asset orderi
 
 V3.4+ uses `update-manifest.json` as the authoritative automatic-update contract. The manifest is generated from the actual built artifacts and records the exact asset name, byte size, and SHA-256 digest for each supported automatic-update target.
 
-The current updater entries are:
+The updater entries are:
 
 - `windows-x64` -> `Spencer-Macro-Utilities-Windows.zip`
-- `linux-x86_64` -> `Spencer-Macro-Utilities-V<version>-Linux-x86_64.zip`
-- `macos-universal` -> `Spencer-Macro-Utilities-V<version>-macOS-universal.zip`
+- `linux-x86_64` -> V3.4.0 only: `Spencer-Macro-Utilities-V3.4.0-Linux-x86_64.ZIP`; V3.4.1+: `Spencer-Macro-Utilities-V<version>-Linux-x86_64.zip`
+- `macos-universal` -> V3.4.0 only: `Spencer-Macro-Utilities-V3.4.0-macOS-universal.ZIP`; V3.4.1+: `Spencer-Macro-Utilities-V<version>-macOS-universal.zip`
 
 Direct Windows EXEs, DMGs, DEBs, RPMs, Nix outputs, and contributor-added release assets are not selected merely because they are attached to a release. V3.4+ clients use only the artifact named by the matching manifest entry and verify its size and SHA-256.
 
@@ -114,12 +114,12 @@ The V3.4.0 draft release contains six official files:
 
 - `Spencer-Macro-Utilities-Windows.zip` — V3.4.0-only compatibility layout with signed root-level `suspend.exe`; the executable self-migrates to `Spencer-Macro-Utilities-V3.4.0-Windows.exe` before showing the GUI.
 - `Spencer-Macro-Utilities-V3.4.0-Windows.exe` — direct signed Windows executable with the correct public filename immediately.
-- `Spencer-Macro-Utilities-V3.4.0-Linux-x86_64.zip` — AppImage, Debian package, Fedora/RHEL RPM, portable tarball, setup guide, notices, and checksums.
-- `Spencer-Macro-Utilities-V3.4.0-macOS-universal.zip` — automatic-update macOS ZIP containing the branded app bundle.
+- `Spencer-Macro-Utilities-V3.4.0-Linux-x86_64.ZIP` — AppImage, Debian package, Fedora/RHEL RPM, portable tarball, setup guide, notices, and checksums. The uppercase extension is a V3.4.0-only V3.2 compatibility detail.
+- `Spencer-Macro-Utilities-V3.4.0-macOS-universal.ZIP` — automatic-update macOS ZIP containing the branded app bundle. The uppercase extension is a V3.4.0-only V3.2 compatibility detail.
 - `Spencer-Macro-Utilities-V3.4.0-macOS-universal.dmg` — human-facing macOS installer image.
 - `update-manifest.json` — authoritative V3.4+ updater mapping and hashes.
 
-Starting with V3.4.1, the same six asset names/patterns remain, but the Windows ZIP switches to the clean nested/versioned layout and contains no `suspend.exe`.
+Starting with V3.4.1, the Windows ZIP switches to the clean nested/versioned layout and contains no `suspend.exe`; the Linux/macOS updater archives also return to the normal lowercase `.zip` extension.
 
 The caller creates or updates a draft GitHub release tagged `V<version>` with an inline placeholder and a comparison link to the previous published release. It never publishes the draft automatically.
 
@@ -130,7 +130,7 @@ Verify all of the following:
 - The exact expected asset set is present and non-empty.
 - `update-manifest.json` parses, names the expected Windows/Linux/macOS updater assets, and its byte sizes/SHA-256 values match the uploaded files.
 - Windows reports a valid SignPath Authenticode signature for the direct EXE and executable inside the portable ZIP.
-- For V3.4.0 only, `Spencer-Macro-Utilities-Windows.zip` is the first ZIP returned by the release asset API, contains signed root-level `suspend.exe`, and launching that file migrates/relaunches as `Spencer-Macro-Utilities-V3.4.0-Windows.exe` before the GUI appears.
+- For V3.4.0 only, `Spencer-Macro-Utilities-Windows.zip` is the **only** release asset whose filename ends with exact lowercase `.zip`; the Linux/macOS updater archives must end in uppercase `.ZIP`. This makes stock V3.2 select Windows independently of GitHub asset ordering. The Windows ZIP must contain signed root-level `suspend.exe`, and launching it must migrate/relaunch as `Spencer-Macro-Utilities-V3.4.0-Windows.exe` before the GUI appears.
 - For V3.4.0 only, end-to-end test copies of V3.0/V3.1 (where practical), V3.2.1, and V3.3.x can cross to V3.4.0. At minimum, validate a stock V3.2.1 client and a stock V3.3.0/V3.3.1 Windows client against a controlled test release before publishing the production release.
 - Before building V3.4.1, delete the V3.4.0-only migration block from `app/main_windows.cpp`; its compile-time tripwire is supposed to fail the Windows build until this happens. Verify the V3.4.1+ Windows ZIP uses `Spencer-Macro-Utilities/Spencer-Macro-Utilities-V<version>-Windows.exe` and contains no `suspend.exe`.
 - The macOS app contains both `arm64` and `x86_64` slices, is named `Spencer Macro Utilities.app` in the public package, and uses the stable release certificate.
