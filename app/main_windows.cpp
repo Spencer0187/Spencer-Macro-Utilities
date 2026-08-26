@@ -210,25 +210,49 @@ bool ScheduleV340LegacyFilenameMigration()
         return false;
     }
 
+    wchar_t systemDirectory[MAX_PATH] = {};
+    const UINT systemDirectoryLength = GetSystemDirectoryW(systemDirectory, MAX_PATH);
+    if (systemDirectoryLength == 0 || systemDirectoryLength >= MAX_PATH) {
+        if (createdTarget) {
+            DeleteFileW(targetPath.c_str());
+        }
+        MessageBoxW(
+            nullptr,
+            L"Spencer Macro Utilities V3.4.0 could not resolve the Windows system directory needed for its filename migration. The app will continue using suspend.exe for this launch and will retry next time.",
+            L"Spencer Macro Utilities filename migration",
+            MB_OK | MB_ICONWARNING);
+        return false;
+    }
+    const std::wstring systemDirectoryPath(systemDirectory, systemDirectoryLength);
+
     const std::wstring scriptPath =
         directory + L"\\.smu-v3.4.0-filename-migration-" +
         std::to_wstring(GetCurrentProcessId()) + L"-" +
         std::to_wstring(GetTickCount64()) + L".cmd";
+    // Pass the trusted Windows system directory into the helper so it never
+    // resolves timeout.exe or powershell.exe through the app/current directory.
+    // Give an old-image lock up to five minutes to clear; after that, launch
+    // the already-copied branded executable and leave suspend.exe for a later retry.
     const std::string scriptContents =
         "@echo off\r\n"
         "setlocal\r\n"
         "set \"SMU_OLD=%~1\"\r\n"
         "set \"SMU_NEW=%~2\"\r\n"
+        "set \"SMU_SYSTEM=%~3\"\r\n"
+        "set /A SMU_DELETE_ATTEMPTS=0\r\n"
         ":wait_for_old_image\r\n"
         "del /F /Q \"%SMU_OLD%\" > NUL 2>&1\r\n"
         "if not exist \"%SMU_OLD%\" goto launch_new\r\n"
-        "timeout /t 1 /nobreak > NUL\r\n"
+        "set /A SMU_DELETE_ATTEMPTS+=1\r\n"
+        "if %SMU_DELETE_ATTEMPTS% GEQ 300 goto launch_new\r\n"
+        "\"%SMU_SYSTEM%\\timeout.exe\" /t 1 /nobreak > NUL\r\n"
         "goto wait_for_old_image\r\n"
         ":launch_new\r\n"
         "start \"\" \"%SMU_NEW%\"\r\n"
         "endlocal\r\n"
         "set \"SMU_HELPER=%~f0\"\r\n"
-        "start \"\" /B powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -Command \"Start-Sleep -Milliseconds 500; Remove-Item -LiteralPath $env:SMU_HELPER -Force\"\r\n"
+        "set \"SMU_SYSTEM=%~3\"\r\n"
+        "start \"\" /B \"%SMU_SYSTEM%\\WindowsPowerShell\\v1.0\\powershell.exe\" -NoProfile -NonInteractive -WindowStyle Hidden -Command \"Start-Sleep -Milliseconds 500; Remove-Item -LiteralPath $env:SMU_HELPER -Force\"\r\n"
         "exit /B\r\n";
 
     if (!WriteLegacyFilenameMigrationScript(scriptPath, scriptContents)) {
@@ -244,26 +268,11 @@ bool ScheduleV340LegacyFilenameMigration()
         return false;
     }
 
-    wchar_t systemDirectory[MAX_PATH] = {};
-    const UINT systemDirectoryLength = GetSystemDirectoryW(systemDirectory, MAX_PATH);
-    if (systemDirectoryLength == 0 || systemDirectoryLength >= MAX_PATH) {
-        DeleteFileW(scriptPath.c_str());
-        if (createdTarget) {
-            DeleteFileW(targetPath.c_str());
-        }
-        MessageBoxW(
-            nullptr,
-            L"Spencer Macro Utilities V3.4.0 could not resolve the Windows command interpreter needed for its filename migration. The app will continue using suspend.exe for this launch and will retry next time.",
-            L"Spencer Macro Utilities filename migration",
-            MB_OK | MB_ICONWARNING);
-        return false;
-    }
-
-    const std::wstring commandInterpreter =
-        std::wstring(systemDirectory, systemDirectoryLength) + L"\\cmd.exe";
+    const std::wstring commandInterpreter = systemDirectoryPath + L"\\cmd.exe";
     std::wstring commandLine =
         L"cmd.exe /D /Q /C \"\"" + scriptPath + L"\" \"" +
-            currentPath + L"\" \"" + targetPath + L"\"\"";
+            currentPath + L"\" \"" + targetPath + L"\" \"" +
+            systemDirectoryPath + L"\"\"";
 
     STARTUPINFOW startupInfo = {};
     startupInfo.cb = sizeof(startupInfo);
