@@ -40,7 +40,6 @@ namespace {
 
 constexpr const char kMacOSInputBackendInitWarningId[] = "macos_input_backend_init_failed";
 constexpr const char kMacOSProcessBackendInitWarningId[] = "macos_process_backend_init_failed";
-constexpr const char kMacOSNetworkBackendUnavailableWarningId[] = "macos_network_backend_unavailable";
 constexpr const char kMacOSCapabilityWarningId[] = "macos_platform_capability_unavailable";
 constexpr const char kMacOSPermissionRepairMarkerName[] = "macos-permissions-may-need-repair";
 
@@ -452,9 +451,6 @@ int main(int argc, char** argv)
     if (auto networkBackend = smu::platform::GetNetworkLagBackend()) {
         context.networkBackendAvailable = networkBackend->isAvailable();
         context.networkBackendError = networkBackend->unsupportedReason();
-        if (!context.networkBackendError.empty()) {
-            LogWarning(context.networkBackendError, kMacOSNetworkBackendUnavailableWarningId, true);
-        }
     }
 
     for (const std::string& warning : context.capabilities.warnings) {

@@ -2772,16 +2772,27 @@ void RenderSelectedSection(AppContext& context)
     ImGui::SameLine();
     DrawKeyBindControl("SectionKey", *currentKey, selected_section);
 
+#if defined(__APPLE__)
+    const bool sectionToggleDisabled = selected_section == 15;
+    if (sectionToggleDisabled) {
+        section_toggles[selected_section] = false;
+    }
+#else
+    constexpr bool sectionToggleDisabled = false;
+#endif
+
     bool toggleVal = instanceEnabledPtr ? *instanceEnabledPtr : section_toggles[selected_section];
     ImGui::PushStyleColor(ImGuiCol_Text, toggleVal ? GetCurrentTheme().success_color : GetCurrentTheme().error_color);
     ImGui::TextWrapped("Enable This Macro:");
     ImGui::PopStyleColor();
     ImGui::SameLine();
+    ImGui::BeginDisabled(sectionToggleDisabled);
     if (instanceEnabledPtr) {
         ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), instanceEnabledPtr);
     } else {
         ImGui::Checkbox(("##SectionToggle" + std::to_string(selected_section)).c_str(), &section_toggles[selected_section]);
     }
+    ImGui::EndDisabled();
 
     if (bool* disableOutsidePtr = GetDisableOutsideTogglePtr(selected_section)) {
         std::string disableOutsideId = "##DisableOutsideRoblox_" + std::to_string(selected_section);
@@ -3309,17 +3320,12 @@ void RenderSelectedSection(AppContext& context)
 #endif
 
 #if defined(__APPLE__)
-        auto backend = smu::platform::GetNetworkLagBackend();
         ImGui::TextWrapped("Network Lag Switch");
         ImGui::Separator();
         ImGui::TextColored(GetCurrentTheme().warning_color, "Unavailable on macOS");
         ImGui::TextWrapped(
-            "A safe macOS lag switch requires a Developer ID-signed, Apple-entitled "
-            "Network Extension. This build does not install or pretend to provide one.");
-        if (backend) {
-            ImGui::Spacing();
-            ImGui::TextWrapped("%s", backend->unsupportedReason().c_str());
-        }
+            "Lagswitch on macOS is impossible in this build unless someone pays for Apple's "
+            "$99/year Developer Program and ships a Developer ID-signed, Apple-entitled Network Extension.");
 #else
         auto backend = smu::platform::GetNetworkLagBackend();
 
