@@ -10,7 +10,7 @@ SMU never asks for your sudo password inside its own ImGui interface. Authentica
 
 ## Runtime Tools
 
-SMU uses `curl` for update checks, `pkexec` for graphical authentication, `iptables` for hard blocking, and `iproute2` (`tc` and `ip`) for optional fake lag. The Debian and RPM packages declare these dependencies, and the Nix package supplies them. AppImage and portable users should install `curl`, Polkit, `iptables`, `iproute2`, and `kmod` with their distribution's package manager if those commands are not already present. Native Wayland pixel reads additionally need PipeWire and `xdg-desktop-portal` with the backend for the current desktop.
+SMU uses `curl` for update checks, `pkexec` for graphical authentication, `iptables` for hard blocking, and `iproute2` (`tc` and `ip`) for optional fake lag. The Debian and RPM packages declare these dependencies, and the Nix package supplies them. AppImage and portable users should install `curl`, Polkit, `iptables`, `iproute2`, and `kmod` with their distribution's package manager if those commands are not already present. The AppImage bundles `libei.so.1` for modern Wayland RemoteDesktop/EIS pointer control; native Wayland pixel reads still need the host's PipeWire and `xdg-desktop-portal` stack with the backend for the current desktop.
 
 ## Wayland Screen Capture
 

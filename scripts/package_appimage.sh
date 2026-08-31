@@ -148,6 +148,18 @@ if compgen -G "$BUILD_DIR/lib/libSDL3.so*" >/dev/null; then
   cp -a "$BUILD_DIR"/lib/libSDL3.so* "$APPDIR/usr/lib/"
 fi
 
+# libei is a comparatively new desktop library and is not present on every
+# supported Linux distribution. The release build links it for modern
+# Wayland RemoteDesktop/EIS pointer support, so bundle its ABI-stable SONAME
+# instead of turning it into a host requirement for the AppImage.
+LIBEI_LIBDIR="$(pkg-config --variable=libdir libei-1.0)"
+LIBEI_LIBRARY="$LIBEI_LIBDIR/libei.so.1"
+if [[ ! -e "$LIBEI_LIBRARY" ]]; then
+  echo "ERROR: libei.so.1 was not found in pkg-config's libei library directory: $LIBEI_LIBDIR" >&2
+  exit 1
+fi
+cp -L "$LIBEI_LIBRARY" "$APPDIR/usr/lib/libei.so.1"
+
 cp "$ROOT_DIR/scripts/install_linux_permissions.sh" "$APPDIR/scripts/install_linux_permissions.sh"
 cp "$ROOT_DIR/scripts/install_linux_permissions.sh" \
   "$APPDIR/usr/share/spencer-macro-utilities/scripts/install_linux_permissions.sh"
@@ -164,6 +176,7 @@ cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APPDIR/THIRD_PARTY_NOTICES.md"
 cp "$ROOT_DIR/third_party/SDL/LICENSE.txt" "$APPDIR/licenses/SDL.txt"
 cp "$ROOT_DIR/third_party/appimage-runtime/LICENSE" \
   "$APPDIR/licenses/AppImage-type2-runtime.txt"
+cp "$ROOT_DIR/third_party/libei/LICENSE.txt" "$APPDIR/licenses/libei-MIT.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/LICENSE" \
   "$APPDIR/licenses/go-iptables-LICENSE.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/NOTICE" \
@@ -178,6 +191,8 @@ cp "$ROOT_DIR/third_party/SDL/LICENSE.txt" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/SDL.txt"
 cp "$ROOT_DIR/third_party/appimage-runtime/LICENSE" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/AppImage-type2-runtime.txt"
+cp "$ROOT_DIR/third_party/libei/LICENSE.txt" \
+  "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/libei-MIT.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/LICENSE" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/go-iptables-LICENSE.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/NOTICE" \
@@ -218,6 +233,8 @@ test -f "$APPDIR/PRIVACY.md"
 test -f "$APPDIR/THIRD_PARTY_NOTICES.md"
 test -f "$APPDIR/licenses/SDL.txt"
 test -f "$APPDIR/licenses/AppImage-type2-runtime.txt"
+test -f "$APPDIR/licenses/libei-MIT.txt"
+test -f "$APPDIR/usr/lib/libei.so.1"
 test -f "$APPDIR/licenses/go-iptables-LICENSE.txt"
 test -f "$APPDIR/licenses/go-iptables-NOTICE.txt"
 test -f "$APPDIR/licenses/WinDivert-LGPL-3.0.txt"
@@ -260,9 +277,21 @@ chmod 755 "$BUILD_DIR/$OUTPUT_NAME"
   test -f "squashfs-root/PRIVACY.md"
   test -f "squashfs-root/licenses/SDL.txt"
   test -f "squashfs-root/licenses/AppImage-type2-runtime.txt"
+  test -f "squashfs-root/licenses/libei-MIT.txt"
+  test -f "squashfs-root/usr/lib/libei.so.1"
   test -f "squashfs-root/licenses/go-iptables-LICENSE.txt"
   test -f "squashfs-root/licenses/go-iptables-NOTICE.txt"
   test -f "squashfs-root/licenses/WinDivert-LGPL-3.0.txt"
+
+  missing_deps="$(
+    LD_LIBRARY_PATH="$PWD/squashfs-root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+      ldd squashfs-root/usr/bin/Spencer-Macro-Utilities | grep 'not found' || true
+  )"
+  if [[ -n "$missing_deps" ]]; then
+    echo "ERROR: AppImage executable has unresolved shared-library dependencies:" >&2
+    echo "$missing_deps" >&2
+    exit 1
+  fi
 
   rm -rf squashfs-root
 )

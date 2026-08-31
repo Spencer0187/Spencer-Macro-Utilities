@@ -17,7 +17,7 @@ overrides:
       - iproute2
       - iptables
       - kmod
-      - policykit-1
+      - pkexec
       - libx11-6
       - libxinerama1
       - libpipewire-0.3-0

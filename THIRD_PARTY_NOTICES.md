@@ -28,6 +28,14 @@ SDL is distributed under the zlib license:
 The exact vendored notice is also available at `third_party/SDL/LICENSE.txt`
 in the source repository.
 
+## libei
+
+Linux AppImage releases bundle `libei.so.1` for Wayland RemoteDesktop/EIS
+pointer support so the AppImage does not require libei to be installed on the
+host distribution. libei is distributed under the MIT license. Release
+packages include the complete notice as `licenses/libei-MIT.txt`; the same
+notice is stored in the source tree at `third_party/libei/LICENSE.txt`.
+
 ## AppImage type-2 runtime
 
 The Linux AppImage embeds the official x86_64 AppImage type-2 runtime from
