@@ -555,6 +555,7 @@ elseif(UNIX AND NOT APPLE)
 
         add_custom_command(
             OUTPUT "${SMU_LINUX_PROCESSHELPER_BINARY}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_NETHELPER_GO_CACHE}" "${SMU_LINUX_NETHELPER_GO_TMP}"
             COMMAND "${CMAKE_COMMAND}" -E env
                 GOOS=linux
                 CGO_ENABLED=0
@@ -627,7 +628,10 @@ elseif(UNIX AND NOT APPLE)
     install(FILES "${SMU_GO_IPTABLES_NOTICE_FILE}" DESTINATION "licenses" RENAME "go-iptables-NOTICE.txt")
     install(FILES "${SMU_WINDIVERT_LICENSE_FILE}" DESTINATION "licenses" RENAME "WinDivert-LGPL-3.0.txt")
     if(SMU_GO_EXECUTABLE)
-        install(PROGRAMS "${SMU_LINUX_NETHELPER_BINARY}" DESTINATION ".")
+        install(PROGRAMS
+            "${SMU_LINUX_NETHELPER_BINARY}"
+            "${SMU_LINUX_PROCESSHELPER_BINARY}"
+            DESTINATION ".")
     endif()
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         install(FILES

@@ -127,7 +127,15 @@ func fullCgroupPath(relative string) (string, error) {
 	return full, nil
 }
 
-func writeControl(path, value string) error { return os.WriteFile(path, []byte(value), 0) }
+func writeControl(path, value string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = io.WriteString(file, value)
+	return err
+}
 
 func (h *helper) validateTarget(pid int) error {
 	if pid <= 0 {
@@ -302,8 +310,10 @@ func main() {
 		os.Exit(1)
 	}
 	_ = os.Remove(h.socketPath)
+	oldUmask := syscall.Umask(0077)
 	address := &net.UnixAddr{Name: h.socketPath, Net: "unix"}
 	listener, err := net.ListenUnix("unix", address)
+	syscall.Umask(oldUmask)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -311,7 +321,14 @@ func main() {
 	defer listener.Close()
 	defer os.Remove(h.socketPath)
 	defer h.cleanup()
-	_ = os.Chmod(h.socketPath, 0600)
+	if err := os.Chown(h.socketPath, int(h.owner.uid), -1); err != nil {
+		fmt.Fprintln(os.Stderr, "set socket owner:", err)
+		os.Exit(1)
+	}
+	if err := os.Chmod(h.socketPath, 0600); err != nil {
+		fmt.Fprintln(os.Stderr, "set socket permissions:", err)
+		os.Exit(1)
+	}
 	for {
 		if err := validateOwner(h.owner); err != nil {
 			return

@@ -58,6 +58,10 @@ contents:
     dst: /usr/lib/spencer-macro-utilities/nethelper
     file_info:
       mode: 0755
+  - src: ./staged/usr/bin/processhelper
+    dst: /usr/lib/spencer-macro-utilities/processhelper
+    file_info:
+      mode: 0755
   - src: ./staged/usr/bin/assets/LSANS.TTF
     dst: /usr/lib/spencer-macro-utilities/assets/LSANS.TTF
   - src: ./staged/usr/bin/assets/smu_icon.bmp

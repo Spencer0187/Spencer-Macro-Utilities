@@ -408,3 +408,5 @@ build-windows*/
 
 # Compiled executable
 visual studio/x64/Release/Spencer-Macro-Utilities.exe
+# Local Go helper binaries
+/platform/linux/processhelper/smu-processhelper
