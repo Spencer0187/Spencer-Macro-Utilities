@@ -7,6 +7,12 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
+# Some distributions (notably Debian when using `su -c`) preserve the
+# desktop user's PATH for the root command. Administrative tools such as
+# groupadd, usermod, modprobe, and udevadm normally live in sbin directories,
+# so make the standard system administration paths available explicitly.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:${PATH}}"
+
 TARGET_USER="${SMU_TARGET_USER:-}"
 
 if [[ -z "${TARGET_USER}" && -n "${PKEXEC_UID:-}" ]]; then
