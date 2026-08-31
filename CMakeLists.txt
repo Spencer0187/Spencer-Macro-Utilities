@@ -405,6 +405,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_APP_DIR}/app_ui.cpp"
         "${SMU_APP_DIR}/input_actions.cpp"
         "${SMU_APP_DIR}/linux_lagswitch_helper.cpp"
+        "${SMU_APP_DIR}/linux_process_helper.cpp"
         "${SMU_APP_DIR}/macro_runtime.cpp"
         "${SMU_APP_DIR}/macro_tutorial_assets.cpp"
         "${SMU_APP_DIR}/main_linux.cpp"
@@ -522,6 +523,8 @@ elseif(UNIX AND NOT APPLE)
     set(SMU_LINUX_NETHELPER_BINARY "${CMAKE_CURRENT_BINARY_DIR}/nethelper")
     set(SMU_LINUX_NETHELPER_GO_CACHE "${CMAKE_CURRENT_BINARY_DIR}/go-build-cache")
     set(SMU_LINUX_NETHELPER_GO_TMP "${CMAKE_CURRENT_BINARY_DIR}/go-tmp")
+    set(SMU_LINUX_PROCESSHELPER_SOURCE_DIR "${SMU_PLATFORM_LINUX_DIR}/processhelper")
+    set(SMU_LINUX_PROCESSHELPER_BINARY "${CMAKE_CURRENT_BINARY_DIR}/processhelper")
 
     find_program(SMU_GO_EXECUTABLE go)
     if(SMU_GO_EXECUTABLE)
@@ -549,7 +552,29 @@ elseif(UNIX AND NOT APPLE)
             VERBATIM
         )
         add_custom_target(smu_linux_nethelper DEPENDS "${SMU_LINUX_NETHELPER_BINARY}")
-        add_dependencies(spencer_macro_utilities smu_linux_nethelper)
+
+        add_custom_command(
+            OUTPUT "${SMU_LINUX_PROCESSHELPER_BINARY}"
+            COMMAND "${CMAKE_COMMAND}" -E env
+                GOOS=linux
+                CGO_ENABLED=0
+                GOCACHE=${SMU_LINUX_NETHELPER_GO_CACHE}
+                GOTMPDIR=${SMU_LINUX_NETHELPER_GO_TMP}
+                "${SMU_GO_EXECUTABLE}" build
+                    -trimpath
+                    -buildvcs=false
+                    "-ldflags=-s -w"
+                    -o "${SMU_LINUX_PROCESSHELPER_BINARY}"
+                    .
+            WORKING_DIRECTORY "${SMU_LINUX_PROCESSHELPER_SOURCE_DIR}"
+            DEPENDS
+                "${SMU_LINUX_PROCESSHELPER_SOURCE_DIR}/go.mod"
+                "${SMU_LINUX_PROCESSHELPER_SOURCE_DIR}/processhelper.go"
+            COMMENT "Building Linux processhelper"
+            VERBATIM
+        )
+        add_custom_target(smu_linux_processhelper DEPENDS "${SMU_LINUX_PROCESSHELPER_BINARY}")
+        add_dependencies(spencer_macro_utilities smu_linux_nethelper smu_linux_processhelper)
     else()
         message(WARNING "Go was not found; Linux lagswitch nethelper will not be built next to Spencer-Macro-Utilities.")
     endif()
@@ -639,10 +664,11 @@ elseif(UNIX AND NOT APPLE)
     )
 
     if(SMU_GO_EXECUTABLE)
-        add_dependencies(package-linux-dir smu_linux_nethelper)
+        add_dependencies(package-linux-dir smu_linux_nethelper smu_linux_processhelper)
         add_custom_command(TARGET package-linux-dir POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_NETHELPER_BINARY}" "${SMU_LINUX_PACKAGE_DIR}/nethelper"
-            COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/nethelper"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_PROCESSHELPER_BINARY}" "${SMU_LINUX_PACKAGE_DIR}/processhelper"
+            COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/nethelper" "${SMU_LINUX_PACKAGE_DIR}/processhelper"
         )
     endif()
 

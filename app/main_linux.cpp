@@ -17,6 +17,8 @@
 
 #include "../core/legacy_globals.h"
 
+#include <SDL3/SDL.h>
+
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -320,6 +322,24 @@ void RefreshWaylandScreenCaptureContext(smu::app::AppContext& context)
 
 int main(int argc, char** argv)
 {
+    if (geteuid() == 0) {
+        static constexpr const char* kRootLaunchMessage =
+            "Spencer Macro Utilities must not be run as root.\n\n"
+            "Running a desktop GUI as root can break access to your Wayland/X11 session and exposes the entire application to unnecessary administrator privileges. "
+            "Run SMU normally as your desktop user; when Linux requires elevated access, SMU will request it only for the specific temporary helper that needs it.";
+
+        std::fprintf(stderr, "Spencer Macro Utilities: %s\n", kRootLaunchMessage);
+        if (SDL_Init(SDL_INIT_VIDEO)) {
+            SDL_ShowSimpleMessageBox(
+                SDL_MESSAGEBOX_ERROR,
+                "Do Not Run Spencer Macro Utilities as Root",
+                kRootLaunchMessage,
+                nullptr);
+            SDL_Quit();
+        }
+        return EXIT_FAILURE;
+    }
+
     const bool workingDirectoryUpdated = smu::app::SetWorkingDirectoryToExecutablePath();
     smu::log::SetFileLoggingEnabled(smu::log::IsDebugLoggingEnabled());
     if (!workingDirectoryUpdated) {

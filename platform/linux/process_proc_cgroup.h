@@ -19,6 +19,13 @@ public:
     bool isForegroundProcess(PlatformPid pid) const override;
 };
 
+// The process backend requests this only after an otherwise-valid cgroup v2
+// freeze fails with EPERM/EACCES. The UI resolves the request after explaining
+// and (optionally) starting the temporary privileged helper.
+bool IsPrivilegedFreezeHelperAuthorizationPending();
+void ResolvePrivilegedFreezeHelperAuthorization(bool approved);
+void ResetPrivilegedFreezeHelperAuthorization();
+
 std::shared_ptr<ProcessBackend> CreateProcCgroupProcessBackend();
 
 } // namespace smu::platform::linux

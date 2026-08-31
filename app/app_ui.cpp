@@ -5,7 +5,9 @@
 #include "app_theme_bridge.h"
 #include "input_actions.h"
 #include "linux_lagswitch_helper.h"
+#include "linux_process_helper.h"
 #include "macro_tutorial_assets.h"
+#include "notification_suppression.h"
 #include "script_instance.h"
 #include "script_manager.h"
 #include "../platform/file_dialog.h"
@@ -14,6 +16,9 @@
 #include "../platform/logging.h"
 #include "../platform/network_backend.h"
 #include "../platform/process_backend.h"
+#if defined(__linux__)
+#include "../platform/linux/process_proc_cgroup.h"
+#endif
 #include "../platform/updater/updater.h"
 
 #include "../core/legacy_globals.h"
@@ -1775,7 +1780,11 @@ void RenderAdministratorRequiredPopup()
 #endif
         ImGui::Separator();
 
-        ImGui::Checkbox("Do not show this again", &DontShowAdminWarning);
+        bool suppressAdminWarning = smu::app::IsNotificationSuppressed(smu::app::kAdminElevationWarningId);
+        if (ImGui::Checkbox("Do not show this again", &suppressAdminWarning)) {
+            smu::app::SetNotificationSuppressed(smu::app::kAdminElevationWarningId, suppressAdminWarning);
+            smu::app::SaveSharedProfilesNow();
+        }
 
         ImGui::Separator();
 #if defined(_WIN32)
@@ -1820,6 +1829,55 @@ void RenderAdministratorRequiredPopup()
     }
 #else
     (void)0;
+#endif
+}
+
+void RenderPrivilegedFreezeHelperPopup()
+{
+#if defined(__linux__)
+    if (smu::platform::linux::IsPrivilegedFreezeHelperAuthorizationPending()) {
+        ImGui::OpenPopup("Additional Freeze Permission Required");
+    }
+
+    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(560.0f, 0.0f), ImVec2(760.0f, 1000.0f));
+
+    if (ImGui::BeginPopupModal(
+            "Additional Freeze Permission Required",
+            nullptr,
+            ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped(
+            "SMU cannot move Sober's game process into the temporary cgroup used by Freeze with your current Linux permissions.");
+        ImGui::Spacing();
+        ImGui::TextWrapped(
+            "To keep Sober-compatible freezing working, SMU can start its bundled privileged Linux helper with pkexec.");
+        ImGui::TextWrapped("This grants the helper root access for this SMU session.");
+        ImGui::Spacing();
+        ImGui::BulletText("The SMU GUI remains running as your normal desktop user.");
+        ImGui::BulletText("The helper only accepts commands from this exact SMU process.");
+        ImGui::BulletText("The helper exits when SMU exits; nothing is installed permanently.");
+        ImGui::BulletText("This helper is bundled with SMU and is dedicated to the Sober freeze workaround.");
+        ImGui::Separator();
+
+        if (ImGui::Button("Start Privileged Helper", ImVec2(220, 0))) {
+            std::string helperError;
+            const bool started = smu::app::StartLinuxProcessHelperWithGraphicalPkexec(&helperError);
+            if (!started && !helperError.empty()) {
+                LogWarning(helperError);
+            }
+            smu::platform::linux::ResolvePrivilegedFreezeHelperAuthorization(started);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+            smu::platform::linux::ResolvePrivilegedFreezeHelperAuthorization(false);
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 #endif
 }
 
@@ -3472,7 +3530,7 @@ void RenderSelectedSection(AppContext& context)
                     }
 #if defined(_WIN32)
                     if (!smu::platform::windows::IsRunAsAdmin()) {
-                        if (DontShowAdminWarning) {
+                        if (smu::app::IsNotificationSuppressed(smu::app::kAdminElevationWarningId)) {
                             smu::app::SaveSharedProfilesNow();
                             if (smu::platform::windows::RestartAsAdmin()) {
                                 done.store(true, std::memory_order_release);
@@ -3488,7 +3546,7 @@ void RenderSelectedSection(AppContext& context)
 #endif
 #if defined(__linux__)
                     if (backendError.empty()) {
-                        if (DontShowAdminWarning) {
+                        if (smu::app::IsNotificationSuppressed(smu::app::kAdminElevationWarningId)) {
                             smu::app::SaveSharedProfilesNow();
                             std::string helperError;
                             if (!smu::app::StartLinuxNetworkHelperWithGraphicalPkexec(&helperError)) {
@@ -3707,6 +3765,7 @@ void RenderAppUi(AppContext& context)
     RenderWaylandRemoteDesktopPrompt(context);
     RenderUpdateConfirmationModal(context);
     RenderAdministratorRequiredPopup();
+    RenderPrivilegedFreezeHelperPopup();
     RenderScriptFileDialogFallback();
     RenderImportTrustModal();
 

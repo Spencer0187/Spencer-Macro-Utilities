@@ -32,6 +32,14 @@ echo "Building nethelper..."
 
 chmod +x "$NETHELPER_BIN"
 
+echo "Building processhelper..."
+PROCESSHELPER_BIN="$PACKAGE_DIR/processhelper"
+(
+  cd "$ROOT_DIR/platform/linux/processhelper"
+  GOOS=linux CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$PROCESSHELPER_BIN" .
+)
+chmod +x "$PROCESSHELPER_BIN"
+
 echo
 echo "Portable folder: $PACKAGE_DIR"
 echo

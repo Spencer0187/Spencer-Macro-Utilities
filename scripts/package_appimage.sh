@@ -127,6 +127,14 @@ NETHELPER_BIN="$BUILD_DIR/nethelper"
 
 chmod 755 "$NETHELPER_BIN"
 
+echo "Building processhelper (Go)..."
+PROCESSHELPER_BIN="$BUILD_DIR/processhelper"
+(
+  cd "$ROOT_DIR/platform/linux/processhelper"
+  GOOS=linux CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$PROCESSHELPER_BIN" .
+)
+chmod 755 "$PROCESSHELPER_BIN"
+
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/lib"
@@ -138,9 +146,10 @@ mkdir -p "$APPDIR/licenses"
 
 cp "$BUILD_DIR/Spencer-Macro-Utilities" "$APPDIR/usr/bin/Spencer-Macro-Utilities"
 cp "$NETHELPER_BIN" "$APPDIR/usr/bin/nethelper"
+cp "$PROCESSHELPER_BIN" "$APPDIR/usr/bin/processhelper"
 
 cp "$ROOT_DIR/AppImage/AppRun" "$APPDIR/AppRun"
-chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/Spencer-Macro-Utilities" "$APPDIR/usr/bin/nethelper"
+chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/Spencer-Macro-Utilities" "$APPDIR/usr/bin/nethelper" "$APPDIR/usr/bin/processhelper"
 
 cp -R "$BUILD_DIR/assets" "$APPDIR/usr/bin/assets"
 

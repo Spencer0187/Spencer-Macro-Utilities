@@ -8,22 +8,168 @@
 #include <cerrno>
 #include <charconv>
 #include <cctype>
+#include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <dirent.h>
 #include <fstream>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <signal.h>
 #include <unistd.h>
 #include <unordered_set>
 
 namespace smu::platform::linux {
 namespace {
+
+std::mutex g_freezeHelperAuthorizationMutex;
+std::condition_variable g_freezeHelperAuthorizationCv;
+bool g_freezeHelperAuthorizationPending = false;
+bool g_freezeHelperAuthorizationResolved = false;
+bool g_freezeHelperAuthorizationApproved = false;
+
+std::string FreezeHelperSocketPath()
+{
+    return "/tmp/smu-processhelper-" + std::to_string(getuid()) + ".sock";
+}
+
+bool IsRootPeer(int fd)
+{
+    struct {
+        pid_t pid;
+        uid_t uid;
+        gid_t gid;
+    } credentials{};
+    socklen_t credentialsLength = sizeof(credentials);
+    return getsockopt(
+               fd,
+               SOL_SOCKET,
+               SO_PEERCRED,
+               &credentials,
+               &credentialsLength) == 0 &&
+           credentialsLength == sizeof(credentials) &&
+           credentials.uid == 0;
+}
+
+bool SendFreezeHelperCommand(const std::string& command, std::string* response)
+{
+    const std::string socketPath = FreezeHelperSocketPath();
+    const int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        return false;
+    }
+
+    timeval timeout{};
+    timeout.tv_sec = 2;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+
+    sockaddr_un address{};
+    address.sun_family = AF_UNIX;
+    if (socketPath.size() >= sizeof(address.sun_path)) {
+        close(fd);
+        return false;
+    }
+    std::snprintf(address.sun_path, sizeof(address.sun_path), "%s", socketPath.c_str());
+
+    if (connect(fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0 || !IsRootPeer(fd)) {
+        close(fd);
+        return false;
+    }
+
+    const std::string request = command + "\n";
+    std::size_t sentTotal = 0;
+    while (sentTotal < request.size()) {
+        const ssize_t sent = send(
+            fd,
+            request.data() + sentTotal,
+            request.size() - sentTotal,
+            MSG_NOSIGNAL);
+        if (sent < 0 && errno == EINTR) {
+            continue;
+        }
+        if (sent <= 0) {
+            close(fd);
+            return false;
+        }
+        sentTotal += static_cast<std::size_t>(sent);
+    }
+
+    std::string line;
+    char buffer[256];
+    while (line.size() < 1024) {
+        const ssize_t received = recv(fd, buffer, sizeof(buffer), 0);
+        if (received < 0 && errno == EINTR) {
+            continue;
+        }
+        if (received <= 0) {
+            break;
+        }
+        line.append(buffer, static_cast<std::size_t>(received));
+        const std::size_t newline = line.find('\n');
+        if (newline != std::string::npos) {
+            line.resize(newline);
+            break;
+        }
+    }
+    close(fd);
+
+    if (response) {
+        *response = line;
+    }
+    return !line.empty();
+}
+
+bool PrivilegedFreezeHelperAvailable()
+{
+    std::string response;
+    return SendFreezeHelperCommand("ping", &response) && response == "PONG";
+}
+
+bool SetSuspendedWithPrivilegedHelper(PlatformPid pid, bool suspend)
+{
+    std::string response;
+    const std::string command =
+        "freeze " + std::to_string(pid) + (suspend ? " 1" : " 0");
+    if (!SendFreezeHelperCommand(command, &response)) {
+        return false;
+    }
+    if (response == "OK") {
+        return true;
+    }
+    smu::log::LogWarning(
+        "Linux process backend: privileged freeze helper failed for PID " +
+        std::to_string(pid) + ": " + response);
+    return false;
+}
+
+bool WaitForPrivilegedFreezeHelperAuthorization()
+{
+    std::unique_lock<std::mutex> lock(g_freezeHelperAuthorizationMutex);
+    if (g_freezeHelperAuthorizationResolved) {
+        return g_freezeHelperAuthorizationApproved;
+    }
+
+    g_freezeHelperAuthorizationPending = true;
+    const bool resolved = g_freezeHelperAuthorizationCv.wait_for(
+        lock,
+        std::chrono::minutes(2),
+        [] { return g_freezeHelperAuthorizationResolved; });
+    if (!resolved) {
+        g_freezeHelperAuthorizationPending = false;
+        return false;
+    }
+    return g_freezeHelperAuthorizationApproved;
+}
 
 bool IsPidToken(const std::string& token, PlatformPid* pid)
 {
@@ -422,24 +568,43 @@ bool IsSmuFreezeCgroup(const std::string& path)
         path.compare(path.size() - suffixLength, suffixLength, kSuffix) == 0;
 }
 
-bool WriteTextFile(const std::string& path, const std::string& text)
+bool WriteTextFile(const std::string& path, const std::string& text, int* errorCode = nullptr)
 {
+    errno = 0;
     std::ofstream file(path);
 
     if (!file) {
+        if (errorCode) {
+            *errorCode = errno;
+        }
         return false;
     }
 
     file << text;
+    file.flush();
 
-    return !file.fail();
+    if (file.fail()) {
+        if (errorCode) {
+            *errorCode = errno;
+        }
+        return false;
+    }
+
+    if (errorCode) {
+        *errorCode = 0;
+    }
+    return true;
 }
 
 bool CreateFrozenChildCgroup(
     const std::string& currentCgroup,
     PlatformPid pid,
-    bool freeze) // original freeze code here: https://github.com/3443e/sober-freeze
+    bool freeze,
+    int* errorCode = nullptr) // original freeze code here: https://github.com/3443e/sober-freeze
 {
+    if (errorCode) {
+        *errorCode = 0;
+    }
     static constexpr const char* kFreezeName = "smu_freeze";
 
     std::string parentCgroup;
@@ -476,26 +641,47 @@ bool CreateFrozenChildCgroup(
 
     if (freeze) {
 
-        mkdir(childCgroup.c_str(), 0755);
+        if (mkdir(childCgroup.c_str(), 0755) != 0 && errno != EEXIST) {
+            const int failure = errno;
+            if (errorCode) {
+                *errorCode = failure;
+            }
+            smu::log::LogWarning(
+                "Failed to create frozen child cgroup: " +
+                std::string(std::strerror(failure)) + ".");
+            return false;
+        }
 
         // move process into child cgroup
+        int writeError = 0;
         if (!WriteTextFile(
                 childProcs,
-                std::to_string(pid))) {
+                std::to_string(pid),
+                &writeError)) {
 
+            if (errorCode) {
+                *errorCode = writeError;
+            }
             smu::log::LogWarning(
-                "Failed to move PID into frozen cgroup.");
+                "Failed to move PID into frozen cgroup: " +
+                std::string(std::strerror(writeError)) + ".");
 
             return false;
         }
 
         // freeze child cgroup
+        writeError = 0;
         if (!WriteTextFile(
                 childFreeze,
-                "1")) {
+                "1",
+                &writeError)) {
 
+            if (errorCode) {
+                *errorCode = writeError;
+            }
             smu::log::LogWarning(
-                "Failed to freeze cgroup.");
+                "Failed to freeze cgroup: " +
+                std::string(std::strerror(writeError)) + ".");
 
             return false;
         }
@@ -504,12 +690,18 @@ bool CreateFrozenChildCgroup(
     }
 
     // thaw before moving process back
+    int writeError = 0;
     if (!WriteTextFile(
             childFreeze,
-            "0")) {
+            "0",
+            &writeError)) {
 
+        if (errorCode) {
+            *errorCode = writeError;
+        }
         smu::log::LogWarning(
-            "Failed to unfreeze cgroup.");
+            "Failed to unfreeze cgroup: " +
+            std::string(std::strerror(writeError)) + ".");
 
         return false;
     }
@@ -518,12 +710,18 @@ bool CreateFrozenChildCgroup(
         parentCgroup + "/cgroup.procs";
 
     // move process back to parent
+    writeError = 0;
     if (!WriteTextFile(
             parentProcs,
-            std::to_string(pid))) {
+            std::to_string(pid),
+            &writeError)) {
 
+        if (errorCode) {
+            *errorCode = writeError;
+        }
         smu::log::LogWarning(
-            "Failed to move PID back to parent cgroup.");
+            "Failed to move PID back to parent cgroup: " +
+            std::string(std::strerror(writeError)) + ".");
 
         return false;
     }
@@ -558,12 +756,28 @@ bool SetSuspended(PlatformPid pid, bool suspend)
             (ptraced || IsSafeAppCgroup(*cgroupPath) || IsSmuFreezeCgroup(*cgroupPath));
 
         if (shouldUseCgroup) {
+            int cgroupError = 0;
             if (CreateFrozenChildCgroup(
                     *cgroupPath,
                     pid,
-                    suspend)) {
+                    suspend,
+                    &cgroupError)) {
 
                 return true;
+            }
+
+            const bool permissionDenied = cgroupError == EACCES || cgroupError == EPERM;
+            const bool helperEligible = ptraced || IsSmuFreezeCgroup(*cgroupPath);
+            if (permissionDenied && helperEligible) {
+                if (SetSuspendedWithPrivilegedHelper(pid, suspend)) {
+                    return true;
+                }
+
+                if (!PrivilegedFreezeHelperAvailable() &&
+                    WaitForPrivilegedFreezeHelperAuthorization() &&
+                    SetSuspendedWithPrivilegedHelper(pid, suspend)) {
+                    return true;
+                }
             }
 
             smu::log::LogWarning(
@@ -856,6 +1070,34 @@ bool ProcCgroupProcessBackend::isForegroundProcess(
     }
 
     return false;
+}
+
+bool IsPrivilegedFreezeHelperAuthorizationPending()
+{
+    std::lock_guard<std::mutex> lock(g_freezeHelperAuthorizationMutex);
+    return g_freezeHelperAuthorizationPending && !g_freezeHelperAuthorizationResolved;
+}
+
+void ResolvePrivilegedFreezeHelperAuthorization(bool approved)
+{
+    {
+        std::lock_guard<std::mutex> lock(g_freezeHelperAuthorizationMutex);
+        g_freezeHelperAuthorizationApproved = approved;
+        g_freezeHelperAuthorizationResolved = true;
+        g_freezeHelperAuthorizationPending = false;
+    }
+    g_freezeHelperAuthorizationCv.notify_all();
+}
+
+void ResetPrivilegedFreezeHelperAuthorization()
+{
+    {
+        std::lock_guard<std::mutex> lock(g_freezeHelperAuthorizationMutex);
+        g_freezeHelperAuthorizationPending = false;
+        g_freezeHelperAuthorizationResolved = false;
+        g_freezeHelperAuthorizationApproved = false;
+    }
+    g_freezeHelperAuthorizationCv.notify_all();
 }
 
 std::shared_ptr<ProcessBackend>
