@@ -256,6 +256,40 @@ std::optional<std::string> CgroupV2Path(PlatformPid pid)
     return std::nullopt;
 }
 
+std::optional<PlatformPid> TracerPid(PlatformPid pid)
+{
+    std::ifstream statusFile("/proc/" + std::to_string(pid) + "/status");
+
+    if (!statusFile) {
+        return std::nullopt;
+    }
+
+    std::string line;
+    while (std::getline(statusFile, line)) {
+        if (line.rfind("TracerPid:", 0) != 0) {
+            continue;
+        }
+
+        std::istringstream fields(line.substr(10));
+        PlatformPid tracerPid = 0;
+        fields >> tracerPid;
+
+        if (!fields) {
+            return std::nullopt;
+        }
+
+        return tracerPid;
+    }
+
+    return std::nullopt;
+}
+
+bool IsPtraced(PlatformPid pid)
+{
+    const auto tracerPid = TracerPid(pid);
+    return tracerPid && *tracerPid != 0;
+}
+
 std::vector<PlatformPid> ReadNamespacePids(PlatformPid pid)
 {
     std::ifstream statusFile("/proc/" + std::to_string(pid) + "/status");
@@ -377,6 +411,15 @@ bool IsSafeAppCgroup(const std::string& path)
     return path.find("app-") != std::string::npos ||
            path.find("snap.") != std::string::npos ||
            path.find("/app.slice/") != std::string::npos;
+}
+
+bool IsSmuFreezeCgroup(const std::string& path)
+{
+    static constexpr const char* kSuffix = "/smu_freeze";
+    const std::size_t suffixLength = std::strlen(kSuffix);
+
+    return path.size() >= suffixLength &&
+        path.compare(path.size() - suffixLength, suffixLength, kSuffix) == 0;
 }
 
 bool WriteTextFile(const std::string& path, const std::string& text)
@@ -501,11 +544,20 @@ bool SetSuspended(PlatformPid pid, bool suspend)
         return false;
     }
 
+    const bool ptraced = IsPtraced(pid);
+
     if (CgroupV2Available()) {
         auto cgroupPath = CgroupV2Path(pid);
 
-        if (cgroupPath && IsSafeAppCgroup(*cgroupPath)) {
+        // Sober's anti-tamper can ptrace the game process and intercept SIGSTOP.
+        // In that case, use the cgroup v2 freezer regardless of the distro's
+        // cgroup naming convention. Also always allow our own child cgroup so a
+        // process frozen this way can be resumed later.
+        const bool shouldUseCgroup =
+            cgroupPath &&
+            (ptraced || IsSafeAppCgroup(*cgroupPath) || IsSmuFreezeCgroup(*cgroupPath));
 
+        if (shouldUseCgroup) {
             if (CreateFrozenChildCgroup(
                     *cgroupPath,
                     pid,
@@ -517,8 +569,21 @@ bool SetSuspended(PlatformPid pid, bool suspend)
             smu::log::LogWarning(
                 "Linux process backend: could not manipulate frozen child cgroup for " +
                 *cgroupPath +
-                "; falling back to SIGSTOP/SIGCONT.");
+                (ptraced
+                    ? "; refusing SIGSTOP fallback for ptraced process."
+                    : "; falling back to SIGSTOP/SIGCONT."));
+
+            if (ptraced && suspend) {
+                return false;
+            }
         }
+    } else if (ptraced && suspend) {
+        smu::log::LogWarning(
+            "Linux process backend: PID " +
+            std::to_string(pid) +
+            " is ptraced and cgroup v2 is unavailable; refusing unreliable SIGSTOP fallback.");
+
+        return false;
     }
 
     std::vector<PlatformPid> tree = ProcessTree(pid);
