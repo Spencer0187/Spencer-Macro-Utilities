@@ -64,7 +64,7 @@ From the portable folder or repository root, the manual command is:
 sudo ./scripts/install_linux_permissions.sh
 ```
 
-If you extracted an AppImage manually, the installer script is bundled inside the `AppDir` and can be run from there with `sudo` the same way. In normal AppImage use, just run the AppImage as your user and use the in-app setup modal.
+If you extracted an AppImage manually, the installer script is bundled inside the extracted `AppDir` and can be run from there with `sudo` the same way. Do not run `sudo /tmp/.mount_.../scripts/install_linux_permissions.sh` against a live AppImage FUSE mount: the mount belongs to the desktop user, and the elevated process may receive `Permission denied` while traversing it even though the script is executable. In normal AppImage use, run the AppImage as your user and use the in-app setup modal; SMU stages the installer outside the FUSE mount before invoking `pkexec` or a terminal privilege tool. The graphical button uses Polkit. The terminal fallback uses `sudo` for users configured as administrators (for example, members of `sudo` or `wheel`) and otherwise falls back to `su` so Debian installations with a separate root account do not require adding the desktop user to sudoers.
 
 ## Security
 

@@ -235,7 +235,18 @@ std::string BuildManualSudoCommand(const std::string& scriptPath)
         return "sudo ./scripts/install_linux_permissions.sh";
     }
 
-    return "sudo " + ShellQuote(scriptPath);
+    // A mounted AppImage is a FUSE filesystem owned by the desktop user.
+    // Root processes spawned by sudo may be unable to traverse that mount, so
+    // `sudo /tmp/.mount_.../scripts/...` can fail with EACCES even when the
+    // script itself has mode 0755. Stage a user-readable copy in /tmp before
+    // crossing the privilege boundary.
+    const std::string quotedScript = ShellQuote(scriptPath);
+    return
+        "SMU_INSTALLER=$(mktemp /tmp/smu-linux-permission-installer.XXXXXX) && "
+        "cp " + quotedScript + " \"$SMU_INSTALLER\" && "
+        "chmod 700 \"$SMU_INSTALLER\" && "
+        "sudo /bin/bash \"$SMU_INSTALLER\"; "
+        "SMU_RC=$?; rm -f \"$SMU_INSTALLER\"; exit $SMU_RC";
 }
 
 std::string BuildPermissionDetails(const smu::platform::linux::InputPermissionStatus& status)
