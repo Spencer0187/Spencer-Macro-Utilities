@@ -2466,12 +2466,18 @@ mod tests {
     }
 
     #[test]
-    fn cpp_hhj_motion_controller_timing_and_live_reads_match() {
+    fn cpp_hhj_motion_cycle_runs_on_dedicated_worker_without_controller_stall() {
         for case in fixture().hhj_motion_cases {
             let mut trace = TraceRecorder::default();
+            let worker = case.execute.then(|| {
+                trace
+                    .spawn_dedicated_worker(LaneId::CONTROLLER)
+                    .expect("controller lane should exist")
+            });
+            let lane = worker.unwrap_or(LaneId::CONTROLLER);
             let executed = execute_hhj_motion(
                 &mut trace,
-                LaneId::CONTROLLER,
+                lane,
                 case.section,
                 case.is_hhj,
                 case.fps,
@@ -2480,18 +2486,23 @@ mod tests {
             );
             assert_eq!(executed, case.execute, "case {} execute", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
-            let expected_ms = if case.execute {
-                let delays = frame_delays_for_fps(case.fps);
-                u64::try_from(delays.first_ms + delays.second_ms).unwrap_or_default()
-            } else {
-                0
-            };
             assert_eq!(
-                trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
-                Some(expected_ms * 1_000),
-                "case {} controller duration",
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
                 case.name
             );
+            if let Some(worker) = worker {
+                let delays = frame_delays_for_fps(case.fps);
+                let expected_ms =
+                    u64::try_from(delays.first_ms + delays.second_ms).unwrap_or_default();
+                assert_eq!(
+                    trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                    Some(expected_ms * 1_000),
+                    "case {} worker duration",
+                    case.name
+                );
+            }
         }
     }
 

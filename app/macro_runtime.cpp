@@ -1131,12 +1131,29 @@ void MacroRuntime::processHhjMotionLoop()
         return;
     }
 
-    const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
-    compat::ExecuteSpeedglitchCycle(
-        delays,
-        [] { MoveMouse(speed_strengthx, 0); },
-        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-        [] { MoveMouse(speed_strengthy, 0); });
+    bool expected = false;
+    if (!hhjMotionWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    runWorker([this] {
+        while (running_.load(std::memory_order_acquire) &&
+               ShouldKeepRunning() &&
+               macrotoggled &&
+               notbinding.load(std::memory_order_acquire) &&
+               !g_keybindCaptureActive.load(std::memory_order_acquire) &&
+               !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
+               section_toggles[2] &&
+               isHHJ.load(std::memory_order_acquire)) {
+            const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
+            compat::ExecuteSpeedglitchCycle(
+                delays,
+                [] { MoveMouse(speed_strengthx, 0); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [] { MoveMouse(speed_strengthy, 0); });
+        }
+        hhjMotionWorkerActive_.store(false, std::memory_order_release);
+    });
 }
 
 void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)

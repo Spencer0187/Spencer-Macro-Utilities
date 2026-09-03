@@ -59,7 +59,10 @@ Timing work follows three layers:
 A high-precision wait may combine an efficient blocking sleep with a short final yield/spin phase.
 Any spin threshold must be measured, bounded, cancellation-aware, and documented. The runtime
 architecture remains open to either one deterministic scheduler or a small number of deliberate
-workers until measurements prove which preserves current behavior best.
+workers until measurements prove which preserves current behavior best. After a controller stall has
+been differentially characterized, it may be intentionally migrated to a named worker when doing so
+removes unrelated macro interference; preserve its internal action/wait order and add a lane-topology
+regression test. HHJ motion is the first approved migration of this kind.
 
 ## UI parity contract
 
