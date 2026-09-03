@@ -4,6 +4,7 @@ members = [
     "crates/smu-app",
     "crates/smu-compat",
     "crates/smu-core",
+    "crates/smu-display",
     "crates/smu-input",
     "crates/smu-network",
     "crates/smu-process",
@@ -16,6 +17,7 @@ members = [
 default-members = [
     "crates/smu-compat",
     "crates/smu-core",
+    "crates/smu-display",
     "crates/smu-input",
     "crates/smu-network",
     "crates/smu-process",

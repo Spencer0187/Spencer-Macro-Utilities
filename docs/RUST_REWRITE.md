@@ -36,6 +36,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 
 - `smu-input` owns physical/injected input contracts plus the historical text-entry fallback
   mapping. Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
+- `smu-display` owns monitor geometry, script coordinate modes, pixel colors/rectangle reads, and
+  the screen-capture capability. This freezes `input_actions.cpp` coordinate behavior without
+  recreating the legacy mixed input/display backend.
 - `smu-process` owns legacy process-selector semantics plus Linux `/proc` discovery. Process
   suspension and foreground-window detection are intentionally not folded into that discovery API;
   they will be separate capabilities wired at the application composition root.
