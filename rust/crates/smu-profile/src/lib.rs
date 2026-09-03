@@ -1,5 +1,7 @@
 //! Compatibility-first handling of the existing SMU profile container format.
 
+pub mod payload;
+
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::ffi::OsString;

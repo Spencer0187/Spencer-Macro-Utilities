@@ -533,7 +533,10 @@ elseif(UNIX AND NOT APPLE)
             "${SMU_JSON_DIR}"
             "${SMU_GENERATED_DIR}"
         )
-        target_compile_definitions(smu_profile_compat_oracle PRIVATE SMU_PORTABLE_GLOBALS=1)
+        target_compile_definitions(smu_profile_compat_oracle PRIVATE
+            SMU_PORTABLE_GLOBALS=1
+            SMU_PROFILE_PAYLOAD_ORACLE=1
+        )
         target_compile_options(smu_profile_compat_oracle PRIVATE -ffunction-sections -fdata-sections)
         target_link_options(smu_profile_compat_oracle PRIVATE -Wl,--gc-sections)
         target_link_libraries(smu_profile_compat_oracle PRIVATE

@@ -31,6 +31,12 @@ Json MutationResult(const fs::path& path, bool success)
     };
 }
 
+Json PayloadSnapshot()
+{
+    Json value = Json::parse(SerializeProfileDataForTesting(), nullptr, false);
+    return value.is_discarded() ? Json(nullptr) : value;
+}
+
 int Usage()
 {
     std::cerr << "usage:\n"
@@ -38,6 +44,11 @@ int Usage()
               << "  smu_profile_compat_oracle detect <json>\n"
               << "  smu_profile_compat_oracle best-profile <json> <requested>\n"
               << "  smu_profile_compat_oracle profile-names <path>\n"
+              << "  smu_profile_compat_oracle snapshot-default\n"
+              << "  smu_profile_compat_oracle payload-schema\n"
+              << "  smu_profile_compat_oracle validate-payload <json>\n"
+              << "  smu_profile_compat_oracle apply-payload <json>\n"
+              << "  smu_profile_compat_oracle apply-sequence <json> [<json> ...]\n"
               << "  smu_profile_compat_oracle duplicate <path> <source> <new>\n"
               << "  smu_profile_compat_oracle rename <path> <old> <new>\n"
               << "  smu_profile_compat_oracle delete <path> <name>\n"
@@ -56,6 +67,10 @@ int main(int argc, char** argv)
     const std::string_view operation(argv[1]);
     Json result;
 
+    if (operation == "snapshot-default" || operation == "apply-payload" || operation == "apply-sequence") {
+        InitializeProfilePayloadOracleForTesting();
+    }
+
     if (operation == "legacy-keys" && argc == 2) {
         result = Json{{"operation", "legacy-keys"}, {"keys", LegacyFormatKeysForTesting()}};
     } else if (operation == "detect" && argc == 3) {
@@ -72,6 +87,45 @@ int main(int argc, char** argv)
         result = Json{
             {"operation", "profile-names"},
             {"names", GetProfileNames(argv[2])},
+        };
+    } else if (operation == "snapshot-default" && argc == 2) {
+        result = Json{
+            {"operation", "snapshot-default"},
+            {"payload", PayloadSnapshot()},
+        };
+    } else if (operation == "payload-schema" && argc == 2) {
+        Json schema = Json::parse(ProfilePayloadSchemaForTesting(), nullptr, false);
+        result = Json{
+            {"operation", "payload-schema"},
+            {"schema", schema.is_discarded() ? Json(nullptr) : schema},
+        };
+    } else if (operation == "validate-payload" && argc == 3) {
+        result = Json{
+            {"operation", "validate-payload"},
+            {"valid", ValidateProfileDataForTesting(argv[2])},
+        };
+    } else if (operation == "apply-payload" && argc == 3) {
+        const bool success = ApplyProfileDataForTesting(argv[2]);
+        result = Json{
+            {"operation", "apply-payload"},
+            {"success", success},
+            {"payload", PayloadSnapshot()},
+        };
+    } else if (operation == "apply-sequence" && argc >= 3) {
+        Json steps = Json::array();
+        bool all_success = true;
+        for (int index = 2; index < argc; ++index) {
+            const bool success = ApplyProfileDataForTesting(argv[index]);
+            all_success = all_success && success;
+            steps.push_back(Json{
+                {"success", success},
+                {"payload", PayloadSnapshot()},
+            });
+        }
+        result = Json{
+            {"operation", "apply-sequence"},
+            {"success", all_success},
+            {"steps", std::move(steps)},
         };
     } else if (operation == "duplicate" && argc == 5) {
         result = MutationResult(argv[2], DuplicateProfileInFile(argv[2], argv[3], argv[4]));

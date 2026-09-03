@@ -470,6 +470,205 @@ def resolution_cases() -> list[dict[str, Any]]:
     return output
 
 
+def payload_validation_cases() -> list[dict[str, Any]]:
+    specifications: list[tuple[str, Any]] = [
+        ("empty-object", {}),
+        ("non-object-array", []),
+        ("non-object-number", 7),
+        ("known-bool", {"macrotoggled": False}),
+        ("bool-wrong-type", {"macrotoggled": 0}),
+        ("known-numeric-integer", {"selected_section": 15}),
+        ("known-numeric-fractional", {"selected_section": 1.9}),
+        ("numeric-wrong-type", {"selected_section": "15"}),
+        ("char-buffer", {"ItemClipDelay": "34"}),
+        ("char-buffer-wrong-type", {"ItemClipDelay": 34}),
+        ("screen-width-integer", {"screen_width": 1180}),
+        ("screen-width-fractional-rejected", {"screen_width": 1180.5}),
+        ("section-toggles-short", {"section_toggles": [True]}),
+        ("section-toggles-bad-member", {"section_toggles": [True, 0]}),
+        ("disable-outside-empty", {"disable_outside_roblox": []}),
+        ("section-order-wide-integers", {"section_order_vector": [0, 4294967296, -1]}),
+        ("section-order-fractional", {"section_order_vector": [0, 1.5]}),
+        ("extra-wallhop-empty-object", {"extra_wallhop_instances": [{}]}),
+        ("extra-wallhop-negative-unsigned", {"extra_wallhop_instances": [{"vk_trigger": -1}]}),
+        ("extra-wallhop-fractional-unsigned", {"extra_wallhop_instances": [{"vk_trigger": 1.5}]}),
+        ("extra-wallhop-wide-unsigned", {"extra_wallhop_instances": [{"vk_trigger": 4294967296}]}),
+        ("extra-presskey-empty-object", {"extra_presskey_instances": [{}]}),
+        ("extra-spamkey-empty-object", {"extra_spamkey_instances": [{}]}),
+        ("imported-scripts-empty", {"imported_scripts": []}),
+        ("imported-script-valid-minimal", {"imported_scripts": [{"path": "/tmp/test.lua"}]}),
+        ("imported-script-missing-path", {"imported_scripts": [{}]}),
+        ("imported-script-empty-path", {"imported_scripts": [{"path": ""}]}),
+        ("imported-script-negative-hotkey", {"imported_scripts": [{"path": "x", "hotkey": -1}]}),
+        ("imported-script-wide-hotkey", {"imported_scripts": [{"path": "x", "hotkey": 4294967296}]}),
+        ("imported-script-bad-ui-state", {"imported_scripts": [{"path": "x", "ui_state": []}]}),
+        ("unknown-key-accepted", {"future_setting": {"anything": True}}),
+    ]
+    output = []
+    for name, payload in specifications:
+        observed = run_json(PROFILE_ORACLE, "validate-payload", compact(payload))
+        output.append({"name": name, "payload": payload, "valid": observed["valid"]})
+    return output
+
+
+def payload_apply_cases() -> list[dict[str, Any]]:
+    long_slot = "7" * 300
+    specifications: list[tuple[str, Any]] = [
+        ("empty-object-rebuilds-base-instances", {}),
+        ("numeric-coercion", {"selected_section": 1.9, "vk_f5": -1}),
+        ("wide-integer-wrap", {"selected_section": 4294967296, "vk_f6": 4294967296}),
+        ("buffer-overrides-numeric", {"clip_delay": 99, "ItemClipDelay": "42"}),
+        ("invalid-buffer-keeps-numeric", {"clip_delay": 99, "ItemClipDelay": "42junk"}),
+        ("char-buffer-truncates", {"desync_slot": 12, "ItemDesyncSlot": long_slot}),
+        ("wallhop-pixels-sync", {"wallhop_dx": 1, "wallhop_dy": 2, "WallhopPixels": "321"}),
+        (
+            "pixel-strength-sync",
+            {"RobloxPixelValue": 1, "speed_strengthx": 2, "speed_strengthy": 3, "RobloxPixelValueChar": "777"},
+        ),
+        ("spam-delay-sync", {"spam_delay": 1.0, "real_delay": 2, "SpamDelay": "20.5"}),
+        (
+            "legacy-disable-aliases-without-array",
+            {"freezeoutsideroblox": True, "unequipinroblox": False, "presskeyinroblox": True},
+        ),
+        (
+            "present-empty-disable-array-wins-over-aliases",
+            {
+                "disable_outside_roblox": [],
+                "freezeoutsideroblox": True,
+                "unequipinroblox": False,
+                "presskeyinroblox": True,
+            },
+        ),
+        ("old-section-order-upgrade", {"section_order_vector": [0, 1, 2, 3, 4, 5, 6]}),
+        (
+            "section-order-deduplicate-filter-fill",
+            {"section_order_vector": [4, 4, -1, 99, 2, 15, 13, 2]},
+        ),
+        ("empty-extra-instances-use-historical-defaults", {
+            "extra_wallhop_instances": [{}],
+            "extra_presskey_instances": [{}],
+            "extra_spamkey_instances": [{}],
+        }),
+        (
+            "extra-presskey-disable-alias-precedence",
+            {
+                "disable_outside_roblox": [False, False, False, False, False, True],
+                "extra_presskey_instances": [
+                    {"presskeyinroblox": False},
+                    {"disable_outside_roblox": True, "presskeyinroblox": False},
+                ],
+            },
+        ),
+        (
+            "selected-wallhop-clamped-high",
+            {"selected_wallhop_instance": 99, "extra_wallhop_instances": [{}, {}]},
+        ),
+        ("selected-wallhop-clamped-negative", {"selected_wallhop_instance": -3}),
+        (
+            "extra-instance-numeric-string-pairs-remain-independent",
+            {
+                "extra_wallhop_instances": [{"WallhopDelay": 41, "WallhopDelayChar": "99"}],
+                "extra_presskey_instances": [{"PressKeyDelay": 12, "PressKeyDelayChar": "77"}],
+                "extra_spamkey_instances": [{"spam_delay": 8.0, "real_delay": 9, "SpamDelay": "123"}],
+            },
+        ),
+        ("unknown-top-level-key-ignored", {"unknown_future_field": 12345}),
+    ]
+    output = []
+    for name, payload in specifications:
+        observed = run_json(PROFILE_ORACLE, "apply-payload", compact(payload))
+        output.append(
+            {
+                "name": name,
+                "payload": payload,
+                "success": observed["success"],
+                "result": observed["payload"],
+            }
+        )
+    return output
+
+
+def payload_sequence_cases() -> list[dict[str, Any]]:
+    specifications: list[tuple[str, list[Any]]] = [
+        (
+            "short-section-toggle-retains-tail",
+            [
+                {"section_toggles": [False] * 16},
+                {"section_toggles": [True, True]},
+            ],
+        ),
+        (
+            "short-disable-array-retains-tail-and-overrides-aliases",
+            [
+                {"disable_outside_roblox": [False] * 16},
+                {"disable_outside_roblox": [True], "unequipinroblox": True, "presskeyinroblox": True},
+            ],
+        ),
+        (
+            "missing-buffer-does-not-resync-runtime",
+            [
+                {"ItemClipDelay": "77"},
+                {"clip_delay": 88},
+            ],
+        ),
+        (
+            "missing-section-order-retains-prior-order",
+            [
+                {"section_order_vector": [8, 7, 6, 5, 4, 3, 2, 1, 0]},
+                {"macrotoggled": False},
+            ],
+        ),
+        (
+            "missing-extra-arrays-reset-instance-vectors",
+            [
+                {"extra_wallhop_instances": [{}, {}], "extra_presskey_instances": [{}], "extra_spamkey_instances": [{}]},
+                {"macrotoggled": False},
+            ],
+        ),
+        (
+            "missing-selected-wallhop-resets-to-zero",
+            [
+                {"selected_wallhop_instance": 2, "extra_wallhop_instances": [{}, {}]},
+                {"macrotoggled": False},
+            ],
+        ),
+    ]
+    output = []
+    for name, payloads in specifications:
+        observed = run_json(
+            PROFILE_ORACLE,
+            "apply-sequence",
+            *(compact(payload) for payload in payloads),
+        )
+        output.append(
+            {
+                "name": name,
+                "payloads": payloads,
+                "success": observed["success"],
+                "steps": observed["steps"],
+            }
+        )
+    return output
+
+
+def write_payload_cases() -> None:
+    schema = run_json(PROFILE_ORACLE, "payload-schema")["schema"]
+    default_payload = run_json(PROFILE_ORACLE, "snapshot-default")["payload"]
+    specification = {
+        "schema": schema,
+        "default_payload": default_payload,
+    }
+    write_json(ROOT / "compat" / "profiles" / "payload_spec.json", specification)
+    output = {
+        "oracle": "smu_profile_compat_oracle payload operations",
+        **specification,
+        "validation_cases": payload_validation_cases(),
+        "apply_cases": payload_apply_cases(),
+        "sequence_cases": payload_sequence_cases(),
+    }
+    write_json(ROOT / "compat" / "profiles" / "payload_cases.json", output)
+
+
 def write_generated_legacy_keys(keys: list[str]) -> None:
     lines = [
         "// Generated by tools/update_compat_fixtures.py from production C++; do not edit by hand.",
@@ -486,6 +685,7 @@ def write_generated_legacy_keys(keys: list[str]) -> None:
 def write_profiles() -> None:
     legacy_keys = run_json(PROFILE_ORACLE, "legacy-keys")["keys"]
     write_generated_legacy_keys(legacy_keys)
+    write_payload_cases()
     output = {
         "oracle": "smu_profile_compat_oracle",
         "legacy_keys": legacy_keys,

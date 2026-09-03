@@ -3,6 +3,8 @@
 `cases.json` is generated from the production C++ profile implementation by
 `tools/update_compat_fixtures.py profiles` and `smu_profile_compat_oracle`.
 The Rust `smu-profile` crate consumes it as a differential compatibility suite.
+`payload_spec.json` contains the generated production payload schema/default state used by the
+Rust compatibility engine, while `payload_cases.json` contains the larger differential test corpus.
 
 The corpus currently freezes:
 
@@ -12,7 +14,16 @@ The corpus currently freezes:
 - one-generation `.bak` rollback/recovery behavior;
 - settings discovery precedence across canonical, executable, executable-parent, and current directories;
 - global `SMCSettings.json`-before-`RMCSettings.json` precedence;
-- primary-vs-backup precedence, backup self-healing, corrupt-primary preservation, and schema-blind acceptance of any parseable JSON during discovery.
+- primary-vs-backup precedence, backup self-healing, corrupt-primary preservation, and schema-blind acceptance of any parseable JSON during discovery;
+- all 151 currently serialized profile-payload keys, with the C++-generated boolean/numeric/char-buffer schema;
+- validation quirks, partial-load semantics, integer narrowing/wrapping, char-buffer truncation and runtime resynchronization;
+- legacy `disable_outside_roblox` alias precedence, old section-order upgrades, multi-instance rebuild/default behavior, and selected-instance clamping;
+- stateful sequence behavior where short arrays or omitted fields intentionally retain prior process state.
+
+The payload oracle mirrors real application startup before its first profile load: it creates the
+three base macro instances, runs `SyncRuntimeSettingsFromBuffers()`, and captures the compiled
+default profile snapshot. This is important because `SerializeProfileData()` itself synchronizes
+instance 0 back into legacy flat globals and is therefore not logically const.
 
 All generated filesystem cases run in temporary directories. They must never use
 the real user settings path.

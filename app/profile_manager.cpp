@@ -1416,7 +1416,11 @@ static json SerializeProfileData() {
 		data["extra_spamkey_instances"] = skArr;
 	}
 
+#if defined(SMU_PROFILE_PAYLOAD_ORACLE)
+	data["imported_scripts"] = json::array();
+#else
 	data["imported_scripts"] = smu::app::ScriptManager::Get().serialize();
+#endif
 
 	return data;
 }
@@ -1829,11 +1833,13 @@ static bool ApplyProfileData(const json& settings) {
 			g_extra_instances_loaded.store(true, std::memory_order_release);
 		}
 
+#if !defined(SMU_PROFILE_PAYLOAD_ORACLE)
 		if (settings.contains("imported_scripts")) {
 			smu::app::ScriptManager::Get().deserialize(settings["imported_scripts"]);
 		} else {
 			smu::app::ScriptManager::Get().clear();
 		}
+#endif
 	} catch (const json::exception& e) {
 		LogWarning(std::string("Error deserializing profile data: ") + e.what());
 		return false;
@@ -1877,6 +1883,73 @@ static bool DeserializeProfileData(const json& settings) {
 	(void)ApplyProfileData(previous_state);
 	return false;
 }
+
+#if defined(SMU_PORTABLE_GLOBALS)
+void InitializeProfilePayloadOracleForTesting()
+{
+	wallhop_instances.clear();
+	presskey_instances.clear();
+	spamkey_instances.clear();
+	wallhop_instances.emplace_back();
+	presskey_instances.emplace_back();
+	spamkey_instances.emplace_back();
+	selected_wallhop_instance = 0;
+	SyncRuntimeSettingsFromBuffers();
+	CaptureDefaultProfileSnapshot();
+}
+
+std::string SerializeProfileDataForTesting()
+{
+	return SerializeProfileData().dump();
+}
+
+std::string ProfilePayloadSchemaForTesting()
+{
+	json schema;
+	std::vector<std::string> boolKeys;
+	boolKeys.reserve(bool_vars.size());
+	for (const auto& [key, _] : bool_vars) {
+		boolKeys.push_back(key);
+	}
+	std::sort(boolKeys.begin(), boolKeys.end());
+	schema["bool_keys"] = boolKeys;
+
+	json numericKinds = json::object();
+	for (const auto& [key, var] : numeric_vars) {
+		std::visit([&](auto&& arg) {
+			using ValueType = std::remove_pointer_t<std::decay_t<decltype(arg)>>;
+			if constexpr (std::is_same_v<ValueType, int>) {
+				numericKinds[key] = "int";
+			} else if constexpr (std::is_same_v<ValueType, float>) {
+				numericKinds[key] = "float";
+			} else if constexpr (std::is_same_v<ValueType, unsigned int>) {
+				numericKinds[key] = "unsigned";
+			}
+		}, var);
+	}
+	schema["numeric_kinds"] = std::move(numericKinds);
+
+	json charBuffers = json::object();
+	for (const auto& [key, cfg] : char_arrays) {
+		charBuffers[key] = cfg.second;
+	}
+	schema["char_buffers"] = std::move(charBuffers);
+	schema["section_amounts"] = section_amounts;
+	return schema.dump();
+}
+
+bool ValidateProfileDataForTesting(const std::string& serializedJson)
+{
+	const json root = json::parse(serializedJson, nullptr, false);
+	return !root.is_discarded() && ValidateProfileData(root);
+}
+
+bool ApplyProfileDataForTesting(const std::string& serializedJson)
+{
+	const json root = json::parse(serializedJson, nullptr, false);
+	return !root.is_discarded() && ApplyProfileData(root);
+}
+#endif
 
 // ============================================================================
 //  THEME SERIALIZATION — Save/Load theme data to/from metadata

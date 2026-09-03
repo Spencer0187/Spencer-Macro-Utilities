@@ -18,6 +18,11 @@ std::string BuildWindowsSettingsDirectoryForTesting(const std::string& localAppD
 std::string DetectSettingsFormatForTesting(const std::string& serializedJson);
 std::string FindBestProfileForTesting(const std::string& serializedJson, const std::string& requestedName);
 std::vector<std::string> LegacyFormatKeysForTesting();
+void InitializeProfilePayloadOracleForTesting();
+std::string SerializeProfileDataForTesting();
+std::string ProfilePayloadSchemaForTesting();
+bool ValidateProfileDataForTesting(const std::string& serializedJson);
+bool ApplyProfileDataForTesting(const std::string& serializedJson);
 #endif
 std::recursive_mutex& GetProfilePersistenceMutex();
 
