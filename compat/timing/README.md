@@ -57,7 +57,10 @@ production Speedglitch path deliberately reads its second strength value only af
 WallWalk snapshots both movement strengths before its first move, but reads the microsecond tail
 delay only after the first frame wait and second move; the trace freezes that distinction. Wallhop
 runs entirely on a generic worker lane; its delay/bonus boundaries, optional jump/flick behavior,
-and 100 ms release target are differential-tested without advancing the controller clock. Freeze's
+and 100 ms release target are differential-tested without advancing the controller clock. Walless
+LHJ also stays on a generic worker lane for its full 645 ms sequence. Its PID vector is snapshotted
+before spawn, while side/zoom/shift settings are deliberately re-read inside the worker at their
+historical action/release points; the fixture includes settings changing between those reads. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

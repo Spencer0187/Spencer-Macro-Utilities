@@ -536,6 +536,59 @@ pub fn execute_wallhop_worker(trace: &mut TraceRecorder, lane: LaneId, plan: Wal
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct WallessLhjWorkerInput {
+    pub pids: Vec<u32>,
+    pub side_left: bool,
+    pub global_zoom_action: bool,
+    pub shift_key_action: u32,
+    pub zoom_reverse: bool,
+    pub global_zoom_release: bool,
+    pub shift_key_release: u32,
+}
+
+pub fn execute_walless_lhj_worker(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: &WallessLhjWorkerInput,
+) {
+    trace.setting_bool_read(lane, "side_left", input.side_left);
+    let side_key = if input.side_left { KeyCode::A.raw() } else { KeyCode::new(0x44).raw() };
+    trace.key(lane, side_key, KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(15), WaitKind::Coarse);
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(30), WaitKind::Coarse);
+
+    trace.process_suspended(lane, input.pids.clone(), true);
+    trace.wait(lane, Duration::from_millis(50), WaitKind::Coarse);
+    trace.key(lane, side_key, KeyTransition::Up, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(500), WaitKind::Coarse);
+
+    trace.setting_bool_read(lane, "global_zoom_action", input.global_zoom_action);
+    if input.global_zoom_action {
+        trace.setting_bool_read(lane, "zoom_reverse", input.zoom_reverse);
+        let wheel = if input.zoom_reverse {
+            KeyCode::MOUSE_WHEEL_DOWN.raw()
+        } else {
+            KeyCode::MOUSE_WHEEL_UP.raw()
+        };
+        trace.key(lane, wheel, KeyTransition::Down, InputPath::Bound);
+    } else {
+        trace.setting_u32_read(lane, "shift_key_action", input.shift_key_action);
+        trace.key(lane, input.shift_key_action, KeyTransition::Down, InputPath::Bound);
+    }
+
+    trace.process_suspended(lane, input.pids.clone(), false);
+    trace.wait(lane, Duration::from_millis(50), WaitKind::Coarse);
+    trace.setting_bool_read(lane, "global_zoom_release", input.global_zoom_release);
+    if !input.global_zoom_release {
+        trace.setting_u32_read(lane, "shift_key_release", input.shift_key_release);
+        trace.key(lane, input.shift_key_release, KeyTransition::Up, InputPath::Bound);
+    }
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Up, InputPath::Direct);
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
@@ -691,12 +744,12 @@ mod tests {
 
     use super::{
         FreezeStepInput, ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction,
-        WallWalkStepInput, apply_speedglitch_state_action, build_presskey_worker_plan,
-        build_speedglitch_cycle_plan, build_wallhop_worker_plan, evaluate_rising_edge,
-        evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync, execute_itemclip_step,
-        execute_presskey_worker, execute_speedglitch_cycle, execute_wallhop_worker,
-        execute_wallwalk_step, frame_delays_for_fps, freeze_timeout_threshold_ms,
-        wallwalk_frame_delay_ms,
+        WallWalkStepInput, WallessLhjWorkerInput, apply_speedglitch_state_action,
+        build_presskey_worker_plan, build_speedglitch_cycle_plan, build_wallhop_worker_plan,
+        evaluate_rising_edge, evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync,
+        execute_itemclip_step, execute_presskey_worker, execute_speedglitch_cycle,
+        execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
+        frame_delays_for_fps, freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -716,6 +769,7 @@ mod tests {
         wallwalk_delay_cases: Vec<WallWalkDelayCase>,
         wallwalk_cases: Vec<WallWalkCase>,
         wallhop_cases: Vec<WallhopCase>,
+        walless_cases: Vec<WallessCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -846,6 +900,25 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct WallessCase {
+        name: String,
+        spec: WallessSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[allow(clippy::struct_excessive_bools)]
+    struct WallessSpec {
+        pids: Vec<u32>,
+        side_left: bool,
+        global_zoom_action: bool,
+        shift_key_action: u32,
+        zoom_reverse: bool,
+        global_zoom_release: bool,
+        shift_key_release: u32,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -929,6 +1002,16 @@ mod tests {
                 "suspended": suspended,
                 "success": success,
             })),
+            TraceAction::SettingBoolRead { name, value } => Some(json!({
+                "action": "setting_read",
+                "name": name,
+                "value": value,
+            })),
+            TraceAction::SettingU32Read { name, value } => Some(json!({
+                "action": "setting_read",
+                "name": name,
+                "value": value,
+            })),
             TraceAction::HotkeyRecheck { pressed } => Some(json!({
                 "action": "hotkey_recheck",
                 "pressed": pressed,
@@ -941,10 +1024,14 @@ mod tests {
                 "action": "running_check",
                 "running": running,
             })),
+            TraceAction::ProcessSuspended { pids, suspended } => Some(json!({
+                "action": "process_suspended",
+                "pids": pids,
+                "suspended": suspended,
+            })),
             TraceAction::SpawnWorker { .. }
             | TraceAction::ProcessTargetRefresh { .. }
             | TraceAction::ProcessSuspendAttempt { .. }
-            | TraceAction::ProcessSuspended { .. }
             | TraceAction::LagBackendInit { .. }
             | TraceAction::LagConfig(_)
             | TraceAction::LagBlocking { .. } => None,
@@ -1191,6 +1278,41 @@ mod tests {
                 trace.lane_now(LaneId::CONTROLLER),
                 Some(crate::MonotonicMicros::default()),
                 "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_walless_worker_live_reads_events_and_lane_topology_match() {
+        for case in fixture().walless_cases {
+            let input = WallessLhjWorkerInput {
+                pids: case.spec.pids,
+                side_left: case.spec.side_left,
+                global_zoom_action: case.spec.global_zoom_action,
+                shift_key_action: case.spec.shift_key_action,
+                zoom_reverse: case.spec.zoom_reverse,
+                global_zoom_release: case.spec.global_zoom_release,
+                shift_key_release: case.spec.shift_key_release,
+            };
+
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_walless_lhj_worker(&mut trace, worker, &input);
+
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker),
+                Some(crate::MonotonicMicros::from_micros(645_000)),
+                "case {} worker duration",
                 case.name
             );
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);

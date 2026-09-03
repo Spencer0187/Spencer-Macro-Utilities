@@ -25,6 +25,7 @@ int Usage()
               << "  smu_runtime_compat_oracle target-suspend <json-spec>\n"
               << "  smu_runtime_compat_oracle item-desync <foreground> <section> <hotkey> <slot>\n"
               << "  smu_runtime_compat_oracle wallhop-worker <dx> <dy> <vertical> <delay-ms> <bonus-ms> <left> <jump> <flick-back> <jump-key>\n"
+              << "  smu_runtime_compat_oracle walless-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -263,6 +264,75 @@ int main(int argc, char** argv)
                 {"flick_back", plan.flickBack},
                 {"jump_key", plan.jumpKey},
             }},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "walless-worker" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        std::vector<unsigned int> pids;
+        if (const auto& pidValues = spec.value("pids", Json::array()); pidValues.is_array()) {
+            pids.reserve(pidValues.size());
+            for (const auto& value : pidValues) {
+                pids.push_back(value.get<unsigned int>());
+            }
+        }
+        const bool sideLeft = spec.value("side_left", false);
+        const bool globalZoomAction = spec.value("global_zoom_action", false);
+        const auto shiftKeyAction = static_cast<unsigned int>(spec.value("shift_key_action", 0u));
+        const bool zoomReverse = spec.value("zoom_reverse", false);
+        const bool globalZoomRelease = spec.value("global_zoom_release", false);
+        const auto shiftKeyRelease = static_cast<unsigned int>(spec.value("shift_key_release", 0u));
+        Json events = Json::array();
+
+        ExecuteWallessLhjWorker(
+            pids,
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "side_left"}, {"value", sideLeft}});
+                return sideLeft;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "global_zoom_action"}, {"value", globalZoomAction}});
+                return globalZoomAction;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_key_action"}, {"value", shiftKeyAction}});
+                return shiftKeyAction;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "zoom_reverse"}, {"value", zoomReverse}});
+                return zoomReverse;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "global_zoom_release"}, {"value", globalZoomRelease}});
+                return globalZoomRelease;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_key_release"}, {"value", shiftKeyRelease}});
+                return shiftKeyRelease;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](const std::vector<unsigned int>& workerPids, bool suspended) {
+                events.push_back(Json{{"action", "process_suspended"}, {"pids", workerPids}, {"suspended", suspended}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            });
+
+        result = Json{
+            {"operation", "walless-worker"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

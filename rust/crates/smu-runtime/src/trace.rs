@@ -78,6 +78,8 @@ pub enum TraceAction {
     TargetSuspendAttempt { suspended: bool, success: bool },
     ProcessTargetRefresh { pids: Vec<u32> },
     ProcessSuspendAttempt { pid: u32, suspended: bool, success: bool },
+    SettingBoolRead { name: &'static str, value: bool },
+    SettingU32Read { name: &'static str, value: u32 },
     HotkeyRecheck { pressed: bool },
     WallWalkTailDelayRead { delay_us: i32 },
     ProcessSuspended { pids: Vec<u32>, suspended: bool },
@@ -189,6 +191,14 @@ impl TraceRecorder {
         success: bool,
     ) {
         self.push_now(lane, TraceAction::ProcessSuspendAttempt { pid, suspended, success });
+    }
+
+    pub fn setting_bool_read(&mut self, lane: LaneId, name: &'static str, value: bool) {
+        self.push_now(lane, TraceAction::SettingBoolRead { name, value });
+    }
+
+    pub fn setting_u32_read(&mut self, lane: LaneId, name: &'static str, value: u32) {
+        self.push_now(lane, TraceAction::SettingU32Read { name, value });
     }
 
     pub fn hotkey_recheck(&mut self, lane: LaneId, pressed: bool) {

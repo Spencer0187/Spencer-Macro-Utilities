@@ -1024,26 +1024,22 @@ void MacroRuntime::processWallessLhjMacro(bool foregroundAllowed)
 
     const auto pids = currentTargetPids();
     runWorker([this, pids] {
-        const unsigned int sideKey = wallesslhjswitch ? smu::core::SMU_VK_A : smu::core::SMU_VK_D;
-        HoldKey(sideKey);
-        std::this_thread::sleep_for(15ms);
-        HoldKey(smu::core::SMU_VK_SPACE);
-        std::this_thread::sleep_for(30ms);
-
-        setPidsSuspended(pids, true);
-        std::this_thread::sleep_for(50ms);
-        ReleaseKey(sideKey);
-        std::this_thread::sleep_for(500ms);
-
-        if (!globalzoomin) {
-            HoldKeyBinded(vk_shiftkey);
-        } else {
-            HoldKeyBinded(globalzoominreverse ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN : smu::core::SMU_VK_MOUSE_WHEEL_UP);
-        }
-        setPidsSuspended(pids, false);
-        std::this_thread::sleep_for(50ms);
-        ReleaseZoomOrShift();
-        ReleaseKey(smu::core::SMU_VK_SPACE);
+        compat::ExecuteWallessLhjWorker(
+            pids,
+            [] { return wallesslhjswitch; },
+            [] { return globalzoomin; },
+            [] { return vk_shiftkey; },
+            [] { return globalzoominreverse; },
+            [] { return globalzoomin; },
+            [] { return vk_shiftkey; },
+            [](unsigned int key) { HoldKey(key); },
+            [](unsigned int key) { ReleaseKey(key); },
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](unsigned int key) { ReleaseKeyBinded(key); },
+            [this](const std::vector<unsigned int>& workerPids, bool suspended) {
+                setPidsSuspended(workerPids, suspended);
+            },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); });
     });
 }
 

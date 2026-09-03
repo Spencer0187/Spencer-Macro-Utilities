@@ -1322,6 +1322,105 @@ def runtime_wallhop_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_walless_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    pid_sets = ([], [10], [10, 20])
+    for pids in pid_sets:
+        for side_left in (False, True):
+            for global_zoom_action in (False, True):
+                for zoom_reverse in (False, True):
+                    for global_zoom_release in (False, True):
+                        spec = {
+                            "pids": pids,
+                            "side_left": side_left,
+                            "global_zoom_action": global_zoom_action,
+                            "shift_key_action": 160,
+                            "zoom_reverse": zoom_reverse,
+                            "global_zoom_release": global_zoom_release,
+                            "shift_key_release": 161,
+                        }
+                        observed = run_json(
+                            RUNTIME_ORACLE,
+                            "walless-worker",
+                            compact(spec),
+                        )
+                        cases.append(
+                            {
+                                "name": f"matrix-{case_index}",
+                                "spec": spec,
+                                "events": observed["events"],
+                            }
+                        )
+                        case_index += 1
+
+    for name, spec in [
+        (
+            "shift-key-changes-before-release",
+            {
+                "pids": [7, 8],
+                "side_left": True,
+                "global_zoom_action": False,
+                "shift_key_action": 160,
+                "zoom_reverse": False,
+                "global_zoom_release": False,
+                "shift_key_release": 161,
+            },
+        ),
+        (
+            "shift-action-then-zoom-release-skips-key-up",
+            {
+                "pids": [7],
+                "side_left": False,
+                "global_zoom_action": False,
+                "shift_key_action": 160,
+                "zoom_reverse": False,
+                "global_zoom_release": True,
+                "shift_key_release": 161,
+            },
+        ),
+        (
+            "zoom-action-then-shift-release-releases-live-shift",
+            {
+                "pids": [7],
+                "side_left": False,
+                "global_zoom_action": True,
+                "shift_key_action": 160,
+                "zoom_reverse": True,
+                "global_zoom_release": False,
+                "shift_key_release": 162,
+            },
+        ),
+        (
+            "wheel-up-action",
+            {
+                "pids": [9],
+                "side_left": False,
+                "global_zoom_action": True,
+                "shift_key_action": 160,
+                "zoom_reverse": False,
+                "global_zoom_release": True,
+                "shift_key_release": 161,
+            },
+        ),
+        (
+            "wheel-down-action",
+            {
+                "pids": [9],
+                "side_left": True,
+                "global_zoom_action": True,
+                "shift_key_action": 160,
+                "zoom_reverse": True,
+                "global_zoom_release": True,
+                "shift_key_release": 161,
+            },
+        ),
+    ]:
+        observed = run_json(RUNTIME_ORACLE, "walless-worker", compact(spec))
+        cases.append({"name": name, "spec": spec, "events": observed["events"]})
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1459,6 +1558,7 @@ def write_runtime() -> None:
         "wallwalk_delay_cases": runtime_wallwalk_delay_cases(),
         "wallwalk_cases": runtime_wallwalk_cases(),
         "wallhop_cases": runtime_wallhop_cases(),
+        "walless_cases": runtime_walless_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

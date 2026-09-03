@@ -14479,6 +14479,5523 @@
       "warning": false
     }
   ],
+  "walless_cases": [
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-0",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-1",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-2",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-3",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-4",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-5",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-6",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-7",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-8",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-9",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-10",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-11",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-12",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-13",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-14",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-15",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-16",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-17",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-18",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-19",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-20",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-21",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-22",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-23",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-24",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-25",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-26",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-27",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-28",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-29",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-30",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-31",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-32",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-33",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-34",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-35",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-36",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-37",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-38",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-39",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-40",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-41",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-42",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-43",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-44",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-45",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-46",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-47",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7,
+            8
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7,
+            8
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "shift-key-changes-before-release",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "pids": [
+          7,
+          8
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "shift-action-then-zoom-release-skips-key-up",
+      "spec": {
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "pids": [
+          7
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            7
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 162
+        },
+        {
+          "action": "key_up",
+          "key": 162,
+          "path": "bound"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "zoom-action-then-shift-release-releases-live-shift",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "pids": [
+          7
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 162,
+        "side_left": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            9
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            9
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "wheel-up-action",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          9
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 15,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 30,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            9
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            9
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        }
+      ],
+      "name": "wheel-down-action",
+      "spec": {
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "pids": [
+          9
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "side_left": true,
+        "zoom_reverse": true
+      }
+    }
+  ],
   "wallhop_cases": [
     {
       "bonus_delay_ms": -5,

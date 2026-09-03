@@ -322,6 +322,49 @@ void ExecuteWallhopWorker(
     }
 }
 
+template <typename SideLeftFn, typename GlobalZoomActionFn, typename ShiftKeyActionFn,
+          typename ZoomReverseFn, typename GlobalZoomReleaseFn, typename ShiftKeyReleaseFn,
+          typename HoldDirectFn, typename ReleaseDirectFn, typename HoldBoundFn,
+          typename ReleaseBoundFn, typename SetPidsSuspendedFn, typename SleepFn>
+void ExecuteWallessLhjWorker(
+    const std::vector<unsigned int>& pids,
+    SideLeftFn&& sideLeft,
+    GlobalZoomActionFn&& globalZoomAction,
+    ShiftKeyActionFn&& shiftKeyAction,
+    ZoomReverseFn&& zoomReverse,
+    GlobalZoomReleaseFn&& globalZoomRelease,
+    ShiftKeyReleaseFn&& shiftKeyRelease,
+    HoldDirectFn&& holdDirect,
+    ReleaseDirectFn&& releaseDirect,
+    HoldBoundFn&& holdBound,
+    ReleaseBoundFn&& releaseBound,
+    SetPidsSuspendedFn&& setPidsSuspended,
+    SleepFn&& sleep)
+{
+    const unsigned int sideKey = sideLeft() ? smu::core::SMU_VK_A : smu::core::SMU_VK_D;
+    holdDirect(sideKey);
+    sleep(15);
+    holdDirect(smu::core::SMU_VK_SPACE);
+    sleep(30);
+
+    setPidsSuspended(pids, true);
+    sleep(50);
+    releaseDirect(sideKey);
+    sleep(500);
+
+    if (!globalZoomAction()) {
+        holdBound(shiftKeyAction());
+    } else {
+        holdBound(zoomReverse() ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN : smu::core::SMU_VK_MOUSE_WHEEL_UP);
+    }
+    setPidsSuspended(pids, false);
+    sleep(50);
+    if (!globalZoomRelease()) {
+        releaseBound(shiftKeyRelease());
+    }
+    releaseDirect(smu::core::SMU_VK_SPACE);
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;
