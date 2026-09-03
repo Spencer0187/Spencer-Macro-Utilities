@@ -780,6 +780,88 @@ pub fn execute_floorbounce_worker(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BunnyhopPhysicalSource {
+    None,
+    MouseBackend,
+    KeyboardLatch,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BunnyhopPhysicalPlan {
+    pub key: u32,
+    pub source: BunnyhopPhysicalSource,
+}
+
+#[must_use]
+pub const fn build_bunnyhop_physical_plan(hotkey: u32) -> BunnyhopPhysicalPlan {
+    let key = hotkey & 0xFFFF;
+    let source = if key == 0
+        || key == KeyCode::MOUSE_WHEEL_UP.raw()
+        || key == KeyCode::MOUSE_WHEEL_DOWN.raw()
+    {
+        BunnyhopPhysicalSource::None
+    } else if key >= KeyCode::LBUTTON.raw() && key <= KeyCode::XBUTTON2.raw() {
+        BunnyhopPhysicalSource::MouseBackend
+    } else {
+        BunnyhopPhysicalSource::KeyboardLatch
+    };
+    BunnyhopPhysicalPlan { key, source }
+}
+
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools)]
+pub const fn should_run_bunnyhop_worker(
+    running: bool,
+    keep_running: bool,
+    bhop_loop: bool,
+    macro_toggled: bool,
+    not_binding: bool,
+    section_enabled: bool,
+) -> bool {
+    running && keep_running && bhop_loop && macro_toggled && not_binding && section_enabled
+}
+
+#[must_use]
+pub const fn should_continue_bunnyhop_after_half(
+    running: bool,
+    keep_running: bool,
+    bhop_loop: bool,
+) -> bool {
+    running && keep_running && bhop_loop
+}
+
+#[must_use]
+pub fn bunnyhop_half_delay_ms(bunnyhop_delay: i32) -> i32 {
+    (bunnyhop_delay / 2).max(1)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BunnyhopIterationResult {
+    pub half_delay_ms: i32,
+    pub completed: bool,
+}
+
+#[must_use]
+pub fn execute_bunnyhop_iteration(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    output_key: u32,
+    bunnyhop_delay: i32,
+    continue_after_half: bool,
+) -> BunnyhopIterationResult {
+    let half_delay_ms = bunnyhop_half_delay_ms(bunnyhop_delay);
+    trace.key(lane, output_key, KeyTransition::Down, InputPath::Bound);
+    trace.wait(lane, milliseconds_from_nonnegative(half_delay_ms), WaitKind::Coarse);
+    trace.bunnyhop_continue_check(lane, continue_after_half);
+    trace.key(lane, output_key, KeyTransition::Up, InputPath::Bound);
+    if !continue_after_half {
+        return BunnyhopIterationResult { half_delay_ms, completed: false };
+    }
+    trace.wait(lane, milliseconds_from_nonnegative(half_delay_ms), WaitKind::Coarse);
+    BunnyhopIterationResult { half_delay_ms, completed: true }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
     pub output: u32,
@@ -933,14 +1015,16 @@ mod tests {
     #![allow(clippy::expect_used, clippy::struct_excessive_bools, clippy::struct_field_names)]
 
     use super::{
-        FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput, ItemClipStepInput,
-        SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput, WallessLhjWorkerInput,
-        apply_speedglitch_state_action, build_presskey_worker_plan, build_speedglitch_cycle_plan,
-        build_wallhop_worker_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
+        BunnyhopPhysicalSource, FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput,
+        ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput,
+        WallessLhjWorkerInput, apply_speedglitch_state_action, build_bunnyhop_physical_plan,
+        build_presskey_worker_plan, build_speedglitch_cycle_plan, build_wallhop_worker_plan,
+        evaluate_rising_edge, evaluate_speedglitch_edge, execute_bunnyhop_iteration,
         execute_floorbounce_worker, execute_freeze_step, execute_hhj_worker, execute_item_desync,
         execute_itemclip_step, execute_presskey_worker, execute_speedglitch_cycle,
         execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
-        frame_delays_for_fps, freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
+        frame_delays_for_fps, freeze_timeout_threshold_ms, should_continue_bunnyhop_after_half,
+        should_run_bunnyhop_worker, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -963,6 +1047,9 @@ mod tests {
         walless_cases: Vec<WallessCase>,
         hhj_cases: Vec<HhjCase>,
         floorbounce_cases: Vec<FloorBounceCase>,
+        bunnyhop_physical_cases: Vec<BunnyhopPhysicalCase>,
+        bunnyhop_guard_cases: Vec<BunnyhopGuardCase>,
+        bunnyhop_iteration_cases: Vec<BunnyhopIterationCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -1166,6 +1253,39 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct BunnyhopPhysicalCase {
+        hotkey: u32,
+        key: u32,
+        source: String,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct BunnyhopGuardCase {
+        name: String,
+        running: bool,
+        keep_running: bool,
+        #[serde(rename = "loop")]
+        loop_: bool,
+        #[serde(rename = "macro")]
+        macro_: bool,
+        notbinding: bool,
+        section: bool,
+        loop_head: bool,
+        after_half: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct BunnyhopIterationCase {
+        name: String,
+        output_key: u32,
+        delay_ms: i32,
+        continue_after_half: bool,
+        half_delay_ms: i32,
+        completed: bool,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -1267,6 +1387,10 @@ mod tests {
             TraceAction::HhjActive { active } => Some(json!({
                 "action": "hhj_active",
                 "active": active,
+            })),
+            TraceAction::BunnyhopContinueCheck { continue_cycle } => Some(json!({
+                "action": "bunnyhop_continue_check",
+                "continue": continue_cycle,
             })),
             TraceAction::HotkeyRecheck { pressed } => Some(json!({
                 "action": "hotkey_recheck",
@@ -1640,6 +1764,71 @@ mod tests {
                 .expect("controller lane should exist");
             execute_floorbounce_worker(&mut trace, worker, &input);
 
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_bunnyhop_physical_trigger_classification_matches() {
+        for case in fixture().bunnyhop_physical_cases {
+            let observed = build_bunnyhop_physical_plan(case.hotkey);
+            let source = match observed.source {
+                BunnyhopPhysicalSource::None => "none",
+                BunnyhopPhysicalSource::MouseBackend => "mouse-backend",
+                BunnyhopPhysicalSource::KeyboardLatch => "keyboard-latch",
+            };
+            assert_eq!(observed.key, case.key, "hotkey {} key", case.hotkey);
+            assert_eq!(source, case.source, "hotkey {} source", case.hotkey);
+        }
+    }
+
+    #[test]
+    fn cpp_bunnyhop_worker_guard_matrices_match() {
+        for case in fixture().bunnyhop_guard_cases {
+            assert_eq!(
+                should_run_bunnyhop_worker(
+                    case.running,
+                    case.keep_running,
+                    case.loop_,
+                    case.macro_,
+                    case.notbinding,
+                    case.section,
+                ),
+                case.loop_head,
+                "case {} loop head",
+                case.name
+            );
+            assert_eq!(
+                should_continue_bunnyhop_after_half(case.running, case.keep_running, case.loop_,),
+                case.after_half,
+                "case {} after half",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_bunnyhop_iteration_timing_and_cancellation_match() {
+        for case in fixture().bunnyhop_iteration_cases {
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            let observed = execute_bunnyhop_iteration(
+                &mut trace,
+                worker,
+                case.output_key,
+                case.delay_ms,
+                case.continue_after_half,
+            );
+            assert_eq!(observed.half_delay_ms, case.half_delay_ms, "case {} half delay", case.name);
+            assert_eq!(observed.completed, case.completed, "case {} completion", case.name);
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER),
                 Some(crate::MonotonicMicros::default()),

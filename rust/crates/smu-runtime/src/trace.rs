@@ -82,6 +82,7 @@ pub enum TraceAction {
     SettingI32Read { name: &'static str, value: i32 },
     SettingU32Read { name: &'static str, value: u32 },
     HhjActive { active: bool },
+    BunnyhopContinueCheck { continue_cycle: bool },
     HotkeyRecheck { pressed: bool },
     WallWalkTailDelayRead { delay_us: i32 },
     ProcessSuspended { pids: Vec<u32>, suspended: bool },
@@ -209,6 +210,10 @@ impl TraceRecorder {
 
     pub fn hhj_active(&mut self, lane: LaneId, active: bool) {
         self.push_now(lane, TraceAction::HhjActive { active });
+    }
+
+    pub fn bunnyhop_continue_check(&mut self, lane: LaneId, continue_cycle: bool) {
+        self.push_now(lane, TraceAction::BunnyhopContinueCheck { continue_cycle });
     }
 
     pub fn hotkey_recheck(&mut self, lane: LaneId, pressed: bool) {

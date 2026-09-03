@@ -467,6 +467,72 @@ void ExecuteFloorBounceWorker(
     releaseBound(shiftKeyRelease());
 }
 
+enum class BunnyhopPhysicalSource {
+    None,
+    MouseBackend,
+    KeyboardLatch,
+};
+
+struct BunnyhopPhysicalPlan {
+    unsigned int key = 0;
+    BunnyhopPhysicalSource source = BunnyhopPhysicalSource::None;
+};
+
+inline BunnyhopPhysicalPlan BuildBunnyhopPhysicalPlan(unsigned int hotkey)
+{
+    const unsigned int key = hotkey & smu::core::HOTKEY_KEY_MASK;
+    if (key == 0 ||
+        key == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
+        key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+        return BunnyhopPhysicalPlan{key, BunnyhopPhysicalSource::None};
+    }
+    if (key >= smu::core::SMU_VK_LBUTTON && key <= smu::core::SMU_VK_XBUTTON2) {
+        return BunnyhopPhysicalPlan{key, BunnyhopPhysicalSource::MouseBackend};
+    }
+    return BunnyhopPhysicalPlan{key, BunnyhopPhysicalSource::KeyboardLatch};
+}
+
+inline bool ShouldRunBunnyhopWorker(
+    bool running,
+    bool keepRunning,
+    bool bhopLoop,
+    bool macroToggled,
+    bool notBinding,
+    bool sectionEnabled)
+{
+    return running && keepRunning && bhopLoop && macroToggled && notBinding && sectionEnabled;
+}
+
+inline bool ShouldContinueBunnyhopAfterHalf(bool running, bool keepRunning, bool bhopLoop)
+{
+    return running && keepRunning && bhopLoop;
+}
+
+inline int BunnyhopHalfDelayMs(int bunnyhopDelay)
+{
+    return std::max(1, bunnyhopDelay / 2);
+}
+
+template <typename HoldFn, typename SleepFn, typename ContinueFn, typename ReleaseFn>
+bool ExecuteBunnyhopIteration(
+    unsigned int outputKey,
+    int halfDelayMs,
+    HoldFn&& hold,
+    SleepFn&& sleep,
+    ContinueFn&& continueAfterHalf,
+    ReleaseFn&& release)
+{
+    hold(outputKey);
+    sleep(halfDelayMs);
+    if (!continueAfterHalf()) {
+        release(outputKey);
+        return false;
+    }
+    release(outputKey);
+    sleep(halfDelayMs);
+    return true;
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;

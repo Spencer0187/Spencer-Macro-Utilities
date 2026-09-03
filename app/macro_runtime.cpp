@@ -1420,10 +1420,8 @@ void MacroRuntime::processLedgeBounceMacro(bool foregroundAllowed)
 
 bool MacroRuntime::isBunnyhopPhysicallyHeld() const
 {
-    const unsigned int key = vk_bunnyhopkey & HOTKEY_KEY_MASK;
-    if (key == 0 ||
-        key == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
-        key == smu::core::SMU_VK_MOUSE_WHEEL_DOWN) {
+    const auto plan = compat::BuildBunnyhopPhysicalPlan(vk_bunnyhopkey);
+    if (plan.source == compat::BunnyhopPhysicalSource::None) {
         return false;
     }
 
@@ -1433,8 +1431,8 @@ bool MacroRuntime::isBunnyhopPhysicallyHeld() const
 
     // Mouse buttons do not pass through the Windows low-level keyboard hook.
     // For mouse-triggered bhop binds, keep using the backend's physical state.
-    if (key >= VK_LBUTTON && key <= VK_XBUTTON2) {
-        return isModifierPressed(key);
+    if (plan.source == compat::BunnyhopPhysicalSource::MouseBackend) {
+        return isModifierPressed(plan.key);
     }
 
     // Keyboard-triggered bhop must use a physical-key latch, not the raw
@@ -1456,20 +1454,21 @@ void MacroRuntime::runBunnyhopWorker()
            notbinding.load(std::memory_order_acquire) &&
            section_toggles[13]) {
         const unsigned int outputKey = vk_bunnyhopkey;
-        const int halfDelay = std::max(1, BunnyHopDelay / 2);
-
-        HoldKeyBinded(outputKey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
-
-        if (!running_.load(std::memory_order_acquire) ||
-            !ShouldKeepRunning() ||
-            !isbhoploop.load(std::memory_order_acquire)) {
-            ReleaseKeyBinded(outputKey);
+        const int halfDelay = compat::BunnyhopHalfDelayMs(BunnyHopDelay);
+        const bool completedCycle = compat::ExecuteBunnyhopIteration(
+            outputKey,
+            halfDelay,
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+            [this] {
+                return running_.load(std::memory_order_acquire) &&
+                    ShouldKeepRunning() &&
+                    isbhoploop.load(std::memory_order_acquire);
+            },
+            [](unsigned int key) { ReleaseKeyBinded(key); });
+        if (!completedCycle) {
             break;
         }
-
-        ReleaseKeyBinded(outputKey);
-        std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
     }
 
     isbhoploop.store(false, std::memory_order_release);

@@ -67,7 +67,11 @@ observe different values, including releasing different auto/shift keys than wer
 `isHHJ` active when the later length check changes to zero. FloorBounce also snapshots only its PID
 vector, then runs an uncancelled generic-worker sequence with 521/72/72/72 ms base waits. Its HHJ
 flag/delays/shift key are read later inside the worker, and distinct rising edges may overlap because
-there is no worker-active guard. Freeze's
+there is no worker-active guard. Bunnyhop uses its dedicated long-lived worker semantics: physical
+trigger classification distinguishes wheel/none, mouse-backend, and keyboard-latch sources; the
+loop-head guard checks runtime/macro/binding/section state, while the mid-cycle cancellation check
+only rechecks runtime/target-loop state. Its bound output key and half-delay are snapshotted per
+iteration, and cancellation after the first half always releases the key before exiting. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

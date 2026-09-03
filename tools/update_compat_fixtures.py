@@ -1636,6 +1636,102 @@ def runtime_floorbounce_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_bunnyhop_physical_cases() -> list[dict[str, Any]]:
+    hotkeys = [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        32,
+        90,
+        256,
+        257,
+        0x10000 | 32,
+        0x20000 | 1,
+        0x40000 | 256,
+        0xF0000 | 90,
+    ]
+    cases = []
+    for hotkey in hotkeys:
+        observed = run_json(RUNTIME_ORACLE, "bunnyhop-physical-plan", str(hotkey))
+        cases.append(
+            {
+                "hotkey": hotkey,
+                "key": observed["key"],
+                "source": observed["source"],
+            }
+        )
+    return cases
+
+
+def runtime_bunnyhop_guard_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for running in (False, True):
+        for keep_running in (False, True):
+            for loop in (False, True):
+                for macro in (False, True):
+                    for notbinding in (False, True):
+                        for section in (False, True):
+                            observed = run_json(
+                                RUNTIME_ORACLE,
+                                "bunnyhop-guards",
+                                str(int(running)),
+                                str(int(keep_running)),
+                                str(int(loop)),
+                                str(int(macro)),
+                                str(int(notbinding)),
+                                str(int(section)),
+                            )
+                            cases.append(
+                                {
+                                    "name": f"matrix-{case_index}",
+                                    "running": running,
+                                    "keep_running": keep_running,
+                                    "loop": loop,
+                                    "macro": macro,
+                                    "notbinding": notbinding,
+                                    "section": section,
+                                    "loop_head": observed["loop_head"],
+                                    "after_half": observed["after_half"],
+                                }
+                            )
+                            case_index += 1
+    return cases
+
+
+def runtime_bunnyhop_iteration_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for output_key in (1, 32, 90, 0x10000 | 32):
+        for delay in (-99, -1, 0, 1, 2, 3, 4, 5, 99, 100, 101):
+            for continue_after_half in (False, True):
+                observed = run_json(
+                    RUNTIME_ORACLE,
+                    "bunnyhop-iteration",
+                    str(output_key),
+                    str(delay),
+                    str(int(continue_after_half)),
+                )
+                cases.append(
+                    {
+                        "name": f"matrix-{case_index}",
+                        "output_key": output_key,
+                        "delay_ms": delay,
+                        "continue_after_half": continue_after_half,
+                        "half_delay_ms": observed["half_delay_ms"],
+                        "completed": observed["completed"],
+                        "events": observed["events"],
+                    }
+                )
+                case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1776,6 +1872,9 @@ def write_runtime() -> None:
         "walless_cases": runtime_walless_cases(),
         "hhj_cases": runtime_hhj_cases(),
         "floorbounce_cases": runtime_floorbounce_cases(),
+        "bunnyhop_physical_cases": runtime_bunnyhop_physical_cases(),
+        "bunnyhop_guard_cases": runtime_bunnyhop_guard_cases(),
+        "bunnyhop_iteration_cases": runtime_bunnyhop_iteration_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

@@ -1,4 +1,3566 @@
 {
+  "bunnyhop_guard_cases": [
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-0",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-1",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-2",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-3",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-4",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-5",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-6",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-7",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-8",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-9",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-10",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-11",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-12",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-13",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-14",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-15",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-16",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-17",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-18",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-19",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-20",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-21",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-22",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-23",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-24",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-25",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-26",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-27",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-28",
+      "notbinding": false,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-29",
+      "notbinding": false,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-30",
+      "notbinding": true,
+      "running": false,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-31",
+      "notbinding": true,
+      "running": false,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-32",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-33",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-34",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-35",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-36",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-37",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-38",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-39",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-40",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-41",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-42",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-43",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-44",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-45",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-46",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": false,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-47",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-48",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-49",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-50",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-51",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-52",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-53",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-54",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": false,
+      "keep_running": true,
+      "loop": false,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-55",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-56",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-57",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-58",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": false,
+      "name": "matrix-59",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-60",
+      "notbinding": false,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-61",
+      "notbinding": false,
+      "running": true,
+      "section": true
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": false,
+      "macro": true,
+      "name": "matrix-62",
+      "notbinding": true,
+      "running": true,
+      "section": false
+    },
+    {
+      "after_half": true,
+      "keep_running": true,
+      "loop": true,
+      "loop_head": true,
+      "macro": true,
+      "name": "matrix-63",
+      "notbinding": true,
+      "running": true,
+      "section": true
+    }
+  ],
+  "bunnyhop_iteration_cases": [
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-0",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-1",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-2",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-3",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-4",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-5",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-6",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-7",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-8",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-9",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-10",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-11",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-12",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-13",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-14",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-15",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-16",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-17",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-18",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-19",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-20",
+      "output_key": 1
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 1,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-21",
+      "output_key": 1
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-22",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-23",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-24",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-25",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-26",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-27",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-28",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-29",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-30",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-31",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-32",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-33",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-34",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-35",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-36",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-37",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-38",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-39",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-40",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-41",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-42",
+      "output_key": 32
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-43",
+      "output_key": 32
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-44",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-45",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-46",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-47",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-48",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-49",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-50",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-51",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-52",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-53",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-54",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-55",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-56",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-57",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-58",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-59",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-60",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-61",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-62",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-63",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-64",
+      "output_key": 90
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 90,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-65",
+      "output_key": 90
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-66",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-67",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-68",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-69",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-70",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-71",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-72",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-73",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-74",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-75",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-76",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 3,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 1,
+      "name": "matrix-77",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-78",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 4,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-79",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-80",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 5,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 2,
+      "name": "matrix-81",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-82",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 99,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 49,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 49,
+      "name": "matrix-83",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-84",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 100,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-85",
+      "output_key": 65568
+    },
+    {
+      "completed": false,
+      "continue_after_half": false,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": false
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-86",
+      "output_key": 65568
+    },
+    {
+      "completed": true,
+      "continue_after_half": true,
+      "delay_ms": 101,
+      "events": [
+        {
+          "action": "key_down",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "bunnyhop_continue_check",
+          "continue": true
+        },
+        {
+          "action": "key_up",
+          "key": 65568,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        }
+      ],
+      "half_delay_ms": 50,
+      "name": "matrix-87",
+      "output_key": 65568
+    }
+  ],
+  "bunnyhop_physical_cases": [
+    {
+      "hotkey": 0,
+      "key": 0,
+      "source": "none"
+    },
+    {
+      "hotkey": 1,
+      "key": 1,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 2,
+      "key": 2,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 3,
+      "key": 3,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 4,
+      "key": 4,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 5,
+      "key": 5,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 6,
+      "key": 6,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 7,
+      "key": 7,
+      "source": "keyboard-latch"
+    },
+    {
+      "hotkey": 32,
+      "key": 32,
+      "source": "keyboard-latch"
+    },
+    {
+      "hotkey": 90,
+      "key": 90,
+      "source": "keyboard-latch"
+    },
+    {
+      "hotkey": 256,
+      "key": 256,
+      "source": "none"
+    },
+    {
+      "hotkey": 257,
+      "key": 257,
+      "source": "none"
+    },
+    {
+      "hotkey": 65568,
+      "key": 32,
+      "source": "keyboard-latch"
+    },
+    {
+      "hotkey": 131073,
+      "key": 1,
+      "source": "mouse-backend"
+    },
+    {
+      "hotkey": 262400,
+      "key": 256,
+      "source": "none"
+    },
+    {
+      "hotkey": 983130,
+      "key": 90,
+      "source": "keyboard-latch"
+    }
+  ],
   "floorbounce_cases": [
     {
       "events": [

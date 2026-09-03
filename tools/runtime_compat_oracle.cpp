@@ -87,6 +87,9 @@ int Usage()
               << "  smu_runtime_compat_oracle walless-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle hhj-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle floorbounce-worker <json-spec>\n"
+              << "  smu_runtime_compat_oracle bunnyhop-physical-plan <hotkey>\n"
+              << "  smu_runtime_compat_oracle bunnyhop-guards <running> <keep-running> <loop> <macro> <notbinding> <section>\n"
+              << "  smu_runtime_compat_oracle bunnyhop-iteration <output-key> <delay-ms> <continue-after-half>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -502,6 +505,60 @@ int main(int argc, char** argv)
 
         result = Json{
             {"operation", "floorbounce-worker"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "bunnyhop-physical-plan" && argc == 3) {
+        const auto plan = BuildBunnyhopPhysicalPlan(
+            static_cast<unsigned int>(std::strtoul(argv[2], nullptr, 10)));
+        const char* source = "none";
+        if (plan.source == BunnyhopPhysicalSource::MouseBackend) {
+            source = "mouse-backend";
+        } else if (plan.source == BunnyhopPhysicalSource::KeyboardLatch) {
+            source = "keyboard-latch";
+        }
+        result = Json{
+            {"operation", "bunnyhop-physical-plan"},
+            {"key", plan.key},
+            {"source", source},
+        };
+    } else if (operation == "bunnyhop-guards" && argc == 8) {
+        const bool running = ParseBool(argv[2]);
+        const bool keepRunning = ParseBool(argv[3]);
+        const bool loop = ParseBool(argv[4]);
+        const bool macroToggled = ParseBool(argv[5]);
+        const bool notBinding = ParseBool(argv[6]);
+        const bool section = ParseBool(argv[7]);
+        result = Json{
+            {"operation", "bunnyhop-guards"},
+            {"loop_head", ShouldRunBunnyhopWorker(
+                running, keepRunning, loop, macroToggled, notBinding, section)},
+            {"after_half", ShouldContinueBunnyhopAfterHalf(running, keepRunning, loop)},
+        };
+    } else if (operation == "bunnyhop-iteration" && argc == 5) {
+        const auto outputKey = static_cast<unsigned int>(std::strtoul(argv[2], nullptr, 10));
+        const int halfDelay = BunnyhopHalfDelayMs(std::atoi(argv[3]));
+        const bool continueAfterHalf = ParseBool(argv[4]);
+        Json events = Json::array();
+        const bool completed = ExecuteBunnyhopIteration(
+            outputKey,
+            halfDelay,
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "bunnyhop_continue_check"}, {"continue", continueAfterHalf}});
+                return continueAfterHalf;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            });
+        result = Json{
+            {"operation", "bunnyhop-iteration"},
+            {"half_delay_ms", halfDelay},
+            {"completed", completed},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {
