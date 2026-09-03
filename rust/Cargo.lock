@@ -559,6 +559,10 @@ name = "smu-core"
 version = "0.0.0"
 
 [[package]]
+name = "smu-process"
+version = "0.0.0"
+
+[[package]]
 name = "smu-profile"
 version = "0.0.0"
 dependencies = [

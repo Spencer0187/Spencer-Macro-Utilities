@@ -5,6 +5,7 @@ members = [
     "crates/smu-compat",
     "crates/smu-core",
     "crates/smu-profile",
+    "crates/smu-process",
     "crates/smu-runtime",
     "crates/smu-scripting",
 ]
@@ -12,6 +13,7 @@ default-members = [
     "crates/smu-compat",
     "crates/smu-core",
     "crates/smu-profile",
+    "crates/smu-process",
     "crates/smu-runtime",
     "crates/smu-scripting",
 ]

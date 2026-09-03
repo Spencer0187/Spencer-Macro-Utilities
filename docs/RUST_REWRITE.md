@@ -32,6 +32,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 8. Port scripting after the underlying services are stable.
 9. Replace the C++ entry point only after the compatibility matrix is green.
 
+## Current Rust service slices
+
+- `smu-process` owns legacy process-selector semantics plus Linux `/proc` discovery. Process
+  suspension and foreground-window detection are intentionally not folded into that discovery API;
+  they will be separate capabilities wired at the application composition root.
+
 ## Architecture rules
 
 - UI code observes application state and sends commands; it does not call OS APIs directly.
