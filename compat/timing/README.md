@@ -60,7 +60,11 @@ runs entirely on a generic worker lane; its delay/bonus boundaries, optional jum
 and 100 ms release target are differential-tested without advancing the controller clock. Walless
 LHJ also stays on a generic worker lane for its full 645 ms sequence. Its PID vector is snapshotted
 before spawn, while side/zoom/shift settings are deliberately re-read inside the worker at their
-historical action/release points; the fixture includes settings changing between those reads. Freeze's
+historical action/release points; the fixture includes settings changing between those reads. HHJ
+likewise snapshots only its PID vector: auto-toggle/key/time settings, freeze-delay settings,
+zoom/shift settings, and `HHJLength` are read at their original worker-time sites. Repeated reads can
+observe different values, including releasing different auto/shift keys than were pressed and leaving
+`isHHJ` active when the later length check changes to zero. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

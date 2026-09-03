@@ -5804,6 +5804,3508 @@
       "threshold_ms": 10000
     }
   ],
+  "hhj_cases": [
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "baseline",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "empty-pid-snapshot",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "fast-hhj-skips-300ms",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": true,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_override_check",
+          "value": 37
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_override_value",
+          "value": 37
+        },
+        {
+          "action": "wait",
+          "duration_ms": 37,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "freeze-override-positive",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": true,
+        "freeze_delay_override_check": 37,
+        "freeze_delay_override_value": 37,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_override_check",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "freeze-override-check-zero-skips-wait",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": true,
+        "freeze_delay_override_check": 0,
+        "freeze_delay_override_value": 99,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_override_check",
+          "value": 99
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_override_value",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "freeze-override-value-reread-zero",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": true,
+        "freeze_delay_override_check": 99,
+        "freeze_delay_override_value": 0,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_action",
+          "value": 32
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_time",
+          "value": 5
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_action",
+          "value": 87
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_time",
+          "value": 7
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_release",
+          "value": 32
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_release",
+          "value": 87
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "auto-toggle-press-and-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 5,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 7,
+        "auto_toggle_release": true,
+        "auto_toggle_start": true,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_action",
+          "value": 32
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_time",
+          "value": 5
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_action",
+          "value": 87
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_time",
+          "value": 7
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_release",
+          "value": 33
+        },
+        {
+          "action": "key_up",
+          "key": 33,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_release",
+          "value": 88
+        },
+        {
+          "action": "key_up",
+          "key": 88,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "auto-keys-change-before-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 33,
+        "auto_key1_time": 5,
+        "auto_key2_action": 87,
+        "auto_key2_release": 88,
+        "auto_key2_time": 7,
+        "auto_toggle_release": true,
+        "auto_toggle_start": true,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_action",
+          "value": 32
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_time",
+          "value": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_action",
+          "value": 87
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_time",
+          "value": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "auto-toggle-turns-off-before-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 1,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 1,
+        "auto_toggle_release": false,
+        "auto_toggle_start": true,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_action",
+          "value": 32
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_action",
+          "value": 87
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "auto-toggle-turns-on-before-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 33,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 88,
+        "auto_key2_time": 68,
+        "auto_toggle_release": true,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_action",
+          "value": 32
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key1_time",
+          "value": -50
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_action",
+          "value": 87
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_key2_time",
+          "value": -1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "negative-auto-times-clamp-zero",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": -50,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": -1,
+        "auto_toggle_release": false,
+        "auto_toggle_start": true,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": -9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": -17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": -16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "negative-tail-delays-clamp-zero",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": -9,
+        "delay2": -17,
+        "delay3": -16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "shift-key-changes-before-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "shift-action-then-zoom-release-skips-key-up",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 162
+        },
+        {
+          "action": "key_up",
+          "key": 162,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "zoom-up-action-then-shift-release",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 162,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 243
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 243
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 243
+        },
+        {
+          "action": "wait",
+          "duration_ms": 243,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "zoom-down-action",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "length_activation_check": 243,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 100
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 0
+        }
+      ],
+      "name": "length-activation-positive-finish-zero-leaves-active",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 100,
+        "length_finish_check": 0,
+        "length_sleep_value": 999,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 100
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 11
+        },
+        {
+          "action": "wait",
+          "duration_ms": 11,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "length-activation-zero-finish-positive-clears-without-activation",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 0,
+        "length_finish_check": 100,
+        "length_sleep_value": 11,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 200
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 300
+        },
+        {
+          "action": "setting_read",
+          "name": "length_sleep_value",
+          "value": 7
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        }
+      ],
+      "name": "length-sleep-value-is-third-live-read",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 200,
+        "length_finish_check": 300,
+        "length_sleep_value": 7,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_start",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "setting_read",
+          "name": "freeze_delay_apply",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "fast_hhj",
+          "value": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 300,
+          "kind": "coarse"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_toggle_release",
+          "value": false
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 9
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 17
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_activation_check",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 16
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "length_finish_check",
+          "value": 0
+        }
+      ],
+      "name": "zero-length-everywhere",
+      "spec": {
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "auto_toggle_release": false,
+        "auto_toggle_start": false,
+        "delay1": 9,
+        "delay2": 17,
+        "delay3": 16,
+        "fast_hhj": false,
+        "freeze_delay_apply": false,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "length_activation_check": 0,
+        "length_finish_check": 0,
+        "length_sleep_value": 0,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16,
+        "zoom_reverse": false
+      }
+    }
+  ],
   "item_desync_cases": [
     {
       "events": [],

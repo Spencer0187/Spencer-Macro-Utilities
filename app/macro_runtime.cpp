@@ -61,6 +61,29 @@ void OpenChatForMacro()
     ReleaseKeyBinded(vk_chatkey);
 }
 
+struct HhjRuntimeSettingsAccessor {
+    bool autoToggle() const { return autotoggle; }
+    unsigned int autoKey1() const { return vk_autohhjkey1; }
+    int autoKey1Time() const { return AutoHHJKey1Time; }
+    unsigned int autoKey2() const { return vk_autohhjkey2; }
+    int autoKey2Time() const { return AutoHHJKey2Time; }
+    bool freezeDelayApply() const { return HHJFreezeDelayApply; }
+    bool fastHhj() const { return fasthhj; }
+    int freezeDelayOverrideCheck() const { return HHJFreezeDelayOverride; }
+    int freezeDelayOverrideValue() const { return HHJFreezeDelayOverride; }
+    int delay1() const { return HHJDelay1; }
+    bool globalZoomAction() const { return globalzoomin; }
+    unsigned int shiftKeyAction() const { return vk_shiftkey; }
+    bool zoomReverse() const { return globalzoominreverse; }
+    int delay2() const { return HHJDelay2; }
+    int lengthActivationCheck() const { return HHJLength; }
+    int delay3() const { return HHJDelay3; }
+    bool globalZoomRelease() const { return globalzoomin; }
+    unsigned int shiftKeyRelease() const { return vk_shiftkey; }
+    int lengthFinishCheck() const { return HHJLength; }
+    int lengthSleepValue() const { return HHJLength; }
+};
+
 #if defined(_WIN32)
 enum class RuntimeProfileSection : std::size_t {
     ResetInputCache,
@@ -1084,45 +1107,17 @@ void MacroRuntime::processHhjMacro(bool foregroundAllowed)
 
     const auto pids = currentTargetPids();
     runWorker([this, pids] {
-        if (autotoggle) {
-            HoldKeyBinded(vk_autohhjkey1);
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, AutoHHJKey1Time)));
-            HoldKeyBinded(vk_autohhjkey2);
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, AutoHHJKey2Time)));
-        }
-
-        setPidsSuspended(pids, true);
-        if (!HHJFreezeDelayApply) {
-            if (!fasthhj) {
-                std::this_thread::sleep_for(300ms);
-            }
-            std::this_thread::sleep_for(200ms);
-        } else if (HHJFreezeDelayOverride > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(HHJFreezeDelayOverride));
-        }
-
-        if (autotoggle) {
-            ReleaseKeyBinded(vk_autohhjkey1);
-            ReleaseKeyBinded(vk_autohhjkey2);
-        }
-        setPidsSuspended(pids, false);
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, HHJDelay1)));
-        if (!globalzoomin) {
-            HoldKeyBinded(vk_shiftkey);
-        } else {
-            HoldKeyBinded(globalzoominreverse ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN : smu::core::SMU_VK_MOUSE_WHEEL_UP);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, HHJDelay2)));
-        if (HHJLength > 0) {
-            isHHJ.store(true, std::memory_order_release);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, HHJDelay3)));
-        ReleaseZoomOrShift();
-        if (HHJLength > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(HHJLength));
-            isHHJ.store(false, std::memory_order_release);
-        }
+        HhjRuntimeSettingsAccessor settings;
+        compat::ExecuteHhjWorker(
+            pids,
+            settings,
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](unsigned int key) { ReleaseKeyBinded(key); },
+            [this](const std::vector<unsigned int>& workerPids, bool suspended) {
+                setPidsSuspended(workerPids, suspended);
+            },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+            [](bool active) { isHHJ.store(active, std::memory_order_release); });
     });
 }
 

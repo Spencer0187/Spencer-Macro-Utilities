@@ -1421,6 +1421,181 @@ def runtime_walless_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_hhj_cases() -> list[dict[str, Any]]:
+    base = {
+        "pids": [10, 20],
+        "auto_toggle_start": False,
+        "auto_toggle_release": False,
+        "auto_key1_action": 32,
+        "auto_key1_release": 32,
+        "auto_key1_time": 550,
+        "auto_key2_action": 87,
+        "auto_key2_release": 87,
+        "auto_key2_time": 68,
+        "freeze_delay_apply": False,
+        "fast_hhj": False,
+        "freeze_delay_override_check": 500,
+        "freeze_delay_override_value": 500,
+        "delay1": 9,
+        "global_zoom_action": False,
+        "shift_key_action": 16,
+        "zoom_reverse": False,
+        "delay2": 17,
+        "length_activation_check": 243,
+        "delay3": 16,
+        "global_zoom_release": False,
+        "shift_key_release": 16,
+        "length_finish_check": 243,
+        "length_sleep_value": 243,
+    }
+    variants = [
+        ("baseline", {}),
+        ("empty-pid-snapshot", {"pids": []}),
+        ("fast-hhj-skips-300ms", {"fast_hhj": True}),
+        (
+            "freeze-override-positive",
+            {
+                "freeze_delay_apply": True,
+                "freeze_delay_override_check": 37,
+                "freeze_delay_override_value": 37,
+            },
+        ),
+        (
+            "freeze-override-check-zero-skips-wait",
+            {
+                "freeze_delay_apply": True,
+                "freeze_delay_override_check": 0,
+                "freeze_delay_override_value": 99,
+            },
+        ),
+        (
+            "freeze-override-value-reread-zero",
+            {
+                "freeze_delay_apply": True,
+                "freeze_delay_override_check": 99,
+                "freeze_delay_override_value": 0,
+            },
+        ),
+        (
+            "auto-toggle-press-and-release",
+            {
+                "auto_toggle_start": True,
+                "auto_toggle_release": True,
+                "auto_key1_time": 5,
+                "auto_key2_time": 7,
+            },
+        ),
+        (
+            "auto-keys-change-before-release",
+            {
+                "auto_toggle_start": True,
+                "auto_toggle_release": True,
+                "auto_key1_action": 32,
+                "auto_key1_release": 33,
+                "auto_key1_time": 5,
+                "auto_key2_action": 87,
+                "auto_key2_release": 88,
+                "auto_key2_time": 7,
+            },
+        ),
+        (
+            "auto-toggle-turns-off-before-release",
+            {
+                "auto_toggle_start": True,
+                "auto_toggle_release": False,
+                "auto_key1_time": 1,
+                "auto_key2_time": 1,
+            },
+        ),
+        (
+            "auto-toggle-turns-on-before-release",
+            {
+                "auto_toggle_start": False,
+                "auto_toggle_release": True,
+                "auto_key1_release": 33,
+                "auto_key2_release": 88,
+            },
+        ),
+        (
+            "negative-auto-times-clamp-zero",
+            {
+                "auto_toggle_start": True,
+                "auto_toggle_release": False,
+                "auto_key1_time": -50,
+                "auto_key2_time": -1,
+            },
+        ),
+        (
+            "negative-tail-delays-clamp-zero",
+            {"delay1": -9, "delay2": -17, "delay3": -16},
+        ),
+        (
+            "shift-key-changes-before-release",
+            {"shift_key_action": 160, "shift_key_release": 161},
+        ),
+        (
+            "shift-action-then-zoom-release-skips-key-up",
+            {"shift_key_action": 160, "global_zoom_release": True},
+        ),
+        (
+            "zoom-up-action-then-shift-release",
+            {
+                "global_zoom_action": True,
+                "zoom_reverse": False,
+                "global_zoom_release": False,
+                "shift_key_release": 162,
+            },
+        ),
+        (
+            "zoom-down-action",
+            {
+                "global_zoom_action": True,
+                "zoom_reverse": True,
+                "global_zoom_release": True,
+            },
+        ),
+        (
+            "length-activation-positive-finish-zero-leaves-active",
+            {
+                "length_activation_check": 100,
+                "length_finish_check": 0,
+                "length_sleep_value": 999,
+            },
+        ),
+        (
+            "length-activation-zero-finish-positive-clears-without-activation",
+            {
+                "length_activation_check": 0,
+                "length_finish_check": 100,
+                "length_sleep_value": 11,
+            },
+        ),
+        (
+            "length-sleep-value-is-third-live-read",
+            {
+                "length_activation_check": 200,
+                "length_finish_check": 300,
+                "length_sleep_value": 7,
+            },
+        ),
+        (
+            "zero-length-everywhere",
+            {
+                "length_activation_check": 0,
+                "length_finish_check": 0,
+                "length_sleep_value": 0,
+            },
+        ),
+    ]
+    cases = []
+    for name, changes in variants:
+        spec = dict(base)
+        spec.update(changes)
+        observed = run_json(RUNTIME_ORACLE, "hhj-worker", compact(spec))
+        cases.append({"name": name, "spec": spec, "events": observed["events"]})
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1559,6 +1734,7 @@ def write_runtime() -> None:
         "wallwalk_cases": runtime_wallwalk_cases(),
         "wallhop_cases": runtime_wallhop_cases(),
         "walless_cases": runtime_walless_cases(),
+        "hhj_cases": runtime_hhj_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

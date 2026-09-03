@@ -589,6 +589,149 @@ pub fn execute_walless_lhj_worker(
     trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Up, InputPath::Direct);
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct HhjWorkerInput {
+    pub pids: Vec<u32>,
+    pub auto_toggle_start: bool,
+    pub auto_toggle_release: bool,
+    pub auto_key1_action: u32,
+    pub auto_key1_release: u32,
+    pub auto_key1_time: i32,
+    pub auto_key2_action: u32,
+    pub auto_key2_release: u32,
+    pub auto_key2_time: i32,
+    pub freeze_delay_apply: bool,
+    pub fast_hhj: bool,
+    pub freeze_delay_override_check: i32,
+    pub freeze_delay_override_value: i32,
+    pub delay1: i32,
+    pub global_zoom_action: bool,
+    pub shift_key_action: u32,
+    pub zoom_reverse: bool,
+    pub delay2: i32,
+    pub length_activation_check: i32,
+    pub delay3: i32,
+    pub global_zoom_release: bool,
+    pub shift_key_release: u32,
+    pub length_finish_check: i32,
+    pub length_sleep_value: i32,
+}
+
+#[allow(clippy::too_many_lines)]
+pub fn execute_hhj_worker(trace: &mut TraceRecorder, lane: LaneId, input: &HhjWorkerInput) {
+    trace.setting_bool_read(lane, "auto_toggle_start", input.auto_toggle_start);
+    if input.auto_toggle_start {
+        trace.setting_u32_read(lane, "auto_key1_action", input.auto_key1_action);
+        trace.key(lane, input.auto_key1_action, KeyTransition::Down, InputPath::Bound);
+        trace.setting_i32_read(lane, "auto_key1_time", input.auto_key1_time);
+        trace.wait(
+            lane,
+            milliseconds_from_nonnegative(input.auto_key1_time.max(0)),
+            WaitKind::Coarse,
+        );
+
+        trace.setting_u32_read(lane, "auto_key2_action", input.auto_key2_action);
+        trace.key(lane, input.auto_key2_action, KeyTransition::Down, InputPath::Bound);
+        trace.setting_i32_read(lane, "auto_key2_time", input.auto_key2_time);
+        trace.wait(
+            lane,
+            milliseconds_from_nonnegative(input.auto_key2_time.max(0)),
+            WaitKind::Coarse,
+        );
+    }
+
+    trace.process_suspended(lane, input.pids.clone(), true);
+    trace.setting_bool_read(lane, "freeze_delay_apply", input.freeze_delay_apply);
+    if input.freeze_delay_apply {
+        trace.setting_i32_read(
+            lane,
+            "freeze_delay_override_check",
+            input.freeze_delay_override_check,
+        );
+        if input.freeze_delay_override_check > 0 {
+            trace.setting_i32_read(
+                lane,
+                "freeze_delay_override_value",
+                input.freeze_delay_override_value,
+            );
+            trace.wait(
+                lane,
+                milliseconds_from_nonnegative(input.freeze_delay_override_value.max(0)),
+                WaitKind::Coarse,
+            );
+        }
+    } else {
+        trace.setting_bool_read(lane, "fast_hhj", input.fast_hhj);
+        if !input.fast_hhj {
+            trace.wait(lane, Duration::from_millis(300), WaitKind::Coarse);
+        }
+        trace.wait(lane, Duration::from_millis(200), WaitKind::Coarse);
+    }
+
+    trace.setting_bool_read(lane, "auto_toggle_release", input.auto_toggle_release);
+    if input.auto_toggle_release {
+        let (key1_name, key1) = if input.auto_toggle_start {
+            ("auto_key1_release", input.auto_key1_release)
+        } else {
+            ("auto_key1_action", input.auto_key1_action)
+        };
+        trace.setting_u32_read(lane, key1_name, key1);
+        trace.key(lane, key1, KeyTransition::Up, InputPath::Bound);
+
+        let (key2_name, key2) = if input.auto_toggle_start {
+            ("auto_key2_release", input.auto_key2_release)
+        } else {
+            ("auto_key2_action", input.auto_key2_action)
+        };
+        trace.setting_u32_read(lane, key2_name, key2);
+        trace.key(lane, key2, KeyTransition::Up, InputPath::Bound);
+    }
+    trace.process_suspended(lane, input.pids.clone(), false);
+
+    trace.setting_i32_read(lane, "delay1", input.delay1);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay1.max(0)), WaitKind::Coarse);
+    trace.setting_bool_read(lane, "global_zoom_action", input.global_zoom_action);
+    if input.global_zoom_action {
+        trace.setting_bool_read(lane, "zoom_reverse", input.zoom_reverse);
+        let wheel = if input.zoom_reverse {
+            KeyCode::MOUSE_WHEEL_DOWN.raw()
+        } else {
+            KeyCode::MOUSE_WHEEL_UP.raw()
+        };
+        trace.key(lane, wheel, KeyTransition::Down, InputPath::Bound);
+    } else {
+        trace.setting_u32_read(lane, "shift_key_action", input.shift_key_action);
+        trace.key(lane, input.shift_key_action, KeyTransition::Down, InputPath::Bound);
+    }
+
+    trace.setting_i32_read(lane, "delay2", input.delay2);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay2.max(0)), WaitKind::Coarse);
+    trace.setting_i32_read(lane, "length_activation_check", input.length_activation_check);
+    if input.length_activation_check > 0 {
+        trace.hhj_active(lane, true);
+    }
+
+    trace.setting_i32_read(lane, "delay3", input.delay3);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay3.max(0)), WaitKind::Coarse);
+    trace.setting_bool_read(lane, "global_zoom_release", input.global_zoom_release);
+    if !input.global_zoom_release {
+        trace.setting_u32_read(lane, "shift_key_release", input.shift_key_release);
+        trace.key(lane, input.shift_key_release, KeyTransition::Up, InputPath::Bound);
+    }
+
+    trace.setting_i32_read(lane, "length_finish_check", input.length_finish_check);
+    if input.length_finish_check > 0 {
+        trace.setting_i32_read(lane, "length_sleep_value", input.length_sleep_value);
+        trace.wait(
+            lane,
+            milliseconds_from_nonnegative(input.length_sleep_value.max(0)),
+            WaitKind::Coarse,
+        );
+        trace.hhj_active(lane, false);
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
@@ -743,13 +886,14 @@ mod tests {
     #![allow(clippy::expect_used, clippy::struct_excessive_bools, clippy::struct_field_names)]
 
     use super::{
-        FreezeStepInput, ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction,
-        WallWalkStepInput, WallessLhjWorkerInput, apply_speedglitch_state_action,
-        build_presskey_worker_plan, build_speedglitch_cycle_plan, build_wallhop_worker_plan,
-        evaluate_rising_edge, evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync,
-        execute_itemclip_step, execute_presskey_worker, execute_speedglitch_cycle,
-        execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
-        frame_delays_for_fps, freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
+        FreezeStepInput, HhjWorkerInput, ItemClipStepInput, SpeedglitchStateAction,
+        ToggleLoopStateAction, WallWalkStepInput, WallessLhjWorkerInput,
+        apply_speedglitch_state_action, build_presskey_worker_plan, build_speedglitch_cycle_plan,
+        build_wallhop_worker_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
+        execute_freeze_step, execute_hhj_worker, execute_item_desync, execute_itemclip_step,
+        execute_presskey_worker, execute_speedglitch_cycle, execute_walless_lhj_worker,
+        execute_wallhop_worker, execute_wallwalk_step, frame_delays_for_fps,
+        freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -770,6 +914,7 @@ mod tests {
         wallwalk_cases: Vec<WallWalkCase>,
         wallhop_cases: Vec<WallhopCase>,
         walless_cases: Vec<WallessCase>,
+        hhj_cases: Vec<HhjCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -919,6 +1064,42 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct HhjCase {
+        name: String,
+        spec: HhjSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[allow(clippy::struct_excessive_bools)]
+    struct HhjSpec {
+        pids: Vec<u32>,
+        auto_toggle_start: bool,
+        auto_toggle_release: bool,
+        auto_key1_action: u32,
+        auto_key1_release: u32,
+        auto_key1_time: i32,
+        auto_key2_action: u32,
+        auto_key2_release: u32,
+        auto_key2_time: i32,
+        freeze_delay_apply: bool,
+        fast_hhj: bool,
+        freeze_delay_override_check: i32,
+        freeze_delay_override_value: i32,
+        delay1: i32,
+        global_zoom_action: bool,
+        shift_key_action: u32,
+        zoom_reverse: bool,
+        delay2: i32,
+        length_activation_check: i32,
+        delay3: i32,
+        global_zoom_release: bool,
+        shift_key_release: u32,
+        length_finish_check: i32,
+        length_sleep_value: i32,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -1007,10 +1188,19 @@ mod tests {
                 "name": name,
                 "value": value,
             })),
+            TraceAction::SettingI32Read { name, value } => Some(json!({
+                "action": "setting_read",
+                "name": name,
+                "value": value,
+            })),
             TraceAction::SettingU32Read { name, value } => Some(json!({
                 "action": "setting_read",
                 "name": name,
                 "value": value,
+            })),
+            TraceAction::HhjActive { active } => Some(json!({
+                "action": "hhj_active",
+                "active": active,
             })),
             TraceAction::HotkeyRecheck { pressed } => Some(json!({
                 "action": "hotkey_recheck",
@@ -1313,6 +1503,52 @@ mod tests {
                 trace.lane_now(worker),
                 Some(crate::MonotonicMicros::from_micros(645_000)),
                 "case {} worker duration",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_hhj_worker_live_reads_events_and_lane_topology_match() {
+        for case in fixture().hhj_cases {
+            let input = HhjWorkerInput {
+                pids: case.spec.pids,
+                auto_toggle_start: case.spec.auto_toggle_start,
+                auto_toggle_release: case.spec.auto_toggle_release,
+                auto_key1_action: case.spec.auto_key1_action,
+                auto_key1_release: case.spec.auto_key1_release,
+                auto_key1_time: case.spec.auto_key1_time,
+                auto_key2_action: case.spec.auto_key2_action,
+                auto_key2_release: case.spec.auto_key2_release,
+                auto_key2_time: case.spec.auto_key2_time,
+                freeze_delay_apply: case.spec.freeze_delay_apply,
+                fast_hhj: case.spec.fast_hhj,
+                freeze_delay_override_check: case.spec.freeze_delay_override_check,
+                freeze_delay_override_value: case.spec.freeze_delay_override_value,
+                delay1: case.spec.delay1,
+                global_zoom_action: case.spec.global_zoom_action,
+                shift_key_action: case.spec.shift_key_action,
+                zoom_reverse: case.spec.zoom_reverse,
+                delay2: case.spec.delay2,
+                length_activation_check: case.spec.length_activation_check,
+                delay3: case.spec.delay3,
+                global_zoom_release: case.spec.global_zoom_release,
+                shift_key_release: case.spec.shift_key_release,
+                length_finish_check: case.spec.length_finish_check,
+                length_sleep_value: case.spec.length_sleep_value,
+            };
+
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_hhj_worker(&mut trace, worker, &input);
+
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
                 case.name
             );
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);

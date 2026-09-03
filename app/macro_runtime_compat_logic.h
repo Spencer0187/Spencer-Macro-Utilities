@@ -365,6 +365,62 @@ void ExecuteWallessLhjWorker(
     releaseDirect(smu::core::SMU_VK_SPACE);
 }
 
+// SettingsAccessor is intentionally queried at each historical C++ read site instead of once at
+// worker spawn. This preserves observable behavior when UI/profile state changes mid-worker.
+template <typename SettingsAccessor, typename HoldBoundFn, typename ReleaseBoundFn,
+          typename SetPidsSuspendedFn, typename SleepFn, typename SetHhjActiveFn>
+void ExecuteHhjWorker(
+    const std::vector<unsigned int>& pids,
+    SettingsAccessor& settings,
+    HoldBoundFn&& holdBound,
+    ReleaseBoundFn&& releaseBound,
+    SetPidsSuspendedFn&& setPidsSuspended,
+    SleepFn&& sleep,
+    SetHhjActiveFn&& setHhjActive)
+{
+    if (settings.autoToggle()) {
+        holdBound(settings.autoKey1());
+        sleep(std::max(0, settings.autoKey1Time()));
+        holdBound(settings.autoKey2());
+        sleep(std::max(0, settings.autoKey2Time()));
+    }
+
+    setPidsSuspended(pids, true);
+    if (!settings.freezeDelayApply()) {
+        if (!settings.fastHhj()) {
+            sleep(300);
+        }
+        sleep(200);
+    } else if (settings.freezeDelayOverrideCheck() > 0) {
+        sleep(settings.freezeDelayOverrideValue());
+    }
+
+    if (settings.autoToggle()) {
+        releaseBound(settings.autoKey1());
+        releaseBound(settings.autoKey2());
+    }
+    setPidsSuspended(pids, false);
+
+    sleep(std::max(0, settings.delay1()));
+    if (!settings.globalZoomAction()) {
+        holdBound(settings.shiftKeyAction());
+    } else {
+        holdBound(settings.zoomReverse() ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN : smu::core::SMU_VK_MOUSE_WHEEL_UP);
+    }
+    sleep(std::max(0, settings.delay2()));
+    if (settings.lengthActivationCheck() > 0) {
+        setHhjActive(true);
+    }
+    sleep(std::max(0, settings.delay3()));
+    if (!settings.globalZoomRelease()) {
+        releaseBound(settings.shiftKeyRelease());
+    }
+    if (settings.lengthFinishCheck() > 0) {
+        sleep(settings.lengthSleepValue());
+        setHhjActive(false);
+    }
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;
