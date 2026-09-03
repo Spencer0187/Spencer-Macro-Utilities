@@ -3,6 +3,8 @@
 #include "key_codes.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -531,6 +533,78 @@ bool ExecuteBunnyhopIteration(
     release(outputKey);
     sleep(halfDelayMs);
     return true;
+}
+
+struct AntiAfkTimerStepResult {
+    bool armed = false;
+    std::uint64_t lastKeyboardSerialSeen = 0;
+    bool resetLastActivityToNow = false;
+    bool due = false;
+    int thresholdMinutes = 1;
+};
+
+inline AntiAfkTimerStepResult EvaluateAntiAfkTimerStep(
+    bool armed,
+    std::uint64_t lastKeyboardSerialSeen,
+    std::uint64_t keyboardSerial,
+    bool robloxForeground,
+    int configuredMinutes,
+    std::chrono::steady_clock::duration elapsedSinceLastActivity)
+{
+    const int thresholdMinutes = std::max(1, configuredMinutes);
+    if (!armed) {
+        return AntiAfkTimerStepResult{
+            .armed = true,
+            .lastKeyboardSerialSeen = keyboardSerial,
+            .resetLastActivityToNow = true,
+            .due = false,
+            .thresholdMinutes = thresholdMinutes,
+        };
+    }
+
+    if (robloxForeground && keyboardSerial != lastKeyboardSerialSeen) {
+        return AntiAfkTimerStepResult{
+            .armed = true,
+            .lastKeyboardSerialSeen = keyboardSerial,
+            .resetLastActivityToNow = true,
+            .due = false,
+            .thresholdMinutes = thresholdMinutes,
+        };
+    }
+
+    const auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(
+        elapsedSinceLastActivity).count();
+    return AntiAfkTimerStepResult{
+        .armed = true,
+        .lastKeyboardSerialSeen = lastKeyboardSerialSeen,
+        .resetLastActivityToNow = false,
+        .due = elapsedMinutes >= thresholdMinutes,
+        .thresholdMinutes = thresholdMinutes,
+    };
+}
+
+template <typename DoublePressFn, typename HoldFn, typename SleepFn, typename ReleaseFn>
+void ExecuteAntiAfkKeyPress(
+    unsigned int afkKey,
+    DoublePressFn&& doublePress,
+    HoldFn&& hold,
+    SleepFn&& sleep,
+    ReleaseFn&& release)
+{
+    if (doublePress()) {
+        hold(afkKey);
+        sleep(20);
+        release(afkKey);
+        sleep(20);
+        hold(afkKey);
+        sleep(20);
+        release(afkKey);
+        return;
+    }
+
+    hold(afkKey);
+    sleep(20);
+    release(afkKey);
 }
 
 struct PressKeyWorkerPlan {

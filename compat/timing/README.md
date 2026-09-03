@@ -64,7 +64,11 @@ historical action/release points; the fixture includes settings changing between
 likewise snapshots only its PID vector: auto-toggle/key/time settings, freeze-delay settings,
 zoom/shift settings, and `HHJLength` are read at their original worker-time sites. Repeated reads can
 observe different values, including releasing different auto/shift keys than were pressed and leaving
-`isHHJ` active when the later length check changes to zero. FloorBounce also snapshots only its PID
+`isHHJ` active when the later length check changes to zero. Windows Anti-AFK timer compatibility is
+frozen separately: the first eligible poll arms without firing, real keyboard activity resets the timer
+only while Roblox is foreground, configured minutes clamp to at least one, and the elapsed duration
+uses whole-minute truncation. Its bound-key action remains on the controller lane: one press blocks
+for 20 ms and double-press blocks for 60 ms. FloorBounce also snapshots only its PID
 vector, then runs an uncancelled generic-worker sequence with 521/72/72/72 ms base waits. Its HHJ
 flag/delays/shift key are read later inside the worker, and distinct rising edges may overlap because
 there is no worker-active guard. Bunnyhop uses its dedicated long-lived worker semantics: physical

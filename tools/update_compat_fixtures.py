@@ -1732,6 +1732,67 @@ def runtime_bunnyhop_iteration_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_anti_afk_timer_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for armed in (False, True):
+        for foreground in (False, True):
+            for serial_changed in (False, True):
+                for configured_minutes in (-5, 0, 1, 15):
+                    for elapsed_ms in (0, 59_999, 60_000, 899_999, 900_000, 959_999):
+                        last_serial = 10
+                        keyboard_serial = 11 if serial_changed else 10
+                        observed = run_json(
+                            RUNTIME_ORACLE,
+                            "anti-afk-timer",
+                            str(int(armed)),
+                            str(last_serial),
+                            str(keyboard_serial),
+                            str(int(foreground)),
+                            str(configured_minutes),
+                            str(elapsed_ms),
+                        )
+                        cases.append(
+                            {
+                                "name": f"matrix-{case_index}",
+                                "armed": armed,
+                                "last_serial": last_serial,
+                                "keyboard_serial": keyboard_serial,
+                                "foreground": foreground,
+                                "configured_minutes": configured_minutes,
+                                "elapsed_ms": elapsed_ms,
+                                "next_armed": observed["armed"],
+                                "next_last_serial": observed["last_serial"],
+                                "reset_activity": observed["reset_activity"],
+                                "due": observed["due"],
+                                "threshold_minutes": observed["threshold_minutes"],
+                            }
+                        )
+                        case_index += 1
+    return cases
+
+
+def runtime_anti_afk_keypress_cases() -> list[dict[str, Any]]:
+    cases = []
+    for key in (112, 0x10000 | 112, 0xF0000 | 90):
+        for double_press in (False, True):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "anti-afk-keypress",
+                str(key),
+                str(int(double_press)),
+            )
+            cases.append(
+                {
+                    "name": f"key-{key}-double-{int(double_press)}",
+                    "key": key,
+                    "double_press": double_press,
+                    "events": observed["events"],
+                }
+            )
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1875,6 +1936,8 @@ def write_runtime() -> None:
         "bunnyhop_physical_cases": runtime_bunnyhop_physical_cases(),
         "bunnyhop_guard_cases": runtime_bunnyhop_guard_cases(),
         "bunnyhop_iteration_cases": runtime_bunnyhop_iteration_cases(),
+        "anti_afk_timer_cases": runtime_anti_afk_timer_cases(),
+        "anti_afk_keypress_cases": runtime_anti_afk_keypress_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

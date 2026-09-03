@@ -1545,20 +1545,19 @@ void MacroRuntime::processAntiAfkMacro()
 
     const auto now = std::chrono::steady_clock::now();
     const std::uint64_t keyboardSerial = g_realKeyboardActivitySerial.load(std::memory_order_acquire);
-    if (!antiAfkTimerArmed_) {
-        antiAfkTimerArmed_ = true;
+    const auto timerStep = compat::EvaluateAntiAfkTimerStep(
+        antiAfkTimerArmed_,
+        antiAfkLastKeyboardSerialSeen_,
+        keyboardSerial,
+        robloxForeground,
+        AntiAFKTime,
+        now - antiAfkLastActivity_);
+    antiAfkTimerArmed_ = timerStep.armed;
+    antiAfkLastKeyboardSerialSeen_ = timerStep.lastKeyboardSerialSeen;
+    if (timerStep.resetLastActivityToNow) {
         antiAfkLastActivity_ = now;
-        antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
     }
-
-    if (robloxForeground && keyboardSerial != antiAfkLastKeyboardSerialSeen_) {
-        antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
-        antiAfkLastActivity_ = now;
-    }
-
-    const int antiAfkMinutes = std::max(1, AntiAFKTime);
-    const auto elapsedMinutes = std::chrono::duration_cast<std::chrono::minutes>(now - antiAfkLastActivity_).count();
-    if (elapsedMinutes < antiAfkMinutes) {
+    if (!timerStep.due) {
         return;
     }
 
@@ -1568,20 +1567,13 @@ void MacroRuntime::processAntiAfkMacro()
         return;
     }
 
-    auto pressAntiAfkKey = [this, afkKey]() {
-        if (doublepressafkkey) {
-            HoldKeyBinded(afkKey);
-            std::this_thread::sleep_for(20ms);
-            ReleaseKeyBinded(afkKey);
-            std::this_thread::sleep_for(20ms);
-            HoldKeyBinded(afkKey);
-            std::this_thread::sleep_for(20ms);
-            ReleaseKeyBinded(afkKey);
-        } else {
-            HoldKeyBinded(afkKey);
-            std::this_thread::sleep_for(20ms);
-            ReleaseKeyBinded(afkKey);
-        }
+    auto pressAntiAfkKey = [afkKey]() {
+        compat::ExecuteAntiAfkKeyPress(
+            afkKey,
+            [] { return doublepressafkkey; },
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+            [](unsigned int key) { ReleaseKeyBinded(key); });
     };
 
     if (robloxForeground) {

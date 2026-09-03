@@ -90,6 +90,8 @@ int Usage()
               << "  smu_runtime_compat_oracle bunnyhop-physical-plan <hotkey>\n"
               << "  smu_runtime_compat_oracle bunnyhop-guards <running> <keep-running> <loop> <macro> <notbinding> <section>\n"
               << "  smu_runtime_compat_oracle bunnyhop-iteration <output-key> <delay-ms> <continue-after-half>\n"
+              << "  smu_runtime_compat_oracle anti-afk-timer <armed> <last-serial> <keyboard-serial> <foreground> <minutes> <elapsed-ms>\n"
+              << "  smu_runtime_compat_oracle anti-afk-keypress <key> <double-press>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -559,6 +561,51 @@ int main(int argc, char** argv)
             {"operation", "bunnyhop-iteration"},
             {"half_delay_ms", halfDelay},
             {"completed", completed},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "anti-afk-timer" && argc == 8) {
+        const bool armed = ParseBool(argv[2]);
+        const auto lastSerial = static_cast<std::uint64_t>(std::strtoull(argv[3], nullptr, 10));
+        const auto keyboardSerial = static_cast<std::uint64_t>(std::strtoull(argv[4], nullptr, 10));
+        const bool foreground = ParseBool(argv[5]);
+        const int minutes = std::atoi(argv[6]);
+        const auto elapsedMs = std::chrono::milliseconds(std::strtoll(argv[7], nullptr, 10));
+        const auto step = EvaluateAntiAfkTimerStep(
+            armed,
+            lastSerial,
+            keyboardSerial,
+            foreground,
+            minutes,
+            elapsedMs);
+        result = Json{
+            {"operation", "anti-afk-timer"},
+            {"armed", step.armed},
+            {"last_serial", step.lastKeyboardSerialSeen},
+            {"reset_activity", step.resetLastActivityToNow},
+            {"due", step.due},
+            {"threshold_minutes", step.thresholdMinutes},
+        };
+    } else if (operation == "anti-afk-keypress" && argc == 4) {
+        const auto key = static_cast<unsigned int>(std::strtoul(argv[2], nullptr, 10));
+        const bool doublePress = ParseBool(argv[3]);
+        Json events = Json::array();
+        ExecuteAntiAfkKeyPress(
+            key,
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "double_press"}, {"value", doublePress}});
+                return doublePress;
+            },
+            [&](unsigned int heldKey) {
+                events.push_back(Json{{"action", "key_down"}, {"key", heldKey}, {"path", "bound"}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&](unsigned int releasedKey) {
+                events.push_back(Json{{"action", "key_up"}, {"key", releasedKey}, {"path", "bound"}});
+            });
+        result = Json{
+            {"operation", "anti-afk-keypress"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {
