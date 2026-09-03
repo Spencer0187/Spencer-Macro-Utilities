@@ -4,6 +4,12 @@
 //! core contract API. That lets the updater validate untrusted release metadata before any install
 //! operation is attempted and keeps HTTP transport replaceable.
 
+mod check;
+
+pub use check::{
+    LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
+    UpdaterStatus,
+};
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
