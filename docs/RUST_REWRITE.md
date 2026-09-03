@@ -43,6 +43,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation and cross-platform update-asset scoring.
   HTTP transport and platform replacement are intentionally separate follow-up capabilities so
   untrusted release metadata is validated before install-side effects are possible.
+- `smu-network` owns lag-switch config arbitration and the deterministic Linux helper command
+  grammar. Privileged packet interception remains a transport implementation; Roblox endpoint
+  discovery is supplied by `smu-roblox` instead of duplicating log parsing inside networking.
 
 ## Architecture rules
 
