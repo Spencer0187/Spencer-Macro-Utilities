@@ -1,13 +1,15 @@
 # Timing compatibility contract
 
-Timing is observable SMU behavior. The Rust parity phase does not collapse the current controller
-and worker topology into a single scheduler unless differential traces prove that doing so is
-behaviorally identical.
+Timing is observable SMU behavior. The Rust parity phase preserves characterized action ordering and
+wait durations. Controller/worker placement is also preserved unless it is explicitly migrated after
+characterization; such migrations must keep their own differential lane-topology tests.
 
 ## Current oracle topology
 
-- `MacroRuntime::controllerLoop` polls most macro state on one controller thread. Sleeps performed by
-  controller-path macros intentionally stall unrelated polling during that interval.
+- `MacroRuntime::controllerLoop` polls most macro state on one controller thread. Remaining sleeps
+  performed by controller-path macros still stall unrelated polling during that interval.
+- HHJ motion is an intentional post-characterization migration: one long-lived dedicated worker owns
+  its repeating two-frame movement cycle, so those sleeps no longer stall controller polling.
 - One-shot and persistent worker macros created by `MacroRuntime::runWorker` run on independent
   native threads and may overlap each other and the controller.
 - Imported scripts execute on independent runtime workers. Coroutines inside one script are resumed
@@ -83,12 +85,18 @@ uses a long-lived generic worker per active instance. Hold mode atomically ensur
 active while the trigger is held; toggle mode flips the active state only on rising edges. The loop
 head preserves the original short-circuit guard order, while each cycle snapshots its delay once but
 re-reads the bound output key after the first sleep for release. Mid-cycle deactivation does not cancel
-the second half. HHJ motion reuses the controller-lane two-frame delay algorithm: FPS is read once at
-cycle start, `speed_strengthx` is read before the first move, and `speed_strengthy` is read only after
-the first controller sleep. LedgeBounce remains an uncancelled generic worker; its sensitivity uses
+the second half. HHJ motion intentionally moved off the controller after its old behavior was
+characterized: a single dedicated worker repeats the same two-frame delay algorithm, FPS is read once
+per cycle, `speed_strengthx` is read before the first move, and `speed_strengthy` is read only after
+the first worker sleep. LedgeBounce remains an uncancelled generic worker; its sensitivity uses
 C `atof` prefix semantics with the historical 0.01 floor, side/camera settings are read at worker start,
 `realign` is read after 146 ms, and `auto_hold` is read either there or 70 ms later depending on the
-realign branch. Freeze's
+realign branch. Item Unequip/COM Offset and LaughClip are uncancelled one-shot workers with active
+worker guards. Their macro-owned waits and delayed settings reads are frozen, including three separate
+Unequip dropdown reads, live Enter/slot/toggle values, and LaughClip's independently changing
+zoom/shift/movement state. `open_chat` and `paste_text` are recorded as synchronous boundary actions:
+their platform text-backend latency is intentionally not fabricated inside the macro-layer fake clock.
+Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

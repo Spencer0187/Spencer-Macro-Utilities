@@ -2041,6 +2041,53 @@ def runtime_ledge_worker_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_unequip_cases() -> list[dict[str, Any]]:
+    base = {
+        "custom_text": "", "emote_text": "/e wave", "paste_delay": 5,
+        "use_old_paste": False, "enter_action": 13, "enter_release": 13,
+        "dropdown_first": 0, "dropdown_zero": 0, "dropdown_one": 0,
+        "speed_slot": 1, "unequip_toggle": False,
+    }
+    variants = [
+        ("custom-text-short-circuit", {"custom_text": "hello", "emote_text": "/e unused"}),
+        ("dropdown-zero", {}),
+        ("dropdown-one", {"dropdown_first": 1, "dropdown_zero": 1, "dropdown_one": 1}),
+        ("dropdown-two", {"dropdown_first": 2, "dropdown_zero": 2, "dropdown_one": 2}),
+        ("dropdown-other", {"dropdown_first": 3, "dropdown_zero": 3, "dropdown_one": 3}),
+        ("dropdown-live-reads-diverge", {"dropdown_first": 2, "dropdown_zero": 0, "dropdown_one": 1}),
+        ("enter-key-and-slot-change", {"enter_action": 13, "enter_release": 14, "speed_slot": 12}),
+        ("negative-paste-delay-and-no-reequip", {"paste_delay": -99, "use_old_paste": True, "speed_slot": -5, "unequip_toggle": True}),
+    ]
+    cases = []
+    for name, changes in variants:
+        spec = dict(base); spec.update(changes)
+        observed = run_json(RUNTIME_ORACLE, "unequip-worker", compact(spec))
+        cases.append({"name": name, "spec": spec, "events": observed["events"]})
+    return cases
+
+
+def runtime_laugh_cases() -> list[dict[str, Any]]:
+    cases = []; case_index = 0
+    for global_zoom_action in (False, True):
+        for zoom_reverse in (False, True):
+            for laugh_move_start in (False, True):
+                for global_zoom_release in (False, True):
+                    for laugh_move_release in (False, True):
+                        spec = {
+                            "paste_delay": -5 if case_index == 0 else 5,
+                            "use_old_paste": case_index == 0,
+                            "enter_action": 13, "enter_release": 14,
+                            "global_zoom_action": global_zoom_action, "shift_action": 160,
+                            "zoom_reverse": zoom_reverse, "laugh_move_start": laugh_move_start,
+                            "global_zoom_release": global_zoom_release, "shift_release": 161,
+                            "laugh_move_release": laugh_move_release,
+                        }
+                        observed = run_json(RUNTIME_ORACLE, "laugh-worker", compact(spec))
+                        cases.append({"name": f"matrix-{case_index}", "spec": spec, "events": observed["events"]})
+                        case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -2194,6 +2241,8 @@ def write_runtime() -> None:
         "hhj_motion_cases": runtime_hhj_motion_cases(),
         "ledge_turn_cases": runtime_ledge_turn_cases(),
         "ledge_worker_cases": runtime_ledge_worker_cases(),
+        "unequip_cases": runtime_unequip_cases(),
+        "laugh_cases": runtime_laugh_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

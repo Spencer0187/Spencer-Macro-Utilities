@@ -1,14 +1,14 @@
 //! Multi-lane compatibility tracing for macro execution.
 //!
-//! Native SMU macros currently mix controller-thread sleeps with independent workers. A single
-//! virtual clock would serialize those lanes and hide observable overlap, so each lane owns an
-//! independent monotonic timestamp while all events share one deterministic insertion sequence.
+//! SMU macro execution mixes controller work with independent workers. A single virtual clock would
+//! serialize those lanes and hide observable overlap, so each lane owns an independent monotonic
+//! timestamp while all events share one deterministic insertion sequence.
 
 use crate::{MonotonicMicros, WaitKind};
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-/// Execution topology used by the current C++ runtime.
+/// Execution topology used by the compatibility runtime, including approved concurrency migrations.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LaneKind {
     Controller,
@@ -87,6 +87,8 @@ pub enum TraceAction {
     MouseMove { dx: i32, dy: i32 },
     CursorPosition { x: i32, y: i32 },
     MouseButton { button: u32, transition: KeyTransition },
+    OpenChat,
+    PasteText { text: String, delay_ms: i32, use_old_paste: bool },
     AntiAfkWindow(AntiAfkWindowAction),
     TargetSuspendAttempt { suspended: bool, success: bool },
     ProcessTargetRefresh { pids: Vec<u32> },
@@ -198,6 +200,20 @@ impl TraceRecorder {
 
     pub fn mouse_button(&mut self, lane: LaneId, button: u32, transition: KeyTransition) {
         self.push_now(lane, TraceAction::MouseButton { button, transition });
+    }
+
+    pub fn open_chat(&mut self, lane: LaneId) {
+        self.push_now(lane, TraceAction::OpenChat);
+    }
+
+    pub fn paste_text(
+        &mut self,
+        lane: LaneId,
+        text: impl Into<String>,
+        delay_ms: i32,
+        use_old_paste: bool,
+    ) {
+        self.push_now(lane, TraceAction::PasteText { text: text.into(), delay_ms, use_old_paste });
     }
 
     pub fn anti_afk_window(&mut self, lane: LaneId, action: AntiAfkWindowAction) {

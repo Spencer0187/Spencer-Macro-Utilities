@@ -25498,6 +25498,4072 @@
       "was_pressed": false
     }
   ],
+  "laugh_cases": [
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 0,
+          "text": "/e laugh",
+          "use_old_paste": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-0",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": -5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": true,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-1",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-2",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-3",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-4",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-5",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-6",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-7",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-8",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-9",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-10",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-11",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-12",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-13",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-14",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-15",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": false,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-16",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-17",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-18",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-19",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-20",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-21",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-22",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 256,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-23",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-24",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-25",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-26",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-27",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": false,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-28",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-29",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": false,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-30",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": false,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e laugh",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 248,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_action",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "zoom_reverse",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 257,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_start",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "global_zoom_release",
+          "value": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "laugh_move_release",
+          "value": true
+        }
+      ],
+      "name": "matrix-31",
+      "spec": {
+        "enter_action": 13,
+        "enter_release": 14,
+        "global_zoom_action": true,
+        "global_zoom_release": true,
+        "laugh_move_release": true,
+        "laugh_move_start": true,
+        "paste_delay": 5,
+        "shift_action": 160,
+        "shift_release": 161,
+        "use_old_paste": false,
+        "zoom_reverse": true
+      }
+    }
+  ],
   "ledge_turn_cases": [
     {
       "camfix": false,
@@ -32632,6 +36698,949 @@
         10
       ],
       "warning": false
+    }
+  ],
+  "unequip_cases": [
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "hello",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        }
+      ],
+      "name": "custom-text-short-circuit",
+      "spec": {
+        "custom_text": "hello",
+        "dropdown_first": 0,
+        "dropdown_one": 0,
+        "dropdown_zero": 0,
+        "emote_text": "/e unused",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 65,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 815,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 1
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "name": "dropdown-zero",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 0,
+        "dropdown_one": 0,
+        "dropdown_zero": 0,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 65,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 1
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 175,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 1
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "name": "dropdown-one",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 1,
+        "dropdown_one": 1,
+        "dropdown_zero": 1,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 2
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 2
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 2
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 1
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "name": "dropdown-two",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 2,
+        "dropdown_one": 2,
+        "dropdown_zero": 2,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 3
+        },
+        {
+          "action": "wait",
+          "duration_ms": 65,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 3
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 3
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 1
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "name": "dropdown-other",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 3,
+        "dropdown_one": 3,
+        "dropdown_zero": 3,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 2
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 815,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 175,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 1
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "name": "dropdown-live-reads-diverge",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 2,
+        "dropdown_one": 1,
+        "dropdown_zero": 0,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": 5,
+        "speed_slot": 1,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 5,
+          "text": "/e wave",
+          "use_old_paste": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 14
+        },
+        {
+          "action": "key_up",
+          "key": 14,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 65,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 815,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": 12
+        },
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        }
+      ],
+      "name": "enter-key-and-slot-change",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 0,
+        "dropdown_one": 0,
+        "dropdown_zero": 0,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 14,
+        "paste_delay": 5,
+        "speed_slot": 12,
+        "unequip_toggle": false,
+        "use_old_paste": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "open_chat"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "paste_text",
+          "delay_ms": 0,
+          "text": "/e wave",
+          "use_old_paste": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_action",
+          "value": 13
+        },
+        {
+          "action": "key_down",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 35,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "enter_release",
+          "value": 13
+        },
+        {
+          "action": "key_up",
+          "key": 13,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_first",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 65,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_zero",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 815,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "dropdown_one",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "speed_slot",
+          "value": -5
+        },
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "unequip_toggle",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        }
+      ],
+      "name": "negative-paste-delay-and-no-reequip",
+      "spec": {
+        "custom_text": "",
+        "dropdown_first": 0,
+        "dropdown_one": 0,
+        "dropdown_zero": 0,
+        "emote_text": "/e wave",
+        "enter_action": 13,
+        "enter_release": 13,
+        "paste_delay": -99,
+        "speed_slot": -5,
+        "unequip_toggle": true,
+        "use_old_paste": true
+      }
     }
   ],
   "walless_cases": [

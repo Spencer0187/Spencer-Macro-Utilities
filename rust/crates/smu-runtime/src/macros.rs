@@ -1,7 +1,7 @@
 //! Compatibility-frozen native macro slices.
 //!
-//! These helpers intentionally preserve the current C++ controller/worker topology. They are small
-//! enough to test differentially before the full runtime controller is ported.
+//! These helpers preserve characterized action ordering and timing. Controller/worker placement is
+//! preserved by default, except for explicitly approved concurrency migrations such as HHJ motion.
 
 use crate::WaitKind;
 use crate::trace::{InputPath, KeyTransition, LaneId, TraceRecorder};
@@ -1127,6 +1127,139 @@ pub fn execute_ledge_bounce_worker(
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ItemUnequipWorkerInput {
+    pub custom_text: String,
+    pub emote_text: String,
+    pub paste_delay: i32,
+    pub use_old_paste: bool,
+    pub enter_action: u32,
+    pub enter_release: u32,
+    pub dropdown_first: i32,
+    pub dropdown_zero: i32,
+    pub dropdown_one: i32,
+    pub speed_slot: i32,
+    pub unequip_toggle: bool,
+}
+
+pub fn execute_item_unequip_worker(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: &ItemUnequipWorkerInput,
+) {
+    trace.open_chat(lane);
+    trace.wait(lane, Duration::from_millis(25), WaitKind::Coarse);
+
+    let custom = !input.custom_text.is_empty();
+    let pasted = if custom { &input.custom_text } else { &input.emote_text };
+    trace.paste_text(lane, pasted.clone(), input.paste_delay.max(0), input.use_old_paste);
+    trace.wait(lane, Duration::from_millis(100), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "enter_action", input.enter_action);
+    trace.key(lane, input.enter_action, KeyTransition::Down, InputPath::Bound);
+    trace.wait(lane, Duration::from_millis(35), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "enter_release", input.enter_release);
+    trace.key(lane, input.enter_release, KeyTransition::Up, InputPath::Bound);
+
+    if custom {
+        return;
+    }
+
+    trace.setting_i32_read(lane, "dropdown_first", input.dropdown_first);
+    trace.wait(
+        lane,
+        Duration::from_millis(if input.dropdown_first == 2 { 16 } else { 65 }),
+        WaitKind::Coarse,
+    );
+
+    trace.setting_i32_read(lane, "dropdown_zero", input.dropdown_zero);
+    if input.dropdown_zero == 0 {
+        trace.wait(lane, Duration::from_millis(815), WaitKind::Coarse);
+    }
+    trace.setting_i32_read(lane, "dropdown_one", input.dropdown_one);
+    if input.dropdown_one == 1 {
+        trace.wait(lane, Duration::from_millis(175), WaitKind::Coarse);
+    }
+
+    trace.setting_i32_read(lane, "speed_slot", input.speed_slot);
+    let slot = inventory_slot_key(input.speed_slot);
+    trace.key(lane, slot, KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(4), WaitKind::Coarse);
+    trace.key(lane, slot, KeyTransition::Up, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(4), WaitKind::Coarse);
+    trace.setting_bool_read(lane, "unequip_toggle", input.unequip_toggle);
+    if !input.unequip_toggle {
+        trace.key(lane, slot, KeyTransition::Down, InputPath::Direct);
+    }
+    trace.key(lane, slot, KeyTransition::Up, InputPath::Direct);
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct LaughClipWorkerInput {
+    pub paste_delay: i32,
+    pub use_old_paste: bool,
+    pub enter_action: u32,
+    pub enter_release: u32,
+    pub global_zoom_action: bool,
+    pub shift_action: u32,
+    pub zoom_reverse: bool,
+    pub laugh_move_start: bool,
+    pub global_zoom_release: bool,
+    pub shift_release: u32,
+    pub laugh_move_release: bool,
+}
+
+pub fn execute_laugh_clip_worker(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: &LaughClipWorkerInput,
+) {
+    trace.open_chat(lane);
+    trace.wait(lane, Duration::from_millis(25), WaitKind::Coarse);
+    trace.paste_text(lane, "/e laugh", input.paste_delay.max(0), input.use_old_paste);
+    trace.wait(lane, Duration::from_millis(100), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "enter_action", input.enter_action);
+    trace.key(lane, input.enter_action, KeyTransition::Down, InputPath::Bound);
+    trace.wait(lane, Duration::from_millis(35), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "enter_release", input.enter_release);
+    trace.key(lane, input.enter_release, KeyTransition::Up, InputPath::Bound);
+
+    trace.wait(lane, Duration::from_millis(248), WaitKind::Coarse);
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Down, InputPath::Direct);
+    trace.setting_bool_read(lane, "global_zoom_action", input.global_zoom_action);
+    if input.global_zoom_action {
+        trace.setting_bool_read(lane, "zoom_reverse", input.zoom_reverse);
+        let wheel = if input.zoom_reverse {
+            KeyCode::MOUSE_WHEEL_DOWN.raw()
+        } else {
+            KeyCode::MOUSE_WHEEL_UP.raw()
+        };
+        trace.key(lane, wheel, KeyTransition::Down, InputPath::Bound);
+    } else {
+        trace.setting_u32_read(lane, "shift_action", input.shift_action);
+        trace.key(lane, input.shift_action, KeyTransition::Down, InputPath::Bound);
+    }
+
+    trace.setting_bool_read(lane, "laugh_move_start", input.laugh_move_start);
+    if !input.laugh_move_start {
+        trace.key(lane, KeyCode::new(0x53).raw(), KeyTransition::Down, InputPath::Direct);
+    }
+
+    trace.wait(lane, Duration::from_millis(25), WaitKind::Coarse);
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Up, InputPath::Direct);
+    trace.setting_bool_read(lane, "global_zoom_release", input.global_zoom_release);
+    if !input.global_zoom_release {
+        trace.setting_u32_read(lane, "shift_release", input.shift_release);
+        trace.key(lane, input.shift_release, KeyTransition::Up, InputPath::Bound);
+    }
+    trace.wait(lane, Duration::from_millis(25), WaitKind::Coarse);
+
+    trace.setting_bool_read(lane, "laugh_move_release", input.laugh_move_release);
+    if !input.laugh_move_release {
+        trace.key(lane, KeyCode::new(0x53).raw(), KeyTransition::Up, InputPath::Direct);
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
@@ -1282,13 +1415,14 @@ mod tests {
 
     use super::{
         BunnyhopPhysicalSource, FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput,
-        ItemClipStepInput, LedgeBounceWorkerInput, SpeedglitchStateAction, ToggleLoopStateAction,
-        WallWalkStepInput, WallessLhjWorkerInput, apply_spam_key_thread_action,
-        apply_speedglitch_state_action, build_bunnyhop_physical_plan, build_presskey_worker_plan,
-        build_speedglitch_cycle_plan, build_wallhop_worker_plan, evaluate_rising_edge,
-        evaluate_spam_key_controller, evaluate_speedglitch_edge, execute_bunnyhop_iteration,
-        execute_floorbounce_worker, execute_freeze_step, execute_hhj_motion, execute_hhj_worker,
-        execute_item_desync, execute_itemclip_step, execute_ledge_bounce_worker,
+        ItemClipStepInput, ItemUnequipWorkerInput, LaughClipWorkerInput, LedgeBounceWorkerInput,
+        SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput, WallessLhjWorkerInput,
+        apply_spam_key_thread_action, apply_speedglitch_state_action, build_bunnyhop_physical_plan,
+        build_presskey_worker_plan, build_speedglitch_cycle_plan, build_wallhop_worker_plan,
+        evaluate_rising_edge, evaluate_spam_key_controller, evaluate_speedglitch_edge,
+        execute_bunnyhop_iteration, execute_floorbounce_worker, execute_freeze_step,
+        execute_hhj_motion, execute_hhj_worker, execute_item_desync, execute_item_unequip_worker,
+        execute_itemclip_step, execute_laugh_clip_worker, execute_ledge_bounce_worker,
         execute_presskey_worker, execute_spam_key_iteration, execute_speedglitch_cycle,
         execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
         frame_delays_for_fps, freeze_timeout_threshold_ms, ledge_bounce_turn90,
@@ -1325,6 +1459,8 @@ mod tests {
         hhj_motion_cases: Vec<HhjMotionCase>,
         ledge_turn_cases: Vec<LedgeTurnCase>,
         ledge_worker_cases: Vec<LedgeWorkerCase>,
+        unequip_cases: Vec<UnequipCase>,
+        laugh_cases: Vec<LaughCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -1634,6 +1770,50 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct UnequipCase {
+        name: String,
+        spec: UnequipSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct UnequipSpec {
+        custom_text: String,
+        emote_text: String,
+        paste_delay: i32,
+        use_old_paste: bool,
+        enter_action: u32,
+        enter_release: u32,
+        dropdown_first: i32,
+        dropdown_zero: i32,
+        dropdown_one: i32,
+        speed_slot: i32,
+        unequip_toggle: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct LaughCase {
+        name: String,
+        spec: LaughSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct LaughSpec {
+        paste_delay: i32,
+        use_old_paste: bool,
+        enter_action: u32,
+        enter_release: u32,
+        global_zoom_action: bool,
+        shift_action: u32,
+        zoom_reverse: bool,
+        laugh_move_start: bool,
+        global_zoom_release: bool,
+        shift_release: u32,
+        laugh_move_release: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -1711,6 +1891,13 @@ mod tests {
                 "action": "mouse_move",
                 "dx": dx,
                 "dy": dy,
+            })),
+            TraceAction::OpenChat => Some(json!({"action": "open_chat"})),
+            TraceAction::PasteText { text, delay_ms, use_old_paste } => Some(json!({
+                "action": "paste_text",
+                "text": text,
+                "delay_ms": delay_ms,
+                "use_old_paste": use_old_paste,
             })),
             TraceAction::TargetSuspendAttempt { suspended, success } => Some(json!({
                 "action": "set_suspended",
@@ -2350,6 +2537,95 @@ mod tests {
                 trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
                 Some(expected_ms * 1_000),
                 "case {} worker duration",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_item_unequip_worker_live_reads_and_lane_topology_match() {
+        for case in fixture().unequip_cases {
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            let custom = !case.spec.custom_text.is_empty();
+            let expected_ms = if custom {
+                160_u64
+            } else {
+                160 + if case.spec.dropdown_first == 2 { 16 } else { 65 }
+                    + if case.spec.dropdown_zero == 0 { 815 } else { 0 }
+                    + if case.spec.dropdown_one == 1 { 175 } else { 0 }
+                    + 8
+            };
+            execute_item_unequip_worker(
+                &mut trace,
+                worker,
+                &ItemUnequipWorkerInput {
+                    custom_text: case.spec.custom_text,
+                    emote_text: case.spec.emote_text,
+                    paste_delay: case.spec.paste_delay,
+                    use_old_paste: case.spec.use_old_paste,
+                    enter_action: case.spec.enter_action,
+                    enter_release: case.spec.enter_release,
+                    dropdown_first: case.spec.dropdown_first,
+                    dropdown_zero: case.spec.dropdown_zero,
+                    dropdown_one: case.spec.dropdown_one,
+                    speed_slot: case.spec.speed_slot,
+                    unequip_toggle: case.spec.unequip_toggle,
+                },
+            );
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                Some(expected_ms * 1_000),
+                "case {} explicit worker waits",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_laugh_clip_worker_live_reads_and_lane_topology_match() {
+        for case in fixture().laugh_cases {
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_laugh_clip_worker(
+                &mut trace,
+                worker,
+                &LaughClipWorkerInput {
+                    paste_delay: case.spec.paste_delay,
+                    use_old_paste: case.spec.use_old_paste,
+                    enter_action: case.spec.enter_action,
+                    enter_release: case.spec.enter_release,
+                    global_zoom_action: case.spec.global_zoom_action,
+                    shift_action: case.spec.shift_action,
+                    zoom_reverse: case.spec.zoom_reverse,
+                    laugh_move_start: case.spec.laugh_move_start,
+                    global_zoom_release: case.spec.global_zoom_release,
+                    shift_release: case.spec.shift_release,
+                    laugh_move_release: case.spec.laugh_move_release,
+                },
+            );
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                Some(458_000),
+                "case {} explicit worker waits",
                 case.name
             );
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);

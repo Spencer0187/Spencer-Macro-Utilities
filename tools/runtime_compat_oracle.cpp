@@ -100,6 +100,8 @@ int Usage()
               << "  smu_runtime_compat_oracle hhj-motion <section> <is-hhj> <fps> <strength-x> <strength-y>\n"
               << "  smu_runtime_compat_oracle ledge-turn <sensitivity-text> <camfix>\n"
               << "  smu_runtime_compat_oracle ledge-worker <json-spec>\n"
+              << "  smu_runtime_compat_oracle unequip-worker <json-spec>\n"
+              << "  smu_runtime_compat_oracle laugh-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -884,6 +886,156 @@ int main(int argc, char** argv)
             });
         result = Json{
             {"operation", "ledge-worker"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "unequip-worker" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        const std::string customText = spec.value("custom_text", std::string{});
+        const std::string emoteText = spec.value("emote_text", std::string{});
+        const int pasteDelay = spec.value("paste_delay", 0);
+        const bool useOldPaste = spec.value("use_old_paste", false);
+        const auto enterAction = static_cast<unsigned int>(spec.value("enter_action", 0u));
+        const auto enterRelease = static_cast<unsigned int>(spec.value("enter_release", 0u));
+        const int dropdownFirst = spec.value("dropdown_first", 0);
+        const int dropdownZero = spec.value("dropdown_zero", 0);
+        const int dropdownOne = spec.value("dropdown_one", 0);
+        const int speedSlot = spec.value("speed_slot", 1);
+        const bool unequipToggle = spec.value("unequip_toggle", false);
+        int dropdownReads = 0;
+        Json events = Json::array();
+
+        ExecuteItemUnequipWorker(
+            customText,
+            emoteText,
+            [&] { events.push_back(Json{{"action", "open_chat"}}); },
+            [&](const std::string& value) {
+                events.push_back(Json{
+                    {"action", "paste_text"},
+                    {"text", value},
+                    {"delay_ms", std::max(0, pasteDelay)},
+                    {"use_old_paste", useOldPaste},
+                });
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "enter_action"}, {"value", enterAction}});
+                events.push_back(Json{{"action", "key_down"}, {"key", enterAction}, {"path", "bound"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "enter_release"}, {"value", enterRelease}});
+                events.push_back(Json{{"action", "key_up"}, {"key", enterRelease}, {"path", "bound"}});
+            },
+            [&] {
+                const int read = dropdownReads++;
+                const int value = read == 0 ? dropdownFirst : (read == 1 ? dropdownZero : dropdownOne);
+                const char* name = read == 0 ? "dropdown_first" : (read == 1 ? "dropdown_zero" : "dropdown_one");
+                events.push_back(Json{{"action", "setting_read"}, {"name", name}, {"value", value}});
+                return value;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "speed_slot"}, {"value", speedSlot}});
+                return InventorySlotKey(speedSlot);
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "unequip_toggle"}, {"value", unequipToggle}});
+                return unequipToggle;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            });
+        result = Json{
+            {"operation", "unequip-worker"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "laugh-worker" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        const int pasteDelay = spec.value("paste_delay", 0);
+        const bool useOldPaste = spec.value("use_old_paste", false);
+        const auto enterAction = static_cast<unsigned int>(spec.value("enter_action", 0u));
+        const auto enterRelease = static_cast<unsigned int>(spec.value("enter_release", 0u));
+        const bool globalZoomAction = spec.value("global_zoom_action", false);
+        const auto shiftAction = static_cast<unsigned int>(spec.value("shift_action", 0u));
+        const bool zoomReverse = spec.value("zoom_reverse", false);
+        const bool laughMoveStart = spec.value("laugh_move_start", false);
+        const bool globalZoomRelease = spec.value("global_zoom_release", false);
+        const auto shiftRelease = static_cast<unsigned int>(spec.value("shift_release", 0u));
+        const bool laughMoveRelease = spec.value("laugh_move_release", false);
+        Json events = Json::array();
+
+        ExecuteLaughClipWorker(
+            [&] { events.push_back(Json{{"action", "open_chat"}}); },
+            [&] {
+                events.push_back(Json{
+                    {"action", "paste_text"},
+                    {"text", "/e laugh"},
+                    {"delay_ms", std::max(0, pasteDelay)},
+                    {"use_old_paste", useOldPaste},
+                });
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "enter_action"}, {"value", enterAction}});
+                events.push_back(Json{{"action", "key_down"}, {"key", enterAction}, {"path", "bound"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "enter_release"}, {"value", enterRelease}});
+                events.push_back(Json{{"action", "key_up"}, {"key", enterRelease}, {"path", "bound"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "global_zoom_action"}, {"value", globalZoomAction}});
+                return globalZoomAction;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_action"}, {"value", shiftAction}});
+                return shiftAction;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "zoom_reverse"}, {"value", zoomReverse}});
+                return zoomReverse;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "laugh_move_start"}, {"value", laughMoveStart}});
+                return laughMoveStart;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "global_zoom_release"}, {"value", globalZoomRelease}});
+                return globalZoomRelease;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_release"}, {"value", shiftRelease}});
+                return shiftRelease;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "laugh_move_release"}, {"value", laughMoveRelease}});
+                return laughMoveRelease;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            });
+        result = Json{
+            {"operation", "laugh-worker"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

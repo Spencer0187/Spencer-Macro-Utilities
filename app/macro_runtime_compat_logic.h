@@ -808,6 +808,120 @@ void ExecuteLedgeBounceWorker(
     }
 }
 
+template <typename OpenChatFn, typename PasteTextFn, typename HoldEnterFn,
+          typename ReleaseEnterFn, typename DropdownFn, typename SlotKeyFn,
+          typename UnequipToggleFn, typename HoldDirectFn, typename ReleaseDirectFn,
+          typename SleepFn>
+void ExecuteItemUnequipWorker(
+    const std::string& customText,
+    const std::string& emoteText,
+    OpenChatFn&& openChat,
+    PasteTextFn&& pasteText,
+    HoldEnterFn&& holdEnter,
+    ReleaseEnterFn&& releaseEnter,
+    DropdownFn&& dropdown,
+    SlotKeyFn&& slotKey,
+    UnequipToggleFn&& unequipToggle,
+    HoldDirectFn&& holdDirect,
+    ReleaseDirectFn&& releaseDirect,
+    SleepFn&& sleep)
+{
+    openChat();
+    sleep(25);
+
+    const bool custom = !customText.empty();
+    pasteText(custom ? customText : emoteText);
+    sleep(100);
+    holdEnter();
+    sleep(35);
+    releaseEnter();
+
+    if (custom) {
+        return;
+    }
+
+    if (dropdown() == 2) {
+        sleep(16);
+    } else {
+        sleep(65);
+    }
+
+    if (dropdown() == 0) {
+        sleep(815);
+    }
+    if (dropdown() == 1) {
+        sleep(175);
+    }
+
+    const unsigned int slot = slotKey();
+    holdDirect(slot);
+    sleep(4);
+    releaseDirect(slot);
+    sleep(4);
+    if (!unequipToggle()) {
+        holdDirect(slot);
+    }
+    releaseDirect(slot);
+}
+
+template <typename OpenChatFn, typename PasteLaughFn, typename HoldEnterFn,
+          typename ReleaseEnterFn, typename GlobalZoomActionFn, typename ShiftKeyActionFn,
+          typename ZoomReverseFn, typename LaughMoveStartFn, typename GlobalZoomReleaseFn,
+          typename ShiftKeyReleaseFn, typename LaughMoveReleaseFn, typename HoldDirectFn,
+          typename ReleaseDirectFn, typename HoldBoundFn, typename ReleaseBoundFn,
+          typename SleepFn>
+void ExecuteLaughClipWorker(
+    OpenChatFn&& openChat,
+    PasteLaughFn&& pasteLaugh,
+    HoldEnterFn&& holdEnter,
+    ReleaseEnterFn&& releaseEnter,
+    GlobalZoomActionFn&& globalZoomAction,
+    ShiftKeyActionFn&& shiftKeyAction,
+    ZoomReverseFn&& zoomReverse,
+    LaughMoveStartFn&& laughMoveStart,
+    GlobalZoomReleaseFn&& globalZoomRelease,
+    ShiftKeyReleaseFn&& shiftKeyRelease,
+    LaughMoveReleaseFn&& laughMoveRelease,
+    HoldDirectFn&& holdDirect,
+    ReleaseDirectFn&& releaseDirect,
+    HoldBoundFn&& holdBound,
+    ReleaseBoundFn&& releaseBound,
+    SleepFn&& sleep)
+{
+    openChat();
+    sleep(25);
+    pasteLaugh();
+    sleep(100);
+    holdEnter();
+    sleep(35);
+    releaseEnter();
+
+    sleep(248);
+    holdDirect(smu::core::SMU_VK_SPACE);
+    if (!globalZoomAction()) {
+        holdBound(shiftKeyAction());
+    } else {
+        holdBound(zoomReverse()
+            ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN
+            : smu::core::SMU_VK_MOUSE_WHEEL_UP);
+    }
+
+    if (!laughMoveStart()) {
+        holdDirect(smu::core::SMU_VK_S);
+    }
+
+    sleep(25);
+    releaseDirect(smu::core::SMU_VK_SPACE);
+    if (!globalZoomRelease()) {
+        releaseBound(shiftKeyRelease());
+    }
+    sleep(25);
+
+    if (!laughMoveRelease()) {
+        releaseDirect(smu::core::SMU_VK_S);
+    }
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;

@@ -1156,43 +1156,21 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
     const std::string customText = CustomTextChar;
     const std::string emoteText = text;
     runWorker([this, customText, emoteText] {
-        OpenChatForMacro();
-        std::this_thread::sleep_for(25ms);
-
-        const bool custom = !customText.empty();
-        smu::platform::pasteText(custom ? customText : emoteText, std::max(0, PasteDelay), useoldpaste);
-        std::this_thread::sleep_for(100ms);
-        HoldKeyBinded(vk_enterkey);
-        std::this_thread::sleep_for(35ms);
-        ReleaseKeyBinded(vk_enterkey);
-
-        if (custom) {
-            itemUnequipWorkerActive_.store(false, std::memory_order_release);
-            return;
-        }
-
-        if (selected_dropdown == 2) {
-            std::this_thread::sleep_for(16ms);
-        } else {
-            std::this_thread::sleep_for(65ms);
-        }
-
-        if (selected_dropdown == 0) {
-            std::this_thread::sleep_for(815ms);
-        }
-        if (selected_dropdown == 1) {
-            std::this_thread::sleep_for(175ms);
-        }
-
-        const unsigned int slotKey = compat::InventorySlotKey(speed_slot);
-        HoldKey(slotKey);
-        std::this_thread::sleep_for(4ms);
-        ReleaseKey(slotKey);
-        std::this_thread::sleep_for(4ms);
-        if (!unequiptoggle) {
-            HoldKey(slotKey);
-        }
-        ReleaseKey(slotKey);
+        compat::ExecuteItemUnequipWorker(
+            customText,
+            emoteText,
+            [] { OpenChatForMacro(); },
+            [](const std::string& value) {
+                smu::platform::pasteText(value, std::max(0, PasteDelay), useoldpaste);
+            },
+            [] { HoldKeyBinded(vk_enterkey); },
+            [] { ReleaseKeyBinded(vk_enterkey); },
+            [] { return selected_dropdown; },
+            [] { return compat::InventorySlotKey(speed_slot); },
+            [] { return unequiptoggle; },
+            [](unsigned int key) { HoldKey(key); },
+            [](unsigned int key) { ReleaseKey(key); },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); });
         itemUnequipWorkerActive_.store(false, std::memory_order_release);
     });
 }
@@ -1279,35 +1257,23 @@ void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)
     }
 
     runWorker([this] {
-        OpenChatForMacro();
-        std::this_thread::sleep_for(25ms);
-        smu::platform::pasteText("/e laugh", std::max(0, PasteDelay), useoldpaste);
-        std::this_thread::sleep_for(100ms);
-        HoldKeyBinded(vk_enterkey);
-        std::this_thread::sleep_for(35ms);
-        ReleaseKeyBinded(vk_enterkey);
-
-        std::this_thread::sleep_for(248ms);
-
-        HoldKey(smu::core::SMU_VK_SPACE);
-        if (!globalzoomin) {
-            HoldKeyBinded(vk_shiftkey);
-        } else {
-            HoldKeyBinded(globalzoominreverse ? smu::core::SMU_VK_MOUSE_WHEEL_DOWN : smu::core::SMU_VK_MOUSE_WHEEL_UP);
-        }
-
-        if (!laughmoveswitch) {
-            HoldKey(smu::core::SMU_VK_S);
-        }
-
-        std::this_thread::sleep_for(25ms);
-        ReleaseKey(smu::core::SMU_VK_SPACE);
-        ReleaseZoomOrShift();
-        std::this_thread::sleep_for(25ms);
-
-        if (!laughmoveswitch) {
-            ReleaseKey(smu::core::SMU_VK_S);
-        }
+        compat::ExecuteLaughClipWorker(
+            [] { OpenChatForMacro(); },
+            [] { smu::platform::pasteText("/e laugh", std::max(0, PasteDelay), useoldpaste); },
+            [] { HoldKeyBinded(vk_enterkey); },
+            [] { ReleaseKeyBinded(vk_enterkey); },
+            [] { return globalzoomin; },
+            [] { return vk_shiftkey; },
+            [] { return globalzoominreverse; },
+            [] { return laughmoveswitch; },
+            [] { return globalzoomin; },
+            [] { return vk_shiftkey; },
+            [] { return laughmoveswitch; },
+            [](unsigned int key) { HoldKey(key); },
+            [](unsigned int key) { ReleaseKey(key); },
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](unsigned int key) { ReleaseKeyBinded(key); },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); });
         laughClipWorkerActive_.store(false, std::memory_order_release);
     });
 }
