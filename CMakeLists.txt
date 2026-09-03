@@ -520,6 +520,28 @@ elseif(UNIX AND NOT APPLE)
             Threads::Threads
         )
         add_test(NAME profile-persistence COMMAND smu_profile_persistence_test)
+
+        add_executable(smu_profile_compat_oracle
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/profile_compat_oracle.cpp"
+            "${SMU_APP_DIR}/profile_manager.cpp"
+            "${SMU_PLATFORM_DIR}/logging.cpp"
+        )
+        target_include_directories(smu_profile_compat_oracle PRIVATE
+            "${SMU_APP_DIR}"
+            "${SMU_CORE_DIR}"
+            "${SMU_IMGUI_DIR}"
+            "${SMU_JSON_DIR}"
+            "${SMU_GENERATED_DIR}"
+        )
+        target_compile_definitions(smu_profile_compat_oracle PRIVATE SMU_PORTABLE_GLOBALS=1)
+        target_compile_options(smu_profile_compat_oracle PRIVATE -ffunction-sections -fdata-sections)
+        target_link_options(smu_profile_compat_oracle PRIVATE -Wl,--gc-sections)
+        target_link_libraries(smu_profile_compat_oracle PRIVATE
+            smu_platform_linux
+            ${SMU_SDL3_TARGET}
+            OpenGL::GL
+            Threads::Threads
+        )
     endif()
 
     if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)

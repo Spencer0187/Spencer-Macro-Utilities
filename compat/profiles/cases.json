@@ -1,0 +1,1429 @@
+{
+  "best_profile_cases": [
+    {
+      "best": "Profile 1",
+      "name": "requested-exact-wins",
+      "requested": "Profile 1",
+      "serialized": "{\"Profile 1\":{},\"Profile 2\":{},\"_metadata\":{\"last_active_profile\":\"Profile 2\"}}"
+    },
+    {
+      "best": "Profile 2",
+      "name": "last-active-fallback",
+      "requested": "missing",
+      "serialized": "{\"Profile 1\":{},\"Profile 2\":{},\"_metadata\":{\"last_active_profile\":\"Profile 2\"}}"
+    },
+    {
+      "best": "Profile 1",
+      "name": "default-last-active-is-ignored",
+      "requested": "",
+      "serialized": "{\"(default)\":{},\"Profile 1\":{},\"_metadata\":{\"last_active_profile\":\"(default)\"}}"
+    },
+    {
+      "best": "Profile 2",
+      "name": "missing-last-active-falls-back-lexicographically",
+      "requested": "",
+      "serialized": "{\"Alpha\":{},\"Profile 10\":{},\"Profile 2\":{},\"_metadata\":{\"last_active_profile\":\"missing\"}}"
+    },
+    {
+      "best": "Profile 2",
+      "name": "non-object-profile-is-ignored",
+      "requested": "Profile 1",
+      "serialized": "{\"Profile 1\":1,\"Profile 2\":{},\"_metadata\":{}}"
+    },
+    {
+      "best": "",
+      "name": "only-default-has-no-startup-profile",
+      "requested": "",
+      "serialized": "{\"(default)\":{},\"_metadata\":{}}"
+    },
+    {
+      "best": "",
+      "name": "metadata-only-has-no-profile",
+      "requested": "",
+      "serialized": "{\"_metadata\":{}}"
+    },
+    {
+      "best": "(default)",
+      "name": "explicit-default-is-returned",
+      "requested": "(default)",
+      "serialized": "{\"(default)\":{},\"Profile 1\":{},\"_metadata\":{}}"
+    },
+    {
+      "best": "Profile B",
+      "name": "last-active-wrong-type-is-ignored",
+      "requested": "",
+      "serialized": "{\"Profile A\":{},\"Profile B\":{},\"_metadata\":{\"last_active_profile\":7}}"
+    },
+    {
+      "best": "",
+      "name": "non-object-root",
+      "requested": "Profile 1",
+      "serialized": "[]"
+    }
+  ],
+  "format_cases": [
+    {
+      "format": "profile",
+      "name": "profile-metadata",
+      "serialized": "{\"Profile 1\":{},\"_metadata\":{}}"
+    },
+    {
+      "format": "profile",
+      "name": "metadata-only",
+      "serialized": "{\"_metadata\":{}}"
+    },
+    {
+      "format": "legacy-flat",
+      "name": "legacy-bool",
+      "serialized": "{\"macrotoggled\":true}"
+    },
+    {
+      "format": "legacy-flat",
+      "name": "legacy-numeric",
+      "serialized": "{\"selected_section\":15}"
+    },
+    {
+      "format": "legacy-flat",
+      "name": "legacy-text",
+      "serialized": "{\"text\":\"hello\"}"
+    },
+    {
+      "format": "unknown",
+      "name": "metadata-wrong-type-suppresses-legacy",
+      "serialized": "{\"_metadata\":false,\"macrotoggled\":true}"
+    },
+    {
+      "format": "unknown",
+      "name": "char-buffer-only-is-unknown",
+      "serialized": "{\"RobloxSensValue\":\"0.6\"}"
+    },
+    {
+      "format": "unknown",
+      "name": "screen-width-only-is-unknown",
+      "serialized": "{\"screen_width\":1180}"
+    },
+    {
+      "format": "unknown",
+      "name": "instances-only-is-unknown",
+      "serialized": "{\"wallhop_instances\":[]}"
+    },
+    {
+      "format": "unknown",
+      "name": "imported-scripts-only-is-unknown",
+      "serialized": "{\"imported_scripts\":[]}"
+    },
+    {
+      "format": "unknown",
+      "name": "arbitrary-object",
+      "serialized": "{\"Profile 1\":{\"marker\":\"A\"}}"
+    },
+    {
+      "format": "unknown",
+      "name": "empty-object",
+      "serialized": "{}"
+    },
+    {
+      "format": "unknown",
+      "name": "array-root",
+      "serialized": "[]"
+    },
+    {
+      "format": "unknown",
+      "name": "scalar-root",
+      "serialized": "42"
+    },
+    {
+      "format": "invalid-json",
+      "name": "invalid-json",
+      "serialized": "{"
+    }
+  ],
+  "legacy_keys": [
+    "AntiAFKTime",
+    "AutoHHJKey1Time",
+    "AutoHHJKey2Time",
+    "HHJFreezeDelayApply",
+    "PreviousSensValue",
+    "PreviousWallWalkSide",
+    "PreviousWallWalkValue",
+    "RobloxPixelValue",
+    "RobloxWallWalkValueDelay",
+    "WindowPosX",
+    "WindowPosY",
+    "antiafktoggle",
+    "autotoggle",
+    "bounceautohold",
+    "bouncerealignsideways",
+    "bouncesidetoggle",
+    "bunnyhopsmart",
+    "camfixtoggle",
+    "chatoverride",
+    "clip_delay",
+    "clip_slot",
+    "desync_slot",
+    "display_scale",
+    "doublepressafkkey",
+    "fasthhj",
+    "floorbouncehhj",
+    "freezeoutsideroblox",
+    "globalzoomin",
+    "globalzoominreverse",
+    "isfreezeswitch",
+    "isitemclipswitch",
+    "islagswitchswitch",
+    "isspamswitch",
+    "isspeedswitch",
+    "iswallwalkswitch",
+    "lagswitch_autounblock",
+    "lagswitch_max_duration",
+    "lagswitch_unblock_ms",
+    "lagswitchinbound",
+    "lagswitchlag",
+    "lagswitchlagdelay",
+    "lagswitchlaginbound",
+    "lagswitchlagoutbound",
+    "lagswitchoutbound",
+    "lagswitchtargetroblox",
+    "lagswitchusetcp",
+    "laughmoveswitch",
+    "macos_cursor_movement",
+    "macrotoggled",
+    "maxfreezeoverride",
+    "maxfreezetime",
+    "ontoptoggle",
+    "overlay_bg_b",
+    "overlay_bg_g",
+    "overlay_bg_r",
+    "overlay_hide_inactive",
+    "overlay_size",
+    "overlay_use_bg",
+    "overlay_x",
+    "overlay_y",
+    "presskeyinroblox",
+    "prevent_disconnect",
+    "real_delay",
+    "selected_dropdown",
+    "selected_section",
+    "selected_wallhop_instance",
+    "shiftswitch",
+    "show_lag_overlay",
+    "spam_delay",
+    "speed_slot",
+    "speed_strengthx",
+    "speed_strengthy",
+    "speedoffsetx",
+    "speedoffsety",
+    "takeallprocessids",
+    "text",
+    "toggle_flick",
+    "toggle_jump",
+    "unequipinroblox",
+    "unequiptoggle",
+    "useoldpaste",
+    "vk_afkkey",
+    "vk_autohhjkey1",
+    "vk_autohhjkey2",
+    "vk_bouncekey",
+    "vk_bunnyhopkey",
+    "vk_chatkey",
+    "vk_clipkey",
+    "vk_dkey",
+    "vk_enterkey",
+    "vk_f5",
+    "vk_f6",
+    "vk_f8",
+    "vk_floorbouncekey",
+    "vk_lagswitchkey",
+    "vk_laughkey",
+    "vk_leftbracket",
+    "vk_mbutton",
+    "vk_shiftkey",
+    "vk_spamkey",
+    "vk_wallhopjumpkey",
+    "vk_wallkey",
+    "vk_xbutton1",
+    "vk_xbutton2",
+    "vk_xkey",
+    "vk_zkey",
+    "wallesslhjswitch",
+    "wallhop_dx",
+    "wallhop_dy",
+    "wallhop_vertical",
+    "wallhopcamfix",
+    "wallhopswitch",
+    "wallwalktoggleside",
+    "windowOpacityPercent"
+  ],
+  "mutation_cases": [
+    {
+      "arguments": [
+        "Profile A",
+        "Profile C"
+      ],
+      "backup_exists": true,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "duplicate-success",
+      "operation": "duplicate",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "Profile C": {
+          "marker": "A"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "missing",
+        "Profile C"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "duplicate-missing-source",
+      "operation": "duplicate",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "Profile A",
+        "Profile B"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "duplicate-existing-target",
+      "operation": "duplicate",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "(default)",
+        "Defaults Copy"
+      ],
+      "backup_exists": true,
+      "document": {
+        "(default)": {
+          "marker": "defaults"
+        },
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "duplicate-default-source-is-allowed",
+      "operation": "duplicate",
+      "result": {
+        "(default)": {
+          "marker": "defaults"
+        },
+        "Defaults Copy": {
+          "marker": "defaults"
+        },
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "Profile A",
+        "(default)"
+      ],
+      "backup_exists": true,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "duplicate-into-default-is-allowed-when-missing",
+      "operation": "duplicate",
+      "result": {
+        "(default)": {
+          "marker": "A"
+        },
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "Profile A",
+        "Profile C"
+      ],
+      "backup_exists": true,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-success",
+      "operation": "rename",
+      "result": {
+        "Profile B": {
+          "marker": "B"
+        },
+        "Profile C": {
+          "marker": "A"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "missing",
+        "missing"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-same-name-short-circuits-true",
+      "operation": "rename",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "(default)",
+        "X"
+      ],
+      "backup_exists": false,
+      "document": {
+        "(default)": {},
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-default-source-rejected",
+      "operation": "rename",
+      "result": {
+        "(default)": {},
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "Profile A",
+        "(default)"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-to-default-rejected",
+      "operation": "rename",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "Profile A",
+        "Profile B"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-existing-target-rejected",
+      "operation": "rename",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "missing",
+        "Profile C"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "rename-missing-source",
+      "operation": "rename",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "Profile B"
+      ],
+      "backup_exists": true,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "delete-success",
+      "operation": "delete",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": true
+    },
+    {
+      "arguments": [
+        "missing"
+      ],
+      "backup_exists": false,
+      "document": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "delete-missing",
+      "operation": "delete",
+      "result": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    },
+    {
+      "arguments": [
+        "(default)"
+      ],
+      "backup_exists": false,
+      "document": {
+        "(default)": {},
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "name": "delete-default-rejected",
+      "operation": "delete",
+      "result": {
+        "(default)": {},
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {
+          "last_active_profile": "Profile A"
+        }
+      },
+      "success": false
+    }
+  ],
+  "oracle": "smu_profile_compat_oracle",
+  "profile_name_cases": [
+    {
+      "document": {
+        "(default)": {},
+        "Alpha": {},
+        "Profile 10": {},
+        "Profile 2": {},
+        "_metadata": {},
+        "not-a-profile": 7
+      },
+      "name": "default-first-then-sorted",
+      "names": [
+        "(default)",
+        "Alpha",
+        "Profile 10",
+        "Profile 2"
+      ]
+    },
+    {
+      "document": {
+        "_metadata": {}
+      },
+      "name": "metadata-only",
+      "names": []
+    },
+    {
+      "document": {
+        "Alpha": {},
+        "Zulu": {},
+        "scalar": false
+      },
+      "name": "no-metadata-still-lists-object-members",
+      "names": [
+        "Alpha",
+        "Zulu"
+      ]
+    }
+  ],
+  "recovery_cases": [
+    {
+      "corrupt_primary_before_second": "{",
+      "first_backup": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "_metadata": {}
+        }
+      },
+      "first_primary": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "Profile C": {
+            "marker": "A"
+          },
+          "_metadata": {}
+        }
+      },
+      "first_success": true,
+      "initial_backup": null,
+      "initial_primary": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {}
+      },
+      "name": "one-generation-backup-rolls-back-latest-write",
+      "operation": [
+        "duplicate",
+        "Profile A",
+        "Profile C"
+      ],
+      "second_backup": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "_metadata": {}
+        }
+      },
+      "second_operation": [
+        "duplicate",
+        "Profile A",
+        "Profile D"
+      ],
+      "second_primary": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "Profile D": {
+            "marker": "A"
+          },
+          "_metadata": {}
+        }
+      },
+      "second_success": true
+    },
+    {
+      "backup": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "_metadata": {}
+        }
+      },
+      "initial_backup": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {}
+      },
+      "initial_primary": "{",
+      "name": "corrupt-primary-valid-backup-recovers",
+      "operation": [
+        "duplicate",
+        "Profile A",
+        "Profile D"
+      ],
+      "primary": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "Profile D": {
+            "marker": "A"
+          },
+          "_metadata": {}
+        }
+      },
+      "success": true
+    },
+    {
+      "backup": {
+        "exists": false
+      },
+      "initial_backup": null,
+      "initial_primary": "{",
+      "name": "corrupt-primary-no-valid-backup-refuses",
+      "operation": [
+        "duplicate",
+        "Profile A",
+        "Profile Z"
+      ],
+      "primary": {
+        "exists": true,
+        "raw": "{"
+      },
+      "success": false
+    },
+    {
+      "backup": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "_metadata": {}
+        }
+      },
+      "initial_backup": {
+        "Profile A": {
+          "marker": "A"
+        },
+        "Profile B": {
+          "marker": "B"
+        },
+        "_metadata": {}
+      },
+      "initial_primary": null,
+      "name": "missing-primary-valid-backup-recovers",
+      "operation": [
+        "duplicate",
+        "Profile A",
+        "Profile C"
+      ],
+      "primary": {
+        "exists": true,
+        "json": {
+          "Profile A": {
+            "marker": "A"
+          },
+          "Profile B": {
+            "marker": "B"
+          },
+          "Profile C": {
+            "marker": "A"
+          },
+          "_metadata": {}
+        }
+      },
+      "success": true
+    }
+  ],
+  "resolution_cases": [
+    {
+      "canonical_primary": {
+        "exists": false
+      },
+      "corrupt_primary_count": 0,
+      "name": "no-source",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {},
+      "sources": {}
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "canonical-smc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "canonical-smc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "canonical-smc"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json": {
+          "marker": "canonical-smc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "canonical-smc-backup"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "canonical-smc-backup",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json.bak": {
+          "exists": true,
+          "json": {
+            "marker": "canonical-smc-backup"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json.bak": {
+          "marker": "canonical-smc-backup"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "primary"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "canonical-smc-primary-beats-backup",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "primary"
+          }
+        },
+        "canonical/SMCSettings.json.bak": {
+          "exists": true,
+          "json": {
+            "marker": "backup"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json": {
+          "marker": "primary"
+        },
+        "canonical/SMCSettings.json.bak": {
+          "marker": "backup"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "canonical-backup"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "canonical-smc-backup-beats-later-smc-primary",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json.bak": {
+          "exists": true,
+          "json": {
+            "marker": "canonical-backup"
+          }
+        },
+        "executable/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "executable-primary"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json.bak": {
+          "marker": "canonical-backup"
+        },
+        "executable/SMCSettings.json": {
+          "marker": "executable-primary"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "recovered-backup"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "corrupt-canonical-smc-valid-backup-self-heals",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "recovered-backup"
+          }
+        },
+        "canonical/SMCSettings.json.bak": {
+          "exists": true,
+          "json": {
+            "marker": "recovered-backup"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json": "{",
+        "canonical/SMCSettings.json.bak": {
+          "marker": "recovered-backup"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "canonical-rmc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "canonical-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "canonical-rmc"
+          }
+        }
+      },
+      "sources": {
+        "canonical/RMCSettings.json": {
+          "marker": "canonical-rmc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "exe-smc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "smc-globally-outranks-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "canonical-rmc"
+          }
+        },
+        "executable/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "exe-smc"
+          }
+        }
+      },
+      "sources": {
+        "canonical/RMCSettings.json": {
+          "marker": "canonical-rmc"
+        },
+        "executable/SMCSettings.json": {
+          "marker": "exe-smc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "recovered-rmc"
+        }
+      },
+      "corrupt_primary_count": 1,
+      "name": "corrupt-canonical-smc-valid-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "recovered-rmc"
+          }
+        },
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "recovered-rmc"
+          }
+        }
+      },
+      "sources": {
+        "canonical/RMCSettings.json": {
+          "marker": "recovered-rmc"
+        },
+        "canonical/SMCSettings.json": "{"
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "exe-smc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "executable-smc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "executable/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "exe-smc"
+          }
+        }
+      },
+      "sources": {
+        "executable/SMCSettings.json": {
+          "marker": "exe-smc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "executable"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "same-filename-directory-precedence",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "current/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "current"
+          }
+        },
+        "executable/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "executable"
+          }
+        },
+        "parent/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "parent"
+          }
+        }
+      },
+      "sources": {
+        "current/SMCSettings.json": {
+          "marker": "current"
+        },
+        "executable/SMCSettings.json": {
+          "marker": "executable"
+        },
+        "parent/SMCSettings.json": {
+          "marker": "parent"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": 42
+      },
+      "corrupt_primary_count": 0,
+      "name": "parseable-scalar-smc-masks-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "rmc-profile-data"
+          }
+        },
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": 42
+        }
+      },
+      "sources": {
+        "canonical/RMCSettings.json": {
+          "marker": "rmc-profile-data"
+        },
+        "canonical/SMCSettings.json": 42
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": [
+          1,
+          2,
+          3
+        ]
+      },
+      "corrupt_primary_count": 0,
+      "name": "parseable-array-smc-masks-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "canonical/SMCSettings.json": {
+          "exists": true,
+          "json": [
+            1,
+            2,
+            3
+          ]
+        },
+        "executable/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "rmc-profile-data"
+          }
+        }
+      },
+      "sources": {
+        "canonical/SMCSettings.json": [
+          1,
+          2,
+          3
+        ],
+        "executable/RMCSettings.json": {
+          "marker": "rmc-profile-data"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "exe-rmc-backup"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "executable-rmc-backup",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "executable/RMCSettings.json.bak": {
+          "exists": true,
+          "json": {
+            "marker": "exe-rmc-backup"
+          }
+        }
+      },
+      "sources": {
+        "executable/RMCSettings.json.bak": {
+          "marker": "exe-rmc-backup"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "parent-smc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "parent-smc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "parent/SMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "parent-smc"
+          }
+        }
+      },
+      "sources": {
+        "parent/SMCSettings.json": {
+          "marker": "parent-smc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "cwd-rmc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "cwd-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "current/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "cwd-rmc"
+          }
+        }
+      },
+      "sources": {
+        "current/RMCSettings.json": {
+          "marker": "cwd-rmc"
+        }
+      }
+    },
+    {
+      "canonical_primary": {
+        "exists": true,
+        "json": {
+          "marker": "cwd-rmc"
+        }
+      },
+      "corrupt_primary_count": 0,
+      "name": "invalid-smc-is-skipped-for-valid-rmc",
+      "resolved": "config/SMCSettings.json",
+      "source_state_after": {
+        "current/RMCSettings.json": {
+          "exists": true,
+          "json": {
+            "marker": "cwd-rmc"
+          }
+        },
+        "executable/SMCSettings.json": {
+          "exists": true,
+          "raw": "{"
+        }
+      },
+      "sources": {
+        "current/RMCSettings.json": {
+          "marker": "cwd-rmc"
+        },
+        "executable/SMCSettings.json": "{"
+      }
+    }
+  ]
+}

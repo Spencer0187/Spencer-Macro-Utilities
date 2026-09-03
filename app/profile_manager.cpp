@@ -1243,6 +1243,47 @@ static std::string FindBestProfile(const json& root, const std::string& requeste
 	return "";
 }
 
+#if defined(SMU_PORTABLE_GLOBALS)
+std::string DetectSettingsFormatForTesting(const std::string& serializedJson)
+{
+	const json root = json::parse(serializedJson, nullptr, false);
+	if (root.is_discarded()) {
+		return "invalid-json";
+	}
+	if (IsProfileFormat(root)) {
+		return "profile";
+	}
+	if (IsLegacyFlatFormat(root)) {
+		return "legacy-flat";
+	}
+	return "unknown";
+}
+
+std::string FindBestProfileForTesting(const std::string& serializedJson, const std::string& requestedName)
+{
+	const json root = json::parse(serializedJson, nullptr, false);
+	if (root.is_discarded() || !root.is_object()) {
+		return "";
+	}
+	return FindBestProfile(root, requestedName);
+}
+
+std::vector<std::string> LegacyFormatKeysForTesting()
+{
+	std::vector<std::string> keys;
+	keys.reserve(bool_vars.size() + numeric_vars.size() + 1);
+	for (const auto& [key, _] : bool_vars) {
+		keys.push_back(key);
+	}
+	for (const auto& [key, _] : numeric_vars) {
+		keys.push_back(key);
+	}
+	keys.emplace_back("text");
+	std::sort(keys.begin(), keys.end());
+	return keys;
+}
+#endif
+
 // ============================================================================
 //  SERIALIZATION — Convert between globals and JSON profile objects
 // ============================================================================

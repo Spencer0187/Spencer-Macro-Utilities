@@ -15,6 +15,9 @@ std::string ResolveSettingsFilePathForTesting(
     const std::string& executableDirectory,
     const std::string& currentDirectory);
 std::string BuildWindowsSettingsDirectoryForTesting(const std::string& localAppDataDirectory);
+std::string DetectSettingsFormatForTesting(const std::string& serializedJson);
+std::string FindBestProfileForTesting(const std::string& serializedJson, const std::string& requestedName);
+std::vector<std::string> LegacyFormatKeysForTesting();
 #endif
 std::recursive_mutex& GetProfilePersistenceMutex();
 

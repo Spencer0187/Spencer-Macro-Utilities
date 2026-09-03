@@ -562,6 +562,7 @@ version = "0.0.0"
 name = "smu-profile"
 version = "0.0.0"
 dependencies = [
+ "serde",
  "serde_json",
  "thiserror",
 ]
