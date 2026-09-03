@@ -9,6 +9,7 @@ members = [
     "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
+    "crates/smu-updater",
 ]
 default-members = [
     "crates/smu-compat",
@@ -18,6 +19,7 @@ default-members = [
     "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
+    "crates/smu-updater",
 ]
 
 [workspace.package]

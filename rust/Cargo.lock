@@ -598,6 +598,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "smu-updater"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "syn"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
