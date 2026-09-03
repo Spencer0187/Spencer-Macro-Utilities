@@ -575,6 +575,8 @@ void MacroRuntime::start()
 
     antiAfkTimerArmed_ = false;
     antiAfkLastKeyboardSerialSeen_ = 0;
+    antiAfkWorkerActive_.store(false, std::memory_order_release);
+    antiAfkWorkerCompleted_.store(false, std::memory_order_release);
     LogInfo("Portable macro runtime starting.");
     controllerThread_ = std::thread(&MacroRuntime::controllerLoop, this);
 }
@@ -1533,6 +1535,15 @@ void MacroRuntime::processBunnyhopMacro(bool foregroundAllowed)
 void MacroRuntime::processAntiAfkMacro()
 {
 #if defined(_WIN32)
+    const auto now = std::chrono::steady_clock::now();
+    if (antiAfkWorkerActive_.load(std::memory_order_acquire)) {
+        if (!antiAfkWorkerCompleted_.exchange(false, std::memory_order_acq_rel)) {
+            return;
+        }
+        antiAfkLastActivity_ = now;
+        antiAfkWorkerActive_.store(false, std::memory_order_release);
+    }
+
     if (!antiafktoggle || !processFound || !notbinding.load(std::memory_order_acquire)) {
         antiAfkTimerArmed_ = false;
         antiAfkLastKeyboardSerialSeen_ = 0;
@@ -1561,7 +1572,6 @@ void MacroRuntime::processAntiAfkMacro()
         }
     }
 
-    const auto now = std::chrono::steady_clock::now();
     const std::uint64_t keyboardSerial = g_realKeyboardActivitySerial.load(std::memory_order_acquire);
     const auto timerStep = compat::EvaluateAntiAfkTimerStep(
         antiAfkTimerArmed_,
@@ -1585,63 +1595,72 @@ void MacroRuntime::processAntiAfkMacro()
         return;
     }
 
-    auto pressAntiAfkKey = [afkKey]() {
-        compat::ExecuteAntiAfkKeyPress(
-            afkKey,
-            [] { return doublepressafkkey; },
-            [](unsigned int key) { HoldKeyBinded(key); },
-            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-            [](unsigned int key) { ReleaseKeyBinded(key); });
-    };
+    bool expected = false;
+    if (!antiAfkWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+    antiAfkWorkerCompleted_.store(false, std::memory_order_release);
 
+    // Keep timer/foreground decisions on the controller, but run the already-characterized
+    // blocking key/window sequence on one owned worker so unrelated macros keep polling.
     if (robloxForeground) {
-        pressAntiAfkKey();
-        antiAfkLastActivity_ = std::chrono::steady_clock::now();
         antiAfkLastKeyboardSerialSeen_ = keyboardSerial;
-        return;
     }
+    runWorker([this, pids, afkKey, robloxForeground] {
+        auto pressAntiAfkKey = [afkKey]() {
+            compat::ExecuteAntiAfkKeyPress(
+                afkKey,
+                [] { return doublepressafkkey; },
+                [](unsigned int key) { HoldKeyBinded(key); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [](unsigned int key) { ReleaseKeyBinded(key); });
+        };
 
-    HWND window = FindNewestProcessWindow(pids);
-    if (!window) {
-        antiAfkLastActivity_ = now;
-        return;
-    }
+        if (robloxForeground) {
+            pressAntiAfkKey();
+            antiAfkWorkerCompleted_.store(true, std::memory_order_release);
+            return;
+        }
 
-    HWND originalForeground = GetForegroundWindow();
-    POINT originalMousePos = {};
-    const bool hasMousePos = GetCursorPos(&originalMousePos) != FALSE;
+        HWND window = FindNewestProcessWindow(pids);
+        if (window) {
+            HWND originalForeground = GetForegroundWindow();
+            POINT originalMousePos = {};
+            const bool hasMousePos = GetCursorPos(&originalMousePos) != FALSE;
 
-    compat::ExecuteAntiAfkBackgroundSequence(
-        originalForeground != nullptr,
-        hasMousePos,
-        [&] { ShowWindow(window, SW_RESTORE); },
-        [&](bool topmost) {
-            SetWindowPos(
-                window,
-                topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE);
-        },
-        [&] { TapWindowCenter(window); },
-        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-        pressAntiAfkKey,
-        [&](bool topmost) {
-            SetWindowPos(
-                originalForeground,
-                topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
-                0,
-                0,
-                0,
-                0,
-                SWP_NOMOVE | SWP_NOSIZE);
-        },
-        [&] { SetForegroundWindow(originalForeground); },
-        [&] { SetCursorPos(originalMousePos.x, originalMousePos.y); });
+            compat::ExecuteAntiAfkBackgroundSequence(
+                originalForeground != nullptr,
+                hasMousePos,
+                [&] { ShowWindow(window, SW_RESTORE); },
+                [&](bool topmost) {
+                    SetWindowPos(
+                        window,
+                        topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE);
+                },
+                [&] { TapWindowCenter(window); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                pressAntiAfkKey,
+                [&](bool topmost) {
+                    SetWindowPos(
+                        originalForeground,
+                        topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE);
+                },
+                [&] { SetForegroundWindow(originalForeground); },
+                [&] { SetCursorPos(originalMousePos.x, originalMousePos.y); });
+        }
 
-    antiAfkLastActivity_ = std::chrono::steady_clock::now();
+        antiAfkWorkerCompleted_.store(true, std::memory_order_release);
+    });
 #else
     antiAfkTimerArmed_ = false;
     antiAfkLastKeyboardSerialSeen_ = 0;

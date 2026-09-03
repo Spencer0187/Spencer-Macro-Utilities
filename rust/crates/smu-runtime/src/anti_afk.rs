@@ -59,7 +59,7 @@ pub fn evaluate_anti_afk_timer_step(
     }
 }
 
-/// Emits the current controller-lane Anti-AFK bound-key sequence.
+/// Emits the Anti-AFK bound-key sequence on the supplied execution lane.
 pub fn execute_anti_afk_keypress(
     trace: &mut TraceRecorder,
     lane: LaneId,
@@ -125,7 +125,7 @@ pub struct AntiAfkBackgroundInput {
     pub double_press: bool,
 }
 
-/// Emits the exact controller-lane background activation/restoration sequence.
+/// Emits the exact background activation/restoration sequence on the supplied execution lane.
 pub fn execute_anti_afk_background_sequence(
     trace: &mut TraceRecorder,
     lane: LaneId,
@@ -333,28 +333,40 @@ mod tests {
     }
 
     #[test]
-    fn cpp_anti_afk_keypress_timing_matches() {
+    fn cpp_anti_afk_keypress_timing_matches_on_dedicated_worker() {
         for case in fixture().anti_afk_keypress_cases {
             let mut trace = TraceRecorder::default();
-            execute_anti_afk_keypress(&mut trace, LaneId::CONTROLLER, case.key, case.double_press);
+            let worker = trace
+                .spawn_dedicated_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_anti_afk_keypress(&mut trace, worker, case.key, case.double_press);
             assert_eq!(events_json(&trace), case.events, "case {} events", case.name);
             let expected_ms = if case.double_press { 60 } else { 20 };
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
+                Some(0),
+                "case {} controller must not stall",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
                 Some(expected_ms * 1_000),
-                "case {} controller duration",
+                "case {} worker duration",
                 case.name
             );
         }
     }
 
     #[test]
-    fn cpp_anti_afk_tap_window_center_matches() {
+    fn cpp_anti_afk_tap_window_center_matches_on_dedicated_worker() {
         for case in fixture().anti_afk_tap_cases {
             let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_dedicated_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
             let success = execute_anti_afk_tap_window_center(
                 &mut trace,
-                LaneId::CONTROLLER,
+                worker,
                 AntiAfkTapInput {
                     rect_available: case.rect_available,
                     center_x: 500,
@@ -370,20 +382,29 @@ mod tests {
                 if case.rect_available { if case.has_mouse_pos { 150 } else { 50 } } else { 0 };
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
+                Some(0),
+                "case {} controller must not stall",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
                 Some(expected_ms * 1_000),
-                "case {} controller duration",
+                "case {} worker duration",
                 case.name
             );
         }
     }
 
     #[test]
-    fn cpp_anti_afk_background_sequence_matches() {
+    fn cpp_anti_afk_background_sequence_matches_on_dedicated_worker() {
         for case in fixture().anti_afk_background_cases {
             let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_dedicated_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
             execute_anti_afk_background_sequence(
                 &mut trace,
-                LaneId::CONTROLLER,
+                worker,
                 AntiAfkBackgroundInput {
                     has_original_foreground: case.original_foreground,
                     has_outer_mouse_pos: case.outer_mouse_pos,
@@ -409,8 +430,14 @@ mod tests {
             let expected_ms = tap_ms + 500 + key_ms + 200 + restore_ms;
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
+                Some(0),
+                "case {} controller must not stall",
+                case.name
+            );
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
                 Some(expected_ms * 1_000),
-                "case {} controller duration",
+                "case {} worker duration",
                 case.name
             );
         }

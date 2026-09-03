@@ -114,6 +114,8 @@ private:
     bool antiAfkTimerArmed_ = false;
     std::uint64_t antiAfkLastKeyboardSerialSeen_ = 0;
     std::chrono::steady_clock::time_point antiAfkLastActivity_{};
+    std::atomic<bool> antiAfkWorkerActive_{false};
+    std::atomic<bool> antiAfkWorkerCompleted_{false};
     std::atomic<bool> bunnyhopWorkerActive_{false};
     std::atomic<bool> hhjMotionWorkerActive_{false};
     std::atomic<bool> speedglitchWorkerActive_{false};

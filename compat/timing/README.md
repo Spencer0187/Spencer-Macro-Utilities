@@ -8,9 +8,9 @@ characterization; such migrations must keep their own differential lane-topology
 
 - `MacroRuntime::controllerLoop` polls most macro state on one controller thread. Remaining sleeps
   performed by controller-path macros still stall unrelated polling during that interval.
-- HHJ motion, Speedglitch, ItemClip, and WallWalk are intentional post-characterization migrations:
-  each active repeating cycle has one long-lived dedicated worker, so its sleeps no longer stall
-  controller polling.
+- HHJ motion, Speedglitch, ItemClip, WallWalk, and Windows Anti-AFK are intentional
+  post-characterization migrations. Repeating macros use one long-lived dedicated worker; Anti-AFK
+  uses one owned action worker. Their waits no longer stall controller polling.
 - One-shot and persistent worker macros created by `MacroRuntime::runWorker` run on independent
   native threads and may overlap each other and the controller.
 - Imported scripts execute on independent runtime workers. Coroutines inside one script are resumed
@@ -33,7 +33,7 @@ The first differential trace set must cover:
 
 1. press-key down/delay/up ordering;
 2. Wallhop split-delay and 100ms envelope behavior;
-3. Speedglitch/ItemClip/WallWalk controller stalls;
+3. Speedglitch/ItemClip/WallWalk/Anti-AFK former controller stalls and migrated worker topology;
 4. overlapping one-shot workers;
 5. SpamKey and Bunnyhop cancellation boundaries;
 6. `FrameDelaysForFps` threshold behavior around the 0.33/0.66 fractional boundaries and 0.008
@@ -71,11 +71,14 @@ observe different values, including releasing different auto/shift keys than wer
 `isHHJ` active when the later length check changes to zero. Windows Anti-AFK timer compatibility is
 frozen separately: the first eligible poll arms without firing, real keyboard activity resets the timer
 only while Roblox is foreground, configured minutes clamp to at least one, and the elapsed duration
-uses whole-minute truncation. Its bound-key action remains on the controller lane: one press blocks
-for 20 ms and double-press blocks for 60 ms. The Windows background path is also frozen: the nested
-center click contributes 50 ms plus an optional 100 ms inner cursor restore, then the outer flow adds
-500/200 ms around the key action and, when an original foreground window exists, another 50/1000 ms
-before the optional outer cursor restore. FloorBounce also snapshots only its PID
+uses whole-minute truncation. After characterization, its blocking key/window action intentionally
+moved to one dedicated worker while timer and foreground decisions remain controller-owned. One key
+press occupies the worker for 20 ms and double-press for 60 ms; neither advances the controller clock.
+The Windows background path is also frozen: the nested center click contributes 50 ms plus an optional
+100 ms inner cursor restore, then the outer flow adds 500/200 ms around the key action and, when an
+original foreground window exists, another 50/1000 ms before the optional outer cursor restore. The
+active/completed handoff prevents a second Anti-AFK action from starting before the first completes.
+FloorBounce also snapshots only its PID
 vector, then runs an uncancelled generic-worker sequence with 521/72/72/72 ms base waits. Its HHJ
 flag/delays/shift key are read later inside the worker, and distinct rising edges may overlap because
 there is no worker-active guard. Bunnyhop uses its dedicated long-lived worker semantics: physical
