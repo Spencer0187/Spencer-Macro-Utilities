@@ -128,6 +128,20 @@ if(BUILD_TESTING)
         "${SMU_PLATFORM_DIR}"
     )
     add_test(NAME roblox-log-reader COMMAND smu_roblox_log_reader_test)
+
+    # Deterministic compatibility oracle used by the Rust rewrite. This target intentionally links
+    # production parsing code instead of duplicating its behavior in the harness.
+    add_executable(smu_compat_oracle
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/compat_oracle.cpp"
+        "${SMU_APP_DIR}/script_metadata.cpp"
+        "${SMU_PLATFORM_DIR}/roblox_log_reader.cpp"
+    )
+    target_include_directories(smu_compat_oracle PRIVATE
+        "${SMU_APP_DIR}"
+        "${SMU_CORE_DIR}"
+        "${SMU_PLATFORM_DIR}"
+        "${SMU_JSON_DIR}"
+    )
 endif()
 
 if(WIN32)

@@ -8,6 +8,8 @@ publish = false
 [dependencies]
 dear-imgui-rs.workspace = true
 dear-imgui-sdl3.workspace = true
+gl.workspace = true
+image.workspace = true
 sdl3.workspace = true
 
 [lints]

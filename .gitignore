@@ -413,3 +413,7 @@ visual studio/x64/Release/Spencer-Macro-Utilities.exe
 
 # Rust rewrite build output
 /rust/target/
+
+# UI parity generated captures and Dear ImGui runtime state
+/compat/screenshots/generated/
+/imgui.ini

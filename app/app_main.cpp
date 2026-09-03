@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <memory>
 #include <sstream>
@@ -66,6 +67,38 @@ struct WindowSize {
 constexpr WindowSize kMinimumRenderSize{1180, 700};
 constexpr int kMaximumInitialWindowWidth = 3840;
 constexpr int kMaximumInitialWindowHeight = 2160;
+
+bool SaveFramebufferPpm(const std::filesystem::path& path, int width, int height)
+{
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    std::vector<unsigned char> rgba(pixelCount * 4);
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        return false;
+    }
+    output << "P6\n" << width << ' ' << height << "\n255\n";
+
+    std::vector<unsigned char> row(static_cast<std::size_t>(width) * 3);
+    for (int sourceY = height - 1; sourceY >= 0; --sourceY) {
+        const std::size_t sourceRow = static_cast<std::size_t>(sourceY) * static_cast<std::size_t>(width) * 4;
+        for (int x = 0; x < width; ++x) {
+            const std::size_t source = sourceRow + static_cast<std::size_t>(x) * 4;
+            const std::size_t destination = static_cast<std::size_t>(x) * 3;
+            row[destination] = rgba[source];
+            row[destination + 1] = rgba[source + 1];
+            row[destination + 2] = rgba[source + 2];
+        }
+        output.write(reinterpret_cast<const char*>(row.data()), static_cast<std::streamsize>(row.size()));
+    }
+    return static_cast<bool>(output);
+}
 
 #if defined(_WIN32)
 #ifdef WM_COPYGLOBALDATA
@@ -468,6 +501,23 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
     InitializeSharedThemeSystem();
     InitializeSharedProfiles();
 
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    if (parityCase && parityCase[0] != '\0') {
+        // UI oracle captures must not inherit a developer's saved window geometry.
+        const char* captureWidth = std::getenv("SMU_UI_CAPTURE_WIDTH");
+        const char* captureHeight = std::getenv("SMU_UI_CAPTURE_HEIGHT");
+        state.screenWidth = captureWidth
+            ? std::max(kMinimumRenderSize.width, std::atoi(captureWidth))
+            : kMinimumRenderSize.width;
+        state.screenHeight = captureHeight
+            ? std::max(kMinimumRenderSize.height, std::atoi(captureHeight))
+            : kMinimumRenderSize.height;
+        state.windowPosX = 0;
+        state.windowPosY = 0;
+        state.windowOpacityPercent = 100.0f;
+        state.alwaysOnTop = false;
+    }
+
     if (state.screenWidth <= 0 || state.screenWidth > kMaximumInitialWindowWidth) {
         state.screenWidth = config.defaultWidth;
     }
@@ -662,6 +712,10 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         return false;
     };
 
+    const char* captureEnv = std::getenv("SMU_UI_CAPTURE_PATH");
+    const std::filesystem::path capturePath = captureEnv ? std::filesystem::path(captureEnv) : std::filesystem::path{};
+    int captureWarmupFrames = capturePath.empty() ? 0 : 2;
+
     auto handlePendingEvents = [&](const SDL_Event* firstEvent = nullptr) {
         bool quitRequested = false;
         bool sawEvent = false;
@@ -766,7 +820,26 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
         glClearColor(0.08f, 0.09f, 0.10f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        bool capturedParityFrame = false;
+        if (!capturePath.empty() && captureWarmupFrames == 0) {
+            capturedParityFrame = SaveFramebufferPpm(
+                capturePath,
+                std::max(1, state.rawWindowWidth),
+                std::max(1, state.rawWindowHeight));
+            if (!capturedParityFrame) {
+                LogError("Failed to write UI parity capture: " + capturePath.string());
+            }
+        }
+
         SDL_GL_SwapWindow(window);
+        if (!capturePath.empty()) {
+            if (captureWarmupFrames > 0) {
+                --captureWarmupFrames;
+            } else {
+                break;
+            }
+        }
 
         handledRedrawGeneration = redrawGeneration;
         const auto nowAfterRender = FrameClock::now();

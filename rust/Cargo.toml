@@ -6,12 +6,14 @@ members = [
     "crates/smu-core",
     "crates/smu-profile",
     "crates/smu-runtime",
+    "crates/smu-scripting",
 ]
 default-members = [
     "crates/smu-compat",
     "crates/smu-core",
     "crates/smu-profile",
     "crates/smu-runtime",
+    "crates/smu-scripting",
 ]
 
 [workspace.package]
@@ -21,7 +23,8 @@ rust-version = "1.98"
 [workspace.dependencies]
 dear-imgui-rs = "0.17"
 dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+gl = "0.14"
+image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
 sdl3 = { version = "0.18", features = ["build-from-source"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -103,6 +103,65 @@ const char* optionsforoffset[] = {"/e dance2", "/e laugh", "/e cheer"};
 const char* kForegroundFallbackTooltip =
     "Foreground Roblox window detection is unavailable on this display server. This usually happens on Wayland because apps cannot reliably inspect other apps' active windows. This macro has been forced to always-active mode.";
 
+bool IsUiParityCaptureActive()
+{
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    return parityCase && parityCase[0] != '\0';
+}
+
+void ApplyUiParityCaseIfRequested()
+{
+    static bool applied = false;
+    if (applied) {
+        return;
+    }
+    applied = true;
+
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    if (!parityCase || std::strcmp(parityCase, "lag-switch-user-reference") != 0) {
+        return;
+    }
+
+    // Deterministic C++ oracle state matching the user-provided Lag Switch reference crop. This is
+    // intentionally environment-gated so normal production/profile behavior is untouched.
+    InitializeSharedThemeSystem();
+    ApplySharedTheme();
+    selected_section = 15;
+    constexpr int defaultSectionOrder[section_amounts] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
+    for (int i = 0; i < section_amounts; ++i) {
+        section_order[i] = defaultSectionOrder[i];
+        section_toggles[i] = false;
+    }
+    section_toggles[15] = true;
+    for (auto& instance : presskey_instances) instance.section_enabled = false;
+    for (auto& instance : wallhop_instances) instance.section_enabled = false;
+    for (auto& instance : spamkey_instances) instance.section_enabled = false;
+#if defined(__linux__)
+    g_isLinuxWine = true;
+    std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", "sober");
+#else
+    std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", "RobloxPlayerBeta.exe");
+#endif
+    std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.6");
+    std::snprintf(RobloxFPSChar, sizeof(RobloxFPSChar), "%s", "200");
+    camfixtoggle = false;
+    macrotoggled = true;
+    shortdescriptions = false;
+    islagswitchswitch = true;
+    prevent_disconnect = false;
+    lagswitchtargetroblox = false;
+    lagswitchusetcp = false;
+    lagswitch_autounblock = false;
+    lagswitch_max_duration = 9.0f;
+    lagswitch_unblock_ms = 50;
+    lagswitchoutbound = false;
+    lagswitchinbound = false;
+    lagswitchlag = true;
+    lagswitchlagdelay = 500;
+    lagswitchlaginbound = true;
+    lagswitchlagoutbound = false;
+}
+
 struct Section {
     std::string title;
     std::string description;
@@ -569,6 +628,10 @@ void RenderSelectableToastMessage(const std::string& message)
 
 void StartUpdateCheck(bool force)
 {
+    if (const char* parityCase = std::getenv("SMU_UI_PARITY_CASE"); parityCase && parityCase[0] != '\0') {
+        return;
+    }
+
     {
         std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
         if (g_updateUiState.checking || g_updateUiState.applying || (g_updateUiState.checkedOnce && !force)) {
@@ -2170,14 +2233,20 @@ void ResetFloatingUiWindowStateInternal()
 
 void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
 {
-    StartUpdateCheck(false);
-    {
-        std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
-        if (g_updateUiState.checkedOnce) {
-            UserOutdated = g_updateUiState.status.updateAvailable;
+    if (!IsUiParityCaptureActive()) {
+        StartUpdateCheck(false);
+        {
+            std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
+            if (g_updateUiState.checkedOnce) {
+                UserOutdated = g_updateUiState.status.updateAvailable;
+            }
         }
+        RefreshProcessStatus(context);
+    } else {
+        UserOutdated = false;
+        processFound = false;
+        context.detectedProcessCount = 0;
     }
-    RefreshProcessStatus(context);
 
     ImGui::AlignTextToFramePadding();
     ImGui::TextWrapped("Global Settings");
@@ -3704,6 +3773,7 @@ bool QueueDroppedScriptImport(const std::filesystem::path& path)
 
 void RenderAppUi(AppContext& context)
 {
+    ApplyUiParityCaseIfRequested();
     RefreshPlatformCapabilitiesForUi(context);
 
     MaybeWarnForegroundDetectionFallback(context);
@@ -3757,17 +3827,19 @@ void RenderAppUi(AppContext& context)
     }
 #endif
 
-    RenderPlatformCriticalNotifications();
-    RenderPlatformWarningNotifications();
-    RenderMacOSPermissionSetup(context);
-    RenderLinuxInputSetup(context);
-    RenderWaylandScreenCapturePrompt(context);
-    RenderWaylandRemoteDesktopPrompt(context);
-    RenderUpdateConfirmationModal(context);
-    RenderAdministratorRequiredPopup();
-    RenderPrivilegedFreezeHelperPopup();
-    RenderScriptFileDialogFallback();
-    RenderImportTrustModal();
+    if (!IsUiParityCaptureActive()) {
+        RenderPlatformCriticalNotifications();
+        RenderPlatformWarningNotifications();
+        RenderMacOSPermissionSetup(context);
+        RenderLinuxInputSetup(context);
+        RenderWaylandScreenCapturePrompt(context);
+        RenderWaylandRemoteDesktopPrompt(context);
+        RenderUpdateConfirmationModal(context);
+        RenderAdministratorRequiredPopup();
+        RenderPrivilegedFreezeHelperPopup();
+        RenderScriptFileDialogFallback();
+        RenderImportTrustModal();
+    }
 
     float settingsPanelHeight = ImGui::GetTextLineHeightWithSpacing() * 4.0f + ImGui::GetStyle().WindowPadding.y * 3.0f + 12.0f;
     ImGui::BeginChild("GlobalSettings", ImVec2(displaySize.x - 16, settingsPanelHeight), true);

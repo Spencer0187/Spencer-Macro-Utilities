@@ -1,16 +1,36 @@
 //! Minimal `SDL3` + Dear `ImGui` + `OpenGL3` compatibility spike.
 
-use std::path::PathBuf;
+use std::{ffi::c_void, path::PathBuf, ptr};
 
-use dear_imgui_rs::{Condition, Context};
+use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
 use sdl3::{event::Event, keyboard::Keycode, video::GLProfile};
 
-const WINDOW_TITLE: &str = "SMU Rust UI parity spike";
-const INITIAL_WIDTH: u32 = 1180;
-const INITIAL_HEIGHT: u32 = 700;
-const INITIAL_UI_SIZE: [f32; 2] = [1180.0, 700.0];
+mod capture;
+mod global_settings;
+mod lag_switch;
+mod parity;
+mod shell;
+mod sidebar;
+mod theme;
+
+const WINDOW_TITLE: &str = "Spencer Macro Utilities";
+#[cfg(target_os = "macos")]
+const MINIMUM_WIDTH: u32 = 1220;
+#[cfg(not(target_os = "macos"))]
+const MINIMUM_WIDTH: u32 = 1180;
+const MINIMUM_HEIGHT: u32 = 700;
+#[cfg(target_os = "macos")]
 const GLSL_VERSION: &str = "#version 150";
+#[cfg(not(target_os = "macos"))]
+const GLSL_VERSION: &str = "#version 130";
+
+fn capture_dimension(variable: &str, minimum: u32) -> u32 {
+    std::env::var(variable)
+        .ok()
+        .and_then(|value| value.parse::<u32>().ok())
+        .map_or(minimum, |value| value.max(minimum))
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sdl = sdl3::init()?;
@@ -20,22 +40,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     enable_native_ime_ui();
     {
         let attributes = video.gl_attr();
-        attributes.set_context_profile(GLProfile::Core);
-        attributes.set_context_version(3, 3);
+        #[cfg(target_os = "macos")]
+        {
+            attributes.set_context_profile(GLProfile::Core);
+            attributes.set_context_version(3, 2);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            attributes.set_context_profile(GLProfile::Compatibility);
+            attributes.set_context_version(3, 0);
+        }
+        attributes.set_double_buffer(true);
+        attributes.set_depth_size(24);
+        attributes.set_stencil_size(8);
     }
 
-    let window =
-        video.window(WINDOW_TITLE, INITIAL_WIDTH, INITIAL_HEIGHT).opengl().resizable().build()?;
+    let window_width = capture_dimension("SMU_UI_CAPTURE_WIDTH", MINIMUM_WIDTH);
+    let window_height = capture_dimension("SMU_UI_CAPTURE_HEIGHT", MINIMUM_HEIGHT);
+    let mut window =
+        video.window(WINDOW_TITLE, window_width, window_height).opengl().resizable().build()?;
+    window.set_minimum_size(MINIMUM_WIDTH, MINIMUM_HEIGHT)?;
     let gl_context = window.gl_create_context()?;
     window.gl_make_current(&gl_context)?;
+    gl::load_with(|symbol| {
+        video
+            .gl_get_proc_address(symbol)
+            .map_or(ptr::null(), |function| (function as *const ()).cast::<c_void>())
+    });
 
     let mut imgui = Context::create();
     imgui.set_ini_filename::<PathBuf>(None)?;
+    theme::configure(&mut imgui)?;
 
     // SAFETY: `window` and `gl_context` are declared before `imgui`/backend and therefore outlive
     // the native Dear ImGui attachments that retain their pointers.
     let mut backend =
         unsafe { Sdl3OpenGl3Backend::init(&mut imgui, &window, &gl_context, GLSL_VERSION)? };
+    let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+    let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
+    let mut shell_state = shell::ShellState::for_parity_case(parity_case.as_deref());
+    let mut rendered_frames = 0_u32;
 
     'main: loop {
         for event in events.poll_iter() {
@@ -51,12 +95,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backend.new_frame(&mut imgui)?;
         let frame = imgui.begin_frame();
         let ui = frame.ui();
-        ui.window("Rust parity spike").size(INITIAL_UI_SIZE, Condition::FirstUseEver).build(|| {
-            ui.text("Renderer path established; real SMU UI slices come next.");
-        });
+        shell::render(ui, &mut shell_state);
 
         let prepared = backend.prepare(frame, || window.gl_make_current(&gl_context))?;
+
+        // Match the current C++ renderer's clear color. The root ImGui window normally covers the
+        // full client area, but keeping the same clear path avoids edge artifacts during parity
+        // captures and makes framebuffer state deterministic.
+        // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
+        // come from that context's SDL video subsystem.
+        unsafe {
+            gl::ClearColor(0.08, 0.09, 0.10, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
         backend.render_main(prepared)?;
+        rendered_frames = rendered_frames.saturating_add(1);
+
+        if let Some(path) = capture_path.as_deref()
+            && rendered_frames >= 3
+        {
+            capture::save_back_buffer(&window, path)?;
+            break 'main;
+        }
+
         window.gl_swap_window();
     }
 

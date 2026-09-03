@@ -1,0 +1,424 @@
+{
+  "cases": [
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "A",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 65,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "z",
+      "key": {
+        "label": "Z",
+        "modifier": false,
+        "name": "",
+        "raw": 90
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 90,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "0",
+      "key": {
+        "label": "0",
+        "modifier": false,
+        "name": "",
+        "raw": 48
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 48,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "9",
+      "key": {
+        "label": "9",
+        "modifier": false,
+        "name": "",
+        "raw": 57
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 57,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "Ctrl+A",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 131137,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "Ctrl+Shift+A",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 196673,
+      "shift": true,
+      "win": false
+    },
+    {
+      "alt": true,
+      "ctrl": true,
+      "input": "Win+Ctrl+Alt+Shift+F12",
+      "key": {
+        "label": "F12",
+        "modifier": false,
+        "name": "",
+        "raw": 123
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 983163,
+      "shift": true,
+      "win": true
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "F24",
+      "key": {
+        "label": "0x135",
+        "modifier": false,
+        "name": "",
+        "raw": 135
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 135,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Numpad0",
+      "key": {
+        "label": "Numpad 0",
+        "modifier": false,
+        "name": "",
+        "raw": 96
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 96,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Numpad9",
+      "key": {
+        "label": "Numpad 9",
+        "modifier": false,
+        "name": "",
+        "raw": 105
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 105,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "MouseWheelUp",
+      "key": {
+        "label": "Mouse Wheel Up",
+        "modifier": false,
+        "name": "Mouse Wheel Up",
+        "raw": 256
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 256,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "wheel-down",
+      "key": {
+        "label": "Mouse Wheel Down",
+        "modifier": false,
+        "name": "Mouse Wheel Down",
+        "raw": 257
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 257,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "LShift+A",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 65601,
+      "shift": true,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "RCtrl+B",
+      "key": {
+        "label": "B",
+        "modifier": false,
+        "name": "",
+        "raw": 66
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 131138,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": true,
+      "ctrl": false,
+      "input": "Left Alt + C",
+      "key": {
+        "label": "C",
+        "modifier": false,
+        "name": "",
+        "raw": 67
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 262211,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "RightWin+D",
+      "key": {
+        "label": "D",
+        "modifier": false,
+        "name": "",
+        "raw": 68
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 524356,
+      "shift": false,
+      "win": true
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "Ctrl+A+B",
+      "key": {
+        "label": "B",
+        "modifier": false,
+        "name": "",
+        "raw": 66
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 131138,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "Ctrl++A",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 131137,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": true,
+      "input": "+Ctrl+A+",
+      "key": {
+        "label": "A",
+        "modifier": false,
+        "name": "",
+        "raw": 65
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 131137,
+      "shift": false,
+      "win": false
+    },
+    {
+      "input": "shift",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "input": "Ctrl+Alt",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "input": "",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "input": "+",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "input": "Ctrl+NoSuchKey",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Back_Slash",
+      "key": {
+        "label": "\\",
+        "modifier": false,
+        "name": "\\",
+        "raw": 220
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 220,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Page-Down",
+      "key": {
+        "label": "Page Down",
+        "modifier": false,
+        "name": "Page Down",
+        "raw": 34
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 34,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "left mouse",
+      "key": {
+        "label": "Mouse Left",
+        "modifier": false,
+        "name": "Mouse Left",
+        "raw": 1
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 1,
+      "shift": false,
+      "win": false
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Super+Escape",
+      "key": {
+        "label": "Escape",
+        "modifier": false,
+        "name": "Escape",
+        "raw": 27
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 524315,
+      "shift": false,
+      "win": true
+    },
+    {
+      "alt": false,
+      "ctrl": false,
+      "input": "Meta+F1",
+      "key": {
+        "label": "F1",
+        "modifier": false,
+        "name": "",
+        "raw": 112
+      },
+      "operation": "hotkey",
+      "parsed": true,
+      "raw": 524400,
+      "shift": false,
+      "win": true
+    },
+    {
+      "input": "f0",
+      "operation": "hotkey",
+      "parsed": false
+    },
+    {
+      "input": "f25",
+      "operation": "hotkey",
+      "parsed": false
+    }
+  ],
+  "oracle": "smu_compat_oracle hotkey"
+}

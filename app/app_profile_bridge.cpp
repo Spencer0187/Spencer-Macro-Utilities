@@ -5,11 +5,19 @@
 #include "../core/app_state.h"
 #include "../platform/logging.h"
 
+#include <cstdlib>
+
 namespace smu::app {
 
 namespace {
 
 constexpr const char kSettingsLoadFailedWarningId[] = "settings_load_failed";
+
+bool IsUiParityProfileIsolationActive()
+{
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    return parityCase && parityCase[0] != '\0';
+}
 
 } // namespace
 
@@ -34,18 +42,26 @@ void InitializeSharedProfiles()
     // unreadable settings file.
     SyncRuntimeSettingsFromBuffers();
 
-    G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
-    LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
-    // Capture defaults without touching the user's file. Format detection and
-    // recovery must happen before any startup write.
-    CaptureDefaultProfileSnapshot();
-    const bool loaded = TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
-    if (loaded) {
-        SaveDefaultProfile(G_SETTINGS_FILEPATH);
-    } else if (G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
-        G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
-        LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.",
-            kSettingsLoadFailedWarningId, true);
+    // UI parity captures are read/write-isolated from user profile storage. They start from
+    // compiled defaults and are populated by the named parity fixture in RenderAppUi.
+    if (IsUiParityProfileIsolationActive()) {
+        G_SETTINGS_FILEPATH.clear();
+        G_CURRENTLY_LOADED_PROFILE_NAME = "(default)";
+        CaptureDefaultProfileSnapshot();
+    } else {
+        G_SETTINGS_FILEPATH = ResolveSettingsFilePath();
+        LogInfo("Chosen settings path: " + G_SETTINGS_FILEPATH);
+        // Capture defaults without touching the user's file. Format detection and
+        // recovery must happen before any startup write.
+        CaptureDefaultProfileSnapshot();
+        const bool loaded = TryLoadLastActiveProfile(G_SETTINGS_FILEPATH);
+        if (loaded) {
+            SaveDefaultProfile(G_SETTINGS_FILEPATH);
+        } else if (G_CURRENTLY_LOADED_PROFILE_NAME.empty()) {
+            G_CURRENTLY_LOADED_PROFILE_NAME = "Profile 1";
+            LogWarning("Continuing with in-memory default settings because the settings file could not be loaded.",
+                kSettingsLoadFailedWarningId, true);
+        }
     }
 
     state.screenWidth = screen_width;
@@ -89,7 +105,9 @@ bool SaveSharedProfilesNow()
 
 void ShutdownSharedProfiles()
 {
-    SaveSharedProfilesNow();
+    if (!IsUiParityProfileIsolationActive()) {
+        SaveSharedProfilesNow();
+    }
 }
 
 void RenderSharedProfileManager()

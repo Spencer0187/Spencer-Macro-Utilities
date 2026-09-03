@@ -169,6 +169,13 @@ pub struct UiCase {
     pub logical_height: u32,
     pub scale: f32,
     pub platform: Option<String>,
+    pub parity_state: Option<String>,
+    #[serde(default)]
+    pub automated: bool,
+    #[serde(default)]
+    pub gate_tolerance: u8,
+    #[serde(default)]
+    pub ignore: Vec<IgnoreRect>,
 }
 
 /// Loads a checked-in UI capture matrix.

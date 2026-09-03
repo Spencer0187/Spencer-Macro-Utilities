@@ -9,6 +9,30 @@ image_width = 872
 image_height = 580
 baseline = "../screenshots/lag-switch-user-reference-872x580.png"
 
+
+[[case]]
+name = "lag-switch-linux-minimum"
+logical_width = 1180
+logical_height = 700
+scale = 1.0
+platform = "linux"
+parity_state = "lag-switch-user-reference"
+automated = true
+# Same-layout rendering on Dear ImGui 1.92.5 (C++) vs 1.92.9b (Rust) leaves only small
+# antialias/color-quantization differences outside the reviewed hand-drawn footer seam.
+gate_tolerance = 13
+ignore = [
+    # Rounded-corner halo around the old right-section bottom corners.
+    { x = 347, y = 657, width = 5, height = 5 },
+    { x = 1168, y = 657, width = 5, height = 5 },
+    # Manually extended side borders.
+    { x = 347, y = 661, width = 1, height = 31 },
+    { x = 1172, y = 661, width = 1, height = 31 },
+    # Erased/replaced right-section bottom seam and manual footer bottom line.
+    { x = 349, y = 661, width = 822, height = 1 },
+    { x = 347, y = 691, width = 826, height = 1 },
+]
+
 [[case]]
 name = "minimum-windows-linux"
 logical_width = 1180
