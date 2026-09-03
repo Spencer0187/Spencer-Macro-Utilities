@@ -1410,6 +1410,9 @@ mod tests {
                 "suspended": suspended,
             })),
             TraceAction::SpawnWorker { .. }
+            | TraceAction::CursorPosition { .. }
+            | TraceAction::MouseButton { .. }
+            | TraceAction::AntiAfkWindow(_)
             | TraceAction::ProcessTargetRefresh { .. }
             | TraceAction::ProcessSuspendAttempt { .. }
             | TraceAction::LagBackendInit { .. }

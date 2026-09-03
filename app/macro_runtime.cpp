@@ -422,24 +422,28 @@ bool TapWindowCenter(HWND window)
 
     POINT originalMousePos = {};
     const bool hasOriginalMousePos = GetCursorPos(&originalMousePos) != FALSE;
-
     const int centerX = rect.left + (rect.right - rect.left) / 2;
     const int centerY = rect.top + (rect.bottom - rect.top) / 2;
-    SetCursorPos(centerX, centerY);
 
     INPUT mouseInput = {};
     mouseInput.type = INPUT_MOUSE;
-    mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-    SendInput(1, &mouseInput, sizeof(INPUT));
-    std::this_thread::sleep_for(50ms);
-    mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    SendInput(1, &mouseInput, sizeof(INPUT));
-
-    if (hasOriginalMousePos) {
-        std::this_thread::sleep_for(100ms);
-        SetCursorPos(originalMousePos.x, originalMousePos.y);
-    }
-    return true;
+    return compat::ExecuteAntiAfkTapWindowCenter(
+        true,
+        centerX,
+        centerY,
+        hasOriginalMousePos,
+        originalMousePos.x,
+        originalMousePos.y,
+        [](int x, int y) { SetCursorPos(x, y); },
+        [&] {
+            mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+            SendInput(1, &mouseInput, sizeof(INPUT));
+        },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [&] {
+            mouseInput.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+            SendInput(1, &mouseInput, sizeof(INPUT));
+        });
 }
 #endif
 
@@ -1593,24 +1597,35 @@ void MacroRuntime::processAntiAfkMacro()
     POINT originalMousePos = {};
     const bool hasMousePos = GetCursorPos(&originalMousePos) != FALSE;
 
-    ShowWindow(window, SW_RESTORE);
-    SetWindowPos(window, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    SetWindowPos(window, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    TapWindowCenter(window);
-    std::this_thread::sleep_for(500ms);
-    pressAntiAfkKey();
-    std::this_thread::sleep_for(200ms);
-
-    if (originalForeground) {
-        SetWindowPos(originalForeground, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        SetWindowPos(originalForeground, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        std::this_thread::sleep_for(50ms);
-        SetForegroundWindow(originalForeground);
-        std::this_thread::sleep_for(1s);
-    }
-    if (hasMousePos) {
-        SetCursorPos(originalMousePos.x, originalMousePos.y);
-    }
+    compat::ExecuteAntiAfkBackgroundSequence(
+        originalForeground != nullptr,
+        hasMousePos,
+        [&] { ShowWindow(window, SW_RESTORE); },
+        [&](bool topmost) {
+            SetWindowPos(
+                window,
+                topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE);
+        },
+        [&] { TapWindowCenter(window); },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        pressAntiAfkKey,
+        [&](bool topmost) {
+            SetWindowPos(
+                originalForeground,
+                topmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE);
+        },
+        [&] { SetForegroundWindow(originalForeground); },
+        [&] { SetCursorPos(originalMousePos.x, originalMousePos.y); });
 
     antiAfkLastActivity_ = std::chrono::steady_clock::now();
 #else

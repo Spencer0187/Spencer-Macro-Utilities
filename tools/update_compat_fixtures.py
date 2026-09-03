@@ -1793,6 +1793,60 @@ def runtime_anti_afk_keypress_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_anti_afk_tap_cases() -> list[dict[str, Any]]:
+    cases = []
+    for rect_available in (False, True):
+        for has_mouse_pos in (False, True):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "anti-afk-tap",
+                str(int(rect_available)),
+                str(int(has_mouse_pos)),
+            )
+            cases.append(
+                {
+                    "name": f"rect-{int(rect_available)}-mouse-{int(has_mouse_pos)}",
+                    "rect_available": rect_available,
+                    "has_mouse_pos": has_mouse_pos,
+                    "success": observed["success"],
+                    "events": observed["events"],
+                }
+            )
+    return cases
+
+
+def runtime_anti_afk_background_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for original_foreground in (False, True):
+        for outer_mouse_pos in (False, True):
+            for tap_rect in (False, True):
+                for tap_mouse_pos in (False, True):
+                    for double_press in (False, True):
+                        observed = run_json(
+                            RUNTIME_ORACLE,
+                            "anti-afk-background",
+                            str(int(original_foreground)),
+                            str(int(outer_mouse_pos)),
+                            str(int(tap_rect)),
+                            str(int(tap_mouse_pos)),
+                            str(int(double_press)),
+                        )
+                        cases.append(
+                            {
+                                "name": f"matrix-{case_index}",
+                                "original_foreground": original_foreground,
+                                "outer_mouse_pos": outer_mouse_pos,
+                                "tap_rect": tap_rect,
+                                "tap_mouse_pos": tap_mouse_pos,
+                                "double_press": double_press,
+                                "events": observed["events"],
+                            }
+                        )
+                        case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1938,6 +1992,8 @@ def write_runtime() -> None:
         "bunnyhop_iteration_cases": runtime_bunnyhop_iteration_cases(),
         "anti_afk_timer_cases": runtime_anti_afk_timer_cases(),
         "anti_afk_keypress_cases": runtime_anti_afk_keypress_cases(),
+        "anti_afk_tap_cases": runtime_anti_afk_tap_cases(),
+        "anti_afk_background_cases": runtime_anti_afk_background_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

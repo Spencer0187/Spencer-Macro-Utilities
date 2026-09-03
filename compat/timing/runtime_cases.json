@@ -1,4 +1,2870 @@
 {
+  "anti_afk_background_cases": [
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-0",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-1",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-2",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-3",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-4",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-5",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-6",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-7",
+      "original_foreground": false,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-8",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-9",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-10",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-11",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-12",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-13",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-14",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-15",
+      "original_foreground": false,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-16",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-17",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-18",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-19",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-20",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-21",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-22",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "name": "matrix-23",
+      "original_foreground": true,
+      "outer_mouse_pos": false,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-24",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-25",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-26",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "tap_result",
+          "success": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-27",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": false
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-28",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-29",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": false,
+      "tap_rect": true
+    },
+    {
+      "double_press": false,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": false
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-30",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    },
+    {
+      "double_press": true,
+      "events": [
+        {
+          "action": "show_target_restore"
+        },
+        {
+          "action": "target_topmost",
+          "active": true
+        },
+        {
+          "action": "target_topmost",
+          "active": false
+        },
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "action": "tap_result",
+          "success": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 500,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "double_press",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 20,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 112,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 200,
+          "kind": "coarse"
+        },
+        {
+          "action": "original_topmost",
+          "active": true
+        },
+        {
+          "action": "original_topmost",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "set_original_foreground"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 30,
+          "y": 40
+        }
+      ],
+      "name": "matrix-31",
+      "original_foreground": true,
+      "outer_mouse_pos": true,
+      "tap_mouse_pos": true,
+      "tap_rect": true
+    }
+  ],
   "anti_afk_keypress_cases": [
     {
       "double_press": false,
@@ -221,6 +3087,84 @@
       ],
       "key": 983130,
       "name": "key-983130-double-1"
+    }
+  ],
+  "anti_afk_tap_cases": [
+    {
+      "events": [],
+      "has_mouse_pos": false,
+      "name": "rect-0-mouse-0",
+      "rect_available": false,
+      "success": false
+    },
+    {
+      "events": [],
+      "has_mouse_pos": true,
+      "name": "rect-0-mouse-1",
+      "rect_available": false,
+      "success": false
+    },
+    {
+      "events": [
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        }
+      ],
+      "has_mouse_pos": false,
+      "name": "rect-1-mouse-0",
+      "rect_available": true,
+      "success": true
+    },
+    {
+      "events": [
+        {
+          "action": "cursor_move",
+          "x": 500,
+          "y": 400
+        },
+        {
+          "action": "mouse_down",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 50,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_up",
+          "button": 1
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "cursor_move",
+          "x": 10,
+          "y": 20
+        }
+      ],
+      "has_mouse_pos": true,
+      "name": "rect-1-mouse-1",
+      "rect_available": true,
+      "success": true
     }
   ],
   "anti_afk_timer_cases": [

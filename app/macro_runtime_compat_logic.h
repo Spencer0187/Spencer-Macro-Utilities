@@ -607,6 +607,69 @@ void ExecuteAntiAfkKeyPress(
     release(afkKey);
 }
 
+template <typename SetCursorFn, typename MouseDownFn, typename SleepFn, typename MouseUpFn>
+bool ExecuteAntiAfkTapWindowCenter(
+    bool rectAvailable,
+    int centerX,
+    int centerY,
+    bool hasOriginalMousePos,
+    int originalMouseX,
+    int originalMouseY,
+    SetCursorFn&& setCursor,
+    MouseDownFn&& mouseDown,
+    SleepFn&& sleep,
+    MouseUpFn&& mouseUp)
+{
+    if (!rectAvailable) {
+        return false;
+    }
+
+    setCursor(centerX, centerY);
+    mouseDown();
+    sleep(50);
+    mouseUp();
+    if (hasOriginalMousePos) {
+        sleep(100);
+        setCursor(originalMouseX, originalMouseY);
+    }
+    return true;
+}
+
+template <typename ShowTargetFn, typename SetTargetTopmostFn, typename TapTargetFn,
+          typename SleepFn, typename PressKeyFn, typename SetOriginalTopmostFn,
+          typename SetOriginalForegroundFn, typename RestoreOuterMouseFn>
+void ExecuteAntiAfkBackgroundSequence(
+    bool hasOriginalForeground,
+    bool hasOuterMousePos,
+    ShowTargetFn&& showTarget,
+    SetTargetTopmostFn&& setTargetTopmost,
+    TapTargetFn&& tapTarget,
+    SleepFn&& sleep,
+    PressKeyFn&& pressKey,
+    SetOriginalTopmostFn&& setOriginalTopmost,
+    SetOriginalForegroundFn&& setOriginalForeground,
+    RestoreOuterMouseFn&& restoreOuterMouse)
+{
+    showTarget();
+    setTargetTopmost(true);
+    setTargetTopmost(false);
+    tapTarget();
+    sleep(500);
+    pressKey();
+    sleep(200);
+
+    if (hasOriginalForeground) {
+        setOriginalTopmost(true);
+        setOriginalTopmost(false);
+        sleep(50);
+        setOriginalForeground();
+        sleep(1000);
+    }
+    if (hasOuterMousePos) {
+        restoreOuterMouse();
+    }
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;

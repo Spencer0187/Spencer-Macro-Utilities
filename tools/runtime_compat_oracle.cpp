@@ -92,6 +92,8 @@ int Usage()
               << "  smu_runtime_compat_oracle bunnyhop-iteration <output-key> <delay-ms> <continue-after-half>\n"
               << "  smu_runtime_compat_oracle anti-afk-timer <armed> <last-serial> <keyboard-serial> <foreground> <minutes> <elapsed-ms>\n"
               << "  smu_runtime_compat_oracle anti-afk-keypress <key> <double-press>\n"
+              << "  smu_runtime_compat_oracle anti-afk-tap <rect-available> <has-mouse-pos>\n"
+              << "  smu_runtime_compat_oracle anti-afk-background <original-foreground> <outer-mouse-pos> <tap-rect> <tap-mouse-pos> <double-press>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -606,6 +608,107 @@ int main(int argc, char** argv)
             });
         result = Json{
             {"operation", "anti-afk-keypress"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "anti-afk-tap" && argc == 4) {
+        const bool rectAvailable = ParseBool(argv[2]);
+        const bool hasMousePos = ParseBool(argv[3]);
+        Json events = Json::array();
+        const bool success = ExecuteAntiAfkTapWindowCenter(
+            rectAvailable,
+            500,
+            400,
+            hasMousePos,
+            10,
+            20,
+            [&](int x, int y) {
+                events.push_back(Json{{"action", "cursor_move"}, {"x", x}, {"y", y}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "mouse_down"}, {"button", 1}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "mouse_up"}, {"button", 1}});
+            });
+        result = Json{
+            {"operation", "anti-afk-tap"},
+            {"success", success},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "anti-afk-background" && argc == 7) {
+        const bool hasOriginalForeground = ParseBool(argv[2]);
+        const bool hasOuterMousePos = ParseBool(argv[3]);
+        const bool tapRectAvailable = ParseBool(argv[4]);
+        const bool tapHasMousePos = ParseBool(argv[5]);
+        const bool doublePress = ParseBool(argv[6]);
+        Json events = Json::array();
+
+        ExecuteAntiAfkBackgroundSequence(
+            hasOriginalForeground,
+            hasOuterMousePos,
+            [&] {
+                events.push_back(Json{{"action", "show_target_restore"}});
+            },
+            [&](bool topmost) {
+                events.push_back(Json{{"action", "target_topmost"}, {"active", topmost}});
+            },
+            [&] {
+                const bool success = ExecuteAntiAfkTapWindowCenter(
+                    tapRectAvailable,
+                    500,
+                    400,
+                    tapHasMousePos,
+                    10,
+                    20,
+                    [&](int x, int y) {
+                        events.push_back(Json{{"action", "cursor_move"}, {"x", x}, {"y", y}});
+                    },
+                    [&] {
+                        events.push_back(Json{{"action", "mouse_down"}, {"button", 1}});
+                    },
+                    [&](int delayMs) {
+                        events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                    },
+                    [&] {
+                        events.push_back(Json{{"action", "mouse_up"}, {"button", 1}});
+                    });
+                events.push_back(Json{{"action", "tap_result"}, {"success", success}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&] {
+                ExecuteAntiAfkKeyPress(
+                    112,
+                    [&] {
+                        events.push_back(Json{{"action", "setting_read"}, {"name", "double_press"}, {"value", doublePress}});
+                        return doublePress;
+                    },
+                    [&](unsigned int heldKey) {
+                        events.push_back(Json{{"action", "key_down"}, {"key", heldKey}, {"path", "bound"}});
+                    },
+                    [&](int delayMs) {
+                        events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                    },
+                    [&](unsigned int releasedKey) {
+                        events.push_back(Json{{"action", "key_up"}, {"key", releasedKey}, {"path", "bound"}});
+                    });
+            },
+            [&](bool topmost) {
+                events.push_back(Json{{"action", "original_topmost"}, {"active", topmost}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "set_original_foreground"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "cursor_move"}, {"x", 30}, {"y", 40}});
+            });
+
+        result = Json{
+            {"operation", "anti-afk-background"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

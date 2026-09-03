@@ -68,7 +68,10 @@ observe different values, including releasing different auto/shift keys than wer
 frozen separately: the first eligible poll arms without firing, real keyboard activity resets the timer
 only while Roblox is foreground, configured minutes clamp to at least one, and the elapsed duration
 uses whole-minute truncation. Its bound-key action remains on the controller lane: one press blocks
-for 20 ms and double-press blocks for 60 ms. FloorBounce also snapshots only its PID
+for 20 ms and double-press blocks for 60 ms. The Windows background path is also frozen: the nested
+center click contributes 50 ms plus an optional 100 ms inner cursor restore, then the outer flow adds
+500/200 ms around the key action and, when an original foreground window exists, another 50/1000 ms
+before the optional outer cursor restore. FloorBounce also snapshots only its PID
 vector, then runs an uncancelled generic-worker sequence with 521/72/72/72 ms base waits. Its HHJ
 flag/delays/shift key are read later inside the worker, and distinct rising edges may overlap because
 there is no worker-active guard. Bunnyhop uses its dedicated long-lived worker semantics: physical

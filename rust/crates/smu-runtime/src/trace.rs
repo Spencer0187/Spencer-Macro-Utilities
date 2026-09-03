@@ -68,6 +68,16 @@ pub struct LagConfigTrace {
     pub unblock_duration_ms: i32,
 }
 
+/// Window-management side effects used by the Windows Anti-AFK compatibility path.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AntiAfkWindowAction {
+    ShowTargetRestore,
+    TargetTopmost { active: bool },
+    TapResult { success: bool },
+    OriginalTopmost { active: bool },
+    SetOriginalForeground,
+}
+
 /// One compatibility-relevant side effect or scheduling operation.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TraceAction {
@@ -75,6 +85,9 @@ pub enum TraceAction {
     SpawnWorker { child: LaneId },
     Key { key: u32, transition: KeyTransition, path: InputPath },
     MouseMove { dx: i32, dy: i32 },
+    CursorPosition { x: i32, y: i32 },
+    MouseButton { button: u32, transition: KeyTransition },
+    AntiAfkWindow(AntiAfkWindowAction),
     TargetSuspendAttempt { suspended: bool, success: bool },
     ProcessTargetRefresh { pids: Vec<u32> },
     ProcessSuspendAttempt { pid: u32, suspended: bool, success: bool },
@@ -176,6 +189,18 @@ impl TraceRecorder {
 
     pub fn mouse_move(&mut self, lane: LaneId, dx: i32, dy: i32) {
         self.push_now(lane, TraceAction::MouseMove { dx, dy });
+    }
+
+    pub fn cursor_position(&mut self, lane: LaneId, x: i32, y: i32) {
+        self.push_now(lane, TraceAction::CursorPosition { x, y });
+    }
+
+    pub fn mouse_button(&mut self, lane: LaneId, button: u32, transition: KeyTransition) {
+        self.push_now(lane, TraceAction::MouseButton { button, transition });
+    }
+
+    pub fn anti_afk_window(&mut self, lane: LaneId, action: AntiAfkWindowAction) {
+        self.push_now(lane, TraceAction::AntiAfkWindow(action));
     }
 
     pub fn target_suspend_attempt(&mut self, lane: LaneId, suspended: bool, success: bool) {
