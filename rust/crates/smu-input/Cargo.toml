@@ -1,0 +1,12 @@
+[package]
+name = "smu-input"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+smu-core = { version = "=0.0.0", path = "../smu-core" }

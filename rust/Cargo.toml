@@ -4,23 +4,27 @@ members = [
     "crates/smu-app",
     "crates/smu-compat",
     "crates/smu-core",
-    "crates/smu-profile",
+    "crates/smu-input",
     "crates/smu-network",
     "crates/smu-process",
+    "crates/smu-profile",
     "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
-    "crates/smu-updater",]
+    "crates/smu-updater",
+]
 default-members = [
     "crates/smu-compat",
     "crates/smu-core",
-    "crates/smu-profile",
+    "crates/smu-input",
     "crates/smu-network",
     "crates/smu-process",
+    "crates/smu-profile",
     "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
-    "crates/smu-updater",]
+    "crates/smu-updater",
+]
 
 [workspace.package]
 edition = "2024"

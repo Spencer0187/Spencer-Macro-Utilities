@@ -559,6 +559,13 @@ name = "smu-core"
 version = "0.0.0"
 
 [[package]]
+name = "smu-input"
+version = "0.0.0"
+dependencies = [
+ "smu-core",
+]
+
+[[package]]
 name = "smu-network"
 version = "0.0.0"
 
