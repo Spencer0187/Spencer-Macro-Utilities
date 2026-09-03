@@ -24,6 +24,7 @@ int Usage()
               << "  smu_runtime_compat_oracle freeze-step <section> <foreground> <pressed> <was-pressed> <configured-toggle> <freeze-key> <suspended> <elapsed-ms> <max-seconds> <override-ms> <running-after-override> <pressed-after-override> <suspend-success> <resume-success>\n"
               << "  smu_runtime_compat_oracle target-suspend <json-spec>\n"
               << "  smu_runtime_compat_oracle item-desync <foreground> <section> <hotkey> <slot>\n"
+              << "  smu_runtime_compat_oracle wallhop-worker <dx> <dy> <vertical> <delay-ms> <bonus-ms> <left> <jump> <flick-back> <jump-key>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -221,6 +222,47 @@ int main(int argc, char** argv)
             {"pressed", pressed},
             {"loop_state", pressed},
             {"slot_key", std::move(slotKey)},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "wallhop-worker" && argc == 11) {
+        const auto plan = BuildWallhopWorkerPlan(
+            std::atoi(argv[2]),
+            std::atoi(argv[3]),
+            std::atoi(argv[4]),
+            std::atoi(argv[5]),
+            std::atoi(argv[6]),
+            ParseBool(argv[7]),
+            ParseBool(argv[8]),
+            ParseBool(argv[9]),
+            static_cast<unsigned int>(std::strtoul(argv[10], nullptr, 10)));
+        Json events = Json::array();
+        ExecuteWallhopWorker(
+            plan,
+            [&](int dx, int dy) {
+                events.push_back(Json{{"action", "mouse_move"}, {"dx", dx}, {"dy", dy}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            });
+        result = Json{
+            {"operation", "wallhop-worker"},
+            {"plan", Json{
+                {"dx", plan.dx},
+                {"dy", plan.dy},
+                {"vertical", plan.vertical},
+                {"delay_ms", plan.delayMs},
+                {"bonus_delay_ms", plan.bonusDelayMs},
+                {"left", plan.left},
+                {"jump", plan.jump},
+                {"flick_back", plan.flickBack},
+                {"jump_key", plan.jumpKey},
+            }},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

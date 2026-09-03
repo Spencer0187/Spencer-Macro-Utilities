@@ -1281,6 +1281,47 @@ def runtime_wallwalk_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_wallhop_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for delay in (-5, 0, 1, 19, 99, 100, 101):
+        for bonus in (-5, 0, 1, 18, 19, 100):
+            for left in (False, True):
+                for jump in (False, True):
+                    for flick_back in (False, True):
+                        observed = run_json(
+                            RUNTIME_ORACLE,
+                            "wallhop-worker",
+                            "300",
+                            "-301",
+                            "7",
+                            str(delay),
+                            str(bonus),
+                            str(int(left)),
+                            str(int(jump)),
+                            str(int(flick_back)),
+                            "32",
+                        )
+                        cases.append(
+                            {
+                                "name": f"matrix-{case_index}",
+                                "dx": 300,
+                                "dy": -301,
+                                "vertical": 7,
+                                "delay_ms": delay,
+                                "bonus_delay_ms": bonus,
+                                "left": left,
+                                "jump": jump,
+                                "flick_back": flick_back,
+                                "jump_key": 32,
+                                "plan": observed["plan"],
+                                "events": observed["events"],
+                            }
+                        )
+                        case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1417,6 +1458,7 @@ def write_runtime() -> None:
         "itemclip_cases": runtime_itemclip_cases(),
         "wallwalk_delay_cases": runtime_wallwalk_delay_cases(),
         "wallwalk_cases": runtime_wallwalk_cases(),
+        "wallhop_cases": runtime_wallhop_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

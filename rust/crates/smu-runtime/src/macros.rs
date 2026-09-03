@@ -461,6 +461,82 @@ pub fn execute_wallwalk_step(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct WallhopWorkerPlan {
+    pub dx: i32,
+    pub dy: i32,
+    pub vertical: i32,
+    pub delay_ms: i32,
+    pub bonus_delay_ms: i32,
+    pub left: bool,
+    pub jump: bool,
+    pub flick_back: bool,
+    pub jump_key: u32,
+}
+
+#[must_use]
+#[allow(clippy::too_many_arguments)]
+pub fn build_wallhop_worker_plan(
+    dx: i32,
+    dy: i32,
+    vertical: i32,
+    delay_ms: i32,
+    bonus_delay_ms: i32,
+    left: bool,
+    jump: bool,
+    flick_back: bool,
+    jump_key: u32,
+) -> WallhopWorkerPlan {
+    WallhopWorkerPlan {
+        dx,
+        dy,
+        vertical,
+        delay_ms: delay_ms.max(1),
+        bonus_delay_ms: bonus_delay_ms.max(0),
+        left,
+        jump,
+        flick_back,
+        jump_key,
+    }
+}
+
+pub fn execute_wallhop_worker(trace: &mut TraceRecorder, lane: LaneId, plan: WallhopWorkerPlan) {
+    let first_dx = if plan.left { plan.dx.wrapping_neg() } else { plan.dx };
+    trace.mouse_move(lane, first_dx, plan.vertical);
+
+    if plan.flick_back {
+        if plan.bonus_delay_ms > 0 && plan.bonus_delay_ms < plan.delay_ms {
+            trace.wait(lane, milliseconds_from_nonnegative(plan.bonus_delay_ms), WaitKind::Coarse);
+            if plan.jump {
+                trace.key(lane, plan.jump_key, KeyTransition::Down, InputPath::Bound);
+            }
+            trace.wait(
+                lane,
+                milliseconds_from_nonnegative(plan.delay_ms - plan.bonus_delay_ms),
+                WaitKind::Coarse,
+            );
+        } else {
+            if plan.jump {
+                trace.key(lane, plan.jump_key, KeyTransition::Down, InputPath::Bound);
+            }
+            trace.wait(lane, milliseconds_from_nonnegative(plan.delay_ms), WaitKind::Coarse);
+        }
+        let second_dx = if plan.left { plan.dy.wrapping_neg() } else { plan.dy };
+        trace.mouse_move(lane, second_dx, plan.vertical.wrapping_neg());
+    } else if plan.jump {
+        trace.key(lane, plan.jump_key, KeyTransition::Down, InputPath::Bound);
+    }
+
+    if plan.jump {
+        let release_delay = 100 - plan.delay_ms;
+        if release_delay > 0 {
+            trace.wait(lane, milliseconds_from_nonnegative(release_delay), WaitKind::Coarse);
+        }
+        trace.key(lane, plan.jump_key, KeyTransition::Up, InputPath::Bound);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
     pub output: u32,
@@ -616,10 +692,11 @@ mod tests {
     use super::{
         FreezeStepInput, ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction,
         WallWalkStepInput, apply_speedglitch_state_action, build_presskey_worker_plan,
-        build_speedglitch_cycle_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
-        execute_freeze_step, execute_item_desync, execute_itemclip_step, execute_presskey_worker,
-        execute_speedglitch_cycle, execute_wallwalk_step, frame_delays_for_fps,
-        freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
+        build_speedglitch_cycle_plan, build_wallhop_worker_plan, evaluate_rising_edge,
+        evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync, execute_itemclip_step,
+        execute_presskey_worker, execute_speedglitch_cycle, execute_wallhop_worker,
+        execute_wallwalk_step, frame_delays_for_fps, freeze_timeout_threshold_ms,
+        wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -638,6 +715,7 @@ mod tests {
         itemclip_cases: Vec<ItemClipCase>,
         wallwalk_delay_cases: Vec<WallWalkDelayCase>,
         wallwalk_cases: Vec<WallWalkCase>,
+        wallhop_cases: Vec<WallhopCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -747,6 +825,22 @@ mod tests {
         state_action: String,
         next_is_loop: bool,
         execute_cycle: bool,
+        plan: Value,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct WallhopCase {
+        name: String,
+        dx: i32,
+        dy: i32,
+        vertical: i32,
+        delay_ms: i32,
+        bonus_delay_ms: i32,
+        left: bool,
+        jump: bool,
+        flick_back: bool,
+        jump_key: u32,
         plan: Value,
         events: Vec<Value>,
     }
@@ -1053,6 +1147,52 @@ mod tests {
                 })
             });
             assert_eq!(plan, case.plan, "case {} plan", case.name);
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_wallhop_worker_plans_events_and_lane_topology_match() {
+        for case in fixture().wallhop_cases {
+            let plan = build_wallhop_worker_plan(
+                case.dx,
+                case.dy,
+                case.vertical,
+                case.delay_ms,
+                case.bonus_delay_ms,
+                case.left,
+                case.jump,
+                case.flick_back,
+                case.jump_key,
+            );
+            assert_eq!(
+                json!({
+                    "dx": plan.dx,
+                    "dy": plan.dy,
+                    "vertical": plan.vertical,
+                    "delay_ms": plan.delay_ms,
+                    "bonus_delay_ms": plan.bonus_delay_ms,
+                    "left": plan.left,
+                    "jump": plan.jump,
+                    "flick_back": plan.flick_back,
+                    "jump_key": plan.jump_key,
+                }),
+                case.plan,
+                "case {} plan",
+                case.name
+            );
+
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_wallhop_worker(&mut trace, worker, plan);
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
         }
     }

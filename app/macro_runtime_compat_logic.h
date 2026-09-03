@@ -251,6 +251,77 @@ void ExecuteWallWalkCycle(
     sleepUs(std::max(0, tailDelayUs()));
 }
 
+struct WallhopWorkerPlan {
+    int dx = 0;
+    int dy = 0;
+    int vertical = 0;
+    int delayMs = 1;
+    int bonusDelayMs = 0;
+    bool left = false;
+    bool jump = false;
+    bool flickBack = false;
+    unsigned int jumpKey = 0;
+};
+
+inline WallhopWorkerPlan BuildWallhopWorkerPlan(
+    int dx,
+    int dy,
+    int vertical,
+    int delay,
+    int bonusDelay,
+    bool left,
+    bool jump,
+    bool flickBack,
+    unsigned int jumpKey)
+{
+    return WallhopWorkerPlan{
+        .dx = dx,
+        .dy = dy,
+        .vertical = vertical,
+        .delayMs = std::max(1, delay),
+        .bonusDelayMs = std::max(0, bonusDelay),
+        .left = left,
+        .jump = jump,
+        .flickBack = flickBack,
+        .jumpKey = jumpKey,
+    };
+}
+
+template <typename MoveFn, typename SleepFn, typename HoldFn, typename ReleaseFn>
+void ExecuteWallhopWorker(
+    const WallhopWorkerPlan& plan,
+    MoveFn&& move,
+    SleepFn&& sleep,
+    HoldFn&& hold,
+    ReleaseFn&& release)
+{
+    move(plan.left ? -plan.dx : plan.dx, plan.vertical);
+    if (plan.flickBack) {
+        if (plan.bonusDelayMs > 0 && plan.bonusDelayMs < plan.delayMs) {
+            sleep(plan.bonusDelayMs);
+            if (plan.jump) {
+                hold(plan.jumpKey);
+            }
+            sleep(plan.delayMs - plan.bonusDelayMs);
+        } else {
+            if (plan.jump) {
+                hold(plan.jumpKey);
+            }
+            sleep(plan.delayMs);
+        }
+        move(plan.left ? -plan.dy : plan.dy, -plan.vertical);
+    } else if (plan.jump) {
+        hold(plan.jumpKey);
+    }
+
+    if (plan.jump) {
+        if (100 - plan.delayMs > 0) {
+            sleep(100 - plan.delayMs);
+        }
+        release(plan.jumpKey);
+    }
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;

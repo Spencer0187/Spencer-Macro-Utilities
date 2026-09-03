@@ -991,38 +991,24 @@ void MacroRuntime::processWallhopMacros(bool foregroundAllowed)
             continue;
         }
 
-        const int dx = inst.wallhop_dx;
-        const int dy = inst.wallhop_dy;
-        const int vertical = inst.wallhop_vertical;
-        const int delay = std::max(1, inst.WallhopDelay);
-        const int bonusDelay = std::max(0, inst.WallhopBonusDelay);
-        const bool left = inst.wallhopswitch;
-        const bool jump = inst.toggle_jump;
-        const bool flickBack = inst.toggle_flick;
-        const unsigned int jumpKey = inst.vk_jumpkey;
+        const auto plan = compat::BuildWallhopWorkerPlan(
+            inst.wallhop_dx,
+            inst.wallhop_dy,
+            inst.wallhop_vertical,
+            inst.WallhopDelay,
+            inst.WallhopBonusDelay,
+            inst.wallhopswitch,
+            inst.toggle_jump,
+            inst.toggle_flick,
+            inst.vk_jumpkey);
 
-        runWorker([dx, dy, vertical, delay, bonusDelay, left, jump, flickBack, jumpKey] {
-            MoveMouse(left ? -dx : dx, vertical);
-            if (flickBack) {
-                if (bonusDelay > 0 && bonusDelay < delay) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(bonusDelay));
-                    if (jump) HoldKeyBinded(jumpKey);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(delay - bonusDelay));
-                } else {
-                    if (jump) HoldKeyBinded(jumpKey);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-                }
-                MoveMouse(left ? -dy : dy, -vertical);
-            } else if (jump) {
-                HoldKeyBinded(jumpKey);
-            }
-
-            if (jump) {
-                if (100 - delay > 0) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100 - delay));
-                }
-                ReleaseKeyBinded(jumpKey);
-            }
+        runWorker([plan] {
+            compat::ExecuteWallhopWorker(
+                plan,
+                [](int dx, int dy) { MoveMouse(dx, dy); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [](unsigned int key) { HoldKeyBinded(key); },
+                [](unsigned int key) { ReleaseKeyBinded(key); });
         });
     }
 }
