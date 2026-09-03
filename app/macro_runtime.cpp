@@ -425,11 +425,6 @@ bool ShouldKeepRunning()
     return running.load(std::memory_order_acquire) && !done.load(std::memory_order_acquire);
 }
 
-unsigned int InventorySlotKey(int slot)
-{
-    return static_cast<unsigned int>(std::clamp(slot, 0, 9) + smu::core::SMU_VK_0);
-}
-
 void ReleaseZoomOrShift()
 {
     if (!globalzoomin) {
@@ -902,38 +897,25 @@ void MacroRuntime::processFreezeMacro(bool foregroundAllowed)
 
     const bool pressed = isHotkeyPressed(vk_mbutton);
     const unsigned int freezeKey = vk_mbutton & HOTKEY_KEY_MASK;
-    // Wheel directions are momentary input, so they cannot provide meaningful
-    // hold-to-freeze semantics. Treat them as a toggle even when the setting
-    // still has its default hold mode.
-    const bool toggleFreeze = isfreezeswitch ||
-        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
-        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_DOWN;
-    if (toggleFreeze) {
-        if (pressed && !freezeWasPressed_ && foregroundAllowed) {
-            setTargetSuspended(!freezeSuspended_);
-        }
-    } else if (pressed && foregroundAllowed) {
-        if (!freezeSuspended_) {
-            setTargetSuspended(true);
-        }
-    } else if (freezeSuspended_) {
-        setTargetSuspended(false);
-    }
-    freezeWasPressed_ = pressed;
-
-    if (!freezeSuspended_) {
-        return;
-    }
-
-    const auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - freezeStartTime_).count();
-    if (elapsedMs >= static_cast<long long>(maxfreezetime * 1000.0f)) {
-        setTargetSuspended(false);
-        std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, maxfreezeoverride)));
-        if (running_.load(std::memory_order_acquire) && (toggleFreeze || isHotkeyPressed(vk_mbutton))) {
-            setTargetSuspended(true);
-        }
-    }
+    const auto result = compat::ExecuteFreezeStep(
+        true,
+        foregroundAllowed,
+        pressed,
+        freezeWasPressed_,
+        isfreezeswitch,
+        freezeKey,
+        maxfreezetime,
+        maxfreezeoverride,
+        [this] { return freezeSuspended_; },
+        [this](bool suspended) { setTargetSuspended(suspended); },
+        [this] {
+            return std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - freezeStartTime_).count();
+        },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [this] { return running_.load(std::memory_order_acquire); },
+        [this] { return isHotkeyPressed(vk_mbutton); });
+    freezeWasPressed_ = result.nextWasPressed;
 }
 
 void MacroRuntime::processItemDesyncMacro(bool foregroundAllowed)
@@ -946,11 +928,11 @@ void MacroRuntime::processItemDesyncMacro(bool foregroundAllowed)
         return;
     }
 
-    const unsigned int slotKey = InventorySlotKey(desync_slot);
-    HoldKey(slotKey);
-    ReleaseKey(slotKey);
-    HoldKey(slotKey);
-    ReleaseKey(slotKey);
+    const unsigned int slotKey = compat::InventorySlotKey(desync_slot);
+    compat::ExecuteItemDesyncPulse(
+        slotKey,
+        [](unsigned int key) { HoldKey(key); },
+        [](unsigned int key) { ReleaseKey(key); });
 }
 
 void MacroRuntime::processPressKeyMacros(bool foregroundAllowed)
@@ -1096,7 +1078,7 @@ void MacroRuntime::processSpeedglitchMacro(bool foregroundAllowed)
     }
     speedWasPressed_ = edge.nextWasPressed;
 
-    if (!foregroundAllowed || !sectionEnabled || !isspeed.load(std::memory_order_acquire)) {
+    if (!foregroundAllowed || !section_toggles[3] || !isspeed.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -1219,7 +1201,7 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
             std::this_thread::sleep_for(175ms);
         }
 
-        const unsigned int slotKey = InventorySlotKey(speed_slot);
+        const unsigned int slotKey = compat::InventorySlotKey(speed_slot);
         HoldKey(slotKey);
         std::this_thread::sleep_for(4ms);
         ReleaseKey(slotKey);
@@ -1247,7 +1229,7 @@ void MacroRuntime::processItemClipMacro(bool foregroundAllowed)
     }
 
     const int halfDelay = std::max(1, clip_delay / 2);
-    const unsigned int slotKey = InventorySlotKey(clip_slot);
+    const unsigned int slotKey = compat::InventorySlotKey(clip_slot);
     HoldKey(slotKey);
     std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
     ReleaseKey(slotKey);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "key_codes.h"
+
 #include <algorithm>
 #include <utility>
 
@@ -16,6 +18,93 @@ inline RisingEdgeResult EvaluateRisingEdge(bool pressed, bool wasPressed)
         .rising = pressed && !wasPressed,
         .nextWasPressed = pressed,
     };
+}
+
+inline bool ShouldToggleFreeze(bool configuredToggle, unsigned int freezeKey)
+{
+    return configuredToggle ||
+        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_UP ||
+        freezeKey == smu::core::SMU_VK_MOUSE_WHEEL_DOWN;
+}
+
+inline long long FreezeTimeoutThresholdMs(float maxFreezeTimeSeconds)
+{
+    return static_cast<long long>(maxFreezeTimeSeconds * 1000.0f);
+}
+
+struct FreezeStepResult {
+    bool nextWasPressed = false;
+    bool toggleFreeze = false;
+};
+
+template <typename IsSuspendedFn, typename SetSuspendedFn, typename ElapsedMsFn,
+          typename SleepFn, typename RunningFn, typename PressedAgainFn>
+FreezeStepResult ExecuteFreezeStep(
+    bool sectionEnabled,
+    bool foregroundAllowed,
+    bool pressed,
+    bool wasPressed,
+    bool configuredToggle,
+    unsigned int freezeKey,
+    float maxFreezeTimeSeconds,
+    int maxFreezeOverrideMs,
+    IsSuspendedFn&& isSuspended,
+    SetSuspendedFn&& setSuspended,
+    ElapsedMsFn&& elapsedMs,
+    SleepFn&& sleep,
+    RunningFn&& running,
+    PressedAgainFn&& pressedAgain)
+{
+    const bool toggleFreeze = ShouldToggleFreeze(configuredToggle, freezeKey);
+    if (!sectionEnabled) {
+        if (isSuspended()) {
+            setSuspended(false);
+        }
+        return FreezeStepResult{
+            .nextWasPressed = false,
+            .toggleFreeze = toggleFreeze,
+        };
+    }
+
+    if (toggleFreeze) {
+        if (pressed && !wasPressed && foregroundAllowed) {
+            setSuspended(!isSuspended());
+        }
+    } else if (pressed && foregroundAllowed) {
+        if (!isSuspended()) {
+            setSuspended(true);
+        }
+    } else if (isSuspended()) {
+        setSuspended(false);
+    }
+
+    if (isSuspended() &&
+        elapsedMs() >= FreezeTimeoutThresholdMs(maxFreezeTimeSeconds)) {
+        setSuspended(false);
+        sleep(std::max(0, maxFreezeOverrideMs));
+        if (running() && (toggleFreeze || pressedAgain())) {
+            setSuspended(true);
+        }
+    }
+
+    return FreezeStepResult{
+        .nextWasPressed = pressed,
+        .toggleFreeze = toggleFreeze,
+    };
+}
+
+inline unsigned int InventorySlotKey(int slot)
+{
+    return static_cast<unsigned int>(std::clamp(slot, 0, 9) + smu::core::SMU_VK_0);
+}
+
+template <typename HoldFn, typename ReleaseFn>
+void ExecuteItemDesyncPulse(unsigned int slotKey, HoldFn&& hold, ReleaseFn&& release)
+{
+    hold(slotKey);
+    release(slotKey);
+    hold(slotKey);
+    release(slotKey);
 }
 
 struct PressKeyWorkerPlan {

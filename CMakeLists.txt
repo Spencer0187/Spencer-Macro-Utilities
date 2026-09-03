@@ -148,6 +148,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(smu_runtime_compat_oracle PRIVATE
         "${SMU_APP_DIR}"
+        "${SMU_CORE_DIR}"
         "${SMU_JSON_DIR}"
     )
 endif()

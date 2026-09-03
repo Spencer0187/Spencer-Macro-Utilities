@@ -5006,6 +5006,1134 @@
       "second_ms": 1
     }
   ],
+  "freeze_cases": [
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 0,
+      "events": [],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "section-disabled-idle",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": false,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 100,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "section-disabled-resume-success",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": false,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 100,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": false,
+          "suspended": false
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "section-disabled-resume-failure",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": true,
+      "resume_success": false,
+      "running_after_override": true,
+      "section_enabled": false,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "hold-press-suspends",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": false,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "hold-still-held-resuspends-without-edge",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": false,
+          "suspended": true
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "hold-press-suspend-fails",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": false,
+      "suspended": false,
+      "toggle_freeze": false,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "hold-release-resumes",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": false,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "hold-foreground-loss-resumes-even-if-pressed",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "toggle-rising-suspends",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 50,
+      "events": [],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "toggle-held-does-not-retrigger",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "toggle-rising-resumes",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 50,
+      "events": [],
+      "final_suspended": false,
+      "foreground_allowed": false,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "toggle-rising-outside-consumes-edge",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 50,
+      "events": [],
+      "final_suspended": true,
+      "foreground_allowed": false,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "toggle-survives-foreground-loss",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 256,
+      "max_seconds": 5.0,
+      "name": "wheel-up-forces-toggle",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 256,
+      "max_seconds": 5.0,
+      "name": "wheel-up-held-does-not-retrigger",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 50,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 257,
+      "max_seconds": 5.0,
+      "name": "wheel-down-forces-toggle",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 4999,
+      "events": [],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-below-threshold",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-at-threshold-toggle-resuspends",
+      "next_was_pressed": false,
+      "override_ms": 100,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "hotkey_recheck",
+          "pressed": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-hold-recheck-pressed-resuspends",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "hotkey_recheck",
+          "pressed": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-hold-recheck-released-stays-resumed",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": false
+        }
+      ],
+      "final_suspended": false,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-running-false-skips-hotkey-recheck",
+      "next_was_pressed": true,
+      "override_ms": 100,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": false,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": false,
+      "was_pressed": true
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-negative-override-clamps-zero",
+      "next_was_pressed": false,
+      "override_ms": -99,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 5000,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": false,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 25,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 5.0,
+      "name": "timeout-resume-failure-still-sleeps-and-resuspends",
+      "next_was_pressed": false,
+      "override_ms": 25,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": false,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": false,
+      "elapsed_ms": 123,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 10,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "hotkey_recheck",
+          "pressed": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": 0.0,
+      "name": "zero-timeout-new-hold-suspend-immediately-cycles",
+      "next_was_pressed": true,
+      "override_ms": 10,
+      "pressed": true,
+      "pressed_after_override": true,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": false,
+      "toggle_freeze": false,
+      "was_pressed": false
+    },
+    {
+      "configured_toggle": true,
+      "elapsed_ms": 0,
+      "events": [
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "set_suspended",
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "final_suspended": true,
+      "foreground_allowed": true,
+      "freeze_key": 4,
+      "max_seconds": -0.001,
+      "name": "negative-timeout-is-immediate",
+      "next_was_pressed": false,
+      "override_ms": 1,
+      "pressed": false,
+      "pressed_after_override": false,
+      "resume_success": true,
+      "running_after_override": true,
+      "section_enabled": true,
+      "suspend_success": true,
+      "suspended": true,
+      "toggle_freeze": true,
+      "was_pressed": false
+    }
+  ],
+  "freeze_threshold_cases": [
+    {
+      "seconds": -1.0,
+      "threshold_ms": -1000
+    },
+    {
+      "seconds": -0.001,
+      "threshold_ms": -1
+    },
+    {
+      "seconds": 0.0,
+      "threshold_ms": 0
+    },
+    {
+      "seconds": 0.0005,
+      "threshold_ms": 0
+    },
+    {
+      "seconds": 0.001,
+      "threshold_ms": 1
+    },
+    {
+      "seconds": 0.016,
+      "threshold_ms": 16
+    },
+    {
+      "seconds": 0.333,
+      "threshold_ms": 333
+    },
+    {
+      "seconds": 1.2345,
+      "threshold_ms": 1234
+    },
+    {
+      "seconds": 10.0,
+      "threshold_ms": 10000
+    }
+  ],
+  "item_desync_cases": [
+    {
+      "events": [],
+      "foreground_allowed": false,
+      "hotkey_pressed": false,
+      "loop_state": false,
+      "name": "matrix-0",
+      "pressed": false,
+      "section_enabled": false,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": false,
+      "hotkey_pressed": true,
+      "loop_state": false,
+      "name": "matrix-1",
+      "pressed": false,
+      "section_enabled": false,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": false,
+      "hotkey_pressed": false,
+      "loop_state": false,
+      "name": "matrix-2",
+      "pressed": false,
+      "section_enabled": true,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": false,
+      "hotkey_pressed": true,
+      "loop_state": false,
+      "name": "matrix-3",
+      "pressed": false,
+      "section_enabled": true,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": true,
+      "hotkey_pressed": false,
+      "loop_state": false,
+      "name": "matrix-4",
+      "pressed": false,
+      "section_enabled": false,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": false,
+      "name": "matrix-5",
+      "pressed": false,
+      "section_enabled": false,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [],
+      "foreground_allowed": true,
+      "hotkey_pressed": false,
+      "loop_state": false,
+      "name": "matrix-6",
+      "pressed": false,
+      "section_enabled": true,
+      "slot": 1,
+      "slot_key": null
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "matrix-7",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 1,
+      "slot_key": 49
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot--99",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": -99,
+      "slot_key": 48
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot--1",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": -1,
+      "slot_key": 48
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 48,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 48,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot-0",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 0,
+      "slot_key": 48
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 49,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 49,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot-1",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 1,
+      "slot_key": 49
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot-9",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 9,
+      "slot_key": 57
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot-10",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 10,
+      "slot_key": 57
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 57,
+          "path": "direct"
+        },
+        {
+          "action": "key_up",
+          "key": 57,
+          "path": "direct"
+        }
+      ],
+      "foreground_allowed": true,
+      "hotkey_pressed": true,
+      "loop_state": true,
+      "name": "active-slot-99",
+      "pressed": true,
+      "section_enabled": true,
+      "slot": 99,
+      "slot_key": 57
+    }
+  ],
   "oracle": "smu_runtime_compat_oracle",
   "presskey_cases": [
     {

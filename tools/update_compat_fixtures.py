@@ -735,6 +735,146 @@ def runtime_rising_edge_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_freeze_threshold_cases() -> list[dict[str, Any]]:
+    values = (-1.0, -0.001, 0.0, 0.0005, 0.001, 0.016, 0.333, 1.2345, 10.0)
+    cases = []
+    for seconds in values:
+        observed = run_json(RUNTIME_ORACLE, "freeze-threshold", str(seconds))
+        cases.append({"seconds": seconds, "threshold_ms": observed["threshold_ms"]})
+    return cases
+
+
+def runtime_freeze_cases() -> list[dict[str, Any]]:
+    # section, foreground, pressed, was_pressed, configured_toggle, freeze_key,
+    # suspended, elapsed_ms, max_seconds, override_ms, running_after_override,
+    # pressed_after_override, suspend_success, resume_success
+    specifications = [
+        ("section-disabled-idle", False, True, True, True, False, 4, False, 0, 5.0, 100, True, True, True, True),
+        ("section-disabled-resume-success", False, True, False, True, False, 4, True, 100, 5.0, 100, True, True, True, True),
+        ("section-disabled-resume-failure", False, True, False, True, False, 4, True, 100, 5.0, 100, True, True, True, False),
+        ("hold-press-suspends", True, True, True, False, False, 4, False, 50, 5.0, 100, True, True, True, True),
+        ("hold-still-held-resuspends-without-edge", True, True, True, True, False, 4, False, 50, 5.0, 100, True, True, True, True),
+        ("hold-press-suspend-fails", True, True, True, False, False, 4, False, 50, 5.0, 100, True, True, False, True),
+        ("hold-release-resumes", True, True, False, True, False, 4, True, 50, 5.0, 100, True, False, True, True),
+        ("hold-foreground-loss-resumes-even-if-pressed", True, False, True, True, False, 4, True, 50, 5.0, 100, True, True, True, True),
+        ("toggle-rising-suspends", True, True, True, False, True, 4, False, 50, 5.0, 100, True, True, True, True),
+        ("toggle-held-does-not-retrigger", True, True, True, True, True, 4, False, 50, 5.0, 100, True, True, True, True),
+        ("toggle-rising-resumes", True, True, True, False, True, 4, True, 50, 5.0, 100, True, True, True, True),
+        ("toggle-rising-outside-consumes-edge", True, False, True, False, True, 4, False, 50, 5.0, 100, True, True, True, True),
+        ("toggle-survives-foreground-loss", True, False, False, True, True, 4, True, 50, 5.0, 100, True, False, True, True),
+        ("wheel-up-forces-toggle", True, True, True, False, False, 256, False, 50, 5.0, 100, True, True, True, True),
+        ("wheel-up-held-does-not-retrigger", True, True, True, True, False, 256, False, 50, 5.0, 100, True, True, True, True),
+        ("wheel-down-forces-toggle", True, True, True, False, False, 257, False, 50, 5.0, 100, True, True, True, True),
+        ("timeout-below-threshold", True, True, False, False, True, 4, True, 4999, 5.0, 100, True, False, True, True),
+        ("timeout-at-threshold-toggle-resuspends", True, True, False, False, True, 4, True, 5000, 5.0, 100, True, False, True, True),
+        ("timeout-hold-recheck-pressed-resuspends", True, True, True, True, False, 4, True, 5000, 5.0, 100, True, True, True, True),
+        ("timeout-hold-recheck-released-stays-resumed", True, True, True, True, False, 4, True, 5000, 5.0, 100, True, False, True, True),
+        ("timeout-running-false-skips-hotkey-recheck", True, True, True, True, False, 4, True, 5000, 5.0, 100, False, True, True, True),
+        ("timeout-negative-override-clamps-zero", True, True, False, False, True, 4, True, 5000, 5.0, -99, True, False, True, True),
+        ("timeout-resume-failure-still-sleeps-and-resuspends", True, True, False, False, True, 4, True, 5000, 5.0, 25, True, False, True, False),
+        ("zero-timeout-new-hold-suspend-immediately-cycles", True, True, True, False, False, 4, False, 123, 0.0, 10, True, True, True, True),
+        ("negative-timeout-is-immediate", True, True, False, False, True, 4, True, 0, -0.001, 1, True, False, True, True),
+    ]
+    cases = []
+    for spec in specifications:
+        (
+            name,
+            section,
+            foreground,
+            pressed,
+            was_pressed,
+            configured_toggle,
+            freeze_key,
+            suspended,
+            elapsed_ms,
+            max_seconds,
+            override_ms,
+            running_after_override,
+            pressed_after_override,
+            suspend_success,
+            resume_success,
+        ) = spec
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "freeze-step",
+            str(int(section)),
+            str(int(foreground)),
+            str(int(pressed)),
+            str(int(was_pressed)),
+            str(int(configured_toggle)),
+            str(freeze_key),
+            str(int(suspended)),
+            str(elapsed_ms),
+            str(max_seconds),
+            str(override_ms),
+            str(int(running_after_override)),
+            str(int(pressed_after_override)),
+            str(int(suspend_success)),
+            str(int(resume_success)),
+        )
+        cases.append(
+            {
+                "name": name,
+                "section_enabled": section,
+                "foreground_allowed": foreground,
+                "pressed": pressed,
+                "was_pressed": was_pressed,
+                "configured_toggle": configured_toggle,
+                "freeze_key": freeze_key,
+                "suspended": suspended,
+                "elapsed_ms": elapsed_ms,
+                "max_seconds": max_seconds,
+                "override_ms": override_ms,
+                "running_after_override": running_after_override,
+                "pressed_after_override": pressed_after_override,
+                "suspend_success": suspend_success,
+                "resume_success": resume_success,
+                "toggle_freeze": observed["toggle_freeze"],
+                "next_was_pressed": observed["next_was_pressed"],
+                "final_suspended": observed["final_suspended"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
+def runtime_item_desync_cases() -> list[dict[str, Any]]:
+    specifications = []
+    case_index = 0
+    for foreground in (False, True):
+        for section in (False, True):
+            for hotkey in (False, True):
+                specifications.append((f"matrix-{case_index}", foreground, section, hotkey, 1))
+                case_index += 1
+    for slot in (-99, -1, 0, 1, 9, 10, 99):
+        specifications.append((f"active-slot-{slot}", True, True, True, slot))
+
+    cases = []
+    for name, foreground, section, hotkey, slot in specifications:
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "item-desync",
+            str(int(foreground)),
+            str(int(section)),
+            str(int(hotkey)),
+            str(slot),
+        )
+        cases.append(
+            {
+                "name": name,
+                "foreground_allowed": foreground,
+                "section_enabled": section,
+                "hotkey_pressed": hotkey,
+                "slot": slot,
+                "pressed": observed["pressed"],
+                "loop_state": observed["loop_state"],
+                "slot_key": observed["slot_key"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -864,6 +1004,9 @@ def write_runtime() -> None:
         "oracle": "smu_runtime_compat_oracle",
         "frame_delay_cases": runtime_frame_delay_cases(),
         "rising_edge_cases": runtime_rising_edge_cases(),
+        "freeze_threshold_cases": runtime_freeze_threshold_cases(),
+        "freeze_cases": runtime_freeze_cases(),
+        "item_desync_cases": runtime_item_desync_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[dependencies]
+smu-core = { path = "../smu-core", version = "=0.0.0" }
+
 [lints]
 workspace = true
 

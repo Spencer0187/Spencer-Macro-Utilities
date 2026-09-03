@@ -47,10 +47,13 @@ helpers in `app/macro_runtime_compat_logic.h`, so the fixture does not carry a s
 copy of the timing arithmetic or PressKey worker sequence.
 
 The current automated Rust slice freezes all integer FPS inputs from 0 through 1000, all rising-edge
-states, PressKey delay clamping / trigger-release / cancellation ordering, and the full boolean
-Speedglitch edge/toggle matrix. Speedglitch remains a controller-lane operation; PressKey worker
-waits remain independent of the controller lane. The production Speedglitch path deliberately reads
-its second strength value only after the first sleep, matching the existing C++ ordering.
+states, PressKey delay clamping / trigger-release / cancellation ordering, the full boolean
+Speedglitch edge/toggle matrix, Freeze hold/toggle/wheel behavior and timeout recovery, and
+ItemDesync slot clamping plus its four direct key transitions. Freeze and Speedglitch waits remain
+controller-lane stalls; PressKey waits remain independent worker-lane waits. Freeze fixtures include
+failed suspend/resume attempts and post-timeout short-circuit behavior. The production Speedglitch
+path deliberately reads its second strength value only after the first sleep, matching the existing
+C++ ordering.
 
 Regenerate after an intentional C++ timing compatibility change:
 

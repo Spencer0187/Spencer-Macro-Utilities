@@ -5,6 +5,7 @@
 
 use crate::WaitKind;
 use crate::trace::{InputPath, KeyTransition, LaneId, TraceRecorder};
+use smu_core::KeyCode;
 use std::time::Duration;
 
 const FRAME_DELAY_EPSILON: f32 = 0.008;
@@ -22,6 +23,206 @@ pub struct RisingEdgeResult {
 #[must_use]
 pub const fn evaluate_rising_edge(pressed: bool, was_pressed: bool) -> RisingEdgeResult {
     RisingEdgeResult { rising: pressed && !was_pressed, next_was_pressed: pressed }
+}
+
+#[must_use]
+pub const fn should_toggle_freeze(configured_toggle: bool, freeze_key: u32) -> bool {
+    configured_toggle
+        || freeze_key == KeyCode::MOUSE_WHEEL_UP.raw()
+        || freeze_key == KeyCode::MOUSE_WHEEL_DOWN.raw()
+}
+
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn freeze_timeout_threshold_ms(max_freeze_time_seconds: f32) -> i64 {
+    // Compatibility cast: production multiplies in float32, then casts to `long long`.
+    (max_freeze_time_seconds * 1000.0_f32) as i64
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct FreezeStepInput {
+    pub section_enabled: bool,
+    pub foreground_allowed: bool,
+    pub pressed: bool,
+    pub was_pressed: bool,
+    pub configured_toggle: bool,
+    pub freeze_key: u32,
+    pub suspended: bool,
+    pub elapsed_ms: i64,
+    pub max_seconds: f32,
+    pub override_ms: i32,
+    pub running_after_override: bool,
+    pub pressed_after_override: bool,
+    pub suspend_success: bool,
+    pub resume_success: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FreezeStepResult {
+    pub toggle_freeze: bool,
+    pub next_was_pressed: bool,
+    pub final_suspended: bool,
+    pub final_elapsed_ms: i64,
+}
+
+fn attempt_target_suspend(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    suspended: &mut bool,
+    elapsed_ms: &mut i64,
+    requested: bool,
+    success: bool,
+) {
+    if requested == *suspended {
+        return;
+    }
+    trace.target_suspend_attempt(lane, requested, success);
+    if success {
+        *suspended = requested;
+        if requested {
+            *elapsed_ms = 0;
+        }
+    }
+}
+
+#[must_use]
+pub fn execute_freeze_step(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: FreezeStepInput,
+) -> FreezeStepResult {
+    let toggle_freeze = should_toggle_freeze(input.configured_toggle, input.freeze_key);
+    let mut suspended = input.suspended;
+    let mut elapsed_ms = input.elapsed_ms;
+
+    if !input.section_enabled {
+        if suspended {
+            attempt_target_suspend(
+                trace,
+                lane,
+                &mut suspended,
+                &mut elapsed_ms,
+                false,
+                input.resume_success,
+            );
+        }
+        return FreezeStepResult {
+            toggle_freeze,
+            next_was_pressed: false,
+            final_suspended: suspended,
+            final_elapsed_ms: elapsed_ms,
+        };
+    }
+
+    if toggle_freeze {
+        if input.pressed && !input.was_pressed && input.foreground_allowed {
+            let requested = !suspended;
+            let success = if requested { input.suspend_success } else { input.resume_success };
+            attempt_target_suspend(
+                trace,
+                lane,
+                &mut suspended,
+                &mut elapsed_ms,
+                requested,
+                success,
+            );
+        }
+    } else if input.pressed && input.foreground_allowed {
+        if !suspended {
+            attempt_target_suspend(
+                trace,
+                lane,
+                &mut suspended,
+                &mut elapsed_ms,
+                true,
+                input.suspend_success,
+            );
+        }
+    } else if suspended {
+        attempt_target_suspend(
+            trace,
+            lane,
+            &mut suspended,
+            &mut elapsed_ms,
+            false,
+            input.resume_success,
+        );
+    }
+
+    if suspended && elapsed_ms >= freeze_timeout_threshold_ms(input.max_seconds) {
+        attempt_target_suspend(
+            trace,
+            lane,
+            &mut suspended,
+            &mut elapsed_ms,
+            false,
+            input.resume_success,
+        );
+        let delay_ms = input.override_ms.max(0);
+        trace.wait(lane, milliseconds_from_nonnegative(delay_ms), WaitKind::Coarse);
+        elapsed_ms = elapsed_ms.saturating_add(i64::from(delay_ms));
+        trace.running_check(lane, input.running_after_override);
+        if input.running_after_override {
+            let should_resuspend = if toggle_freeze {
+                true
+            } else {
+                trace.hotkey_recheck(lane, input.pressed_after_override);
+                input.pressed_after_override
+            };
+            if should_resuspend {
+                attempt_target_suspend(
+                    trace,
+                    lane,
+                    &mut suspended,
+                    &mut elapsed_ms,
+                    true,
+                    input.suspend_success,
+                );
+            }
+        }
+    }
+
+    FreezeStepResult {
+        toggle_freeze,
+        next_was_pressed: input.pressed,
+        final_suspended: suspended,
+        final_elapsed_ms: elapsed_ms,
+    }
+}
+
+#[must_use]
+pub fn inventory_slot_key(slot: i32) -> u32 {
+    u32::try_from(slot.clamp(0, 9)).unwrap_or_default() + KeyCode::DIGIT_0.raw()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ItemDesyncResult {
+    pub pressed: bool,
+    pub loop_state: bool,
+    pub slot_key: Option<u32>,
+}
+
+#[must_use]
+pub fn execute_item_desync(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    foreground_allowed: bool,
+    section_enabled: bool,
+    hotkey_pressed: bool,
+    slot: i32,
+) -> ItemDesyncResult {
+    let pressed = foreground_allowed && section_enabled && hotkey_pressed;
+    if !pressed {
+        return ItemDesyncResult { pressed: false, loop_state: false, slot_key: None };
+    }
+
+    let key = inventory_slot_key(slot);
+    trace.key(lane, key, KeyTransition::Down, InputPath::Direct);
+    trace.key(lane, key, KeyTransition::Up, InputPath::Direct);
+    trace.key(lane, key, KeyTransition::Down, InputPath::Direct);
+    trace.key(lane, key, KeyTransition::Up, InputPath::Direct);
+    ItemDesyncResult { pressed: true, loop_state: true, slot_key: Some(key) }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,9 +379,11 @@ mod tests {
     #![allow(clippy::expect_used, clippy::struct_excessive_bools, clippy::struct_field_names)]
 
     use super::{
-        SpeedglitchStateAction, apply_speedglitch_state_action, build_presskey_worker_plan,
-        build_speedglitch_cycle_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
+        FreezeStepInput, SpeedglitchStateAction, apply_speedglitch_state_action,
+        build_presskey_worker_plan, build_speedglitch_cycle_plan, evaluate_rising_edge,
+        evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync,
         execute_presskey_worker, execute_speedglitch_cycle, frame_delays_for_fps,
+        freeze_timeout_threshold_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -193,6 +396,9 @@ mod tests {
     struct Fixture {
         frame_delay_cases: Vec<FrameDelayCase>,
         rising_edge_cases: Vec<RisingEdgeCase>,
+        freeze_threshold_cases: Vec<FreezeThresholdCase>,
+        freeze_cases: Vec<FreezeCase>,
+        item_desync_cases: Vec<ItemDesyncCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -210,6 +416,48 @@ mod tests {
         was_pressed: bool,
         rising: bool,
         next_was_pressed: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FreezeThresholdCase {
+        seconds: f32,
+        threshold_ms: i64,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FreezeCase {
+        name: String,
+        section_enabled: bool,
+        foreground_allowed: bool,
+        pressed: bool,
+        was_pressed: bool,
+        configured_toggle: bool,
+        freeze_key: u32,
+        suspended: bool,
+        elapsed_ms: i64,
+        max_seconds: f32,
+        override_ms: i32,
+        running_after_override: bool,
+        pressed_after_override: bool,
+        suspend_success: bool,
+        resume_success: bool,
+        toggle_freeze: bool,
+        next_was_pressed: bool,
+        final_suspended: bool,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct ItemDesyncCase {
+        name: String,
+        foreground_allowed: bool,
+        section_enabled: bool,
+        hotkey_pressed: bool,
+        slot: i32,
+        pressed: bool,
+        loop_state: bool,
+        slot_key: Option<u32>,
+        events: Vec<Value>,
     }
 
     #[derive(Debug, Deserialize)]
@@ -280,6 +528,15 @@ mod tests {
                 "dx": dx,
                 "dy": dy,
             })),
+            TraceAction::TargetSuspendAttempt { suspended, success } => Some(json!({
+                "action": "set_suspended",
+                "suspended": suspended,
+                "success": success,
+            })),
+            TraceAction::HotkeyRecheck { pressed } => Some(json!({
+                "action": "hotkey_recheck",
+                "pressed": pressed,
+            })),
             TraceAction::RunningCheck { running } => Some(json!({
                 "action": "running_check",
                 "running": running,
@@ -311,6 +568,76 @@ mod tests {
             let observed = evaluate_rising_edge(case.pressed, case.was_pressed);
             assert_eq!(observed.rising, case.rising);
             assert_eq!(observed.next_was_pressed, case.next_was_pressed);
+        }
+    }
+
+    #[test]
+    fn cpp_freeze_timeout_thresholds_match() {
+        for case in fixture().freeze_threshold_cases {
+            assert_eq!(
+                freeze_timeout_threshold_ms(case.seconds),
+                case.threshold_ms,
+                "seconds {}",
+                case.seconds
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_freeze_steps_match() {
+        for case in fixture().freeze_cases {
+            let mut trace = TraceRecorder::default();
+            let observed = execute_freeze_step(
+                &mut trace,
+                LaneId::CONTROLLER,
+                FreezeStepInput {
+                    section_enabled: case.section_enabled,
+                    foreground_allowed: case.foreground_allowed,
+                    pressed: case.pressed,
+                    was_pressed: case.was_pressed,
+                    configured_toggle: case.configured_toggle,
+                    freeze_key: case.freeze_key,
+                    suspended: case.suspended,
+                    elapsed_ms: case.elapsed_ms,
+                    max_seconds: case.max_seconds,
+                    override_ms: case.override_ms,
+                    running_after_override: case.running_after_override,
+                    pressed_after_override: case.pressed_after_override,
+                    suspend_success: case.suspend_success,
+                    resume_success: case.resume_success,
+                },
+            );
+            assert_eq!(observed.toggle_freeze, case.toggle_freeze, "case {} toggle", case.name);
+            assert_eq!(
+                observed.next_was_pressed, case.next_was_pressed,
+                "case {} edge state",
+                case.name
+            );
+            assert_eq!(
+                observed.final_suspended, case.final_suspended,
+                "case {} suspended state",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_item_desync_cases_match() {
+        for case in fixture().item_desync_cases {
+            let mut trace = TraceRecorder::default();
+            let observed = execute_item_desync(
+                &mut trace,
+                LaneId::CONTROLLER,
+                case.foreground_allowed,
+                case.section_enabled,
+                case.hotkey_pressed,
+                case.slot,
+            );
+            assert_eq!(observed.pressed, case.pressed, "case {} pressed", case.name);
+            assert_eq!(observed.loop_state, case.loop_state, "case {} loop", case.name);
+            assert_eq!(observed.slot_key, case.slot_key, "case {} slot", case.name);
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
         }
     }
 

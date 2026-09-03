@@ -20,6 +20,9 @@ int Usage()
               << "  smu_runtime_compat_oracle frame-delays <fps>\n"
               << "  smu_runtime_compat_oracle presskey-worker <trigger> <output> <bonus-ms> <press-ms> <running-after-bonus>\n"
               << "  smu_runtime_compat_oracle rising-edge <pressed> <was-pressed>\n"
+              << "  smu_runtime_compat_oracle freeze-threshold <seconds>\n"
+              << "  smu_runtime_compat_oracle freeze-step <section> <foreground> <pressed> <was-pressed> <configured-toggle> <freeze-key> <suspended> <elapsed-ms> <max-seconds> <override-ms> <running-after-override> <pressed-after-override> <suspend-success> <resume-success>\n"
+              << "  smu_runtime_compat_oracle item-desync <foreground> <section> <hotkey> <slot>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
     return 2;
 }
@@ -55,6 +58,103 @@ int main(int argc, char** argv)
             {"operation", "rising-edge"},
             {"rising", edge.rising},
             {"next_was_pressed", edge.nextWasPressed},
+        };
+    } else if (operation == "freeze-threshold" && argc == 3) {
+        result = Json{
+            {"operation", "freeze-threshold"},
+            {"threshold_ms", FreezeTimeoutThresholdMs(std::strtof(argv[2], nullptr))},
+        };
+    } else if (operation == "freeze-step" && argc == 16) {
+        const bool sectionEnabled = ParseBool(argv[2]);
+        const bool foregroundAllowed = ParseBool(argv[3]);
+        const bool pressed = ParseBool(argv[4]);
+        const bool wasPressed = ParseBool(argv[5]);
+        const bool configuredToggle = ParseBool(argv[6]);
+        const auto freezeKey = static_cast<unsigned int>(std::strtoul(argv[7], nullptr, 10));
+        bool suspended = ParseBool(argv[8]);
+        long long elapsedMs = std::strtoll(argv[9], nullptr, 10);
+        const float maxSeconds = std::strtof(argv[10], nullptr);
+        const int overrideMs = std::atoi(argv[11]);
+        const bool runningAfterOverride = ParseBool(argv[12]);
+        const bool pressedAfterOverride = ParseBool(argv[13]);
+        const bool suspendSuccess = ParseBool(argv[14]);
+        const bool resumeSuccess = ParseBool(argv[15]);
+        Json events = Json::array();
+
+        const auto step = ExecuteFreezeStep(
+            sectionEnabled,
+            foregroundAllowed,
+            pressed,
+            wasPressed,
+            configuredToggle,
+            freezeKey,
+            maxSeconds,
+            overrideMs,
+            [&] { return suspended; },
+            [&](bool shouldSuspend) {
+                if (shouldSuspend == suspended) {
+                    return;
+                }
+                const bool success = shouldSuspend ? suspendSuccess : resumeSuccess;
+                events.push_back(Json{
+                    {"action", "set_suspended"},
+                    {"suspended", shouldSuspend},
+                    {"success", success},
+                });
+                if (success) {
+                    suspended = shouldSuspend;
+                    if (shouldSuspend) {
+                        elapsedMs = 0;
+                    }
+                }
+            },
+            [&] { return elapsedMs; },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                elapsedMs += delayMs;
+            },
+            [&] {
+                events.push_back(Json{{"action", "running_check"}, {"running", runningAfterOverride}});
+                return runningAfterOverride;
+            },
+            [&] {
+                events.push_back(Json{{"action", "hotkey_recheck"}, {"pressed", pressedAfterOverride}});
+                return pressedAfterOverride;
+            });
+
+        result = Json{
+            {"operation", "freeze-step"},
+            {"toggle_freeze", step.toggleFreeze},
+            {"next_was_pressed", step.nextWasPressed},
+            {"final_suspended", suspended},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "item-desync" && argc == 6) {
+        const bool foregroundAllowed = ParseBool(argv[2]);
+        const bool sectionEnabled = ParseBool(argv[3]);
+        const bool hotkeyPressed = ParseBool(argv[4]);
+        const int slot = std::atoi(argv[5]);
+        const bool pressed = foregroundAllowed && sectionEnabled && hotkeyPressed;
+        Json events = Json::array();
+        Json slotKey = nullptr;
+        if (pressed) {
+            const unsigned int key = InventorySlotKey(slot);
+            slotKey = key;
+            ExecuteItemDesyncPulse(
+                key,
+                [&](unsigned int heldKey) {
+                    events.push_back(Json{{"action", "key_down"}, {"key", heldKey}, {"path", "direct"}});
+                },
+                [&](unsigned int releasedKey) {
+                    events.push_back(Json{{"action", "key_up"}, {"key", releasedKey}, {"path", "direct"}});
+                });
+        }
+        result = Json{
+            {"operation", "item-desync"},
+            {"pressed", pressed},
+            {"loop_state", pressed},
+            {"slot_key", std::move(slotKey)},
+            {"events", std::move(events)},
         };
     } else if (operation == "presskey-worker" && argc == 7) {
         const auto plan = BuildPressKeyWorkerPlan(

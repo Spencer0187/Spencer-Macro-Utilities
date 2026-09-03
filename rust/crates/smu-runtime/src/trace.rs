@@ -75,6 +75,8 @@ pub enum TraceAction {
     SpawnWorker { child: LaneId },
     Key { key: u32, transition: KeyTransition, path: InputPath },
     MouseMove { dx: i32, dy: i32 },
+    TargetSuspendAttempt { suspended: bool, success: bool },
+    HotkeyRecheck { pressed: bool },
     ProcessSuspended { pids: Vec<u32>, suspended: bool },
     LagBackendInit { success: bool },
     LagConfig(LagConfigTrace),
@@ -166,6 +168,14 @@ impl TraceRecorder {
 
     pub fn mouse_move(&mut self, lane: LaneId, dx: i32, dy: i32) {
         self.push_now(lane, TraceAction::MouseMove { dx, dy });
+    }
+
+    pub fn target_suspend_attempt(&mut self, lane: LaneId, suspended: bool, success: bool) {
+        self.push_now(lane, TraceAction::TargetSuspendAttempt { suspended, success });
+    }
+
+    pub fn hotkey_recheck(&mut self, lane: LaneId, pressed: bool) {
+        self.push_now(lane, TraceAction::HotkeyRecheck { pressed });
     }
 
     pub fn process_suspended(&mut self, lane: LaneId, pids: Vec<u32>, suspended: bool) {
