@@ -14,6 +14,10 @@ fn milliseconds_from_nonnegative(value: i32) -> Duration {
     Duration::from_millis(u64::try_from(value).unwrap_or_default())
 }
 
+fn microseconds_from_nonnegative(value: i32) -> Duration {
+    Duration::from_micros(u64::try_from(value).unwrap_or_default())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RisingEdgeResult {
     pub rising: bool,
@@ -74,9 +78,6 @@ fn attempt_target_suspend(
     requested: bool,
     success: bool,
 ) {
-    if requested == *suspended {
-        return;
-    }
     trace.target_suspend_attempt(lane, requested, success);
     if success {
         *suspended = requested;
@@ -223,6 +224,240 @@ pub fn execute_item_desync(
     trace.key(lane, key, KeyTransition::Down, InputPath::Direct);
     trace.key(lane, key, KeyTransition::Up, InputPath::Direct);
     ItemDesyncResult { pressed: true, loop_state: true, slot_key: Some(key) }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ToggleLoopStateAction {
+    None,
+    Toggle,
+    Clear,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ToggleLoopEdgeResult {
+    pub pressed: bool,
+    pub next_was_pressed: bool,
+    pub state_action: ToggleLoopStateAction,
+}
+
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools)]
+pub const fn evaluate_toggle_loop_edge(
+    foreground_allowed: bool,
+    section_enabled: bool,
+    hotkey_pressed: bool,
+    toggle_switch: bool,
+    was_pressed: bool,
+) -> ToggleLoopEdgeResult {
+    let pressed = foreground_allowed && section_enabled && hotkey_pressed;
+    let state_action = if pressed && !was_pressed {
+        ToggleLoopStateAction::Toggle
+    } else if !pressed && toggle_switch {
+        ToggleLoopStateAction::Clear
+    } else {
+        ToggleLoopStateAction::None
+    };
+    ToggleLoopEdgeResult { pressed, next_was_pressed: pressed, state_action }
+}
+
+#[must_use]
+pub const fn apply_toggle_loop_state_action(action: ToggleLoopStateAction, active: bool) -> bool {
+    match action {
+        ToggleLoopStateAction::Toggle => !active,
+        ToggleLoopStateAction::Clear => false,
+        ToggleLoopStateAction::None => active,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ItemClipCyclePlan {
+    pub half_delay_ms: i32,
+    pub slot_key: u32,
+}
+
+#[must_use]
+pub fn itemclip_half_delay_ms(clip_delay: i32) -> i32 {
+    (clip_delay / 2).max(1)
+}
+
+#[must_use]
+pub fn build_itemclip_cycle_plan(clip_delay: i32, clip_slot: i32) -> ItemClipCyclePlan {
+    ItemClipCyclePlan {
+        half_delay_ms: itemclip_half_delay_ms(clip_delay),
+        slot_key: inventory_slot_key(clip_slot),
+    }
+}
+
+pub fn execute_itemclip_cycle(trace: &mut TraceRecorder, lane: LaneId, plan: ItemClipCyclePlan) {
+    trace.key(lane, plan.slot_key, KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, milliseconds_from_nonnegative(plan.half_delay_ms), WaitKind::Coarse);
+    trace.key(lane, plan.slot_key, KeyTransition::Up, InputPath::Direct);
+    trace.wait(lane, milliseconds_from_nonnegative(plan.half_delay_ms), WaitKind::Coarse);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ItemClipStepInput {
+    pub foreground_allowed: bool,
+    pub section_press: bool,
+    pub section_execute: bool,
+    pub hotkey_pressed: bool,
+    pub toggle_switch: bool,
+    pub was_pressed: bool,
+    pub is_loop: bool,
+    pub clip_delay: i32,
+    pub clip_slot: i32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ItemClipStepResult {
+    pub pressed: bool,
+    pub next_was_pressed: bool,
+    pub state_action: ToggleLoopStateAction,
+    pub next_is_loop: bool,
+    pub execute_cycle: bool,
+    pub plan: Option<ItemClipCyclePlan>,
+}
+
+#[must_use]
+pub fn execute_itemclip_step(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: ItemClipStepInput,
+) -> ItemClipStepResult {
+    let edge = evaluate_toggle_loop_edge(
+        input.foreground_allowed,
+        input.section_press,
+        input.hotkey_pressed,
+        input.toggle_switch,
+        input.was_pressed,
+    );
+    let next_is_loop = apply_toggle_loop_state_action(edge.state_action, input.is_loop);
+    let execute_cycle = input.foreground_allowed && input.section_execute && next_is_loop;
+    let plan = execute_cycle.then(|| build_itemclip_cycle_plan(input.clip_delay, input.clip_slot));
+    if let Some(plan) = plan {
+        execute_itemclip_cycle(trace, lane, plan);
+    }
+    ItemClipStepResult {
+        pressed: edge.pressed,
+        next_was_pressed: edge.next_was_pressed,
+        state_action: edge.state_action,
+        next_is_loop,
+        execute_cycle,
+        plan,
+    }
+}
+
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+pub fn wallwalk_frame_delay_ms(fps: u32) -> i32 {
+    let safe_fps = fps.max(1);
+    ((((1000.0_f32 / safe_fps as f32) + 0.5_f32) * 1.1_f32) as i32).max(1)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WallWalkCyclePlan {
+    pub first_move: i32,
+    pub second_move: i32,
+    pub frame_delay_ms: i32,
+}
+
+#[must_use]
+pub fn build_wallwalk_cycle_plan(
+    fps: u32,
+    side_first: bool,
+    strength_x: i32,
+    side_second: bool,
+    strength_y: i32,
+) -> WallWalkCyclePlan {
+    WallWalkCyclePlan {
+        first_move: if side_first { strength_x.wrapping_neg() } else { strength_x },
+        second_move: if side_second { strength_y.wrapping_neg() } else { strength_y },
+        frame_delay_ms: wallwalk_frame_delay_ms(fps),
+    }
+}
+
+pub fn execute_wallwalk_cycle<TailDelayFn>(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    plan: WallWalkCyclePlan,
+    mut tail_delay_us: TailDelayFn,
+) where
+    TailDelayFn: FnMut() -> i32,
+{
+    trace.mouse_move(lane, plan.first_move, 0);
+    trace.wait(lane, milliseconds_from_nonnegative(plan.frame_delay_ms), WaitKind::Coarse);
+    trace.mouse_move(lane, plan.second_move, 0);
+    let raw_tail_delay_us = tail_delay_us();
+    trace.wallwalk_tail_delay_read(lane, raw_tail_delay_us);
+    trace.wait(lane, microseconds_from_nonnegative(raw_tail_delay_us.max(0)), WaitKind::Coarse);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct WallWalkStepInput {
+    pub foreground_allowed: bool,
+    pub section_press: bool,
+    pub section_execute: bool,
+    pub hotkey_pressed: bool,
+    pub toggle_switch: bool,
+    pub was_pressed: bool,
+    pub is_loop: bool,
+    pub fps: u32,
+    pub side_first: bool,
+    pub strength_x: i32,
+    pub side_second: bool,
+    pub strength_y: i32,
+    pub tail_delay_us: i32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct WallWalkStepResult {
+    pub pressed: bool,
+    pub next_was_pressed: bool,
+    pub state_action: ToggleLoopStateAction,
+    pub next_is_loop: bool,
+    pub execute_cycle: bool,
+    pub plan: Option<WallWalkCyclePlan>,
+}
+
+#[must_use]
+pub fn execute_wallwalk_step(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: WallWalkStepInput,
+) -> WallWalkStepResult {
+    let edge = evaluate_toggle_loop_edge(
+        input.foreground_allowed,
+        input.section_press,
+        input.hotkey_pressed,
+        input.toggle_switch,
+        input.was_pressed,
+    );
+    let next_is_loop = apply_toggle_loop_state_action(edge.state_action, input.is_loop);
+    let execute_cycle = input.foreground_allowed && input.section_execute && next_is_loop;
+    let plan = execute_cycle.then(|| {
+        build_wallwalk_cycle_plan(
+            input.fps,
+            input.side_first,
+            input.strength_x,
+            input.side_second,
+            input.strength_y,
+        )
+    });
+    if let Some(plan) = plan {
+        execute_wallwalk_cycle(trace, lane, plan, || input.tail_delay_us);
+    }
+    WallWalkStepResult {
+        pressed: edge.pressed,
+        next_was_pressed: edge.next_was_pressed,
+        state_action: edge.state_action,
+        next_is_loop,
+        execute_cycle,
+        plan,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -379,11 +614,12 @@ mod tests {
     #![allow(clippy::expect_used, clippy::struct_excessive_bools, clippy::struct_field_names)]
 
     use super::{
-        FreezeStepInput, SpeedglitchStateAction, apply_speedglitch_state_action,
-        build_presskey_worker_plan, build_speedglitch_cycle_plan, evaluate_rising_edge,
-        evaluate_speedglitch_edge, execute_freeze_step, execute_item_desync,
-        execute_presskey_worker, execute_speedglitch_cycle, frame_delays_for_fps,
-        freeze_timeout_threshold_ms,
+        FreezeStepInput, ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction,
+        WallWalkStepInput, apply_speedglitch_state_action, build_presskey_worker_plan,
+        build_speedglitch_cycle_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
+        execute_freeze_step, execute_item_desync, execute_itemclip_step, execute_presskey_worker,
+        execute_speedglitch_cycle, execute_wallwalk_step, frame_delays_for_fps,
+        freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -399,6 +635,9 @@ mod tests {
         freeze_threshold_cases: Vec<FreezeThresholdCase>,
         freeze_cases: Vec<FreezeCase>,
         item_desync_cases: Vec<ItemDesyncCase>,
+        itemclip_cases: Vec<ItemClipCase>,
+        wallwalk_delay_cases: Vec<WallWalkDelayCase>,
+        wallwalk_cases: Vec<WallWalkCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -461,6 +700,58 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct ItemClipCase {
+        name: String,
+        foreground_allowed: bool,
+        section_press: bool,
+        section_execute: bool,
+        hotkey_pressed: bool,
+        toggle_switch: bool,
+        was_pressed: bool,
+        is_loop: bool,
+        clip_delay: i32,
+        clip_slot: i32,
+        pressed: bool,
+        next_was_pressed: bool,
+        state_action: String,
+        next_is_loop: bool,
+        execute_cycle: bool,
+        plan: Value,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct WallWalkDelayCase {
+        fps: u32,
+        delay_ms: i32,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct WallWalkCase {
+        name: String,
+        foreground_allowed: bool,
+        section_press: bool,
+        section_execute: bool,
+        hotkey_pressed: bool,
+        toggle_switch: bool,
+        was_pressed: bool,
+        is_loop: bool,
+        fps: u32,
+        side_first: bool,
+        strength_x: i32,
+        side_second: bool,
+        strength_y: i32,
+        tail_delay_us: i32,
+        pressed: bool,
+        next_was_pressed: bool,
+        state_action: String,
+        next_is_loop: bool,
+        execute_cycle: bool,
+        plan: Value,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -507,11 +798,22 @@ mod tests {
 
     fn event_json(event: &TraceEvent) -> Option<Value> {
         match &event.action {
-            TraceAction::Wait { duration, kind } => Some(json!({
-                "action": "wait",
-                "duration_ms": duration.as_millis(),
-                "kind": wait_kind_name(*kind),
-            })),
+            TraceAction::Wait { duration, kind } => {
+                let micros = duration.as_micros();
+                if micros % 1000 == 0 {
+                    Some(json!({
+                        "action": "wait",
+                        "duration_ms": micros / 1000,
+                        "kind": wait_kind_name(*kind),
+                    }))
+                } else {
+                    Some(json!({
+                        "action": "wait",
+                        "duration_us": micros,
+                        "kind": wait_kind_name(*kind),
+                    }))
+                }
+            }
             TraceAction::Key { key, transition, path } => Some(json!({
                 "action": match transition {
                     KeyTransition::Down => "key_down",
@@ -537,6 +839,10 @@ mod tests {
                 "action": "hotkey_recheck",
                 "pressed": pressed,
             })),
+            TraceAction::WallWalkTailDelayRead { delay_us } => Some(json!({
+                "action": "wallwalk_tail_delay_read",
+                "delay_us": delay_us,
+            })),
             TraceAction::RunningCheck { running } => Some(json!({
                 "action": "running_check",
                 "running": running,
@@ -551,6 +857,14 @@ mod tests {
 
     fn trace_events(trace: &TraceRecorder) -> Vec<Value> {
         trace.events().iter().filter_map(event_json).collect()
+    }
+
+    fn toggle_loop_action_name(action: ToggleLoopStateAction) -> &'static str {
+        match action {
+            ToggleLoopStateAction::None => "none",
+            ToggleLoopStateAction::Toggle => "toggle",
+            ToggleLoopStateAction::Clear => "clear",
+        }
     }
 
     #[test]
@@ -637,6 +951,106 @@ mod tests {
             assert_eq!(observed.pressed, case.pressed, "case {} pressed", case.name);
             assert_eq!(observed.loop_state, case.loop_state, "case {} loop", case.name);
             assert_eq!(observed.slot_key, case.slot_key, "case {} slot", case.name);
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_itemclip_matrix_timing_and_slots_match() {
+        for case in fixture().itemclip_cases {
+            let mut trace = TraceRecorder::default();
+            let observed = execute_itemclip_step(
+                &mut trace,
+                LaneId::CONTROLLER,
+                ItemClipStepInput {
+                    foreground_allowed: case.foreground_allowed,
+                    section_press: case.section_press,
+                    section_execute: case.section_execute,
+                    hotkey_pressed: case.hotkey_pressed,
+                    toggle_switch: case.toggle_switch,
+                    was_pressed: case.was_pressed,
+                    is_loop: case.is_loop,
+                    clip_delay: case.clip_delay,
+                    clip_slot: case.clip_slot,
+                },
+            );
+            assert_eq!(observed.pressed, case.pressed, "case {} pressed", case.name);
+            assert_eq!(
+                observed.next_was_pressed, case.next_was_pressed,
+                "case {} next edge",
+                case.name
+            );
+            assert_eq!(
+                toggle_loop_action_name(observed.state_action),
+                case.state_action,
+                "case {} action",
+                case.name
+            );
+            assert_eq!(observed.next_is_loop, case.next_is_loop, "case {} state", case.name);
+            assert_eq!(observed.execute_cycle, case.execute_cycle, "case {} execute", case.name);
+            let plan = observed.plan.map_or(Value::Null, |plan| {
+                json!({
+                    "half_delay_ms": plan.half_delay_ms,
+                    "slot_key": plan.slot_key,
+                })
+            });
+            assert_eq!(plan, case.plan, "case {} plan", case.name);
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_wallwalk_delay_table_matches() {
+        for case in fixture().wallwalk_delay_cases {
+            assert_eq!(wallwalk_frame_delay_ms(case.fps), case.delay_ms, "fps {}", case.fps);
+        }
+    }
+
+    #[test]
+    fn cpp_wallwalk_matrix_moves_and_tail_waits_match() {
+        for case in fixture().wallwalk_cases {
+            let mut trace = TraceRecorder::default();
+            let observed = execute_wallwalk_step(
+                &mut trace,
+                LaneId::CONTROLLER,
+                WallWalkStepInput {
+                    foreground_allowed: case.foreground_allowed,
+                    section_press: case.section_press,
+                    section_execute: case.section_execute,
+                    hotkey_pressed: case.hotkey_pressed,
+                    toggle_switch: case.toggle_switch,
+                    was_pressed: case.was_pressed,
+                    is_loop: case.is_loop,
+                    fps: case.fps,
+                    side_first: case.side_first,
+                    strength_x: case.strength_x,
+                    side_second: case.side_second,
+                    strength_y: case.strength_y,
+                    tail_delay_us: case.tail_delay_us,
+                },
+            );
+            assert_eq!(observed.pressed, case.pressed, "case {} pressed", case.name);
+            assert_eq!(
+                observed.next_was_pressed, case.next_was_pressed,
+                "case {} next edge",
+                case.name
+            );
+            assert_eq!(
+                toggle_loop_action_name(observed.state_action),
+                case.state_action,
+                "case {} action",
+                case.name
+            );
+            assert_eq!(observed.next_is_loop, case.next_is_loop, "case {} state", case.name);
+            assert_eq!(observed.execute_cycle, case.execute_cycle, "case {} execute", case.name);
+            let plan = observed.plan.map_or(Value::Null, |plan| {
+                json!({
+                    "frame_delay_ms": plan.frame_delay_ms,
+                    "first_move": plan.first_move,
+                    "second_move": plan.second_move,
+                })
+            });
+            assert_eq!(plan, case.plan, "case {} plan", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
         }
     }

@@ -77,6 +77,7 @@ pub enum TraceAction {
     MouseMove { dx: i32, dy: i32 },
     TargetSuspendAttempt { suspended: bool, success: bool },
     HotkeyRecheck { pressed: bool },
+    WallWalkTailDelayRead { delay_us: i32 },
     ProcessSuspended { pids: Vec<u32>, suspended: bool },
     LagBackendInit { success: bool },
     LagConfig(LagConfigTrace),
@@ -176,6 +177,10 @@ impl TraceRecorder {
 
     pub fn hotkey_recheck(&mut self, lane: LaneId, pressed: bool) {
         self.push_now(lane, TraceAction::HotkeyRecheck { pressed });
+    }
+
+    pub fn wallwalk_tail_delay_read(&mut self, lane: LaneId, delay_us: i32) {
+        self.push_now(lane, TraceAction::WallWalkTailDelayRead { delay_us });
     }
 
     pub fn process_suspended(&mut self, lane: LaneId, pids: Vec<u32>, suspended: bool) {

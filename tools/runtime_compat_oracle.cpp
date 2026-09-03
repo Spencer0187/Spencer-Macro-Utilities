@@ -23,6 +23,8 @@ int Usage()
               << "  smu_runtime_compat_oracle freeze-threshold <seconds>\n"
               << "  smu_runtime_compat_oracle freeze-step <section> <foreground> <pressed> <was-pressed> <configured-toggle> <freeze-key> <suspended> <elapsed-ms> <max-seconds> <override-ms> <running-after-override> <pressed-after-override> <suspend-success> <resume-success>\n"
               << "  smu_runtime_compat_oracle item-desync <foreground> <section> <hotkey> <slot>\n"
+              << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
+              << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
     return 2;
 }
@@ -92,9 +94,6 @@ int main(int argc, char** argv)
             overrideMs,
             [&] { return suspended; },
             [&](bool shouldSuspend) {
-                if (shouldSuspend == suspended) {
-                    return;
-                }
                 const bool success = shouldSuspend ? suspendSuccess : resumeSuccess;
                 events.push_back(Json{
                     {"action", "set_suspended"},
@@ -154,6 +153,129 @@ int main(int argc, char** argv)
             {"pressed", pressed},
             {"loop_state", pressed},
             {"slot_key", std::move(slotKey)},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "itemclip-step" && argc == 11) {
+        const bool foreground = ParseBool(argv[2]);
+        const bool sectionPress = ParseBool(argv[3]);
+        const bool sectionExecute = ParseBool(argv[4]);
+        const bool hotkey = ParseBool(argv[5]);
+        const bool toggleSwitch = ParseBool(argv[6]);
+        const bool wasPressed = ParseBool(argv[7]);
+        const bool isLoop = ParseBool(argv[8]);
+        const int clipDelay = std::atoi(argv[9]);
+        const int clipSlot = std::atoi(argv[10]);
+
+        const auto edge = EvaluateToggleLoopEdge(
+            foreground, sectionPress, hotkey, toggleSwitch, wasPressed);
+        const bool nextLoop = ApplyToggleLoopStateAction(edge.stateAction, isLoop);
+        const bool executeCycle = foreground && sectionExecute && nextLoop;
+        Json events = Json::array();
+        Json planJson = nullptr;
+        if (executeCycle) {
+            const int halfDelayMs = ItemClipHalfDelayMs(clipDelay);
+            const unsigned int slotKey = InventorySlotKey(clipSlot);
+            planJson = Json{
+                {"half_delay_ms", halfDelayMs},
+                {"slot_key", slotKey},
+            };
+            ExecuteItemClipCycle(
+                slotKey,
+                halfDelayMs,
+                [&](unsigned int key) {
+                    events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+                },
+                [&](int delayMs) {
+                    events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                },
+                [&](unsigned int key) {
+                    events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+                });
+        }
+
+        const char* actionName = "none";
+        if (edge.stateAction == ToggleLoopStateAction::Toggle) {
+            actionName = "toggle";
+        } else if (edge.stateAction == ToggleLoopStateAction::Clear) {
+            actionName = "clear";
+        }
+        result = Json{
+            {"operation", "itemclip-step"},
+            {"pressed", edge.pressed},
+            {"next_was_pressed", edge.nextWasPressed},
+            {"state_action", actionName},
+            {"next_is_loop", nextLoop},
+            {"execute_cycle", executeCycle},
+            {"plan", std::move(planJson)},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "wallwalk-step" && argc == 15) {
+        const bool foreground = ParseBool(argv[2]);
+        const bool sectionPress = ParseBool(argv[3]);
+        const bool sectionExecute = ParseBool(argv[4]);
+        const bool hotkey = ParseBool(argv[5]);
+        const bool toggleSwitch = ParseBool(argv[6]);
+        const bool wasPressed = ParseBool(argv[7]);
+        const bool isLoop = ParseBool(argv[8]);
+        const auto fps = static_cast<unsigned int>(std::strtoul(argv[9], nullptr, 10));
+        const bool sideFirst = ParseBool(argv[10]);
+        const int strengthX = std::atoi(argv[11]);
+        const bool sideSecond = ParseBool(argv[12]);
+        const int strengthY = std::atoi(argv[13]);
+        const int tailDelayUs = std::atoi(argv[14]);
+
+        const auto edge = EvaluateToggleLoopEdge(
+            foreground, sectionPress, hotkey, toggleSwitch, wasPressed);
+        const bool nextLoop = ApplyToggleLoopStateAction(edge.stateAction, isLoop);
+        const bool executeCycle = foreground && sectionExecute && nextLoop;
+        Json events = Json::array();
+        Json planJson = nullptr;
+        if (executeCycle) {
+            const int frameDelayMs = WallWalkFrameDelayMs(fps);
+            const int firstMove = sideFirst ? -strengthX : strengthX;
+            const int secondMove = sideSecond ? -strengthY : strengthY;
+            planJson = Json{
+                {"frame_delay_ms", frameDelayMs},
+                {"first_move", firstMove},
+                {"second_move", secondMove},
+            };
+            ExecuteWallWalkCycle(
+                firstMove,
+                secondMove,
+                frameDelayMs,
+                [&](int dx, int dy) {
+                    events.push_back(Json{{"action", "mouse_move"}, {"dx", dx}, {"dy", dy}});
+                },
+                [&](int delayMs) {
+                    events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                },
+                [&] {
+                    events.push_back(Json{{"action", "wallwalk_tail_delay_read"}, {"delay_us", tailDelayUs}});
+                    return tailDelayUs;
+                },
+                [&](int delayUs) {
+                    if (delayUs % 1000 == 0) {
+                        events.push_back(Json{{"action", "wait"}, {"duration_ms", delayUs / 1000}, {"kind", "coarse"}});
+                    } else {
+                        events.push_back(Json{{"action", "wait"}, {"duration_us", delayUs}, {"kind", "coarse"}});
+                    }
+                });
+        }
+
+        const char* actionName = "none";
+        if (edge.stateAction == ToggleLoopStateAction::Toggle) {
+            actionName = "toggle";
+        } else if (edge.stateAction == ToggleLoopStateAction::Clear) {
+            actionName = "clear";
+        }
+        result = Json{
+            {"operation", "wallwalk-step"},
+            {"pressed", edge.pressed},
+            {"next_was_pressed", edge.nextWasPressed},
+            {"state_action", actionName},
+            {"next_is_loop", nextLoop},
+            {"execute_cycle", executeCycle},
+            {"plan", std::move(planJson)},
             {"events", std::move(events)},
         };
     } else if (operation == "presskey-worker" && argc == 7) {

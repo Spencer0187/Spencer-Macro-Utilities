@@ -1063,13 +1063,14 @@ void MacroRuntime::processWallessLhjMacro(bool foregroundAllowed)
 
 void MacroRuntime::processSpeedglitchMacro(bool foregroundAllowed)
 {
-    const bool sectionEnabled = section_toggles[3];
-    const bool hotkeyPressed = foregroundAllowed && sectionEnabled && isHotkeyPressed(vk_xkey);
+    const bool sectionEnabled = foregroundAllowed && section_toggles[3];
+    const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_xkey);
+    const bool toggleSwitch = !hotkeyPressed && isspeedswitch;
     const auto edge = compat::EvaluateSpeedglitchEdge(
         foregroundAllowed,
         sectionEnabled,
         hotkeyPressed,
-        isspeedswitch,
+        toggleSwitch,
         speedWasPressed_);
     if (edge.stateAction == compat::SpeedglitchStateAction::Toggle) {
         isspeed.store(!isspeed.load(std::memory_order_acquire), std::memory_order_release);
@@ -1216,47 +1217,69 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
 
 void MacroRuntime::processItemClipMacro(bool foregroundAllowed)
 {
-    const bool pressed = foregroundAllowed && section_toggles[8] && isHotkeyPressed(vk_clipkey);
-    if (pressed && !itemClipWasPressed_) {
+    const bool sectionEnabled = foregroundAllowed && section_toggles[8];
+    const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_clipkey);
+    const bool toggleSwitch = !hotkeyPressed && isitemclipswitch;
+    const auto edge = compat::EvaluateToggleLoopEdge(
+        foregroundAllowed,
+        sectionEnabled,
+        hotkeyPressed,
+        toggleSwitch,
+        itemClipWasPressed_);
+    if (edge.stateAction == compat::ToggleLoopStateAction::Toggle) {
         isitemloop.store(!isitemloop.load(std::memory_order_acquire), std::memory_order_release);
-    } else if (!pressed && isitemclipswitch) {
+    } else if (edge.stateAction == compat::ToggleLoopStateAction::Clear) {
         isitemloop.store(false, std::memory_order_release);
     }
-    itemClipWasPressed_ = pressed;
+    itemClipWasPressed_ = edge.nextWasPressed;
 
     if (!foregroundAllowed || !section_toggles[8] || !isitemloop.load(std::memory_order_acquire)) {
         return;
     }
 
-    const int halfDelay = std::max(1, clip_delay / 2);
+    const int halfDelay = compat::ItemClipHalfDelayMs(clip_delay);
     const unsigned int slotKey = compat::InventorySlotKey(clip_slot);
-    HoldKey(slotKey);
-    std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
-    ReleaseKey(slotKey);
-    std::this_thread::sleep_for(std::chrono::milliseconds(halfDelay));
+    compat::ExecuteItemClipCycle(
+        slotKey,
+        halfDelay,
+        [](unsigned int key) { HoldKey(key); },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [](unsigned int key) { ReleaseKey(key); });
 }
 
 void MacroRuntime::processWallWalkMacro(bool foregroundAllowed)
 {
-    const bool pressed = foregroundAllowed && section_toggles[10] && isHotkeyPressed(vk_wallkey);
-    if (pressed && !wallWalkWasPressed_) {
+    const bool sectionEnabled = foregroundAllowed && section_toggles[10];
+    const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_wallkey);
+    const bool toggleSwitch = !hotkeyPressed && iswallwalkswitch;
+    const auto edge = compat::EvaluateToggleLoopEdge(
+        foregroundAllowed,
+        sectionEnabled,
+        hotkeyPressed,
+        toggleSwitch,
+        wallWalkWasPressed_);
+    if (edge.stateAction == compat::ToggleLoopStateAction::Toggle) {
         iswallwalkloop.store(!iswallwalkloop.load(std::memory_order_acquire), std::memory_order_release);
-    } else if (!pressed && iswallwalkswitch) {
+    } else if (edge.stateAction == compat::ToggleLoopStateAction::Clear) {
         iswallwalkloop.store(false, std::memory_order_release);
     }
-    wallWalkWasPressed_ = pressed;
+    wallWalkWasPressed_ = edge.nextWasPressed;
 
     if (!foregroundAllowed || !section_toggles[10] || !iswallwalkloop.load(std::memory_order_acquire)) {
         return;
     }
 
-    const int delay = std::max(1, static_cast<int>(((1000.0f / std::max(1u, RobloxFPS.load(std::memory_order_relaxed))) + 0.5f) * 1.1f));
+    const int delay = compat::WallWalkFrameDelayMs(RobloxFPS.load(std::memory_order_relaxed));
     const int firstMove = wallwalktoggleside ? -wallwalk_strengthx : wallwalk_strengthx;
     const int secondMove = wallwalktoggleside ? -wallwalk_strengthy : wallwalk_strengthy;
-    MoveMouse(firstMove, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-    MoveMouse(secondMove, 0);
-    std::this_thread::sleep_for(std::chrono::microseconds(std::max(0, RobloxWallWalkValueDelay)));
+    compat::ExecuteWallWalkCycle(
+        firstMove,
+        secondMove,
+        delay,
+        [](int dx, int dy) { MoveMouse(dx, dy); },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [] { return RobloxWallWalkValueDelay; },
+        [](int delayUs) { std::this_thread::sleep_for(std::chrono::microseconds(delayUs)); });
 }
 
 void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)

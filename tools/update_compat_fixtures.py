@@ -875,6 +875,225 @@ def runtime_item_desync_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_itemclip_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for foreground in (False, True):
+        for section_press in (False, True):
+            for section_execute in (False, True):
+                for hotkey in (False, True):
+                    for toggle_switch in (False, True):
+                        for was_pressed in (False, True):
+                            for is_loop in (False, True):
+                                observed = run_json(
+                                    RUNTIME_ORACLE,
+                                    "itemclip-step",
+                                    str(int(foreground)),
+                                    str(int(section_press)),
+                                    str(int(section_execute)),
+                                    str(int(hotkey)),
+                                    str(int(toggle_switch)),
+                                    str(int(was_pressed)),
+                                    str(int(is_loop)),
+                                    "5",
+                                    "1",
+                                )
+                                cases.append(
+                                    {
+                                        "name": f"matrix-{case_index}",
+                                        "foreground_allowed": foreground,
+                                        "section_press": section_press,
+                                        "section_execute": section_execute,
+                                        "hotkey_pressed": hotkey,
+                                        "toggle_switch": toggle_switch,
+                                        "was_pressed": was_pressed,
+                                        "is_loop": is_loop,
+                                        "clip_delay": 5,
+                                        "clip_slot": 1,
+                                        "pressed": observed["pressed"],
+                                        "next_was_pressed": observed["next_was_pressed"],
+                                        "state_action": observed["state_action"],
+                                        "next_is_loop": observed["next_is_loop"],
+                                        "execute_cycle": observed["execute_cycle"],
+                                        "plan": observed["plan"],
+                                        "events": observed["events"],
+                                    }
+                                )
+                                case_index += 1
+
+    for clip_delay in (-99, -3, -2, -1, 0, 1, 2, 3, 4, 5, 16, 17, 1001):
+        for clip_slot in (-99, 0, 1, 9, 99):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "itemclip-step",
+                "1",
+                "1",
+                "1",
+                "0",
+                "0",
+                "0",
+                "1",
+                str(clip_delay),
+                str(clip_slot),
+            )
+            cases.append(
+                {
+                    "name": f"active-delay-{clip_delay}-slot-{clip_slot}",
+                    "foreground_allowed": True,
+                    "section_press": True,
+                    "section_execute": True,
+                    "hotkey_pressed": False,
+                    "toggle_switch": False,
+                    "was_pressed": False,
+                    "is_loop": True,
+                    "clip_delay": clip_delay,
+                    "clip_slot": clip_slot,
+                    "pressed": observed["pressed"],
+                    "next_was_pressed": observed["next_was_pressed"],
+                    "state_action": observed["state_action"],
+                    "next_is_loop": observed["next_is_loop"],
+                    "execute_cycle": observed["execute_cycle"],
+                    "plan": observed["plan"],
+                    "events": observed["events"],
+                }
+            )
+    return cases
+
+
+def runtime_wallwalk_delay_cases() -> list[dict[str, Any]]:
+    cases = []
+    for fps in (*range(0, 1001), 10_000, 1_000_000, 4_294_967_295):
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "wallwalk-step",
+            "1",
+            "1",
+            "1",
+            "0",
+            "0",
+            "0",
+            "1",
+            str(fps),
+            "0",
+            "1",
+            "0",
+            "2",
+            "0",
+        )
+        cases.append({"fps": fps, "delay_ms": observed["plan"]["frame_delay_ms"]})
+    return cases
+
+
+def runtime_wallwalk_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for foreground in (False, True):
+        for section_press in (False, True):
+            for section_execute in (False, True):
+                for hotkey in (False, True):
+                    for toggle_switch in (False, True):
+                        for was_pressed in (False, True):
+                            for is_loop in (False, True):
+                                observed = run_json(
+                                    RUNTIME_ORACLE,
+                                    "wallwalk-step",
+                                    str(int(foreground)),
+                                    str(int(section_press)),
+                                    str(int(section_execute)),
+                                    str(int(hotkey)),
+                                    str(int(toggle_switch)),
+                                    str(int(was_pressed)),
+                                    str(int(is_loop)),
+                                    "200",
+                                    "0",
+                                    "300",
+                                    "1",
+                                    "301",
+                                    "250",
+                                )
+                                cases.append(
+                                    {
+                                        "name": f"matrix-{case_index}",
+                                        "foreground_allowed": foreground,
+                                        "section_press": section_press,
+                                        "section_execute": section_execute,
+                                        "hotkey_pressed": hotkey,
+                                        "toggle_switch": toggle_switch,
+                                        "was_pressed": was_pressed,
+                                        "is_loop": is_loop,
+                                        "fps": 200,
+                                        "side_first": False,
+                                        "strength_x": 300,
+                                        "side_second": True,
+                                        "strength_y": 301,
+                                        "tail_delay_us": 250,
+                                        "pressed": observed["pressed"],
+                                        "next_was_pressed": observed["next_was_pressed"],
+                                        "state_action": observed["state_action"],
+                                        "next_is_loop": observed["next_is_loop"],
+                                        "execute_cycle": observed["execute_cycle"],
+                                        "plan": observed["plan"],
+                                        "events": observed["events"],
+                                    }
+                                )
+                                case_index += 1
+
+    variants = [
+        ("tail-negative-clamps-zero", 144, False, 321, False, -123, -99),
+        ("tail-zero", 144, False, 321, False, -123, 0),
+        ("tail-one-us", 144, False, 321, False, -123, 1),
+        ("tail-999-us", 144, False, 321, False, -123, 999),
+        ("tail-1000-us", 144, False, 321, False, -123, 1000),
+        ("tail-1001-us", 144, False, 321, False, -123, 1001),
+        ("both-sides-negative", 60, True, 321, True, 123, 25),
+        ("mixed-side-snapshots", 60, True, 321, False, 123, 25),
+    ]
+    for name, fps, side_first, strength_x, side_second, strength_y, tail_delay_us in variants:
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "wallwalk-step",
+            "1",
+            "1",
+            "1",
+            "0",
+            "0",
+            "0",
+            "1",
+            str(fps),
+            str(int(side_first)),
+            str(strength_x),
+            str(int(side_second)),
+            str(strength_y),
+            str(tail_delay_us),
+        )
+        cases.append(
+            {
+                "name": name,
+                "foreground_allowed": True,
+                "section_press": True,
+                "section_execute": True,
+                "hotkey_pressed": False,
+                "toggle_switch": False,
+                "was_pressed": False,
+                "is_loop": True,
+                "fps": fps,
+                "side_first": side_first,
+                "strength_x": strength_x,
+                "side_second": side_second,
+                "strength_y": strength_y,
+                "tail_delay_us": tail_delay_us,
+                "pressed": observed["pressed"],
+                "next_was_pressed": observed["next_was_pressed"],
+                "state_action": observed["state_action"],
+                "next_is_loop": observed["next_is_loop"],
+                "execute_cycle": observed["execute_cycle"],
+                "plan": observed["plan"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1007,6 +1226,9 @@ def write_runtime() -> None:
         "freeze_threshold_cases": runtime_freeze_threshold_cases(),
         "freeze_cases": runtime_freeze_cases(),
         "item_desync_cases": runtime_item_desync_cases(),
+        "itemclip_cases": runtime_itemclip_cases(),
+        "wallwalk_delay_cases": runtime_wallwalk_delay_cases(),
+        "wallwalk_cases": runtime_wallwalk_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

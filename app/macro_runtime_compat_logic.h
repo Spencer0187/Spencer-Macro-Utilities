@@ -107,6 +107,94 @@ void ExecuteItemDesyncPulse(unsigned int slotKey, HoldFn&& hold, ReleaseFn&& rel
     release(slotKey);
 }
 
+enum class ToggleLoopStateAction {
+    None,
+    Toggle,
+    Clear,
+};
+
+struct ToggleLoopEdgeResult {
+    bool pressed = false;
+    bool nextWasPressed = false;
+    ToggleLoopStateAction stateAction = ToggleLoopStateAction::None;
+};
+
+inline ToggleLoopEdgeResult EvaluateToggleLoopEdge(
+    bool foregroundAllowed,
+    bool sectionEnabled,
+    bool hotkeyPressed,
+    bool toggleSwitch,
+    bool wasPressed)
+{
+    const bool pressed = foregroundAllowed && sectionEnabled && hotkeyPressed;
+    ToggleLoopStateAction action = ToggleLoopStateAction::None;
+    if (pressed && !wasPressed) {
+        action = ToggleLoopStateAction::Toggle;
+    } else if (!pressed && toggleSwitch) {
+        action = ToggleLoopStateAction::Clear;
+    }
+
+    return ToggleLoopEdgeResult{
+        .pressed = pressed,
+        .nextWasPressed = pressed,
+        .stateAction = action,
+    };
+}
+
+inline bool ApplyToggleLoopStateAction(ToggleLoopStateAction action, bool active)
+{
+    switch (action) {
+    case ToggleLoopStateAction::Toggle:
+        return !active;
+    case ToggleLoopStateAction::Clear:
+        return false;
+    case ToggleLoopStateAction::None:
+    default:
+        return active;
+    }
+}
+
+inline int ItemClipHalfDelayMs(int clipDelay)
+{
+    return std::max(1, clipDelay / 2);
+}
+
+template <typename HoldFn, typename SleepFn, typename ReleaseFn>
+void ExecuteItemClipCycle(
+    unsigned int slotKey,
+    int halfDelayMs,
+    HoldFn&& hold,
+    SleepFn&& sleep,
+    ReleaseFn&& release)
+{
+    hold(slotKey);
+    sleep(halfDelayMs);
+    release(slotKey);
+    sleep(halfDelayMs);
+}
+
+inline int WallWalkFrameDelayMs(unsigned int fps)
+{
+    const unsigned int safeFps = std::max(1u, fps);
+    return std::max(1, static_cast<int>(((1000.0f / static_cast<float>(safeFps)) + 0.5f) * 1.1f));
+}
+
+template <typename MoveFn, typename SleepMsFn, typename TailDelayUsFn, typename SleepUsFn>
+void ExecuteWallWalkCycle(
+    int firstMove,
+    int secondMove,
+    int frameDelayMs,
+    MoveFn&& move,
+    SleepMsFn&& sleepMs,
+    TailDelayUsFn&& tailDelayUs,
+    SleepUsFn&& sleepUs)
+{
+    move(firstMove, 0);
+    sleepMs(frameDelayMs);
+    move(secondMove, 0);
+    sleepUs(std::max(0, tailDelayUs()));
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;
