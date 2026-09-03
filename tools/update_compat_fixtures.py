@@ -838,6 +838,193 @@ def runtime_freeze_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_target_suspend_cases() -> list[dict[str, Any]]:
+    specifications = [
+        (
+            "suspend-no-target-after-refresh",
+            {
+                "target_pids": [],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[]],
+                "attempt_results": [],
+            },
+        ),
+        (
+            "suspend-single-success",
+            {
+                "target_pids": [10],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [],
+                "attempt_results": [True],
+            },
+        ),
+        (
+            "suspend-partial-success-skips-refresh",
+            {
+                "target_pids": [10, 20],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[30]],
+                "attempt_results": [False, True],
+            },
+        ),
+        (
+            "suspend-all-fail-same-pids-no-retry",
+            {
+                "target_pids": [10, 20],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[10, 20]],
+                "attempt_results": [False, False],
+            },
+        ),
+        (
+            "suspend-all-fail-reordered-pids-retries",
+            {
+                "target_pids": [10, 20],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[20, 10]],
+                "attempt_results": [False, False, True, False],
+            },
+        ),
+        (
+            "suspend-all-fail-new-pids-partial-retry-success",
+            {
+                "target_pids": [10, 20],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[30, 40]],
+                "attempt_results": [False, False, False, True],
+            },
+        ),
+        (
+            "suspend-all-fail-refresh-empty-keeps-old-frozen",
+            {
+                "target_pids": [10, 20],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[]],
+                "attempt_results": [False, False],
+            },
+        ),
+        (
+            "suspend-empty-target-two-stage-refresh-retry",
+            {
+                "target_pids": [],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [[7], [8]],
+                "attempt_results": [False, True],
+            },
+        ),
+        (
+            "suspend-empty-target-refresh-empty-preserves-old-frozen",
+            {
+                "target_pids": [],
+                "frozen_pids": [99],
+                "freeze_suspended": True,
+                "request_suspended": True,
+                "refresh_results": [[]],
+                "attempt_results": [],
+            },
+        ),
+        (
+            "resume-partial-success-clears-entire-frozen-set",
+            {
+                "target_pids": [30, 40],
+                "frozen_pids": [10, 20],
+                "freeze_suspended": True,
+                "request_suspended": False,
+                "refresh_results": [[50]],
+                "attempt_results": [False, True],
+            },
+        ),
+        (
+            "resume-all-fail-retains-frozen-and-state",
+            {
+                "target_pids": [30],
+                "frozen_pids": [10, 20],
+                "freeze_suspended": True,
+                "request_suspended": False,
+                "refresh_results": [[50]],
+                "attempt_results": [False, False],
+            },
+        ),
+        (
+            "resume-empty-frozen-does-nothing",
+            {
+                "target_pids": [30],
+                "frozen_pids": [],
+                "freeze_suspended": True,
+                "request_suspended": False,
+                "refresh_results": [[50]],
+                "attempt_results": [],
+            },
+        ),
+        (
+            "suspend-while-already-suspended-still-calls-backend",
+            {
+                "target_pids": [10],
+                "frozen_pids": [9],
+                "freeze_suspended": True,
+                "request_suspended": True,
+                "refresh_results": [],
+                "attempt_results": [True],
+            },
+        ),
+        (
+            "resume-while-state-false-still-uses-frozen-pids",
+            {
+                "target_pids": [30],
+                "frozen_pids": [10],
+                "freeze_suspended": False,
+                "request_suspended": False,
+                "refresh_results": [],
+                "attempt_results": [True],
+            },
+        ),
+        (
+            "duplicate-target-pids-are-not-deduplicated",
+            {
+                "target_pids": [10, 10],
+                "frozen_pids": [],
+                "freeze_suspended": False,
+                "request_suspended": True,
+                "refresh_results": [],
+                "attempt_results": [False, True],
+            },
+        ),
+    ]
+    cases = []
+    for name, spec in specifications:
+        observed = run_json(RUNTIME_ORACLE, "target-suspend", compact(spec))
+        cases.append(
+            {
+                "name": name,
+                "spec": spec,
+                "any_success": observed["any_success"],
+                "warning": observed["warning"],
+                "reset_freeze_start": observed["reset_freeze_start"],
+                "target_pids": observed["target_pids"],
+                "frozen_pids": observed["frozen_pids"],
+                "freeze_suspended": observed["freeze_suspended"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
 def runtime_item_desync_cases() -> list[dict[str, Any]]:
     specifications = []
     case_index = 0
@@ -1225,6 +1412,7 @@ def write_runtime() -> None:
         "rising_edge_cases": runtime_rising_edge_cases(),
         "freeze_threshold_cases": runtime_freeze_threshold_cases(),
         "freeze_cases": runtime_freeze_cases(),
+        "target_suspend_cases": runtime_target_suspend_cases(),
         "item_desync_cases": runtime_item_desync_cases(),
         "itemclip_cases": runtime_itemclip_cases(),
         "wallwalk_delay_cases": runtime_wallwalk_delay_cases(),

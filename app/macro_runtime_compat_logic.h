@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 namespace smu::app::compat {
 
@@ -30,6 +31,61 @@ inline bool ShouldToggleFreeze(bool configuredToggle, unsigned int freezeKey)
 inline long long FreezeTimeoutThresholdMs(float maxFreezeTimeSeconds)
 {
     return static_cast<long long>(maxFreezeTimeSeconds * 1000.0f);
+}
+
+struct TargetSuspendResult {
+    bool anySuccess = false;
+    bool warning = false;
+    bool resetFreezeStart = false;
+};
+
+template <typename RefreshFn, typename SetPidSuspendedFn>
+TargetSuspendResult ExecuteTargetSuspendRequest(
+    bool suspended,
+    std::vector<unsigned int>& targetPids,
+    std::vector<unsigned int>& frozenPids,
+    bool& freezeSuspended,
+    RefreshFn&& refresh,
+    SetPidSuspendedFn&& setPidSuspended)
+{
+    if (suspended) {
+        if (targetPids.empty()) {
+            refresh();
+        }
+        if (targetPids.empty()) {
+            return {};
+        }
+        frozenPids = targetPids;
+    }
+
+    bool anySuccess = false;
+    for (unsigned int pid : frozenPids) {
+        anySuccess = setPidSuspended(pid, suspended) || anySuccess;
+    }
+
+    if (!anySuccess && suspended) {
+        const auto previousPids = frozenPids;
+        refresh();
+        if (!targetPids.empty() && targetPids != previousPids) {
+            frozenPids = targetPids;
+            for (unsigned int pid : frozenPids) {
+                anySuccess = setPidSuspended(pid, true) || anySuccess;
+            }
+        }
+    }
+
+    TargetSuspendResult result;
+    result.anySuccess = anySuccess;
+    if (anySuccess) {
+        freezeSuspended = suspended;
+        result.resetFreezeStart = suspended;
+        if (!suspended) {
+            frozenPids.clear();
+        }
+    } else if (!frozenPids.empty()) {
+        result.warning = true;
+    }
+    return result;
 }
 
 struct FreezeStepResult {

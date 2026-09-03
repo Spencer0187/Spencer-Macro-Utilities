@@ -848,6 +848,8 @@ mod tests {
                 "running": running,
             })),
             TraceAction::SpawnWorker { .. }
+            | TraceAction::ProcessTargetRefresh { .. }
+            | TraceAction::ProcessSuspendAttempt { .. }
             | TraceAction::ProcessSuspended { .. }
             | TraceAction::LagBackendInit { .. }
             | TraceAction::LagConfig(_)

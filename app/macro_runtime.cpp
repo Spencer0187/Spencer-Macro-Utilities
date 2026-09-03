@@ -1882,40 +1882,20 @@ void MacroRuntime::setTargetSuspended(bool suspended)
         return;
     }
 
-    if (suspended) {
-        if (targetPIDs.empty()) {
-            refreshTargetProcesses(true);
-        }
-        if (targetPIDs.empty()) {
-            return;
-        }
-        frozenPids_ = targetPIDs;
-    }
+    const auto result = compat::ExecuteTargetSuspendRequest(
+        suspended,
+        targetPIDs,
+        frozenPids_,
+        freezeSuspended_,
+        [this] { refreshTargetProcesses(true); },
+        [backend](unsigned int pid, bool requestedSuspended) {
+            return requestedSuspended ? backend->suspend(pid) : backend->resume(pid);
+        });
 
-    bool anySuccess = false;
-    for (unsigned int pid : frozenPids_) {
-        anySuccess = (suspended ? backend->suspend(pid) : backend->resume(pid)) || anySuccess;
+    if (result.resetFreezeStart) {
+        freezeStartTime_ = std::chrono::steady_clock::now();
     }
-
-    if (!anySuccess && suspended) {
-        const auto previousPids = frozenPids_;
-        refreshTargetProcesses(true);
-        if (!targetPIDs.empty() && targetPIDs != previousPids) {
-            frozenPids_ = targetPIDs;
-            for (unsigned int pid : frozenPids_) {
-                anySuccess = backend->suspend(pid) || anySuccess;
-            }
-        }
-    }
-
-    if (anySuccess) {
-        freezeSuspended_ = suspended;
-        if (suspended) {
-            freezeStartTime_ = std::chrono::steady_clock::now();
-        } else {
-            frozenPids_.clear();
-        }
-    } else if (!frozenPids_.empty()) {
+    if (result.warning) {
         LogWarning(suspended ? "Freeze macro failed to suspend target process(es)." : "Freeze macro failed to resume target process(es).");
     }
 }

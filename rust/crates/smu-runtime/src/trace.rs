@@ -76,6 +76,8 @@ pub enum TraceAction {
     Key { key: u32, transition: KeyTransition, path: InputPath },
     MouseMove { dx: i32, dy: i32 },
     TargetSuspendAttempt { suspended: bool, success: bool },
+    ProcessTargetRefresh { pids: Vec<u32> },
+    ProcessSuspendAttempt { pid: u32, suspended: bool, success: bool },
     HotkeyRecheck { pressed: bool },
     WallWalkTailDelayRead { delay_us: i32 },
     ProcessSuspended { pids: Vec<u32>, suspended: bool },
@@ -173,6 +175,20 @@ impl TraceRecorder {
 
     pub fn target_suspend_attempt(&mut self, lane: LaneId, suspended: bool, success: bool) {
         self.push_now(lane, TraceAction::TargetSuspendAttempt { suspended, success });
+    }
+
+    pub fn process_target_refresh(&mut self, lane: LaneId, pids: Vec<u32>) {
+        self.push_now(lane, TraceAction::ProcessTargetRefresh { pids });
+    }
+
+    pub fn process_suspend_attempt(
+        &mut self,
+        lane: LaneId,
+        pid: u32,
+        suspended: bool,
+        success: bool,
+    ) {
+        self.push_now(lane, TraceAction::ProcessSuspendAttempt { pid, suspended, success });
     }
 
     pub fn hotkey_recheck(&mut self, lane: LaneId, pressed: bool) {

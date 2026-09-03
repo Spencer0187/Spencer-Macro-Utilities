@@ -22,6 +22,7 @@ int Usage()
               << "  smu_runtime_compat_oracle rising-edge <pressed> <was-pressed>\n"
               << "  smu_runtime_compat_oracle freeze-threshold <seconds>\n"
               << "  smu_runtime_compat_oracle freeze-step <section> <foreground> <pressed> <was-pressed> <configured-toggle> <freeze-key> <suspended> <elapsed-ms> <max-seconds> <override-ms> <running-after-override> <pressed-after-override> <suspend-success> <resume-success>\n"
+              << "  smu_runtime_compat_oracle target-suspend <json-spec>\n"
               << "  smu_runtime_compat_oracle item-desync <foreground> <section> <hotkey> <slot>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
@@ -126,6 +127,73 @@ int main(int argc, char** argv)
             {"toggle_freeze", step.toggleFreeze},
             {"next_was_pressed", step.nextWasPressed},
             {"final_suspended", suspended},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "target-suspend" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+
+        auto toPids = [](const Json& value) {
+            std::vector<unsigned int> pids;
+            if (!value.is_array()) {
+                return pids;
+            }
+            pids.reserve(value.size());
+            for (const auto& item : value) {
+                pids.push_back(item.get<unsigned int>());
+            }
+            return pids;
+        };
+
+        std::vector<unsigned int> targetPids = toPids(spec.value("target_pids", Json::array()));
+        std::vector<unsigned int> frozenPids = toPids(spec.value("frozen_pids", Json::array()));
+        bool freezeSuspended = spec.value("freeze_suspended", false);
+        const bool requestSuspended = spec.value("request_suspended", false);
+        const Json refreshResults = spec.value("refresh_results", Json::array());
+        const Json attemptResults = spec.value("attempt_results", Json::array());
+        std::size_t refreshIndex = 0;
+        std::size_t attemptIndex = 0;
+        Json events = Json::array();
+
+        const auto outcome = ExecuteTargetSuspendRequest(
+            requestSuspended,
+            targetPids,
+            frozenPids,
+            freezeSuspended,
+            [&] {
+                std::vector<unsigned int> refreshed;
+                if (refreshIndex < refreshResults.size()) {
+                    refreshed = toPids(refreshResults[refreshIndex]);
+                }
+                ++refreshIndex;
+                targetPids = refreshed;
+                events.push_back(Json{{"action", "refresh_targets"}, {"pids", targetPids}});
+            },
+            [&](unsigned int pid, bool shouldSuspend) {
+                bool success = false;
+                if (attemptIndex < attemptResults.size() && attemptResults[attemptIndex].is_boolean()) {
+                    success = attemptResults[attemptIndex].get<bool>();
+                }
+                ++attemptIndex;
+                events.push_back(Json{
+                    {"action", "set_pid_suspended"},
+                    {"pid", pid},
+                    {"suspended", shouldSuspend},
+                    {"success", success},
+                });
+                return success;
+            });
+
+        result = Json{
+            {"operation", "target-suspend"},
+            {"any_success", outcome.anySuccess},
+            {"warning", outcome.warning},
+            {"reset_freeze_start", outcome.resetFreezeStart},
+            {"target_pids", targetPids},
+            {"frozen_pids", frozenPids},
+            {"freeze_suspended", freezeSuspended},
             {"events", std::move(events)},
         };
     } else if (operation == "item-desync" && argc == 6) {

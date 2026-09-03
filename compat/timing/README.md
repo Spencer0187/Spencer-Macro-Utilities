@@ -55,7 +55,11 @@ and WallWalk waits remain controller-lane stalls; PressKey waits remain independ
 waits. Freeze fixtures include failed suspend/resume attempts and post-timeout re-suspension. The
 production Speedglitch path deliberately reads its second strength value only after the first sleep.
 WallWalk snapshots both movement strengths before its first move, but reads the microsecond tail
-delay only after the first frame wait and second move; the trace freezes that distinction.
+delay only after the first frame wait and second move; the trace freezes that distinction. Freeze's
+process-control layer is also differential-tested: partial suspend/resume success counts as overall
+success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
+ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears
+the entire frozen-PID snapshot exactly as the current C++ implementation does.
 
 Regenerate after an intentional C++ timing compatibility change:
 

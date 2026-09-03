@@ -13815,6 +13815,670 @@
       "was_pressed": false
     }
   ],
+  "target_suspend_cases": [
+    {
+      "any_success": false,
+      "events": [
+        {
+          "action": "refresh_targets",
+          "pids": []
+        }
+      ],
+      "freeze_suspended": false,
+      "frozen_pids": [],
+      "name": "suspend-no-target-after-refresh",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          []
+        ],
+        "request_suspended": true,
+        "target_pids": []
+      },
+      "target_pids": [],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        10
+      ],
+      "name": "suspend-single-success",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [],
+        "request_suspended": true,
+        "target_pids": [
+          10
+        ]
+      },
+      "target_pids": [
+        10
+      ],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        10,
+        20
+      ],
+      "name": "suspend-partial-success-skips-refresh",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          false,
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            30
+          ]
+        ],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          20
+        ]
+      },
+      "target_pids": [
+        10,
+        20
+      ],
+      "warning": false
+    },
+    {
+      "any_success": false,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "refresh_targets",
+          "pids": [
+            10,
+            20
+          ]
+        }
+      ],
+      "freeze_suspended": false,
+      "frozen_pids": [
+        10,
+        20
+      ],
+      "name": "suspend-all-fail-same-pids-no-retry",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [
+          false,
+          false
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            10,
+            20
+          ]
+        ],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          20
+        ]
+      },
+      "target_pids": [
+        10,
+        20
+      ],
+      "warning": true
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "refresh_targets",
+          "pids": [
+            20,
+            10
+          ]
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": true,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        20,
+        10
+      ],
+      "name": "suspend-all-fail-reordered-pids-retries",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          false,
+          false,
+          true,
+          false
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            20,
+            10
+          ]
+        ],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          20
+        ]
+      },
+      "target_pids": [
+        20,
+        10
+      ],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "refresh_targets",
+          "pids": [
+            30,
+            40
+          ]
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 30,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 40,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        30,
+        40
+      ],
+      "name": "suspend-all-fail-new-pids-partial-retry-success",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          false,
+          false,
+          false,
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            30,
+            40
+          ]
+        ],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          20
+        ]
+      },
+      "target_pids": [
+        30,
+        40
+      ],
+      "warning": false
+    },
+    {
+      "any_success": false,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "refresh_targets",
+          "pids": []
+        }
+      ],
+      "freeze_suspended": false,
+      "frozen_pids": [
+        10,
+        20
+      ],
+      "name": "suspend-all-fail-refresh-empty-keeps-old-frozen",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [
+          false,
+          false
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          []
+        ],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          20
+        ]
+      },
+      "target_pids": [],
+      "warning": true
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "refresh_targets",
+          "pids": [
+            7
+          ]
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 7,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "refresh_targets",
+          "pids": [
+            8
+          ]
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 8,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        8
+      ],
+      "name": "suspend-empty-target-two-stage-refresh-retry",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          false,
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            7
+          ],
+          [
+            8
+          ]
+        ],
+        "request_suspended": true,
+        "target_pids": []
+      },
+      "target_pids": [
+        8
+      ],
+      "warning": false
+    },
+    {
+      "any_success": false,
+      "events": [
+        {
+          "action": "refresh_targets",
+          "pids": []
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        99
+      ],
+      "name": "suspend-empty-target-refresh-empty-preserves-old-frozen",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [],
+        "freeze_suspended": true,
+        "frozen_pids": [
+          99
+        ],
+        "refresh_results": [
+          []
+        ],
+        "request_suspended": true,
+        "target_pids": []
+      },
+      "target_pids": [],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": false
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "freeze_suspended": false,
+      "frozen_pids": [],
+      "name": "resume-partial-success-clears-entire-frozen-set",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [
+          false,
+          true
+        ],
+        "freeze_suspended": true,
+        "frozen_pids": [
+          10,
+          20
+        ],
+        "refresh_results": [
+          [
+            50
+          ]
+        ],
+        "request_suspended": false,
+        "target_pids": [
+          30,
+          40
+        ]
+      },
+      "target_pids": [
+        30,
+        40
+      ],
+      "warning": false
+    },
+    {
+      "any_success": false,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": false
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 20,
+          "success": false,
+          "suspended": false
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        10,
+        20
+      ],
+      "name": "resume-all-fail-retains-frozen-and-state",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [
+          false,
+          false
+        ],
+        "freeze_suspended": true,
+        "frozen_pids": [
+          10,
+          20
+        ],
+        "refresh_results": [
+          [
+            50
+          ]
+        ],
+        "request_suspended": false,
+        "target_pids": [
+          30
+        ]
+      },
+      "target_pids": [
+        30
+      ],
+      "warning": true
+    },
+    {
+      "any_success": false,
+      "events": [],
+      "freeze_suspended": true,
+      "frozen_pids": [],
+      "name": "resume-empty-frozen-does-nothing",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [],
+        "freeze_suspended": true,
+        "frozen_pids": [],
+        "refresh_results": [
+          [
+            50
+          ]
+        ],
+        "request_suspended": false,
+        "target_pids": [
+          30
+        ]
+      },
+      "target_pids": [
+        30
+      ],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        10
+      ],
+      "name": "suspend-while-already-suspended-still-calls-backend",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          true
+        ],
+        "freeze_suspended": true,
+        "frozen_pids": [
+          9
+        ],
+        "refresh_results": [],
+        "request_suspended": true,
+        "target_pids": [
+          10
+        ]
+      },
+      "target_pids": [
+        10
+      ],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": true,
+          "suspended": false
+        }
+      ],
+      "freeze_suspended": false,
+      "frozen_pids": [],
+      "name": "resume-while-state-false-still-uses-frozen-pids",
+      "reset_freeze_start": false,
+      "spec": {
+        "attempt_results": [
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [
+          10
+        ],
+        "refresh_results": [],
+        "request_suspended": false,
+        "target_pids": [
+          30
+        ]
+      },
+      "target_pids": [
+        30
+      ],
+      "warning": false
+    },
+    {
+      "any_success": true,
+      "events": [
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": false,
+          "suspended": true
+        },
+        {
+          "action": "set_pid_suspended",
+          "pid": 10,
+          "success": true,
+          "suspended": true
+        }
+      ],
+      "freeze_suspended": true,
+      "frozen_pids": [
+        10,
+        10
+      ],
+      "name": "duplicate-target-pids-are-not-deduplicated",
+      "reset_freeze_start": true,
+      "spec": {
+        "attempt_results": [
+          false,
+          true
+        ],
+        "freeze_suspended": false,
+        "frozen_pids": [],
+        "refresh_results": [],
+        "request_suspended": true,
+        "target_pids": [
+          10,
+          10
+        ]
+      },
+      "target_pids": [
+        10,
+        10
+      ],
+      "warning": false
+    }
+  ],
   "wallwalk_cases": [
     {
       "events": [],

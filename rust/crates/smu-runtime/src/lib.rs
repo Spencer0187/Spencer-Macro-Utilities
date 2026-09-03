@@ -4,6 +4,7 @@
 //! time contracts that both controller-style and worker-style execution can consume in tests.
 
 pub mod macros;
+pub mod process_control;
 pub mod trace;
 
 use std::time::Duration;
