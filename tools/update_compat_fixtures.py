@@ -1947,6 +1947,100 @@ def runtime_spam_iteration_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_hhj_motion_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for section in (False, True):
+        for is_hhj in (False, True):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "hhj-motion",
+                str(int(section)),
+                str(int(is_hhj)),
+                "144",
+                "10",
+                "-20",
+            )
+            cases.append(
+                {
+                    "name": f"matrix-{case_index}",
+                    "section": section,
+                    "is_hhj": is_hhj,
+                    "fps": 144,
+                    "strength_x": 10,
+                    "strength_y": -20,
+                    "execute": observed["execute"],
+                    "events": observed["events"],
+                }
+            )
+            case_index += 1
+    return cases
+
+
+def runtime_ledge_turn_cases() -> list[dict[str, Any]]:
+    values = (
+        "",
+        "0",
+        "-1",
+        "0.009",
+        "0.01",
+        "0.1",
+        "0.5",
+        "1",
+        "1.25junk",
+        "  +2.5tail",
+        "abc",
+        "nan",
+        "inf",
+        "-inf",
+        "1e2",
+        "1e-3",
+    )
+    cases = []
+    for sensitivity in values:
+        for camfix in (False, True):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "ledge-turn",
+                sensitivity,
+                str(int(camfix)),
+            )
+            cases.append(
+                {
+                    "sensitivity": sensitivity,
+                    "camfix": camfix,
+                    "turn90": observed["turn90"],
+                }
+            )
+    return cases
+
+
+def runtime_ledge_worker_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for camfix in (False, True):
+        for side_left in (False, True):
+            for realign in (False, True):
+                for auto_hold in (False, True):
+                    spec = {
+                        "sensitivity": "0.5",
+                        "camfix": camfix,
+                        "side_left": side_left,
+                        "realign": realign,
+                        "auto_hold": auto_hold,
+                    }
+                    observed = run_json(RUNTIME_ORACLE, "ledge-worker", compact(spec))
+                    cases.append(
+                        {
+                            "name": f"matrix-{case_index}",
+                            "spec": spec,
+                            "events": observed["events"],
+                        }
+                    )
+                    case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -2097,6 +2191,9 @@ def write_runtime() -> None:
         "spam_controller_cases": runtime_spam_controller_cases(),
         "spam_guard_cases": runtime_spam_guard_cases(),
         "spam_iteration_cases": runtime_spam_iteration_cases(),
+        "hhj_motion_cases": runtime_hhj_motion_cases(),
+        "ledge_turn_cases": runtime_ledge_turn_cases(),
+        "ledge_worker_cases": runtime_ledge_worker_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

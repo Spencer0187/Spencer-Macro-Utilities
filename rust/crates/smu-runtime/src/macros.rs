@@ -978,6 +978,155 @@ pub fn execute_spam_key_iteration(
     trace.wait(lane, milliseconds_from_nonnegative(delay), WaitKind::Coarse);
 }
 
+fn parse_c_atof_prefix(text: &str) -> f64 {
+    let trimmed = text.trim_start_matches(|ch: char| ch.is_ascii_whitespace());
+    if trimmed.is_empty() {
+        return 0.0;
+    }
+
+    let bytes = trimmed.as_bytes();
+    let mut index = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
+    let negative = matches!(bytes.first(), Some(b'-'));
+    let remainder = trimmed[index..].to_ascii_lowercase();
+    if remainder.starts_with("infinity") || remainder.starts_with("inf") {
+        return if negative { f64::NEG_INFINITY } else { f64::INFINITY };
+    }
+    if remainder.starts_with("nan") {
+        return f64::NAN;
+    }
+
+    let mut digits = 0_usize;
+    while index < bytes.len() && bytes[index].is_ascii_digit() {
+        index += 1;
+        digits += 1;
+    }
+    if index < bytes.len() && bytes[index] == b'.' {
+        index += 1;
+        while index < bytes.len() && bytes[index].is_ascii_digit() {
+            index += 1;
+            digits += 1;
+        }
+    }
+    if digits == 0 {
+        return 0.0;
+    }
+
+    if index < bytes.len() && matches!(bytes[index], b'e' | b'E') {
+        let exponent_start = index;
+        let mut exponent_index = index + 1;
+        if exponent_index < bytes.len() && matches!(bytes[exponent_index], b'+' | b'-') {
+            exponent_index += 1;
+        }
+        let exponent_digits_start = exponent_index;
+        while exponent_index < bytes.len() && bytes[exponent_index].is_ascii_digit() {
+            exponent_index += 1;
+        }
+        if exponent_index > exponent_digits_start {
+            index = exponent_index;
+        } else {
+            index = exponent_start;
+        }
+    }
+
+    trimmed[..index].parse::<f64>().unwrap_or(0.0)
+}
+
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn ledge_bounce_sensitivity(text: &str) -> f32 {
+    let parsed = parse_c_atof_prefix(text) as f32;
+    if 0.01_f32 < parsed { parsed } else { 0.01_f32 }
+}
+
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+pub fn ledge_bounce_turn90(text: &str, camfix: bool) -> i32 {
+    let sensitivity = ledge_bounce_sensitivity(text);
+    ((if camfix { 250.0_f32 } else { 180.0_f32 }) / sensitivity) as i32
+}
+
+pub fn execute_hhj_motion(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    section_enabled: bool,
+    is_hhj: bool,
+    fps: u32,
+    strength_x: i32,
+    strength_y: i32,
+) -> bool {
+    if !section_enabled || !is_hhj {
+        return false;
+    }
+
+    trace.setting_u32_read(lane, "fps", fps);
+    let delays = frame_delays_for_fps(fps);
+    trace.setting_i32_read(lane, "strength_x", strength_x);
+    trace.mouse_move(lane, strength_x, 0);
+    trace.wait(lane, milliseconds_from_nonnegative(delays.first_ms), WaitKind::Coarse);
+    trace.setting_i32_read(lane, "strength_y", strength_y);
+    trace.mouse_move(lane, strength_y, 0);
+    trace.wait(lane, milliseconds_from_nonnegative(delays.second_ms), WaitKind::Coarse);
+    true
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct LedgeBounceWorkerInput {
+    pub sensitivity: String,
+    pub camfix: bool,
+    pub side_left: bool,
+    pub realign: bool,
+    pub auto_hold: bool,
+}
+
+#[allow(clippy::cast_possible_truncation)]
+pub fn execute_ledge_bounce_worker(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: &LedgeBounceWorkerInput,
+) {
+    trace.setting_text_read(lane, "sensitivity", input.sensitivity.clone());
+    let sensitivity = ledge_bounce_sensitivity(&input.sensitivity);
+    trace.setting_bool_read(lane, "camfix", input.camfix);
+    let mut turn90 = ((if input.camfix { 250.0_f32 } else { 180.0_f32 }) / sensitivity) as i32;
+    trace.setting_bool_read(lane, "side_left", input.side_left);
+    let side_key = if input.side_left {
+        turn90 = turn90.wrapping_neg();
+        KeyCode::A.raw()
+    } else {
+        KeyCode::new(0x44).raw()
+    };
+
+    trace.mouse_move(lane, turn90.wrapping_neg(), 0);
+    trace.wait(lane, Duration::from_millis(90), WaitKind::Coarse);
+    trace.key(lane, KeyCode::new(0x53).raw(), KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(40), WaitKind::Coarse);
+    trace.key(lane, KeyCode::new(0x53).raw(), KeyTransition::Up, InputPath::Direct);
+    trace.mouse_move(lane, turn90, 0);
+    trace.key(lane, side_key, KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(16), WaitKind::Coarse);
+
+    trace.setting_bool_read(lane, "realign", input.realign);
+    trace.key(lane, side_key, KeyTransition::Up, InputPath::Direct);
+    if input.realign {
+        trace.key(lane, KeyCode::new(0x57).raw(), KeyTransition::Down, InputPath::Direct);
+        trace.mouse_move(lane, turn90, 0);
+        trace.wait(lane, Duration::from_millis(70), WaitKind::Coarse);
+        trace.key(lane, KeyCode::new(0x57).raw(), KeyTransition::Up, InputPath::Direct);
+        trace.mouse_move(lane, turn90.wrapping_neg(), 0);
+        trace.setting_bool_read(lane, "auto_hold", input.auto_hold);
+        if input.auto_hold {
+            trace.key(lane, side_key, KeyTransition::Down, InputPath::Direct);
+        }
+    } else {
+        trace.setting_bool_read(lane, "auto_hold", input.auto_hold);
+        if input.auto_hold {
+            trace.key(lane, KeyCode::new(0x57).raw(), KeyTransition::Down, InputPath::Direct);
+        }
+        trace.mouse_move(lane, turn90, 0);
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
@@ -1133,16 +1282,18 @@ mod tests {
 
     use super::{
         BunnyhopPhysicalSource, FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput,
-        ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput,
-        WallessLhjWorkerInput, apply_spam_key_thread_action, apply_speedglitch_state_action,
-        build_bunnyhop_physical_plan, build_presskey_worker_plan, build_speedglitch_cycle_plan,
-        build_wallhop_worker_plan, evaluate_rising_edge, evaluate_spam_key_controller,
-        evaluate_speedglitch_edge, execute_bunnyhop_iteration, execute_floorbounce_worker,
-        execute_freeze_step, execute_hhj_worker, execute_item_desync, execute_itemclip_step,
+        ItemClipStepInput, LedgeBounceWorkerInput, SpeedglitchStateAction, ToggleLoopStateAction,
+        WallWalkStepInput, WallessLhjWorkerInput, apply_spam_key_thread_action,
+        apply_speedglitch_state_action, build_bunnyhop_physical_plan, build_presskey_worker_plan,
+        build_speedglitch_cycle_plan, build_wallhop_worker_plan, evaluate_rising_edge,
+        evaluate_spam_key_controller, evaluate_speedglitch_edge, execute_bunnyhop_iteration,
+        execute_floorbounce_worker, execute_freeze_step, execute_hhj_motion, execute_hhj_worker,
+        execute_item_desync, execute_itemclip_step, execute_ledge_bounce_worker,
         execute_presskey_worker, execute_spam_key_iteration, execute_speedglitch_cycle,
         execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
-        frame_delays_for_fps, freeze_timeout_threshold_ms, should_continue_bunnyhop_after_half,
-        should_run_bunnyhop_worker, should_run_spam_key_worker, wallwalk_frame_delay_ms,
+        frame_delays_for_fps, freeze_timeout_threshold_ms, ledge_bounce_turn90,
+        should_continue_bunnyhop_after_half, should_run_bunnyhop_worker,
+        should_run_spam_key_worker, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -1171,6 +1322,9 @@ mod tests {
         spam_controller_cases: Vec<SpamControllerCase>,
         spam_guard_cases: Vec<SpamGuardCase>,
         spam_iteration_cases: Vec<SpamIterationCase>,
+        hhj_motion_cases: Vec<HhjMotionCase>,
+        ledge_turn_cases: Vec<LedgeTurnCase>,
+        ledge_worker_cases: Vec<LedgeWorkerCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -1445,6 +1599,41 @@ mod tests {
     }
 
     #[derive(Debug, Deserialize)]
+    struct HhjMotionCase {
+        name: String,
+        section: bool,
+        is_hhj: bool,
+        fps: u32,
+        strength_x: i32,
+        strength_y: i32,
+        execute: bool,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct LedgeTurnCase {
+        sensitivity: String,
+        camfix: bool,
+        turn90: i32,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct LedgeWorkerCase {
+        name: String,
+        spec: LedgeWorkerSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct LedgeWorkerSpec {
+        sensitivity: String,
+        camfix: bool,
+        side_left: bool,
+        realign: bool,
+        auto_hold: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
     struct PressKeyCase {
         name: String,
         trigger: u32,
@@ -1539,6 +1728,11 @@ mod tests {
                 "value": value,
             })),
             TraceAction::SettingU32Read { name, value } => Some(json!({
+                "action": "setting_read",
+                "name": name,
+                "value": value,
+            })),
+            TraceAction::SettingTextRead { name, value } => Some(json!({
                 "action": "setting_read",
                 "name": name,
                 "value": value,
@@ -2078,6 +2272,84 @@ mod tests {
                 trace.lane_now(LaneId::CONTROLLER),
                 Some(crate::MonotonicMicros::default()),
                 "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_hhj_motion_controller_timing_and_live_reads_match() {
+        for case in fixture().hhj_motion_cases {
+            let mut trace = TraceRecorder::default();
+            let executed = execute_hhj_motion(
+                &mut trace,
+                LaneId::CONTROLLER,
+                case.section,
+                case.is_hhj,
+                case.fps,
+                case.strength_x,
+                case.strength_y,
+            );
+            assert_eq!(executed, case.execute, "case {} execute", case.name);
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+            let expected_ms = if case.execute {
+                let delays = frame_delays_for_fps(case.fps);
+                u64::try_from(delays.first_ms + delays.second_ms).unwrap_or_default()
+            } else {
+                0
+            };
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
+                Some(expected_ms * 1_000),
+                "case {} controller duration",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_ledge_bounce_atof_turn_cases_match() {
+        for case in fixture().ledge_turn_cases {
+            assert_eq!(
+                ledge_bounce_turn90(&case.sensitivity, case.camfix),
+                case.turn90,
+                "sensitivity {:?}, camfix {}",
+                case.sensitivity,
+                case.camfix
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_ledge_bounce_worker_live_reads_and_lane_topology_match() {
+        for case in fixture().ledge_worker_cases {
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_ledge_bounce_worker(
+                &mut trace,
+                worker,
+                &LedgeBounceWorkerInput {
+                    sensitivity: case.spec.sensitivity,
+                    camfix: case.spec.camfix,
+                    side_left: case.spec.side_left,
+                    realign: case.spec.realign,
+                    auto_hold: case.spec.auto_hold,
+                },
+            );
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            let expected_ms = if case.spec.realign { 216 } else { 146 };
+            assert_eq!(
+                trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                Some(expected_ms * 1_000),
+                "case {} worker duration",
                 case.name
             );
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);

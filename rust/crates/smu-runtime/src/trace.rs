@@ -94,6 +94,7 @@ pub enum TraceAction {
     SettingBoolRead { name: &'static str, value: bool },
     SettingI32Read { name: &'static str, value: i32 },
     SettingU32Read { name: &'static str, value: u32 },
+    SettingTextRead { name: &'static str, value: String },
     HhjActive { active: bool },
     BunnyhopContinueCheck { continue_cycle: bool },
     HotkeyRecheck { pressed: bool },
@@ -231,6 +232,15 @@ impl TraceRecorder {
 
     pub fn setting_u32_read(&mut self, lane: LaneId, name: &'static str, value: u32) {
         self.push_now(lane, TraceAction::SettingU32Read { name, value });
+    }
+
+    pub fn setting_text_read(
+        &mut self,
+        lane: LaneId,
+        name: &'static str,
+        value: impl Into<String>,
+    ) {
+        self.push_now(lane, TraceAction::SettingTextRead { name, value: value.into() });
     }
 
     pub fn hhj_active(&mut self, lane: LaneId, active: bool) {

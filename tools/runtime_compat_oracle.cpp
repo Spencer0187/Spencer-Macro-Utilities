@@ -97,6 +97,9 @@ int Usage()
               << "  smu_runtime_compat_oracle spam-controller <section> <allowed> <hotkey> <was-pressed> <hold-mode> <thread-active>\n"
               << "  smu_runtime_compat_oracle spam-guard <running> <keep-running> <thread-active> <macro-toggled> <not-binding> <section>\n"
               << "  smu_runtime_compat_oracle spam-iteration <delay-ms> <key-down> <key-up>\n"
+              << "  smu_runtime_compat_oracle hhj-motion <section> <is-hhj> <fps> <strength-x> <strength-y>\n"
+              << "  smu_runtime_compat_oracle ledge-turn <sensitivity-text> <camfix>\n"
+              << "  smu_runtime_compat_oracle ledge-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -799,6 +802,88 @@ int main(int argc, char** argv)
             });
         result = Json{
             {"operation", "spam-iteration"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "hhj-motion" && argc == 7) {
+        const bool sectionEnabled = ParseBool(argv[2]);
+        const bool isHhj = ParseBool(argv[3]);
+        const auto fps = static_cast<unsigned int>(std::strtoul(argv[4], nullptr, 10));
+        const int strengthX = std::atoi(argv[5]);
+        const int strengthY = std::atoi(argv[6]);
+        Json events = Json::array();
+        if (sectionEnabled && isHhj) {
+            events.push_back(Json{{"action", "setting_read"}, {"name", "fps"}, {"value", fps}});
+            const auto delays = FrameDelaysForFps(fps);
+            ExecuteSpeedglitchCycle(
+                delays,
+                [&] {
+                    events.push_back(Json{{"action", "setting_read"}, {"name", "strength_x"}, {"value", strengthX}});
+                    events.push_back(Json{{"action", "mouse_move"}, {"dx", strengthX}, {"dy", 0}});
+                },
+                [&](int delayMs) {
+                    events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                },
+                [&] {
+                    events.push_back(Json{{"action", "setting_read"}, {"name", "strength_y"}, {"value", strengthY}});
+                    events.push_back(Json{{"action", "mouse_move"}, {"dx", strengthY}, {"dy", 0}});
+                });
+        }
+        result = Json{
+            {"operation", "hhj-motion"},
+            {"execute", sectionEnabled && isHhj},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "ledge-turn" && argc == 4) {
+        result = Json{
+            {"operation", "ledge-turn"},
+            {"turn90", LedgeBounceTurn90(argv[2], ParseBool(argv[3]))},
+        };
+    } else if (operation == "ledge-worker" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        const std::string sensitivity = spec.value("sensitivity", std::string{});
+        const bool camFix = spec.value("camfix", false);
+        const bool sideLeft = spec.value("side_left", false);
+        const bool realign = spec.value("realign", false);
+        const bool autoHold = spec.value("auto_hold", false);
+        Json events = Json::array();
+        ExecuteLedgeBounceWorker(
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "sensitivity"}, {"value", sensitivity}});
+                return sensitivity.c_str();
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "camfix"}, {"value", camFix}});
+                return camFix;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "side_left"}, {"value", sideLeft}});
+                return sideLeft;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "realign"}, {"value", realign}});
+                return realign;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "auto_hold"}, {"value", autoHold}});
+                return autoHold;
+            },
+            [&](int dx, int dy) {
+                events.push_back(Json{{"action", "mouse_move"}, {"dx", dx}, {"dy", dy}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+            });
+        result = Json{
+            {"operation", "ledge-worker"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

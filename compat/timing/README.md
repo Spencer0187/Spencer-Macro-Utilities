@@ -83,7 +83,12 @@ uses a long-lived generic worker per active instance. Hold mode atomically ensur
 active while the trigger is held; toggle mode flips the active state only on rising edges. The loop
 head preserves the original short-circuit guard order, while each cycle snapshots its delay once but
 re-reads the bound output key after the first sleep for release. Mid-cycle deactivation does not cancel
-the second half. Freeze's
+the second half. HHJ motion reuses the controller-lane two-frame delay algorithm: FPS is read once at
+cycle start, `speed_strengthx` is read before the first move, and `speed_strengthy` is read only after
+the first controller sleep. LedgeBounce remains an uncancelled generic worker; its sensitivity uses
+C `atof` prefix semantics with the historical 0.01 floor, side/camera settings are read at worker start,
+`realign` is read after 146 ms, and `auto_hold` is read either there or 70 ms later depending on the
+realign branch. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

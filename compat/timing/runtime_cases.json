@@ -19616,6 +19616,84 @@
       }
     }
   ],
+  "hhj_motion_cases": [
+    {
+      "events": [],
+      "execute": false,
+      "fps": 144,
+      "is_hhj": false,
+      "name": "matrix-0",
+      "section": false,
+      "strength_x": 10,
+      "strength_y": -20
+    },
+    {
+      "events": [],
+      "execute": false,
+      "fps": 144,
+      "is_hhj": true,
+      "name": "matrix-1",
+      "section": false,
+      "strength_x": 10,
+      "strength_y": -20
+    },
+    {
+      "events": [],
+      "execute": false,
+      "fps": 144,
+      "is_hhj": false,
+      "name": "matrix-2",
+      "section": true,
+      "strength_x": 10,
+      "strength_y": -20
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "fps",
+          "value": 144
+        },
+        {
+          "action": "setting_read",
+          "name": "strength_x",
+          "value": 10
+        },
+        {
+          "action": "mouse_move",
+          "dx": 10,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "strength_y",
+          "value": -20
+        },
+        {
+          "action": "mouse_move",
+          "dx": -20,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        }
+      ],
+      "execute": true,
+      "fps": 144,
+      "is_hhj": true,
+      "name": "matrix-3",
+      "section": true,
+      "strength_x": 10,
+      "strength_y": -20
+    }
+  ],
   "item_desync_cases": [
     {
       "events": [],
@@ -25418,6 +25496,1762 @@
       "state_action": "none",
       "toggle_switch": false,
       "was_pressed": false
+    }
+  ],
+  "ledge_turn_cases": [
+    {
+      "camfix": false,
+      "sensitivity": "",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "0",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "0",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "-1",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "-1",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "0.009",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "0.009",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "0.01",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "0.01",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "0.1",
+      "turn90": 1800
+    },
+    {
+      "camfix": true,
+      "sensitivity": "0.1",
+      "turn90": 2500
+    },
+    {
+      "camfix": false,
+      "sensitivity": "0.5",
+      "turn90": 360
+    },
+    {
+      "camfix": true,
+      "sensitivity": "0.5",
+      "turn90": 500
+    },
+    {
+      "camfix": false,
+      "sensitivity": "1",
+      "turn90": 180
+    },
+    {
+      "camfix": true,
+      "sensitivity": "1",
+      "turn90": 250
+    },
+    {
+      "camfix": false,
+      "sensitivity": "1.25junk",
+      "turn90": 144
+    },
+    {
+      "camfix": true,
+      "sensitivity": "1.25junk",
+      "turn90": 200
+    },
+    {
+      "camfix": false,
+      "sensitivity": "  +2.5tail",
+      "turn90": 72
+    },
+    {
+      "camfix": true,
+      "sensitivity": "  +2.5tail",
+      "turn90": 100
+    },
+    {
+      "camfix": false,
+      "sensitivity": "abc",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "abc",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "nan",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "nan",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "inf",
+      "turn90": 0
+    },
+    {
+      "camfix": true,
+      "sensitivity": "inf",
+      "turn90": 0
+    },
+    {
+      "camfix": false,
+      "sensitivity": "-inf",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "-inf",
+      "turn90": 25000
+    },
+    {
+      "camfix": false,
+      "sensitivity": "1e2",
+      "turn90": 1
+    },
+    {
+      "camfix": true,
+      "sensitivity": "1e2",
+      "turn90": 2
+    },
+    {
+      "camfix": false,
+      "sensitivity": "1e-3",
+      "turn90": 18000
+    },
+    {
+      "camfix": true,
+      "sensitivity": "1e-3",
+      "turn90": 25000
+    }
+  ],
+  "ledge_worker_cases": [
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-0",
+      "spec": {
+        "auto_hold": false,
+        "camfix": false,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-1",
+      "spec": {
+        "auto_hold": true,
+        "camfix": false,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        }
+      ],
+      "name": "matrix-2",
+      "spec": {
+        "auto_hold": false,
+        "camfix": false,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-3",
+      "spec": {
+        "auto_hold": true,
+        "camfix": false,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-4",
+      "spec": {
+        "auto_hold": false,
+        "camfix": false,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-5",
+      "spec": {
+        "auto_hold": true,
+        "camfix": false,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        }
+      ],
+      "name": "matrix-6",
+      "spec": {
+        "auto_hold": false,
+        "camfix": false,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": false
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -360,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 360,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-7",
+      "spec": {
+        "auto_hold": true,
+        "camfix": false,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-8",
+      "spec": {
+        "auto_hold": false,
+        "camfix": true,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-9",
+      "spec": {
+        "auto_hold": true,
+        "camfix": true,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        }
+      ],
+      "name": "matrix-10",
+      "spec": {
+        "auto_hold": false,
+        "camfix": true,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-11",
+      "spec": {
+        "auto_hold": true,
+        "camfix": true,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": false
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-12",
+      "spec": {
+        "auto_hold": false,
+        "camfix": true,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": false
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        }
+      ],
+      "name": "matrix-13",
+      "spec": {
+        "auto_hold": true,
+        "camfix": true,
+        "realign": false,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": false
+        }
+      ],
+      "name": "matrix-14",
+      "spec": {
+        "auto_hold": false,
+        "camfix": true,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "sensitivity",
+          "value": "0.5"
+        },
+        {
+          "action": "setting_read",
+          "name": "camfix",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "side_left",
+          "value": true
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 90,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_down",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 40,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 83,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "realign",
+          "value": true
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "direct"
+        },
+        {
+          "action": "key_down",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -500,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 70,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 87,
+          "path": "direct"
+        },
+        {
+          "action": "mouse_move",
+          "dx": 500,
+          "dy": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "auto_hold",
+          "value": true
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "direct"
+        }
+      ],
+      "name": "matrix-15",
+      "spec": {
+        "auto_hold": true,
+        "camfix": true,
+        "realign": true,
+        "sensitivity": "0.5",
+        "side_left": true
+      }
     }
   ],
   "oracle": "smu_runtime_compat_oracle",

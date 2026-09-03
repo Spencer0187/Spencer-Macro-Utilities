@@ -1131,11 +1131,12 @@ void MacroRuntime::processHhjMotionLoop()
         return;
     }
 
-    const auto [sleep1, sleep2] = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
-    MoveMouse(speed_strengthx, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep1));
-    MoveMouse(speed_strengthy, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep2));
+    const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
+    compat::ExecuteSpeedglitchCycle(
+        delays,
+        [] { MoveMouse(speed_strengthx, 0); },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [] { MoveMouse(speed_strengthy, 0); });
 }
 
 void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
@@ -1381,40 +1382,16 @@ void MacroRuntime::processLedgeBounceMacro(bool foregroundAllowed)
     }
 
     runWorker([] {
-        const float sensitivity = std::max(0.01f, static_cast<float>(std::atof(RobloxSensValue)));
-        int turn90 = static_cast<int>((camfixtoggle ? 250.0f : 180.0f) / sensitivity);
-        unsigned int sideKey = smu::core::SMU_VK_D;
-        if (bouncesidetoggle) {
-            turn90 = -turn90;
-            sideKey = smu::core::SMU_VK_A;
-        }
-
-        MoveMouse(-turn90, 0);
-        std::this_thread::sleep_for(90ms);
-        HoldKey(smu::core::SMU_VK_S);
-        std::this_thread::sleep_for(40ms);
-        ReleaseKey(smu::core::SMU_VK_S);
-        MoveMouse(turn90, 0);
-        HoldKey(sideKey);
-        std::this_thread::sleep_for(16ms);
-
-        if (bouncerealignsideways) {
-            ReleaseKey(sideKey);
-            HoldKey(smu::core::SMU_VK_W);
-            MoveMouse(turn90, 0);
-            std::this_thread::sleep_for(70ms);
-            ReleaseKey(smu::core::SMU_VK_W);
-            MoveMouse(-turn90, 0);
-            if (bounceautohold) {
-                HoldKey(sideKey);
-            }
-        } else {
-            ReleaseKey(sideKey);
-            if (bounceautohold) {
-                HoldKey(smu::core::SMU_VK_W);
-            }
-            MoveMouse(turn90, 0);
-        }
+        compat::ExecuteLedgeBounceWorker(
+            [] { return RobloxSensValue; },
+            [] { return camfixtoggle; },
+            [] { return bouncesidetoggle; },
+            [] { return bouncerealignsideways; },
+            [] { return bounceautohold; },
+            [](int dx, int dy) { MoveMouse(dx, dy); },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+            [](unsigned int key) { HoldKey(key); },
+            [](unsigned int key) { ReleaseKey(key); });
     });
 }
 

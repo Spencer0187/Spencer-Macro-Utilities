@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <utility>
 #include <vector>
 
@@ -742,6 +743,69 @@ void ExecuteSpamKeyIteration(
     sleep(delayMs);
     keyUp();
     sleep(delayMs);
+}
+
+inline float LedgeBounceSensitivity(const char* sensitivityText)
+{
+    return std::max(0.01f, static_cast<float>(std::atof(sensitivityText)));
+}
+
+inline int LedgeBounceTurn90(const char* sensitivityText, bool camFix)
+{
+    const float sensitivity = LedgeBounceSensitivity(sensitivityText);
+    return static_cast<int>((camFix ? 250.0f : 180.0f) / sensitivity);
+}
+
+template <typename SensitivityTextFn, typename CamFixFn, typename SideLeftFn,
+          typename RealignFn, typename AutoHoldFn, typename MoveFn, typename SleepFn,
+          typename HoldFn, typename ReleaseFn>
+void ExecuteLedgeBounceWorker(
+    SensitivityTextFn&& sensitivityText,
+    CamFixFn&& camFix,
+    SideLeftFn&& sideLeft,
+    RealignFn&& realign,
+    AutoHoldFn&& autoHold,
+    MoveFn&& move,
+    SleepFn&& sleep,
+    HoldFn&& hold,
+    ReleaseFn&& release)
+{
+    const char* sensitivityValue = sensitivityText();
+    const float sensitivity = LedgeBounceSensitivity(sensitivityValue);
+    const bool cameraFix = camFix();
+    int turn90 = static_cast<int>((cameraFix ? 250.0f : 180.0f) / sensitivity);
+    unsigned int sideKey = smu::core::SMU_VK_D;
+    if (sideLeft()) {
+        turn90 = -turn90;
+        sideKey = smu::core::SMU_VK_A;
+    }
+
+    move(-turn90, 0);
+    sleep(90);
+    hold(smu::core::SMU_VK_S);
+    sleep(40);
+    release(smu::core::SMU_VK_S);
+    move(turn90, 0);
+    hold(sideKey);
+    sleep(16);
+
+    if (realign()) {
+        release(sideKey);
+        hold(smu::core::SMU_VK_W);
+        move(turn90, 0);
+        sleep(70);
+        release(smu::core::SMU_VK_W);
+        move(-turn90, 0);
+        if (autoHold()) {
+            hold(sideKey);
+        }
+    } else {
+        release(sideKey);
+        if (autoHold()) {
+            hold(smu::core::SMU_VK_W);
+        }
+        move(turn90, 0);
+    }
 }
 
 struct PressKeyWorkerPlan {
