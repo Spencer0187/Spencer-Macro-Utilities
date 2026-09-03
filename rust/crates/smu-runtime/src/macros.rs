@@ -862,6 +862,123 @@ pub fn execute_bunnyhop_iteration(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SpamKeyThreadAction {
+    None,
+    Clear,
+    HoldEnsureActive,
+    Toggle,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SpamKeyControllerDecision {
+    pub next_was_pressed: bool,
+    pub thread_action: SpamKeyThreadAction,
+}
+
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools)]
+pub const fn evaluate_spam_key_controller(
+    section_enabled: bool,
+    allowed: bool,
+    pressed: bool,
+    was_pressed: bool,
+    hold_mode: bool,
+) -> SpamKeyControllerDecision {
+    if !section_enabled {
+        return SpamKeyControllerDecision {
+            next_was_pressed: false,
+            thread_action: SpamKeyThreadAction::Clear,
+        };
+    }
+
+    let edge = pressed && !was_pressed;
+    if hold_mode {
+        return SpamKeyControllerDecision {
+            next_was_pressed: pressed,
+            thread_action: if pressed {
+                SpamKeyThreadAction::HoldEnsureActive
+            } else {
+                SpamKeyThreadAction::Clear
+            },
+        };
+    }
+
+    if !edge {
+        return SpamKeyControllerDecision {
+            next_was_pressed: pressed,
+            thread_action: if allowed {
+                SpamKeyThreadAction::None
+            } else {
+                SpamKeyThreadAction::Clear
+            },
+        };
+    }
+
+    SpamKeyControllerDecision {
+        next_was_pressed: pressed,
+        thread_action: SpamKeyThreadAction::Toggle,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SpamKeyThreadOutcome {
+    pub next_thread_active: bool,
+    pub should_start_worker: bool,
+}
+
+#[must_use]
+pub const fn apply_spam_key_thread_action(
+    action: SpamKeyThreadAction,
+    thread_active: bool,
+) -> SpamKeyThreadOutcome {
+    match action {
+        SpamKeyThreadAction::None => {
+            SpamKeyThreadOutcome { next_thread_active: thread_active, should_start_worker: false }
+        }
+        SpamKeyThreadAction::Clear => {
+            SpamKeyThreadOutcome { next_thread_active: false, should_start_worker: false }
+        }
+        SpamKeyThreadAction::HoldEnsureActive => {
+            SpamKeyThreadOutcome { next_thread_active: true, should_start_worker: !thread_active }
+        }
+        SpamKeyThreadAction::Toggle => SpamKeyThreadOutcome {
+            next_thread_active: !thread_active,
+            should_start_worker: !thread_active,
+        },
+    }
+}
+
+#[must_use]
+#[allow(clippy::fn_params_excessive_bools)]
+pub const fn should_run_spam_key_worker(
+    running: bool,
+    keep_running: bool,
+    thread_active: bool,
+    macro_toggled: bool,
+    not_binding: bool,
+    section_enabled: bool,
+) -> bool {
+    running && keep_running && thread_active && macro_toggled && not_binding && section_enabled
+}
+
+pub fn execute_spam_key_iteration(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    delay_ms: i32,
+    key_down: u32,
+    key_up: u32,
+) {
+    trace.setting_i32_read(lane, "delay", delay_ms);
+    let delay = delay_ms.max(1);
+    trace.setting_u32_read(lane, "key_down", key_down);
+    trace.key(lane, key_down, KeyTransition::Down, InputPath::Bound);
+    trace.wait(lane, milliseconds_from_nonnegative(delay), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "key_up", key_up);
+    trace.key(lane, key_up, KeyTransition::Up, InputPath::Bound);
+    trace.wait(lane, milliseconds_from_nonnegative(delay), WaitKind::Coarse);
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
     pub output: u32,
@@ -1017,14 +1134,15 @@ mod tests {
     use super::{
         BunnyhopPhysicalSource, FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput,
         ItemClipStepInput, SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput,
-        WallessLhjWorkerInput, apply_speedglitch_state_action, build_bunnyhop_physical_plan,
-        build_presskey_worker_plan, build_speedglitch_cycle_plan, build_wallhop_worker_plan,
-        evaluate_rising_edge, evaluate_speedglitch_edge, execute_bunnyhop_iteration,
-        execute_floorbounce_worker, execute_freeze_step, execute_hhj_worker, execute_item_desync,
-        execute_itemclip_step, execute_presskey_worker, execute_speedglitch_cycle,
+        WallessLhjWorkerInput, apply_spam_key_thread_action, apply_speedglitch_state_action,
+        build_bunnyhop_physical_plan, build_presskey_worker_plan, build_speedglitch_cycle_plan,
+        build_wallhop_worker_plan, evaluate_rising_edge, evaluate_spam_key_controller,
+        evaluate_speedglitch_edge, execute_bunnyhop_iteration, execute_floorbounce_worker,
+        execute_freeze_step, execute_hhj_worker, execute_item_desync, execute_itemclip_step,
+        execute_presskey_worker, execute_spam_key_iteration, execute_speedglitch_cycle,
         execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
         frame_delays_for_fps, freeze_timeout_threshold_ms, should_continue_bunnyhop_after_half,
-        should_run_bunnyhop_worker, wallwalk_frame_delay_ms,
+        should_run_bunnyhop_worker, should_run_spam_key_worker, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -1050,6 +1168,9 @@ mod tests {
         bunnyhop_physical_cases: Vec<BunnyhopPhysicalCase>,
         bunnyhop_guard_cases: Vec<BunnyhopGuardCase>,
         bunnyhop_iteration_cases: Vec<BunnyhopIterationCase>,
+        spam_controller_cases: Vec<SpamControllerCase>,
+        spam_guard_cases: Vec<SpamGuardCase>,
+        spam_iteration_cases: Vec<SpamIterationCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -1282,6 +1403,44 @@ mod tests {
         continue_after_half: bool,
         half_delay_ms: i32,
         completed: bool,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct SpamControllerCase {
+        name: String,
+        section: bool,
+        allowed_input: bool,
+        hotkey: bool,
+        was_pressed: bool,
+        hold_mode: bool,
+        thread_active: bool,
+        allowed: bool,
+        pressed: bool,
+        next_was_pressed: bool,
+        thread_action: String,
+        next_thread_active: bool,
+        should_start_worker: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct SpamGuardCase {
+        name: String,
+        running: bool,
+        keep_running: bool,
+        thread_active: bool,
+        macro_toggled: bool,
+        not_binding: bool,
+        section: bool,
+        should_run: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct SpamIterationCase {
+        name: String,
+        delay_ms: i32,
+        key_down: u32,
+        key_up: u32,
         events: Vec<Value>,
     }
 
@@ -1832,6 +1991,89 @@ mod tests {
             );
             assert_eq!(observed.half_delay_ms, case.half_delay_ms, "case {} half delay", case.name);
             assert_eq!(observed.completed, case.completed, "case {} completion", case.name);
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_spam_key_controller_matrix_matches() {
+        for case in fixture().spam_controller_cases {
+            let allowed = case.section && case.allowed_input;
+            let pressed = allowed && case.hotkey;
+            assert_eq!(allowed, case.allowed, "case {} allowed", case.name);
+            assert_eq!(pressed, case.pressed, "case {} pressed", case.name);
+            let decision = evaluate_spam_key_controller(
+                case.section,
+                allowed,
+                pressed,
+                case.was_pressed,
+                case.hold_mode,
+            );
+            let action_name = match decision.thread_action {
+                super::SpamKeyThreadAction::None => "none",
+                super::SpamKeyThreadAction::Clear => "clear",
+                super::SpamKeyThreadAction::HoldEnsureActive => "hold_ensure_active",
+                super::SpamKeyThreadAction::Toggle => "toggle",
+            };
+            assert_eq!(
+                decision.next_was_pressed, case.next_was_pressed,
+                "case {} edge state",
+                case.name
+            );
+            assert_eq!(action_name, case.thread_action, "case {} action", case.name);
+            let outcome = apply_spam_key_thread_action(decision.thread_action, case.thread_active);
+            assert_eq!(
+                outcome.next_thread_active, case.next_thread_active,
+                "case {} thread state",
+                case.name
+            );
+            assert_eq!(
+                outcome.should_start_worker, case.should_start_worker,
+                "case {} start worker",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_spam_key_worker_guard_matrix_matches() {
+        for case in fixture().spam_guard_cases {
+            assert_eq!(
+                should_run_spam_key_worker(
+                    case.running,
+                    case.keep_running,
+                    case.thread_active,
+                    case.macro_toggled,
+                    case.not_binding,
+                    case.section,
+                ),
+                case.should_run,
+                "case {}",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn cpp_spam_key_iteration_live_reads_and_lane_topology_match() {
+        for case in fixture().spam_iteration_cases {
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_spam_key_iteration(
+                &mut trace,
+                worker,
+                case.delay_ms,
+                case.key_down,
+                case.key_up,
+            );
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER),
                 Some(crate::MonotonicMicros::default()),

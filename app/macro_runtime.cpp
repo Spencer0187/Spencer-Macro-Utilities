@@ -1319,37 +1319,34 @@ void MacroRuntime::processSpamKeyMacros()
 
     for (std::size_t index = 0; index < spamkey_instances.size(); ++index) {
         auto& inst = spamkey_instances[index];
-        if (!inst.section_enabled) {
-            spamKeyWasPressed_[index] = false;
-            inst.thread_active.store(false, std::memory_order_release);
-            continue;
-        }
-        const bool allowed = foregroundAllows(inst.disable_outside_roblox);
+        const bool sectionEnabled = inst.section_enabled;
+        const bool allowed = sectionEnabled && foregroundAllows(inst.disable_outside_roblox);
         const bool pressed = allowed && isHotkeyPressed(inst.vk_trigger);
-        const bool edge = pressed && !spamKeyWasPressed_[index];
-        spamKeyWasPressed_[index] = pressed;
+        const auto decision = compat::EvaluateSpamKeyController(
+            sectionEnabled,
+            allowed,
+            pressed,
+            spamKeyWasPressed_[index],
+            inst.isspamswitch);
+        spamKeyWasPressed_[index] = decision.nextWasPressed;
 
         bool shouldStartWorker = false;
-        if (inst.isspamswitch) {
-            if (!pressed) {
-                inst.thread_active.store(false, std::memory_order_release);
-                continue;
-            }
+        switch (decision.threadAction) {
+        case compat::SpamKeyThreadAction::Clear:
+            inst.thread_active.store(false, std::memory_order_release);
+            break;
+        case compat::SpamKeyThreadAction::HoldEnsureActive:
             shouldStartWorker = !inst.thread_active.exchange(true, std::memory_order_acq_rel);
-        } else {
-            if (!allowed) {
-                inst.thread_active.store(false, std::memory_order_release);
-            }
-            if (!edge) {
-                continue;
-            }
-
+            break;
+        case compat::SpamKeyThreadAction::Toggle: {
             const bool newActive = !inst.thread_active.load(std::memory_order_acquire);
             inst.thread_active.store(newActive, std::memory_order_release);
-            if (!newActive) {
-                continue;
-            }
-            shouldStartWorker = true;
+            shouldStartWorker = newActive;
+            break;
+        }
+        case compat::SpamKeyThreadAction::None:
+        default:
+            break;
         }
 
         if (!shouldStartWorker) {
@@ -1363,11 +1360,11 @@ void MacroRuntime::processSpamKeyMacros()
                    macrotoggled &&
                    notbinding.load(std::memory_order_acquire) &&
                    inst.section_enabled) {
-                const int delay = std::max(1, inst.real_delay);
-                HoldKeyBinded(inst.vk_spamkey);
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
-                ReleaseKeyBinded(inst.vk_spamkey);
-                std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+                compat::ExecuteSpamKeyIteration(
+                    [&inst] { return inst.real_delay; },
+                    [&inst] { HoldKeyBinded(inst.vk_spamkey); },
+                    [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                    [&inst] { ReleaseKeyBinded(inst.vk_spamkey); });
             }
             inst.thread_active.store(false, std::memory_order_release);
         });

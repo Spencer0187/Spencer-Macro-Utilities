@@ -1847,6 +1847,106 @@ def runtime_anti_afk_background_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_spam_controller_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for section in (False, True):
+        for allowed in (False, True):
+            for hotkey in (False, True):
+                for was_pressed in (False, True):
+                    for hold_mode in (False, True):
+                        for thread_active in (False, True):
+                            observed = run_json(
+                                RUNTIME_ORACLE,
+                                "spam-controller",
+                                str(int(section)),
+                                str(int(allowed)),
+                                str(int(hotkey)),
+                                str(int(was_pressed)),
+                                str(int(hold_mode)),
+                                str(int(thread_active)),
+                            )
+                            cases.append(
+                                {
+                                    "name": f"matrix-{case_index}",
+                                    "section": section,
+                                    "allowed_input": allowed,
+                                    "hotkey": hotkey,
+                                    "was_pressed": was_pressed,
+                                    "hold_mode": hold_mode,
+                                    "thread_active": thread_active,
+                                    "allowed": observed["allowed"],
+                                    "pressed": observed["pressed"],
+                                    "next_was_pressed": observed["next_was_pressed"],
+                                    "thread_action": observed["thread_action"],
+                                    "next_thread_active": observed["next_thread_active"],
+                                    "should_start_worker": observed["should_start_worker"],
+                                }
+                            )
+                            case_index += 1
+    return cases
+
+
+def runtime_spam_guard_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for running in (False, True):
+        for keep_running in (False, True):
+            for thread_active in (False, True):
+                for macro_toggled in (False, True):
+                    for not_binding in (False, True):
+                        for section in (False, True):
+                            observed = run_json(
+                                RUNTIME_ORACLE,
+                                "spam-guard",
+                                str(int(running)),
+                                str(int(keep_running)),
+                                str(int(thread_active)),
+                                str(int(macro_toggled)),
+                                str(int(not_binding)),
+                                str(int(section)),
+                            )
+                            cases.append(
+                                {
+                                    "name": f"matrix-{case_index}",
+                                    "running": running,
+                                    "keep_running": keep_running,
+                                    "thread_active": thread_active,
+                                    "macro_toggled": macro_toggled,
+                                    "not_binding": not_binding,
+                                    "section": section,
+                                    "should_run": observed["should_run"],
+                                }
+                            )
+                            case_index += 1
+    return cases
+
+
+def runtime_spam_iteration_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for delay_ms in (-99, -1, 0, 1, 2, 17, 1000):
+        for key_down, key_up in ((65, 65), (65, 66), (0x10000 | 112, 0x10000 | 113)):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "spam-iteration",
+                str(delay_ms),
+                str(key_down),
+                str(key_up),
+            )
+            cases.append(
+                {
+                    "name": f"case-{case_index}",
+                    "delay_ms": delay_ms,
+                    "key_down": key_down,
+                    "key_up": key_up,
+                    "events": observed["events"],
+                }
+            )
+            case_index += 1
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1994,6 +2094,9 @@ def write_runtime() -> None:
         "anti_afk_keypress_cases": runtime_anti_afk_keypress_cases(),
         "anti_afk_tap_cases": runtime_anti_afk_tap_cases(),
         "anti_afk_background_cases": runtime_anti_afk_background_cases(),
+        "spam_controller_cases": runtime_spam_controller_cases(),
+        "spam_guard_cases": runtime_spam_guard_cases(),
+        "spam_iteration_cases": runtime_spam_iteration_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

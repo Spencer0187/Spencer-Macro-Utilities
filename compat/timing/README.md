@@ -78,7 +78,12 @@ there is no worker-active guard. Bunnyhop uses its dedicated long-lived worker s
 trigger classification distinguishes wheel/none, mouse-backend, and keyboard-latch sources; the
 loop-head guard checks runtime/macro/binding/section state, while the mid-cycle cancellation check
 only rechecks runtime/target-loop state. Its bound output key and half-delay are snapshotted per
-iteration, and cancellation after the first half always releases the key before exiting. Freeze's
+iteration, and cancellation after the first half always releases the key before exiting. SpamKey
+uses a long-lived generic worker per active instance. Hold mode atomically ensures the worker is
+active while the trigger is held; toggle mode flips the active state only on rising edges. The loop
+head preserves the original short-circuit guard order, while each cycle snapshots its delay once but
+re-reads the bound output key after the first sleep for release. Mid-cycle deactivation does not cancel
+the second half. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

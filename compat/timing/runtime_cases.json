@@ -25758,6 +25758,2515 @@
       "was_pressed": true
     }
   ],
+  "spam_controller_cases": [
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-0",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-1",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-2",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-3",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-4",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-5",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-6",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-7",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-8",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-9",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-10",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-11",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-12",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-13",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-14",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-15",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-16",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-17",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-18",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-19",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-20",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-21",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-22",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-23",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-24",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-25",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-26",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-27",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-28",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-29",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-30",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-31",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": false,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-32",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-33",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-34",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-35",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-36",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-37",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-38",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-39",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-40",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-41",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-42",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-43",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-44",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-45",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-46",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": false,
+      "allowed_input": false,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-47",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-48",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-49",
+      "next_thread_active": true,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-50",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-51",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-52",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": false,
+      "name": "matrix-53",
+      "next_thread_active": true,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-54",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": false,
+      "name": "matrix-55",
+      "next_thread_active": false,
+      "next_was_pressed": false,
+      "pressed": false,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "clear",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-56",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": true,
+      "thread_action": "toggle",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-57",
+      "next_thread_active": false,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "toggle",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-58",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": true,
+      "thread_action": "hold_ensure_active",
+      "thread_active": false,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-59",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "hold_ensure_active",
+      "thread_active": true,
+      "was_pressed": false
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-60",
+      "next_thread_active": false,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": false,
+      "hotkey": true,
+      "name": "matrix-61",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "none",
+      "thread_active": true,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-62",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": true,
+      "thread_action": "hold_ensure_active",
+      "thread_active": false,
+      "was_pressed": true
+    },
+    {
+      "allowed": true,
+      "allowed_input": true,
+      "hold_mode": true,
+      "hotkey": true,
+      "name": "matrix-63",
+      "next_thread_active": true,
+      "next_was_pressed": true,
+      "pressed": true,
+      "section": true,
+      "should_start_worker": false,
+      "thread_action": "hold_ensure_active",
+      "thread_active": true,
+      "was_pressed": true
+    }
+  ],
+  "spam_guard_cases": [
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-0",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-1",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-2",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-3",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-4",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-5",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-6",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-7",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-8",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-9",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-10",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-11",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-12",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-13",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-14",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-15",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-16",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-17",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-18",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-19",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-20",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-21",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-22",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-23",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-24",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-25",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-26",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-27",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-28",
+      "not_binding": false,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-29",
+      "not_binding": false,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-30",
+      "not_binding": true,
+      "running": false,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-31",
+      "not_binding": true,
+      "running": false,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-32",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-33",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-34",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-35",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-36",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-37",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-38",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-39",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-40",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-41",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-42",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": false,
+      "name": "matrix-43",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-44",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-45",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-46",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": false,
+      "macro_toggled": true,
+      "name": "matrix-47",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-48",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-49",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-50",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-51",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-52",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-53",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-54",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-55",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": false
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-56",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-57",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-58",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": false,
+      "name": "matrix-59",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-60",
+      "not_binding": false,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-61",
+      "not_binding": false,
+      "running": true,
+      "section": true,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-62",
+      "not_binding": true,
+      "running": true,
+      "section": false,
+      "should_run": false,
+      "thread_active": true
+    },
+    {
+      "keep_running": true,
+      "macro_toggled": true,
+      "name": "matrix-63",
+      "not_binding": true,
+      "running": true,
+      "section": true,
+      "should_run": true,
+      "thread_active": true
+    }
+  ],
+  "spam_iteration_cases": [
+    {
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -99
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-0"
+    },
+    {
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -99
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-1"
+    },
+    {
+      "delay_ms": -99,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -99
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-2"
+    },
+    {
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-3"
+    },
+    {
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-4"
+    },
+    {
+      "delay_ms": -1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": -1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-5"
+    },
+    {
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-6"
+    },
+    {
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-7"
+    },
+    {
+      "delay_ms": 0,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 0
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-8"
+    },
+    {
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-9"
+    },
+    {
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-10"
+    },
+    {
+      "delay_ms": 1,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-11"
+    },
+    {
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 2
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-12"
+    },
+    {
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 2
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-13"
+    },
+    {
+      "delay_ms": 2,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 2
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-14"
+    },
+    {
+      "delay_ms": 17,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 17
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-15"
+    },
+    {
+      "delay_ms": 17,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 17
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-16"
+    },
+    {
+      "delay_ms": 17,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 17
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-17"
+    },
+    {
+      "delay_ms": 1000,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1000
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65
+        },
+        {
+          "action": "key_up",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 65,
+      "name": "case-18"
+    },
+    {
+      "delay_ms": 1000,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1000
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65
+        },
+        {
+          "action": "key_down",
+          "key": 65,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 66
+        },
+        {
+          "action": "key_up",
+          "key": 66,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65,
+      "key_up": 66,
+      "name": "case-19"
+    },
+    {
+      "delay_ms": 1000,
+      "events": [
+        {
+          "action": "setting_read",
+          "name": "delay",
+          "value": 1000
+        },
+        {
+          "action": "setting_read",
+          "name": "key_down",
+          "value": 65648
+        },
+        {
+          "action": "key_down",
+          "key": 65648,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "key_up",
+          "value": 65649
+        },
+        {
+          "action": "key_up",
+          "key": 65649,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "key_down": 65648,
+      "key_up": 65649,
+      "name": "case-20"
+    }
+  ],
   "speedglitch_cases": [
     {
       "events": [],

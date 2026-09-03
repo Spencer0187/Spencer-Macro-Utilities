@@ -94,6 +94,9 @@ int Usage()
               << "  smu_runtime_compat_oracle anti-afk-keypress <key> <double-press>\n"
               << "  smu_runtime_compat_oracle anti-afk-tap <rect-available> <has-mouse-pos>\n"
               << "  smu_runtime_compat_oracle anti-afk-background <original-foreground> <outer-mouse-pos> <tap-rect> <tap-mouse-pos> <double-press>\n"
+              << "  smu_runtime_compat_oracle spam-controller <section> <allowed> <hotkey> <was-pressed> <hold-mode> <thread-active>\n"
+              << "  smu_runtime_compat_oracle spam-guard <running> <keep-running> <thread-active> <macro-toggled> <not-binding> <section>\n"
+              << "  smu_runtime_compat_oracle spam-iteration <delay-ms> <key-down> <key-up>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -709,6 +712,93 @@ int main(int argc, char** argv)
 
         result = Json{
             {"operation", "anti-afk-background"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "spam-controller" && argc == 8) {
+        const bool sectionEnabled = ParseBool(argv[2]);
+        const bool allowedInput = ParseBool(argv[3]);
+        const bool hotkeyPressed = ParseBool(argv[4]);
+        const bool wasPressed = ParseBool(argv[5]);
+        const bool holdMode = ParseBool(argv[6]);
+        bool threadActive = ParseBool(argv[7]);
+        const bool allowed = sectionEnabled && allowedInput;
+        const bool pressed = allowed && hotkeyPressed;
+        const auto decision = EvaluateSpamKeyController(
+            sectionEnabled,
+            allowed,
+            pressed,
+            wasPressed,
+            holdMode);
+        bool shouldStartWorker = false;
+        const char* actionName = "none";
+        switch (decision.threadAction) {
+        case SpamKeyThreadAction::Clear:
+            actionName = "clear";
+            threadActive = false;
+            break;
+        case SpamKeyThreadAction::HoldEnsureActive:
+            actionName = "hold_ensure_active";
+            shouldStartWorker = !threadActive;
+            threadActive = true;
+            break;
+        case SpamKeyThreadAction::Toggle:
+            actionName = "toggle";
+            threadActive = !threadActive;
+            shouldStartWorker = threadActive;
+            break;
+        case SpamKeyThreadAction::None:
+        default:
+            break;
+        }
+        result = Json{
+            {"operation", "spam-controller"},
+            {"allowed", allowed},
+            {"pressed", pressed},
+            {"next_was_pressed", decision.nextWasPressed},
+            {"thread_action", actionName},
+            {"next_thread_active", threadActive},
+            {"should_start_worker", shouldStartWorker},
+        };
+    } else if (operation == "spam-guard" && argc == 8) {
+        const bool running = ParseBool(argv[2]);
+        const bool keepRunning = ParseBool(argv[3]);
+        const bool threadActive = ParseBool(argv[4]);
+        const bool macroToggled = ParseBool(argv[5]);
+        const bool notBinding = ParseBool(argv[6]);
+        const bool sectionEnabled = ParseBool(argv[7]);
+        result = Json{
+            {"operation", "spam-guard"},
+            {"should_run", ShouldRunSpamKeyWorker(
+                running,
+                keepRunning,
+                threadActive,
+                macroToggled,
+                notBinding,
+                sectionEnabled)},
+        };
+    } else if (operation == "spam-iteration" && argc == 5) {
+        const int delayMs = std::atoi(argv[2]);
+        const auto keyDown = static_cast<unsigned int>(std::strtoul(argv[3], nullptr, 10));
+        const auto keyUp = static_cast<unsigned int>(std::strtoul(argv[4], nullptr, 10));
+        Json events = Json::array();
+        ExecuteSpamKeyIteration(
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "delay"}, {"value", delayMs}});
+                return delayMs;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "key_down"}, {"value", keyDown}});
+                events.push_back(Json{{"action", "key_down"}, {"key", keyDown}, {"path", "bound"}});
+            },
+            [&](int waitMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", waitMs}, {"kind", "coarse"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "key_up"}, {"value", keyUp}});
+                events.push_back(Json{{"action", "key_up"}, {"key", keyUp}, {"path", "bound"}});
+            });
+        result = Json{
+            {"operation", "spam-iteration"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

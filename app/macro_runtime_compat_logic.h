@@ -670,6 +670,80 @@ void ExecuteAntiAfkBackgroundSequence(
     }
 }
 
+enum class SpamKeyThreadAction {
+    None,
+    Clear,
+    HoldEnsureActive,
+    Toggle,
+};
+
+struct SpamKeyControllerDecision {
+    bool nextWasPressed = false;
+    SpamKeyThreadAction threadAction = SpamKeyThreadAction::None;
+};
+
+inline SpamKeyControllerDecision EvaluateSpamKeyController(
+    bool sectionEnabled,
+    bool allowed,
+    bool pressed,
+    bool wasPressed,
+    bool holdMode)
+{
+    if (!sectionEnabled) {
+        return SpamKeyControllerDecision{
+            .nextWasPressed = false,
+            .threadAction = SpamKeyThreadAction::Clear,
+        };
+    }
+
+    const bool edge = pressed && !wasPressed;
+    if (holdMode) {
+        return SpamKeyControllerDecision{
+            .nextWasPressed = pressed,
+            .threadAction = pressed
+                ? SpamKeyThreadAction::HoldEnsureActive
+                : SpamKeyThreadAction::Clear,
+        };
+    }
+
+    if (!edge) {
+        return SpamKeyControllerDecision{
+            .nextWasPressed = pressed,
+            .threadAction = allowed ? SpamKeyThreadAction::None : SpamKeyThreadAction::Clear,
+        };
+    }
+
+    return SpamKeyControllerDecision{
+        .nextWasPressed = pressed,
+        .threadAction = SpamKeyThreadAction::Toggle,
+    };
+}
+
+inline bool ShouldRunSpamKeyWorker(
+    bool running,
+    bool keepRunning,
+    bool threadActive,
+    bool macroToggled,
+    bool notBinding,
+    bool sectionEnabled)
+{
+    return running && keepRunning && threadActive && macroToggled && notBinding && sectionEnabled;
+}
+
+template <typename DelayFn, typename KeyDownFn, typename SleepFn, typename KeyUpFn>
+void ExecuteSpamKeyIteration(
+    DelayFn&& delay,
+    KeyDownFn&& keyDown,
+    SleepFn&& sleep,
+    KeyUpFn&& keyUp)
+{
+    const int delayMs = std::max(1, delay());
+    keyDown();
+    sleep(delayMs);
+    keyUp();
+    sleep(delayMs);
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;
