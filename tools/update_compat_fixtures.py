@@ -1596,6 +1596,46 @@ def runtime_hhj_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_floorbounce_cases() -> list[dict[str, Any]]:
+    base = {
+        "pids": [10, 20],
+        "hhj_enabled": False,
+        "delay1": 5,
+        "shift_key_action": 16,
+        "delay2": 8,
+        "delay3": 100,
+        "shift_key_release": 16,
+    }
+    variants = [
+        ("baseline-hhj-off", {}),
+        ("empty-pids", {"pids": []}),
+        ("hhj-defaults", {"hhj_enabled": True}),
+        (
+            "negative-hhj-delays-clamp-zero",
+            {"hhj_enabled": True, "delay1": -5, "delay2": -8, "delay3": -100},
+        ),
+        (
+            "shift-key-changes-before-release",
+            {"hhj_enabled": True, "shift_key_action": 160, "shift_key_release": 161},
+        ),
+        (
+            "zero-hhj-delays",
+            {"hhj_enabled": True, "delay1": 0, "delay2": 0, "delay3": 0},
+        ),
+        (
+            "large-hhj-delays",
+            {"hhj_enabled": True, "delay1": 999, "delay2": 1001, "delay3": 1234},
+        ),
+    ]
+    cases = []
+    for name, changes in variants:
+        spec = dict(base)
+        spec.update(changes)
+        observed = run_json(RUNTIME_ORACLE, "floorbounce-worker", compact(spec))
+        cases.append({"name": name, "spec": spec, "events": observed["events"]})
+    return cases
+
+
 def runtime_presskey_cases() -> list[dict[str, Any]]:
     specifications = [
         ("normal", 90, 68, 0, 16, True),
@@ -1735,6 +1775,7 @@ def write_runtime() -> None:
         "wallhop_cases": runtime_wallhop_cases(),
         "walless_cases": runtime_walless_cases(),
         "hhj_cases": runtime_hhj_cases(),
+        "floorbounce_cases": runtime_floorbounce_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
     }

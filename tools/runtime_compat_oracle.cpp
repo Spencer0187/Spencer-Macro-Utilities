@@ -86,6 +86,7 @@ int Usage()
               << "  smu_runtime_compat_oracle wallhop-worker <dx> <dy> <vertical> <delay-ms> <bonus-ms> <left> <jump> <flick-back> <jump-key>\n"
               << "  smu_runtime_compat_oracle walless-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle hhj-worker <json-spec>\n"
+              << "  smu_runtime_compat_oracle floorbounce-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
               << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
@@ -429,6 +430,78 @@ int main(int argc, char** argv)
             });
         result = Json{
             {"operation", "hhj-worker"},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "floorbounce-worker" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        std::vector<unsigned int> pids;
+        if (const auto& pidValues = spec.value("pids", Json::array()); pidValues.is_array()) {
+            pids.reserve(pidValues.size());
+            for (const auto& value : pidValues) {
+                pids.push_back(value.get<unsigned int>());
+            }
+        }
+        const bool hhjEnabled = spec.value("hhj_enabled", false);
+        const int delay1 = spec.value("delay1", 0);
+        const auto shiftKeyAction = static_cast<unsigned int>(spec.value("shift_key_action", 0u));
+        const int delay2 = spec.value("delay2", 0);
+        const int delay3 = spec.value("delay3", 0);
+        const auto shiftKeyRelease = static_cast<unsigned int>(spec.value("shift_key_release", 0u));
+        Json events = Json::array();
+
+        ExecuteFloorBounceWorker(
+            pids,
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "hhj_enabled"}, {"value", hhjEnabled}});
+                return hhjEnabled;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "delay1"}, {"value", delay1}});
+                return delay1;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_key_action"}, {"value", shiftKeyAction}});
+                return shiftKeyAction;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "delay2"}, {"value", delay2}});
+                return delay2;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "delay3"}, {"value", delay3}});
+                return delay3;
+            },
+            [&] {
+                events.push_back(Json{{"action", "setting_read"}, {"name", "shift_key_release"}, {"value", shiftKeyRelease}});
+                return shiftKeyRelease;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "direct"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](const std::vector<unsigned int>& workerPids, bool suspended) {
+                events.push_back(Json{{"action", "process_suspended"}, {"pids", workerPids}, {"suspended", suspended}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&](bool active) {
+                events.push_back(Json{{"action", "hhj_active"}, {"active", active}});
+            });
+
+        result = Json{
+            {"operation", "floorbounce-worker"},
             {"events", std::move(events)},
         };
     } else if (operation == "itemclip-step" && argc == 11) {

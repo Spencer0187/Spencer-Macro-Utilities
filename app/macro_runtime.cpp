@@ -1639,27 +1639,23 @@ void MacroRuntime::processFloorBounceMacro(bool foregroundAllowed)
 
     const auto pids = currentTargetPids();
     runWorker([this, pids] {
-        HoldKey(smu::core::SMU_VK_SPACE);
-        std::this_thread::sleep_for(521ms);
-        setPidsSuspended(pids, true);
-        std::this_thread::sleep_for(72ms);
-        setPidsSuspended(pids, false);
-        std::this_thread::sleep_for(72ms);
-        setPidsSuspended(pids, true);
-        std::this_thread::sleep_for(72ms);
-        setPidsSuspended(pids, false);
-        ReleaseKey(smu::core::SMU_VK_SPACE);
-
-        if (floorbouncehhj) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, FloorBounceDelay1)));
-            HoldKeyBinded(vk_shiftkey);
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, FloorBounceDelay2)));
-            isHHJ.store(true, std::memory_order_release);
-            std::this_thread::sleep_for(std::chrono::milliseconds(std::max(0, FloorBounceDelay3)));
-            isHHJ.store(false, std::memory_order_release);
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            ReleaseKeyBinded(vk_shiftkey);
-        }
+        compat::ExecuteFloorBounceWorker(
+            pids,
+            [] { return floorbouncehhj; },
+            [] { return FloorBounceDelay1; },
+            [] { return vk_shiftkey; },
+            [] { return FloorBounceDelay2; },
+            [] { return FloorBounceDelay3; },
+            [] { return vk_shiftkey; },
+            [](unsigned int key) { HoldKey(key); },
+            [](unsigned int key) { ReleaseKey(key); },
+            [](unsigned int key) { HoldKeyBinded(key); },
+            [](unsigned int key) { ReleaseKeyBinded(key); },
+            [this](const std::vector<unsigned int>& workerPids, bool suspended) {
+                setPidsSuspended(workerPids, suspended);
+            },
+            [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+            [](bool active) { isHHJ.store(active, std::memory_order_release); });
     });
 }
 

@@ -421,6 +421,52 @@ void ExecuteHhjWorker(
     }
 }
 
+template <typename HhjEnabledFn, typename Delay1Fn, typename ShiftKeyActionFn,
+          typename Delay2Fn, typename Delay3Fn, typename ShiftKeyReleaseFn,
+          typename HoldDirectFn, typename ReleaseDirectFn, typename HoldBoundFn,
+          typename ReleaseBoundFn, typename SetPidsSuspendedFn, typename SleepFn,
+          typename SetHhjActiveFn>
+void ExecuteFloorBounceWorker(
+    const std::vector<unsigned int>& pids,
+    HhjEnabledFn&& hhjEnabled,
+    Delay1Fn&& delay1,
+    ShiftKeyActionFn&& shiftKeyAction,
+    Delay2Fn&& delay2,
+    Delay3Fn&& delay3,
+    ShiftKeyReleaseFn&& shiftKeyRelease,
+    HoldDirectFn&& holdDirect,
+    ReleaseDirectFn&& releaseDirect,
+    HoldBoundFn&& holdBound,
+    ReleaseBoundFn&& releaseBound,
+    SetPidsSuspendedFn&& setPidsSuspended,
+    SleepFn&& sleep,
+    SetHhjActiveFn&& setHhjActive)
+{
+    holdDirect(smu::core::SMU_VK_SPACE);
+    sleep(521);
+    setPidsSuspended(pids, true);
+    sleep(72);
+    setPidsSuspended(pids, false);
+    sleep(72);
+    setPidsSuspended(pids, true);
+    sleep(72);
+    setPidsSuspended(pids, false);
+    releaseDirect(smu::core::SMU_VK_SPACE);
+
+    if (!hhjEnabled()) {
+        return;
+    }
+
+    sleep(std::max(0, delay1()));
+    holdBound(shiftKeyAction());
+    sleep(std::max(0, delay2()));
+    setHhjActive(true);
+    sleep(std::max(0, delay3()));
+    setHhjActive(false);
+    sleep(100);
+    releaseBound(shiftKeyRelease());
+}
+
 struct PressKeyWorkerPlan {
     unsigned int trigger = 0;
     unsigned int output = 0;

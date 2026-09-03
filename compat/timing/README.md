@@ -64,7 +64,10 @@ historical action/release points; the fixture includes settings changing between
 likewise snapshots only its PID vector: auto-toggle/key/time settings, freeze-delay settings,
 zoom/shift settings, and `HHJLength` are read at their original worker-time sites. Repeated reads can
 observe different values, including releasing different auto/shift keys than were pressed and leaving
-`isHHJ` active when the later length check changes to zero. Freeze's
+`isHHJ` active when the later length check changes to zero. FloorBounce also snapshots only its PID
+vector, then runs an uncancelled generic-worker sequence with 521/72/72/72 ms base waits. Its HHJ
+flag/delays/shift key are read later inside the worker, and distinct rising edges may overlap because
+there is no worker-active guard. Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the
 ordered PID vector changes, duplicate PIDs are not deduplicated, and partial resume success clears

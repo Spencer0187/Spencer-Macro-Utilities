@@ -732,6 +732,53 @@ pub fn execute_hhj_worker(trace: &mut TraceRecorder, lane: LaneId, input: &HhjWo
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FloorBounceWorkerInput {
+    pub pids: Vec<u32>,
+    pub hhj_enabled: bool,
+    pub delay1: i32,
+    pub shift_key_action: u32,
+    pub delay2: i32,
+    pub delay3: i32,
+    pub shift_key_release: u32,
+}
+
+pub fn execute_floorbounce_worker(
+    trace: &mut TraceRecorder,
+    lane: LaneId,
+    input: &FloorBounceWorkerInput,
+) {
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Down, InputPath::Direct);
+    trace.wait(lane, Duration::from_millis(521), WaitKind::Coarse);
+    trace.process_suspended(lane, input.pids.clone(), true);
+    trace.wait(lane, Duration::from_millis(72), WaitKind::Coarse);
+    trace.process_suspended(lane, input.pids.clone(), false);
+    trace.wait(lane, Duration::from_millis(72), WaitKind::Coarse);
+    trace.process_suspended(lane, input.pids.clone(), true);
+    trace.wait(lane, Duration::from_millis(72), WaitKind::Coarse);
+    trace.process_suspended(lane, input.pids.clone(), false);
+    trace.key(lane, KeyCode::SPACE.raw(), KeyTransition::Up, InputPath::Direct);
+
+    trace.setting_bool_read(lane, "hhj_enabled", input.hhj_enabled);
+    if !input.hhj_enabled {
+        return;
+    }
+
+    trace.setting_i32_read(lane, "delay1", input.delay1);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay1.max(0)), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "shift_key_action", input.shift_key_action);
+    trace.key(lane, input.shift_key_action, KeyTransition::Down, InputPath::Bound);
+    trace.setting_i32_read(lane, "delay2", input.delay2);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay2.max(0)), WaitKind::Coarse);
+    trace.hhj_active(lane, true);
+    trace.setting_i32_read(lane, "delay3", input.delay3);
+    trace.wait(lane, milliseconds_from_nonnegative(input.delay3.max(0)), WaitKind::Coarse);
+    trace.hhj_active(lane, false);
+    trace.wait(lane, Duration::from_millis(100), WaitKind::Coarse);
+    trace.setting_u32_read(lane, "shift_key_release", input.shift_key_release);
+    trace.key(lane, input.shift_key_release, KeyTransition::Up, InputPath::Bound);
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PressKeyWorkerPlan {
     pub trigger: u32,
@@ -886,14 +933,14 @@ mod tests {
     #![allow(clippy::expect_used, clippy::struct_excessive_bools, clippy::struct_field_names)]
 
     use super::{
-        FreezeStepInput, HhjWorkerInput, ItemClipStepInput, SpeedglitchStateAction,
-        ToggleLoopStateAction, WallWalkStepInput, WallessLhjWorkerInput,
+        FloorBounceWorkerInput, FreezeStepInput, HhjWorkerInput, ItemClipStepInput,
+        SpeedglitchStateAction, ToggleLoopStateAction, WallWalkStepInput, WallessLhjWorkerInput,
         apply_speedglitch_state_action, build_presskey_worker_plan, build_speedglitch_cycle_plan,
         build_wallhop_worker_plan, evaluate_rising_edge, evaluate_speedglitch_edge,
-        execute_freeze_step, execute_hhj_worker, execute_item_desync, execute_itemclip_step,
-        execute_presskey_worker, execute_speedglitch_cycle, execute_walless_lhj_worker,
-        execute_wallhop_worker, execute_wallwalk_step, frame_delays_for_fps,
-        freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
+        execute_floorbounce_worker, execute_freeze_step, execute_hhj_worker, execute_item_desync,
+        execute_itemclip_step, execute_presskey_worker, execute_speedglitch_cycle,
+        execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
+        frame_delays_for_fps, freeze_timeout_threshold_ms, wallwalk_frame_delay_ms,
     };
     use crate::WaitKind;
     use crate::trace::{InputPath, KeyTransition, LaneId, TraceAction, TraceEvent, TraceRecorder};
@@ -915,6 +962,7 @@ mod tests {
         wallhop_cases: Vec<WallhopCase>,
         walless_cases: Vec<WallessCase>,
         hhj_cases: Vec<HhjCase>,
+        floorbounce_cases: Vec<FloorBounceCase>,
         presskey_cases: Vec<PressKeyCase>,
         speedglitch_cases: Vec<SpeedglitchCase>,
     }
@@ -1097,6 +1145,24 @@ mod tests {
         shift_key_release: u32,
         length_finish_check: i32,
         length_sleep_value: i32,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FloorBounceCase {
+        name: String,
+        spec: FloorBounceSpec,
+        events: Vec<Value>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct FloorBounceSpec {
+        pids: Vec<u32>,
+        hhj_enabled: bool,
+        delay1: i32,
+        shift_key_action: u32,
+        delay2: i32,
+        delay3: i32,
+        shift_key_release: u32,
     }
 
     #[derive(Debug, Deserialize)]
@@ -1544,6 +1610,35 @@ mod tests {
                 .spawn_generic_worker(LaneId::CONTROLLER)
                 .expect("controller lane should exist");
             execute_hhj_worker(&mut trace, worker, &input);
+
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+        }
+    }
+
+    #[test]
+    fn cpp_floorbounce_worker_live_reads_events_and_lane_topology_match() {
+        for case in fixture().floorbounce_cases {
+            let input = FloorBounceWorkerInput {
+                pids: case.spec.pids,
+                hhj_enabled: case.spec.hhj_enabled,
+                delay1: case.spec.delay1,
+                shift_key_action: case.spec.shift_key_action,
+                delay2: case.spec.delay2,
+                delay3: case.spec.delay3,
+                shift_key_release: case.spec.shift_key_release,
+            };
+
+            let mut trace = TraceRecorder::default();
+            let worker = trace
+                .spawn_generic_worker(LaneId::CONTROLLER)
+                .expect("controller lane should exist");
+            execute_floorbounce_worker(&mut trace, worker, &input);
 
             assert_eq!(
                 trace.lane_now(LaneId::CONTROLLER),

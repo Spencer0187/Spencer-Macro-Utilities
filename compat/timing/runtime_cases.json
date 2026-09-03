@@ -1,4 +1,894 @@
 {
+  "floorbounce_cases": [
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": false
+        }
+      ],
+      "name": "baseline-hhj-off",
+      "spec": {
+        "delay1": 5,
+        "delay2": 8,
+        "delay3": 100,
+        "hhj_enabled": false,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": false
+        }
+      ],
+      "name": "empty-pids",
+      "spec": {
+        "delay1": 5,
+        "delay2": 8,
+        "delay3": 100,
+        "hhj_enabled": false,
+        "pids": [],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 5
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 8
+        },
+        {
+          "action": "wait",
+          "duration_ms": 8,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 100
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        }
+      ],
+      "name": "hhj-defaults",
+      "spec": {
+        "delay1": 5,
+        "delay2": 8,
+        "delay3": 100,
+        "hhj_enabled": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": -5
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": -8
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": -100
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        }
+      ],
+      "name": "negative-hhj-delays-clamp-zero",
+      "spec": {
+        "delay1": -5,
+        "delay2": -8,
+        "delay3": -100,
+        "hhj_enabled": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 5
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 160
+        },
+        {
+          "action": "key_down",
+          "key": 160,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 8
+        },
+        {
+          "action": "wait",
+          "duration_ms": 8,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 100
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 161
+        },
+        {
+          "action": "key_up",
+          "key": 161,
+          "path": "bound"
+        }
+      ],
+      "name": "shift-key-changes-before-release",
+      "spec": {
+        "delay1": 5,
+        "delay2": 8,
+        "delay3": 100,
+        "hhj_enabled": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 160,
+        "shift_key_release": 161
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 0,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        }
+      ],
+      "name": "zero-hhj-delays",
+      "spec": {
+        "delay1": 0,
+        "delay2": 0,
+        "delay3": 0,
+        "hhj_enabled": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    },
+    {
+      "events": [
+        {
+          "action": "key_down",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 521,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": true
+        },
+        {
+          "action": "wait",
+          "duration_ms": 72,
+          "kind": "coarse"
+        },
+        {
+          "action": "process_suspended",
+          "pids": [
+            10,
+            20
+          ],
+          "suspended": false
+        },
+        {
+          "action": "key_up",
+          "key": 32,
+          "path": "direct"
+        },
+        {
+          "action": "setting_read",
+          "name": "hhj_enabled",
+          "value": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay1",
+          "value": 999
+        },
+        {
+          "action": "wait",
+          "duration_ms": 999,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_action",
+          "value": 16
+        },
+        {
+          "action": "key_down",
+          "key": 16,
+          "path": "bound"
+        },
+        {
+          "action": "setting_read",
+          "name": "delay2",
+          "value": 1001
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1001,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": true
+        },
+        {
+          "action": "setting_read",
+          "name": "delay3",
+          "value": 1234
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1234,
+          "kind": "coarse"
+        },
+        {
+          "action": "hhj_active",
+          "active": false
+        },
+        {
+          "action": "wait",
+          "duration_ms": 100,
+          "kind": "coarse"
+        },
+        {
+          "action": "setting_read",
+          "name": "shift_key_release",
+          "value": 16
+        },
+        {
+          "action": "key_up",
+          "key": 16,
+          "path": "bound"
+        }
+      ],
+      "name": "large-hhj-delays",
+      "spec": {
+        "delay1": 999,
+        "delay2": 1001,
+        "delay3": 1234,
+        "hhj_enabled": true,
+        "pids": [
+          10,
+          20
+        ],
+        "shift_key_action": 16,
+        "shift_key_release": 16
+      }
+    }
+  ],
   "frame_delay_cases": [
     {
       "first_ms": 1000,
