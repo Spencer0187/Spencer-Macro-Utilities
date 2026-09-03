@@ -1,0 +1,7216 @@
+{
+  "frame_delay_cases": [
+    {
+      "first_ms": 1000,
+      "fps": 0,
+      "second_ms": 1000
+    },
+    {
+      "first_ms": 1000,
+      "fps": 1,
+      "second_ms": 1000
+    },
+    {
+      "first_ms": 500,
+      "fps": 2,
+      "second_ms": 500
+    },
+    {
+      "first_ms": 333,
+      "fps": 3,
+      "second_ms": 334
+    },
+    {
+      "first_ms": 250,
+      "fps": 4,
+      "second_ms": 250
+    },
+    {
+      "first_ms": 200,
+      "fps": 5,
+      "second_ms": 200
+    },
+    {
+      "first_ms": 166,
+      "fps": 6,
+      "second_ms": 167
+    },
+    {
+      "first_ms": 143,
+      "fps": 7,
+      "second_ms": 143
+    },
+    {
+      "first_ms": 125,
+      "fps": 8,
+      "second_ms": 125
+    },
+    {
+      "first_ms": 111,
+      "fps": 9,
+      "second_ms": 111
+    },
+    {
+      "first_ms": 100,
+      "fps": 10,
+      "second_ms": 100
+    },
+    {
+      "first_ms": 91,
+      "fps": 11,
+      "second_ms": 91
+    },
+    {
+      "first_ms": 83,
+      "fps": 12,
+      "second_ms": 84
+    },
+    {
+      "first_ms": 77,
+      "fps": 13,
+      "second_ms": 77
+    },
+    {
+      "first_ms": 71,
+      "fps": 14,
+      "second_ms": 72
+    },
+    {
+      "first_ms": 66,
+      "fps": 15,
+      "second_ms": 67
+    },
+    {
+      "first_ms": 62,
+      "fps": 16,
+      "second_ms": 63
+    },
+    {
+      "first_ms": 59,
+      "fps": 17,
+      "second_ms": 59
+    },
+    {
+      "first_ms": 55,
+      "fps": 18,
+      "second_ms": 56
+    },
+    {
+      "first_ms": 52,
+      "fps": 19,
+      "second_ms": 53
+    },
+    {
+      "first_ms": 50,
+      "fps": 20,
+      "second_ms": 50
+    },
+    {
+      "first_ms": 47,
+      "fps": 21,
+      "second_ms": 48
+    },
+    {
+      "first_ms": 45,
+      "fps": 22,
+      "second_ms": 46
+    },
+    {
+      "first_ms": 43,
+      "fps": 23,
+      "second_ms": 44
+    },
+    {
+      "first_ms": 41,
+      "fps": 24,
+      "second_ms": 42
+    },
+    {
+      "first_ms": 40,
+      "fps": 25,
+      "second_ms": 40
+    },
+    {
+      "first_ms": 38,
+      "fps": 26,
+      "second_ms": 39
+    },
+    {
+      "first_ms": 37,
+      "fps": 27,
+      "second_ms": 37
+    },
+    {
+      "first_ms": 36,
+      "fps": 28,
+      "second_ms": 36
+    },
+    {
+      "first_ms": 34,
+      "fps": 29,
+      "second_ms": 35
+    },
+    {
+      "first_ms": 33,
+      "fps": 30,
+      "second_ms": 34
+    },
+    {
+      "first_ms": 32,
+      "fps": 31,
+      "second_ms": 32
+    },
+    {
+      "first_ms": 31,
+      "fps": 32,
+      "second_ms": 31
+    },
+    {
+      "first_ms": 30,
+      "fps": 33,
+      "second_ms": 30
+    },
+    {
+      "first_ms": 29,
+      "fps": 34,
+      "second_ms": 30
+    },
+    {
+      "first_ms": 28,
+      "fps": 35,
+      "second_ms": 29
+    },
+    {
+      "first_ms": 28,
+      "fps": 36,
+      "second_ms": 28
+    },
+    {
+      "first_ms": 27,
+      "fps": 37,
+      "second_ms": 27
+    },
+    {
+      "first_ms": 26,
+      "fps": 38,
+      "second_ms": 26
+    },
+    {
+      "first_ms": 25,
+      "fps": 39,
+      "second_ms": 26
+    },
+    {
+      "first_ms": 25,
+      "fps": 40,
+      "second_ms": 25
+    },
+    {
+      "first_ms": 24,
+      "fps": 41,
+      "second_ms": 25
+    },
+    {
+      "first_ms": 24,
+      "fps": 42,
+      "second_ms": 24
+    },
+    {
+      "first_ms": 23,
+      "fps": 43,
+      "second_ms": 23
+    },
+    {
+      "first_ms": 23,
+      "fps": 44,
+      "second_ms": 23
+    },
+    {
+      "first_ms": 22,
+      "fps": 45,
+      "second_ms": 22
+    },
+    {
+      "first_ms": 22,
+      "fps": 46,
+      "second_ms": 22
+    },
+    {
+      "first_ms": 21,
+      "fps": 47,
+      "second_ms": 21
+    },
+    {
+      "first_ms": 21,
+      "fps": 48,
+      "second_ms": 21
+    },
+    {
+      "first_ms": 20,
+      "fps": 49,
+      "second_ms": 21
+    },
+    {
+      "first_ms": 20,
+      "fps": 50,
+      "second_ms": 20
+    },
+    {
+      "first_ms": 19,
+      "fps": 51,
+      "second_ms": 20
+    },
+    {
+      "first_ms": 19,
+      "fps": 52,
+      "second_ms": 19
+    },
+    {
+      "first_ms": 19,
+      "fps": 53,
+      "second_ms": 19
+    },
+    {
+      "first_ms": 18,
+      "fps": 54,
+      "second_ms": 19
+    },
+    {
+      "first_ms": 18,
+      "fps": 55,
+      "second_ms": 18
+    },
+    {
+      "first_ms": 18,
+      "fps": 56,
+      "second_ms": 18
+    },
+    {
+      "first_ms": 17,
+      "fps": 57,
+      "second_ms": 18
+    },
+    {
+      "first_ms": 17,
+      "fps": 58,
+      "second_ms": 17
+    },
+    {
+      "first_ms": 17,
+      "fps": 59,
+      "second_ms": 17
+    },
+    {
+      "first_ms": 16,
+      "fps": 60,
+      "second_ms": 17
+    },
+    {
+      "first_ms": 16,
+      "fps": 61,
+      "second_ms": 17
+    },
+    {
+      "first_ms": 16,
+      "fps": 62,
+      "second_ms": 16
+    },
+    {
+      "first_ms": 16,
+      "fps": 63,
+      "second_ms": 16
+    },
+    {
+      "first_ms": 15,
+      "fps": 64,
+      "second_ms": 16
+    },
+    {
+      "first_ms": 15,
+      "fps": 65,
+      "second_ms": 16
+    },
+    {
+      "first_ms": 15,
+      "fps": 66,
+      "second_ms": 15
+    },
+    {
+      "first_ms": 15,
+      "fps": 67,
+      "second_ms": 15
+    },
+    {
+      "first_ms": 15,
+      "fps": 68,
+      "second_ms": 15
+    },
+    {
+      "first_ms": 14,
+      "fps": 69,
+      "second_ms": 15
+    },
+    {
+      "first_ms": 14,
+      "fps": 70,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 14,
+      "fps": 71,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 14,
+      "fps": 72,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 14,
+      "fps": 73,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 13,
+      "fps": 74,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 13,
+      "fps": 75,
+      "second_ms": 14
+    },
+    {
+      "first_ms": 13,
+      "fps": 76,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 13,
+      "fps": 77,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 13,
+      "fps": 78,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 12,
+      "fps": 79,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 12,
+      "fps": 80,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 12,
+      "fps": 81,
+      "second_ms": 13
+    },
+    {
+      "first_ms": 12,
+      "fps": 82,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 12,
+      "fps": 83,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 12,
+      "fps": 84,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 12,
+      "fps": 85,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 11,
+      "fps": 86,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 11,
+      "fps": 87,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 11,
+      "fps": 88,
+      "second_ms": 12
+    },
+    {
+      "first_ms": 11,
+      "fps": 89,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 11,
+      "fps": 90,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 11,
+      "fps": 91,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 11,
+      "fps": 92,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 11,
+      "fps": 93,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 10,
+      "fps": 94,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 10,
+      "fps": 95,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 10,
+      "fps": 96,
+      "second_ms": 11
+    },
+    {
+      "first_ms": 10,
+      "fps": 97,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 98,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 99,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 100,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 101,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 102,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 10,
+      "fps": 103,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 9,
+      "fps": 104,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 9,
+      "fps": 105,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 9,
+      "fps": 106,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 9,
+      "fps": 107,
+      "second_ms": 10
+    },
+    {
+      "first_ms": 9,
+      "fps": 108,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 109,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 110,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 111,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 112,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 113,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 114,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 9,
+      "fps": 115,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 116,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 117,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 118,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 119,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 120,
+      "second_ms": 9
+    },
+    {
+      "first_ms": 8,
+      "fps": 121,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 122,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 123,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 124,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 125,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 126,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 127,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 128,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 129,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 8,
+      "fps": 130,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 131,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 132,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 133,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 134,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 135,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 136,
+      "second_ms": 8
+    },
+    {
+      "first_ms": 7,
+      "fps": 137,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 138,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 139,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 140,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 141,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 142,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 143,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 144,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 145,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 146,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 147,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 148,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 7,
+      "fps": 149,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 150,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 151,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 152,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 153,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 154,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 155,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 156,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 157,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 158,
+      "second_ms": 7
+    },
+    {
+      "first_ms": 6,
+      "fps": 159,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 160,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 161,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 162,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 163,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 164,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 165,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 166,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 167,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 168,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 169,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 170,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 171,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 172,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 173,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 174,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 175,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 6,
+      "fps": 176,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 177,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 178,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 179,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 180,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 181,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 182,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 183,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 184,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 185,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 186,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 187,
+      "second_ms": 6
+    },
+    {
+      "first_ms": 5,
+      "fps": 188,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 189,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 190,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 191,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 192,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 193,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 194,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 195,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 196,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 197,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 198,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 199,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 200,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 201,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 202,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 203,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 204,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 205,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 206,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 207,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 208,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 209,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 210,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 211,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 212,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 213,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 5,
+      "fps": 214,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 215,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 216,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 217,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 218,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 219,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 220,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 221,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 222,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 223,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 224,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 225,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 226,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 227,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 228,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 229,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 230,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 231,
+      "second_ms": 5
+    },
+    {
+      "first_ms": 4,
+      "fps": 232,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 233,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 234,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 235,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 236,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 237,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 238,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 239,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 240,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 241,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 242,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 243,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 244,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 245,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 246,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 247,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 248,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 249,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 250,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 251,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 252,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 253,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 254,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 255,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 256,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 257,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 258,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 259,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 260,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 261,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 262,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 263,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 264,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 265,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 266,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 267,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 268,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 269,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 270,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 271,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 4,
+      "fps": 272,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 273,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 274,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 275,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 276,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 277,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 278,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 279,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 280,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 281,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 282,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 283,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 284,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 285,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 286,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 287,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 288,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 289,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 290,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 291,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 292,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 293,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 294,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 295,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 296,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 297,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 298,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 299,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 300,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 301,
+      "second_ms": 4
+    },
+    {
+      "first_ms": 3,
+      "fps": 302,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 303,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 304,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 305,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 306,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 307,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 308,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 309,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 310,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 311,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 312,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 313,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 314,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 315,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 316,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 317,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 318,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 319,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 320,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 321,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 322,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 323,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 324,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 325,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 326,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 327,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 328,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 329,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 330,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 331,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 332,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 333,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 334,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 335,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 336,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 337,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 338,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 339,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 340,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 341,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 342,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 343,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 344,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 345,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 346,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 347,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 348,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 349,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 350,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 351,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 352,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 353,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 354,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 355,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 356,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 357,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 358,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 359,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 360,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 361,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 362,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 363,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 364,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 365,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 366,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 367,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 368,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 369,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 370,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 371,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 372,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 373,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 3,
+      "fps": 374,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 375,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 376,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 377,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 378,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 379,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 380,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 381,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 382,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 383,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 384,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 385,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 386,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 387,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 388,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 389,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 390,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 391,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 392,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 393,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 394,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 395,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 396,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 397,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 398,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 399,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 400,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 401,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 402,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 403,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 404,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 405,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 406,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 407,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 408,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 409,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 410,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 411,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 412,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 413,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 414,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 415,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 416,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 417,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 418,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 419,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 420,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 421,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 422,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 423,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 424,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 425,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 426,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 427,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 428,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 429,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 430,
+      "second_ms": 3
+    },
+    {
+      "first_ms": 2,
+      "fps": 431,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 432,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 433,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 434,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 435,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 436,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 437,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 438,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 439,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 440,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 441,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 442,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 443,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 444,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 445,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 446,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 447,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 448,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 449,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 450,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 451,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 452,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 453,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 454,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 455,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 456,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 457,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 458,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 459,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 460,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 461,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 462,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 463,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 464,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 465,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 466,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 467,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 468,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 469,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 470,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 471,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 472,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 473,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 474,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 475,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 476,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 477,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 478,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 479,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 480,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 481,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 482,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 483,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 484,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 485,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 486,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 487,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 488,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 489,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 490,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 491,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 492,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 493,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 494,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 495,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 496,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 497,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 498,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 499,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 500,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 501,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 502,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 503,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 504,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 505,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 506,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 507,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 508,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 509,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 510,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 511,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 512,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 513,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 514,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 515,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 516,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 517,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 518,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 519,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 520,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 521,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 522,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 523,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 524,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 525,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 526,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 527,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 528,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 529,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 530,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 531,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 532,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 533,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 534,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 535,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 536,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 537,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 538,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 539,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 540,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 541,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 542,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 543,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 544,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 545,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 546,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 547,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 548,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 549,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 550,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 551,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 552,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 553,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 554,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 555,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 556,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 557,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 558,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 559,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 560,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 561,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 562,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 563,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 564,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 565,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 566,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 567,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 568,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 569,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 570,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 571,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 572,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 573,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 574,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 575,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 576,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 577,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 578,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 579,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 580,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 581,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 582,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 583,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 584,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 585,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 586,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 587,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 588,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 589,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 590,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 591,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 592,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 593,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 594,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 595,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 596,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 597,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 598,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 2,
+      "fps": 599,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 600,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 601,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 602,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 603,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 604,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 605,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 606,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 607,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 608,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 609,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 610,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 611,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 612,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 613,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 614,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 615,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 616,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 617,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 618,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 619,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 620,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 621,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 622,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 623,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 624,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 625,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 626,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 627,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 628,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 629,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 630,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 631,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 632,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 633,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 634,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 635,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 636,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 637,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 638,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 639,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 640,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 641,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 642,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 643,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 644,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 645,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 646,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 647,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 648,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 649,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 650,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 651,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 652,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 653,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 654,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 655,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 656,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 657,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 658,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 659,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 660,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 661,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 662,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 663,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 664,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 665,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 666,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 667,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 668,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 669,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 670,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 671,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 672,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 673,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 674,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 675,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 676,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 677,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 678,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 679,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 680,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 681,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 682,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 683,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 684,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 685,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 686,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 687,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 688,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 689,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 690,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 691,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 692,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 693,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 694,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 695,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 696,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 697,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 698,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 699,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 700,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 701,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 702,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 703,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 704,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 705,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 706,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 707,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 708,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 709,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 710,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 711,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 712,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 713,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 714,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 715,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 716,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 717,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 718,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 719,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 720,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 721,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 722,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 723,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 724,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 725,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 726,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 727,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 728,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 729,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 730,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 731,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 732,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 733,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 734,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 735,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 736,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 737,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 738,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 739,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 740,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 741,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 742,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 743,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 744,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 745,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 746,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 747,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 748,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 749,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 750,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 751,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 752,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 753,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 754,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 755,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 756,
+      "second_ms": 2
+    },
+    {
+      "first_ms": 1,
+      "fps": 757,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 758,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 759,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 760,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 761,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 762,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 763,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 764,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 765,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 766,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 767,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 768,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 769,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 770,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 771,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 772,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 773,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 774,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 775,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 776,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 777,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 778,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 779,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 780,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 781,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 782,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 783,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 784,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 785,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 786,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 787,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 788,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 789,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 790,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 791,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 792,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 793,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 794,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 795,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 796,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 797,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 798,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 799,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 800,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 801,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 802,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 803,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 804,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 805,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 806,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 807,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 808,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 809,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 810,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 811,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 812,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 813,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 814,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 815,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 816,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 817,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 818,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 819,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 820,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 821,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 822,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 823,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 824,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 825,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 826,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 827,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 828,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 829,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 830,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 831,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 832,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 833,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 834,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 835,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 836,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 837,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 838,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 839,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 840,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 841,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 842,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 843,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 844,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 845,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 846,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 847,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 848,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 849,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 850,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 851,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 852,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 853,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 854,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 855,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 856,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 857,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 858,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 859,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 860,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 861,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 862,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 863,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 864,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 865,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 866,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 867,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 868,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 869,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 870,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 871,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 872,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 873,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 874,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 875,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 876,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 877,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 878,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 879,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 880,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 881,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 882,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 883,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 884,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 885,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 886,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 887,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 888,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 889,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 890,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 891,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 892,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 893,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 894,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 895,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 896,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 897,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 898,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 899,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 900,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 901,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 902,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 903,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 904,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 905,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 906,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 907,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 908,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 909,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 910,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 911,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 912,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 913,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 914,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 915,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 916,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 917,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 918,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 919,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 920,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 921,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 922,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 923,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 924,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 925,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 926,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 927,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 928,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 929,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 930,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 931,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 932,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 933,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 934,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 935,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 936,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 937,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 938,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 939,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 940,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 941,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 942,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 943,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 944,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 945,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 946,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 947,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 948,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 949,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 950,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 951,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 952,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 953,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 954,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 955,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 956,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 957,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 958,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 959,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 960,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 961,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 962,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 963,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 964,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 965,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 966,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 967,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 968,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 969,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 970,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 971,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 972,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 973,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 974,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 975,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 976,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 977,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 978,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 979,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 980,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 981,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 982,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 983,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 984,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 985,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 986,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 987,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 988,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 989,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 990,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 991,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 992,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 993,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 994,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 995,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 996,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 997,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 998,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 999,
+      "second_ms": 1
+    },
+    {
+      "first_ms": 1,
+      "fps": 1000,
+      "second_ms": 1
+    }
+  ],
+  "oracle": "smu_runtime_compat_oracle",
+  "presskey_cases": [
+    {
+      "bonus_delay_ms": 0,
+      "events": [
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "normal",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 0,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": true,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 0,
+      "events": [
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "same-trigger-output",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 0,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": true,
+        "trigger": 68
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": true,
+      "trigger": 68
+    },
+    {
+      "bonus_delay_ms": 7,
+      "events": [
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "bonus-delay",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 7,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": true,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": -5,
+      "events": [
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "negative-bonus-clamps-zero",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 0,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": true,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 0,
+      "events": [
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "zero-press-clamps-one",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 0,
+        "output": 68,
+        "press_delay_ms": 1,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 0,
+      "running_after_bonus": true,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 3,
+      "events": [
+        {
+          "action": "wait",
+          "duration_ms": 3,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": true
+        },
+        {
+          "action": "key_down",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        }
+      ],
+      "name": "negative-press-clamps-one",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 3,
+        "output": 68,
+        "press_delay_ms": 1,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": -99,
+      "running_after_bonus": true,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 7,
+      "events": [
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": false
+        }
+      ],
+      "name": "cancel-after-bonus",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 7,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": false,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 0,
+      "events": [
+        {
+          "action": "running_check",
+          "running": false
+        }
+      ],
+      "name": "cancel-without-bonus",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 0,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": false,
+        "trigger": 90
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": false,
+      "trigger": 90
+    },
+    {
+      "bonus_delay_ms": 5,
+      "events": [
+        {
+          "action": "key_up",
+          "key": 68,
+          "path": "bound"
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "running_check",
+          "running": false
+        }
+      ],
+      "name": "same-key-cancel-after-release",
+      "output": 68,
+      "plan": {
+        "bonus_delay_ms": 5,
+        "output": 68,
+        "press_delay_ms": 16,
+        "release_trigger_first": true,
+        "trigger": 68
+      },
+      "press_delay_ms": 16,
+      "running_after_bonus": false,
+      "trigger": 68
+    }
+  ],
+  "rising_edge_cases": [
+    {
+      "next_was_pressed": false,
+      "pressed": false,
+      "rising": false,
+      "was_pressed": false
+    },
+    {
+      "next_was_pressed": false,
+      "pressed": false,
+      "rising": false,
+      "was_pressed": true
+    },
+    {
+      "next_was_pressed": true,
+      "pressed": true,
+      "rising": true,
+      "was_pressed": false
+    },
+    {
+      "next_was_pressed": true,
+      "pressed": true,
+      "rising": false,
+      "was_pressed": true
+    }
+  ],
+  "speedglitch_cases": [
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-0",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-1",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-2",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-3",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-4",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-5",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-6",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-7",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-8",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-9",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-10",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-11",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-12",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-13",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-14",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-15",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-16",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-17",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-18",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-19",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-20",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-21",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-22",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-23",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-24",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-25",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-26",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-27",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-28",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-29",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-30",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": false,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-31",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-32",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-33",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-34",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-35",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-36",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-37",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-38",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-39",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-40",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-41",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-42",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-43",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-44",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-45",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-46",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-47",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": false,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-48",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-49",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-50",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-51",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-52",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-53",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": false,
+      "name": "matrix-54",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "matrix-55",
+      "next_is_speed": false,
+      "next_was_pressed": false,
+      "plan": null,
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "clear",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-56",
+      "next_is_speed": true,
+      "next_was_pressed": true,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "toggle",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-57",
+      "next_is_speed": false,
+      "next_was_pressed": true,
+      "plan": null,
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "toggle",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-58",
+      "next_is_speed": false,
+      "next_was_pressed": true,
+      "plan": null,
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-59",
+      "next_is_speed": true,
+      "next_was_pressed": true,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": false,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-60",
+      "next_is_speed": true,
+      "next_was_pressed": true,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "toggle",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-61",
+      "next_is_speed": false,
+      "next_was_pressed": true,
+      "plan": null,
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "toggle",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": false
+    },
+    {
+      "events": [],
+      "execute_cycle": false,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": false,
+      "name": "matrix-62",
+      "next_is_speed": false,
+      "next_was_pressed": true,
+      "plan": null,
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -600,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 5,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 200,
+      "hotkey_pressed": true,
+      "is_speed": true,
+      "name": "matrix-63",
+      "next_is_speed": true,
+      "next_was_pressed": true,
+      "plan": {
+        "first_ms": 5,
+        "second_ms": 5,
+        "strength_x": 600,
+        "strength_y": -600
+      },
+      "pressed": true,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 600,
+      "strength_y": -600,
+      "toggle_switch": true,
+      "was_pressed": true
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 0,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-0",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 1000,
+        "second_ms": 1000,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1000,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 1,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-1",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 1000,
+        "second_ms": 1000,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 33,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 34,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 30,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-30",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 33,
+        "second_ms": 34,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 16,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 17,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 60,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-60",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 16,
+        "second_ms": 17,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 8,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 9,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 120,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-120",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 8,
+        "second_ms": 9,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 7,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 144,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-144",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 7,
+        "second_ms": 7,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 6,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 6,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 165,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-165",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 6,
+        "second_ms": 6,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 4,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 240,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-240",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 4,
+        "second_ms": 4,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 3,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 3,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 360,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-360",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 3,
+        "second_ms": 3,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 2,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 500,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-500",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 2,
+        "second_ms": 2,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    },
+    {
+      "events": [
+        {
+          "action": "mouse_move",
+          "dx": 321,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        },
+        {
+          "action": "mouse_move",
+          "dx": -123,
+          "dy": 0
+        },
+        {
+          "action": "wait",
+          "duration_ms": 1,
+          "kind": "coarse"
+        }
+      ],
+      "execute_cycle": true,
+      "foreground_allowed": true,
+      "fps": 1000,
+      "hotkey_pressed": false,
+      "is_speed": true,
+      "name": "active-fps-1000",
+      "next_is_speed": true,
+      "next_was_pressed": false,
+      "plan": {
+        "first_ms": 1,
+        "second_ms": 1,
+        "strength_x": 321,
+        "strength_y": -123
+      },
+      "pressed": false,
+      "section_enabled": true,
+      "state_action": "none",
+      "strength_x": 321,
+      "strength_y": -123,
+      "toggle_switch": false,
+      "was_pressed": false
+    }
+  ]
+}

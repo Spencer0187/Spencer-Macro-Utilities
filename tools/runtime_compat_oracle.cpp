@@ -1,0 +1,157 @@
+#include "macro_runtime_compat_logic.h"
+#include "json.hpp"
+
+#include <cstdlib>
+#include <iostream>
+#include <string_view>
+
+namespace {
+
+using Json = nlohmann::json;
+
+bool ParseBool(const char* text)
+{
+    return std::string_view(text) == "1" || std::string_view(text) == "true";
+}
+
+int Usage()
+{
+    std::cerr << "usage:\n"
+              << "  smu_runtime_compat_oracle frame-delays <fps>\n"
+              << "  smu_runtime_compat_oracle presskey-worker <trigger> <output> <bonus-ms> <press-ms> <running-after-bonus>\n"
+              << "  smu_runtime_compat_oracle rising-edge <pressed> <was-pressed>\n"
+              << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
+    return 2;
+}
+
+Json Event(const char* action)
+{
+    return Json{{"action", action}};
+}
+
+} // namespace
+
+int main(int argc, char** argv)
+{
+    using namespace smu::app::compat;
+
+    if (argc < 2) {
+        return Usage();
+    }
+
+    const std::string_view operation(argv[1]);
+    Json result;
+
+    if (operation == "frame-delays" && argc == 3) {
+        const auto delays = FrameDelaysForFps(static_cast<unsigned int>(std::strtoul(argv[2], nullptr, 10)));
+        result = Json{
+            {"operation", "frame-delays"},
+            {"first_ms", delays.firstMs},
+            {"second_ms", delays.secondMs},
+        };
+    } else if (operation == "rising-edge" && argc == 4) {
+        const auto edge = EvaluateRisingEdge(ParseBool(argv[2]), ParseBool(argv[3]));
+        result = Json{
+            {"operation", "rising-edge"},
+            {"rising", edge.rising},
+            {"next_was_pressed", edge.nextWasPressed},
+        };
+    } else if (operation == "presskey-worker" && argc == 7) {
+        const auto plan = BuildPressKeyWorkerPlan(
+            static_cast<unsigned int>(std::strtoul(argv[2], nullptr, 10)),
+            static_cast<unsigned int>(std::strtoul(argv[3], nullptr, 10)),
+            std::atoi(argv[4]),
+            std::atoi(argv[5]));
+        const bool runningAfterBonus = ParseBool(argv[6]);
+        Json events = Json::array();
+        ExecutePressKeyWorker(
+            plan,
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_up"}, {"key", key}, {"path", "bound"}});
+            },
+            [&](int delayMs) {
+                events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+            },
+            [&] {
+                events.push_back(Json{{"action", "running_check"}, {"running", runningAfterBonus}});
+                return runningAfterBonus;
+            },
+            [&](unsigned int key) {
+                events.push_back(Json{{"action", "key_down"}, {"key", key}, {"path", "bound"}});
+            });
+        result = Json{
+            {"operation", "presskey-worker"},
+            {"plan", Json{
+                {"trigger", plan.trigger},
+                {"output", plan.output},
+                {"bonus_delay_ms", plan.bonusDelayMs},
+                {"press_delay_ms", plan.pressDelayMs},
+                {"release_trigger_first", plan.releaseTriggerFirst},
+            }},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "speedglitch-step" && argc == 11) {
+        const bool foreground = ParseBool(argv[2]);
+        const bool section = ParseBool(argv[3]);
+        const bool hotkey = ParseBool(argv[4]);
+        const bool toggleSwitch = ParseBool(argv[5]);
+        const bool wasPressed = ParseBool(argv[6]);
+        const bool isSpeed = ParseBool(argv[7]);
+        const auto fps = static_cast<unsigned int>(std::strtoul(argv[8], nullptr, 10));
+        const int strengthX = std::atoi(argv[9]);
+        const int strengthY = std::atoi(argv[10]);
+
+        const auto edge = EvaluateSpeedglitchEdge(
+            foreground,
+            section,
+            hotkey,
+            toggleSwitch,
+            wasPressed);
+        const bool nextIsSpeed = ApplySpeedglitchStateAction(edge.stateAction, isSpeed);
+        const bool executeCycle = foreground && section && nextIsSpeed;
+        Json events = Json::array();
+        Json planJson = nullptr;
+        if (executeCycle) {
+            const auto plan = BuildSpeedglitchCyclePlan(fps, strengthX, strengthY);
+            planJson = Json{
+                {"strength_x", plan.strengthX},
+                {"strength_y", plan.strengthY},
+                {"first_ms", plan.delays.firstMs},
+                {"second_ms", plan.delays.secondMs},
+            };
+            ExecuteSpeedglitchCycle(
+                plan.delays,
+                [&] {
+                    events.push_back(Json{{"action", "mouse_move"}, {"dx", plan.strengthX}, {"dy", 0}});
+                },
+                [&](int delayMs) {
+                    events.push_back(Json{{"action", "wait"}, {"duration_ms", delayMs}, {"kind", "coarse"}});
+                },
+                [&] {
+                    events.push_back(Json{{"action", "mouse_move"}, {"dx", plan.strengthY}, {"dy", 0}});
+                });
+        }
+
+        const char* actionName = "none";
+        if (edge.stateAction == SpeedglitchStateAction::Toggle) {
+            actionName = "toggle";
+        } else if (edge.stateAction == SpeedglitchStateAction::Clear) {
+            actionName = "clear";
+        }
+        result = Json{
+            {"operation", "speedglitch-step"},
+            {"pressed", edge.pressed},
+            {"next_was_pressed", edge.nextWasPressed},
+            {"state_action", actionName},
+            {"next_is_speed", nextIsSpeed},
+            {"execute_cycle", executeCycle},
+            {"plan", std::move(planJson)},
+            {"events", std::move(events)},
+        };
+    } else {
+        return Usage();
+    }
+
+    std::cout << result.dump() << '\n';
+    return 0;
+}

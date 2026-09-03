@@ -1,4 +1,5 @@
 #include "macro_runtime.h"
+#include "macro_runtime_compat_logic.h"
 
 #include "app_profile_bridge.h"
 #include "input_actions.h"
@@ -427,24 +428,6 @@ bool ShouldKeepRunning()
 unsigned int InventorySlotKey(int slot)
 {
     return static_cast<unsigned int>(std::clamp(slot, 0, 9) + smu::core::SMU_VK_0);
-}
-
-std::pair<int, int> FrameDelaysForFps(unsigned int fps)
-{
-    const unsigned int safeFps = std::max(1u, fps);
-    const float delayFloat = 1000.0f / static_cast<float>(safeFps);
-    const int delayFloor = std::max(1, static_cast<int>(delayFloat));
-    const int delayCeil = delayFloor + 1;
-    const float fractional = delayFloat - static_cast<float>(delayFloor);
-    constexpr float epsilon = 0.008f;
-
-    if (fractional < 0.33f - epsilon) {
-        return {delayFloor, delayFloor};
-    }
-    if (fractional > 0.66f + epsilon) {
-        return {delayCeil, delayCeil};
-    }
-    return {delayFloor, delayCeil};
 }
 
 void ReleaseZoomOrShift()
@@ -984,27 +967,24 @@ void MacroRuntime::processPressKeyMacros(bool foregroundAllowed)
         }
         const bool allowed = foregroundAllows(inst.presskeyinroblox) && foregroundAllowed;
         const bool pressed = allowed && isHotkeyPressed(inst.vk_trigger);
-        const bool edge = pressed && !pressKeyWasPressed_[index];
-        pressKeyWasPressed_[index] = pressed;
-        if (!edge) {
+        const auto edge = compat::EvaluateRisingEdge(pressed, pressKeyWasPressed_[index]);
+        pressKeyWasPressed_[index] = edge.nextWasPressed;
+        if (!edge.rising) {
             continue;
         }
 
-        const unsigned int trigger = inst.vk_trigger;
-        const unsigned int output = inst.vk_presskey;
-        const int bonusDelay = std::max(0, inst.PressKeyBonusDelay);
-        const int pressDelay = std::max(1, inst.PressKeyDelay);
-        runWorker([this, trigger, output, bonusDelay, pressDelay] {
-            if (trigger == output) {
-                ReleaseKeyBinded(trigger);
-            }
-            if (bonusDelay > 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(bonusDelay));
-            }
-            if (!running_.load(std::memory_order_acquire)) return;
-            HoldKeyBinded(output);
-            std::this_thread::sleep_for(std::chrono::milliseconds(pressDelay));
-            ReleaseKeyBinded(output);
+        const auto plan = compat::BuildPressKeyWorkerPlan(
+            inst.vk_trigger,
+            inst.vk_presskey,
+            inst.PressKeyBonusDelay,
+            inst.PressKeyDelay);
+        runWorker([this, plan] {
+            compat::ExecutePressKeyWorker(
+                plan,
+                [](unsigned int key) { ReleaseKeyBinded(key); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [this] { return running_.load(std::memory_order_acquire); },
+                [](unsigned int key) { HoldKeyBinded(key); });
         });
     }
 }
@@ -1101,23 +1081,31 @@ void MacroRuntime::processWallessLhjMacro(bool foregroundAllowed)
 
 void MacroRuntime::processSpeedglitchMacro(bool foregroundAllowed)
 {
-    const bool pressed = foregroundAllowed && section_toggles[3] && isHotkeyPressed(vk_xkey);
-    if (pressed && !speedWasPressed_) {
+    const bool sectionEnabled = section_toggles[3];
+    const bool hotkeyPressed = foregroundAllowed && sectionEnabled && isHotkeyPressed(vk_xkey);
+    const auto edge = compat::EvaluateSpeedglitchEdge(
+        foregroundAllowed,
+        sectionEnabled,
+        hotkeyPressed,
+        isspeedswitch,
+        speedWasPressed_);
+    if (edge.stateAction == compat::SpeedglitchStateAction::Toggle) {
         isspeed.store(!isspeed.load(std::memory_order_acquire), std::memory_order_release);
-    } else if (!pressed && isspeedswitch) {
+    } else if (edge.stateAction == compat::SpeedglitchStateAction::Clear) {
         isspeed.store(false, std::memory_order_release);
     }
-    speedWasPressed_ = pressed;
+    speedWasPressed_ = edge.nextWasPressed;
 
-    if (!foregroundAllowed || !section_toggles[3] || !isspeed.load(std::memory_order_acquire)) {
+    if (!foregroundAllowed || !sectionEnabled || !isspeed.load(std::memory_order_acquire)) {
         return;
     }
 
-    const auto [sleep1, sleep2] = FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
-    MoveMouse(speed_strengthx, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep1));
-    MoveMouse(speed_strengthy, 0);
-    std::this_thread::sleep_for(std::chrono::milliseconds(sleep2));
+    const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
+    compat::ExecuteSpeedglitchCycle(
+        delays,
+        [] { MoveMouse(speed_strengthx, 0); },
+        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+        [] { MoveMouse(speed_strengthy, 0); });
 }
 
 void MacroRuntime::processHhjMacro(bool foregroundAllowed)
@@ -1179,7 +1167,7 @@ void MacroRuntime::processHhjMotionLoop()
         return;
     }
 
-    const auto [sleep1, sleep2] = FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
+    const auto [sleep1, sleep2] = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
     MoveMouse(speed_strengthx, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(sleep1));
     MoveMouse(speed_strengthy, 0);

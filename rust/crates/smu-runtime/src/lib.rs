@@ -3,6 +3,9 @@
 //! This crate deliberately does not choose the final threading model yet. It provides deterministic
 //! time contracts that both controller-style and worker-style execution can consume in tests.
 
+pub mod macros;
+pub mod trace;
+
 use std::time::Duration;
 
 /// Monotonic time in microseconds from an arbitrary process-local epoch.

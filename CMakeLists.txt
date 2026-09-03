@@ -142,6 +142,14 @@ if(BUILD_TESTING)
         "${SMU_PLATFORM_DIR}"
         "${SMU_JSON_DIR}"
     )
+
+    add_executable(smu_runtime_compat_oracle
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime_compat_oracle.cpp"
+    )
+    target_include_directories(smu_runtime_compat_oracle PRIVATE
+        "${SMU_APP_DIR}"
+        "${SMU_JSON_DIR}"
+    )
 endif()
 
 if(WIN32)

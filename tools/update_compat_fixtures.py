@@ -14,6 +14,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 ORACLE = ROOT / "build" / "smu_compat_oracle"
 PROFILE_ORACLE = ROOT / "build" / "smu_profile_compat_oracle"
+RUNTIME_ORACLE = ROOT / "build" / "smu_runtime_compat_oracle"
 
 HOTKEY_CASES = [
     "A",
@@ -699,6 +700,176 @@ def write_profiles() -> None:
     write_json(ROOT / "compat" / "profiles" / "cases.json", output)
 
 
+def runtime_frame_delay_cases() -> list[dict[str, Any]]:
+    cases = []
+    for fps in range(0, 1001):
+        observed = run_json(RUNTIME_ORACLE, "frame-delays", str(fps))
+        cases.append(
+            {
+                "fps": fps,
+                "first_ms": observed["first_ms"],
+                "second_ms": observed["second_ms"],
+            }
+        )
+    return cases
+
+
+def runtime_rising_edge_cases() -> list[dict[str, Any]]:
+    cases = []
+    for pressed in (False, True):
+        for was_pressed in (False, True):
+            observed = run_json(
+                RUNTIME_ORACLE,
+                "rising-edge",
+                str(int(pressed)),
+                str(int(was_pressed)),
+            )
+            cases.append(
+                {
+                    "pressed": pressed,
+                    "was_pressed": was_pressed,
+                    "rising": observed["rising"],
+                    "next_was_pressed": observed["next_was_pressed"],
+                }
+            )
+    return cases
+
+
+def runtime_presskey_cases() -> list[dict[str, Any]]:
+    specifications = [
+        ("normal", 90, 68, 0, 16, True),
+        ("same-trigger-output", 68, 68, 0, 16, True),
+        ("bonus-delay", 90, 68, 7, 16, True),
+        ("negative-bonus-clamps-zero", 90, 68, -5, 16, True),
+        ("zero-press-clamps-one", 90, 68, 0, 0, True),
+        ("negative-press-clamps-one", 90, 68, 3, -99, True),
+        ("cancel-after-bonus", 90, 68, 7, 16, False),
+        ("cancel-without-bonus", 90, 68, 0, 16, False),
+        ("same-key-cancel-after-release", 68, 68, 5, 16, False),
+    ]
+    cases = []
+    for name, trigger, output, bonus, press, running in specifications:
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "presskey-worker",
+            str(trigger),
+            str(output),
+            str(bonus),
+            str(press),
+            str(int(running)),
+        )
+        cases.append(
+            {
+                "name": name,
+                "trigger": trigger,
+                "output": output,
+                "bonus_delay_ms": bonus,
+                "press_delay_ms": press,
+                "running_after_bonus": running,
+                "plan": observed["plan"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
+def runtime_speedglitch_cases() -> list[dict[str, Any]]:
+    cases = []
+    case_index = 0
+    for foreground in (False, True):
+        for section in (False, True):
+            for hotkey in (False, True):
+                for toggle_switch in (False, True):
+                    for was_pressed in (False, True):
+                        for is_speed in (False, True):
+                            fps = 200
+                            strength_x = 600
+                            strength_y = -600
+                            observed = run_json(
+                                RUNTIME_ORACLE,
+                                "speedglitch-step",
+                                str(int(foreground)),
+                                str(int(section)),
+                                str(int(hotkey)),
+                                str(int(toggle_switch)),
+                                str(int(was_pressed)),
+                                str(int(is_speed)),
+                                str(fps),
+                                str(strength_x),
+                                str(strength_y),
+                            )
+                            cases.append(
+                                {
+                                    "name": f"matrix-{case_index}",
+                                    "foreground_allowed": foreground,
+                                    "section_enabled": section,
+                                    "hotkey_pressed": hotkey,
+                                    "toggle_switch": toggle_switch,
+                                    "was_pressed": was_pressed,
+                                    "is_speed": is_speed,
+                                    "fps": fps,
+                                    "strength_x": strength_x,
+                                    "strength_y": strength_y,
+                                    "pressed": observed["pressed"],
+                                    "next_was_pressed": observed["next_was_pressed"],
+                                    "state_action": observed["state_action"],
+                                    "next_is_speed": observed["next_is_speed"],
+                                    "execute_cycle": observed["execute_cycle"],
+                                    "plan": observed["plan"],
+                                    "events": observed["events"],
+                                }
+                            )
+                            case_index += 1
+
+    for fps in (0, 1, 30, 60, 120, 144, 165, 240, 360, 500, 1000):
+        observed = run_json(
+            RUNTIME_ORACLE,
+            "speedglitch-step",
+            "1",
+            "1",
+            "0",
+            "0",
+            "0",
+            "1",
+            str(fps),
+            "321",
+            "-123",
+        )
+        cases.append(
+            {
+                "name": f"active-fps-{fps}",
+                "foreground_allowed": True,
+                "section_enabled": True,
+                "hotkey_pressed": False,
+                "toggle_switch": False,
+                "was_pressed": False,
+                "is_speed": True,
+                "fps": fps,
+                "strength_x": 321,
+                "strength_y": -123,
+                "pressed": observed["pressed"],
+                "next_was_pressed": observed["next_was_pressed"],
+                "state_action": observed["state_action"],
+                "next_is_speed": observed["next_is_speed"],
+                "execute_cycle": observed["execute_cycle"],
+                "plan": observed["plan"],
+                "events": observed["events"],
+            }
+        )
+    return cases
+
+
+def write_runtime() -> None:
+    output = {
+        "oracle": "smu_runtime_compat_oracle",
+        "frame_delay_cases": runtime_frame_delay_cases(),
+        "rising_edge_cases": runtime_rising_edge_cases(),
+        "presskey_cases": runtime_presskey_cases(),
+        "speedglitch_cases": runtime_speedglitch_cases(),
+    }
+    write_json(ROOT / "compat" / "timing" / "runtime_cases.json", output)
+
+
 def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> None:
     if not path.is_file():
         parser.error(f"C++ oracle not found at {path}; build target {target} first")
@@ -706,7 +877,7 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "profiles", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "profiles", "runtime", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
@@ -715,6 +886,9 @@ def main() -> int:
     if args.fixture in {"profiles", "all"}:
         ensure_oracle(PROFILE_ORACLE, "smu_profile_compat_oracle", parser)
         write_profiles()
+    if args.fixture in {"runtime", "all"}:
+        ensure_oracle(RUNTIME_ORACLE, "smu_runtime_compat_oracle", parser)
+        write_runtime()
     return 0
 
 
