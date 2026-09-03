@@ -79,6 +79,72 @@ def write_hotkeys() -> None:
     write_json(ROOT / "compat" / "hotkeys" / "cases.json", output)
 
 
+def roblox_log_inputs() -> list[tuple[str, str]]:
+    return [
+        (
+            "basic-game-join",
+            "Report game_join_loadtime placeid:123, userid:456, universeid:789,\n"
+            "Joining game 'test-job'\n"
+            "existing console message\n",
+        ),
+        (
+            "udmux-and-version-metadata",
+            "Connecting to UDMUX server 10.0.0.1:5000 RCC server 20.0.0.2:6000\n"
+            "Server RobloxGitHash: server-hash\n"
+            "Server Prefix: 0.650.2.6500123\n"
+            "[FLog::ClientRunInfo] RobloxGitHash: client-hash\n"
+            "[FLog::ClientRunInfo] The channel is zlive\n"
+            "resizing main targets to 1920x1080\n",
+        ),
+        (
+            "alternative-udmux-address-and-port-wrap",
+            "UDMUX Address = 1.2.3.4, Port = 70000, RCC Server Address = 5.6.7.8, Port = 65537\n",
+        ),
+        (
+            "state-transition-order",
+            "returnToLuaApp\n"
+            "setStage: (stage:None)\n"
+            "Report game_join_loadtime placeid:44, userid:55, universeid:66,\n"
+            "setStage: (stage:None)\n",
+        ),
+        (
+            "c-numeric-prefix-and-overflow",
+            "Report game_join_loadtime placeid:123abc, userid:18446744073709551616, universeid:-1,\n"
+            "resizing main targets to 70000abcx65537xyz\n",
+        ),
+        (
+            "rcc-connection",
+            "Connecting to 127.0.0.1:53640\n",
+        ),
+        (
+            "main-string-fields",
+            "Joining game 'job-with-dashes' trailing text\n"
+            "Server RobloxGitHash: hash:value\r\n"
+            "Server Prefix: 1.2.3.4\r\n"
+            "[FLog::ClientRunInfo] The channel is channel-name\r\n",
+        ),
+    ]
+
+
+def write_roblox() -> None:
+    cases: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="smu-roblox-fixtures-") as temporary:
+        root = Path(temporary)
+        for index, (name, content) in enumerate(roblox_log_inputs()):
+            directory = root / f"case-{index}"
+            directory.mkdir()
+            log_path = directory / "Player_test.log"
+            log_path.write_text(content, encoding="utf-8", newline="")
+            observed = run_json(ORACLE, "roblox-file", str(log_path))["snapshot"]
+            observed["path"] = Path(observed["path"]).name
+            cases.append({"name": name, "content": content, "snapshot": observed})
+
+    write_json(
+        ROOT / "compat" / "roblox" / "log_cases.json",
+        {"oracle": "smu_compat_oracle roblox-file", "cases": cases},
+    )
+
+
 def profile_format_cases() -> list[dict[str, Any]]:
     inputs = [
         ("profile-metadata", compact({"_metadata": {}, "Profile 1": {}})),
@@ -2256,7 +2322,7 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "profiles", "runtime", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "profiles", "roblox", "runtime", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
@@ -2265,6 +2331,9 @@ def main() -> int:
     if args.fixture in {"profiles", "all"}:
         ensure_oracle(PROFILE_ORACLE, "smu_profile_compat_oracle", parser)
         write_profiles()
+    if args.fixture in {"roblox", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_roblox()
     if args.fixture in {"runtime", "all"}:
         ensure_oracle(RUNTIME_ORACLE, "smu_runtime_compat_oracle", parser)
         write_runtime()

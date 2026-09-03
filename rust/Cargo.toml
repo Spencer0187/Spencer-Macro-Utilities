@@ -6,6 +6,7 @@ members = [
     "crates/smu-core",
     "crates/smu-profile",
     "crates/smu-process",
+    "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
 ]
@@ -14,6 +15,7 @@ default-members = [
     "crates/smu-core",
     "crates/smu-profile",
     "crates/smu-process",
+    "crates/smu-roblox",
     "crates/smu-runtime",
     "crates/smu-scripting",
 ]

@@ -572,6 +572,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "smu-roblox"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "smu-runtime"
 version = "0.0.0"
 dependencies = [

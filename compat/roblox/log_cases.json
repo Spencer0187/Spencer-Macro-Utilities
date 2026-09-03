@@ -1,0 +1,236 @@
+{
+  "cases": [
+    {
+      "content": "Report game_join_loadtime placeid:123, userid:456, universeid:789,\nJoining game 'test-job'\nexisting console message\n",
+      "name": "basic-game-join",
+      "snapshot": {
+        "available": true,
+        "client_channel": "",
+        "client_roblox_git_hash": "",
+        "job_id": "test-job",
+        "lines": [
+          "Report game_join_loadtime placeid:123, userid:456, universeid:789,",
+          "Joining game 'test-job'",
+          "existing console message"
+        ],
+        "path": "Player_test.log",
+        "place_id": 123,
+        "resolution_height": 0,
+        "resolution_width": 0,
+        "server": {
+          "rcc_address": "",
+          "rcc_port": 0,
+          "type": "unknown",
+          "udmux_address": "",
+          "udmux_port": 0
+        },
+        "server_luau_version": "",
+        "server_prefix": "",
+        "server_roblox_git_hash": "",
+        "started_new_log": true,
+        "state": "in_game",
+        "universe_id": 789,
+        "user_id": 456
+      }
+    },
+    {
+      "content": "Connecting to UDMUX server 10.0.0.1:5000 RCC server 20.0.0.2:6000\nServer RobloxGitHash: server-hash\nServer Prefix: 0.650.2.6500123\n[FLog::ClientRunInfo] RobloxGitHash: client-hash\n[FLog::ClientRunInfo] The channel is zlive\nresizing main targets to 1920x1080\n",
+      "name": "udmux-and-version-metadata",
+      "snapshot": {
+        "available": true,
+        "client_channel": "zlive",
+        "client_roblox_git_hash": "client-hash",
+        "job_id": "",
+        "lines": [
+          "Connecting to UDMUX server 10.0.0.1:5000 RCC server 20.0.0.2:6000",
+          "Server RobloxGitHash: server-hash",
+          "Server Prefix: 0.650.2.6500123",
+          "[FLog::ClientRunInfo] RobloxGitHash: client-hash",
+          "[FLog::ClientRunInfo] The channel is zlive",
+          "resizing main targets to 1920x1080"
+        ],
+        "path": "Player_test.log",
+        "place_id": 0,
+        "resolution_height": 1080,
+        "resolution_width": 1920,
+        "server": {
+          "rcc_address": "20.0.0.2",
+          "rcc_port": 6000,
+          "type": "udmux",
+          "udmux_address": "10.0.0.1",
+          "udmux_port": 5000
+        },
+        "server_luau_version": "0.650",
+        "server_prefix": "0.650.2.6500123",
+        "server_roblox_git_hash": "server-hash",
+        "started_new_log": true,
+        "state": "unknown",
+        "universe_id": 0,
+        "user_id": 0
+      }
+    },
+    {
+      "content": "UDMUX Address = 1.2.3.4, Port = 70000, RCC Server Address = 5.6.7.8, Port = 65537\n",
+      "name": "alternative-udmux-address-and-port-wrap",
+      "snapshot": {
+        "available": true,
+        "client_channel": "",
+        "client_roblox_git_hash": "",
+        "job_id": "",
+        "lines": [
+          "UDMUX Address = 1.2.3.4, Port = 70000, RCC Server Address = 5.6.7.8, Port = 65537"
+        ],
+        "path": "Player_test.log",
+        "place_id": 0,
+        "resolution_height": 0,
+        "resolution_width": 0,
+        "server": {
+          "rcc_address": "5.6.7.8",
+          "rcc_port": 1,
+          "type": "udmux",
+          "udmux_address": "1.2.3.4",
+          "udmux_port": 4464
+        },
+        "server_luau_version": "",
+        "server_prefix": "",
+        "server_roblox_git_hash": "",
+        "started_new_log": true,
+        "state": "unknown",
+        "universe_id": 0,
+        "user_id": 0
+      }
+    },
+    {
+      "content": "returnToLuaApp\nsetStage: (stage:None)\nReport game_join_loadtime placeid:44, userid:55, universeid:66,\nsetStage: (stage:None)\n",
+      "name": "state-transition-order",
+      "snapshot": {
+        "available": true,
+        "client_channel": "",
+        "client_roblox_git_hash": "",
+        "job_id": "",
+        "lines": [
+          "returnToLuaApp",
+          "setStage: (stage:None)",
+          "Report game_join_loadtime placeid:44, userid:55, universeid:66,",
+          "setStage: (stage:None)"
+        ],
+        "path": "Player_test.log",
+        "place_id": 44,
+        "resolution_height": 0,
+        "resolution_width": 0,
+        "server": {
+          "rcc_address": "",
+          "rcc_port": 0,
+          "type": "unknown",
+          "udmux_address": "",
+          "udmux_port": 0
+        },
+        "server_luau_version": "",
+        "server_prefix": "",
+        "server_roblox_git_hash": "",
+        "started_new_log": true,
+        "state": "offline",
+        "universe_id": 66,
+        "user_id": 55
+      }
+    },
+    {
+      "content": "Report game_join_loadtime placeid:123abc, userid:18446744073709551616, universeid:-1,\nresizing main targets to 70000abcx65537xyz\n",
+      "name": "c-numeric-prefix-and-overflow",
+      "snapshot": {
+        "available": true,
+        "client_channel": "",
+        "client_roblox_git_hash": "",
+        "job_id": "",
+        "lines": [
+          "Report game_join_loadtime placeid:123abc, userid:18446744073709551616, universeid:-1,",
+          "resizing main targets to 70000abcx65537xyz"
+        ],
+        "path": "Player_test.log",
+        "place_id": 123,
+        "resolution_height": 1,
+        "resolution_width": 4464,
+        "server": {
+          "rcc_address": "",
+          "rcc_port": 0,
+          "type": "unknown",
+          "udmux_address": "",
+          "udmux_port": 0
+        },
+        "server_luau_version": "",
+        "server_prefix": "",
+        "server_roblox_git_hash": "",
+        "started_new_log": true,
+        "state": "in_game",
+        "universe_id": 18446744073709551615,
+        "user_id": 18446744073709551615
+      }
+    },
+    {
+      "content": "Connecting to 127.0.0.1:53640\n",
+      "name": "rcc-connection",
+      "snapshot": {
+        "available": true,
+        "client_channel": "",
+        "client_roblox_git_hash": "",
+        "job_id": "",
+        "lines": [
+          "Connecting to 127.0.0.1:53640"
+        ],
+        "path": "Player_test.log",
+        "place_id": 0,
+        "resolution_height": 0,
+        "resolution_width": 0,
+        "server": {
+          "rcc_address": "127.0.0.1",
+          "rcc_port": 53640,
+          "type": "rcc",
+          "udmux_address": "",
+          "udmux_port": 0
+        },
+        "server_luau_version": "",
+        "server_prefix": "",
+        "server_roblox_git_hash": "",
+        "started_new_log": true,
+        "state": "unknown",
+        "universe_id": 0,
+        "user_id": 0
+      }
+    },
+    {
+      "content": "Joining game 'job-with-dashes' trailing text\nServer RobloxGitHash: hash:value\r\nServer Prefix: 1.2.3.4\r\n[FLog::ClientRunInfo] The channel is channel-name\r\n",
+      "name": "main-string-fields",
+      "snapshot": {
+        "available": true,
+        "client_channel": "channel-name",
+        "client_roblox_git_hash": "",
+        "job_id": "job-with-dashes",
+        "lines": [
+          "Joining game 'job-with-dashes' trailing text",
+          "Server RobloxGitHash: hash:value",
+          "Server Prefix: 1.2.3.4",
+          "[FLog::ClientRunInfo] The channel is channel-name"
+        ],
+        "path": "Player_test.log",
+        "place_id": 0,
+        "resolution_height": 0,
+        "resolution_width": 0,
+        "server": {
+          "rcc_address": "",
+          "rcc_port": 0,
+          "type": "unknown",
+          "udmux_address": "",
+          "udmux_port": 0
+        },
+        "server_luau_version": "1.2",
+        "server_prefix": "1.2.3.4",
+        "server_roblox_git_hash": "hash:value",
+        "started_new_log": true,
+        "state": "unknown",
+        "universe_id": 0,
+        "user_id": 0
+      }
+    }
+  ],
+  "oracle": "smu_compat_oracle roblox-file"
+}
