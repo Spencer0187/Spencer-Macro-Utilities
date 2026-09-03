@@ -116,6 +116,12 @@ private:
     std::chrono::steady_clock::time_point antiAfkLastActivity_{};
     std::atomic<bool> bunnyhopWorkerActive_{false};
     std::atomic<bool> hhjMotionWorkerActive_{false};
+    std::atomic<bool> speedglitchWorkerActive_{false};
+    std::atomic<bool> speedglitchWorkerAllowed_{false};
+    std::atomic<bool> itemClipWorkerActive_{false};
+    std::atomic<bool> itemClipWorkerAllowed_{false};
+    std::atomic<bool> wallWalkWorkerActive_{false};
+    std::atomic<bool> wallWalkWorkerAllowed_{false};
     std::atomic<bool> itemUnequipWorkerActive_{false};
     std::atomic<bool> laughClipWorkerActive_{false};
 };

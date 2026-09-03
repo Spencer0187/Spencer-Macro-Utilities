@@ -1073,6 +1073,7 @@ void MacroRuntime::processWallessLhjMacro(bool foregroundAllowed)
 void MacroRuntime::processSpeedglitchMacro(bool foregroundAllowed)
 {
     const bool sectionEnabled = foregroundAllowed && section_toggles[3];
+    speedglitchWorkerAllowed_.store(sectionEnabled, std::memory_order_release);
     const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_xkey);
     const bool toggleSwitch = !hotkeyPressed && isspeedswitch;
     const auto edge = compat::EvaluateSpeedglitchEdge(
@@ -1088,16 +1089,34 @@ void MacroRuntime::processSpeedglitchMacro(bool foregroundAllowed)
     }
     speedWasPressed_ = edge.nextWasPressed;
 
-    if (!foregroundAllowed || !section_toggles[3] || !isspeed.load(std::memory_order_acquire)) {
+    if (!sectionEnabled || !isspeed.load(std::memory_order_acquire)) {
         return;
     }
 
-    const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
-    compat::ExecuteSpeedglitchCycle(
-        delays,
-        [] { MoveMouse(speed_strengthx, 0); },
-        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-        [] { MoveMouse(speed_strengthy, 0); });
+    bool expected = false;
+    if (!speedglitchWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    runWorker([this] {
+        while (running_.load(std::memory_order_acquire) &&
+               ShouldKeepRunning() &&
+               macrotoggled &&
+               notbinding.load(std::memory_order_acquire) &&
+               !g_keybindCaptureActive.load(std::memory_order_acquire) &&
+               !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
+               speedglitchWorkerAllowed_.load(std::memory_order_acquire) &&
+               section_toggles[3] &&
+               isspeed.load(std::memory_order_acquire)) {
+            const auto delays = compat::FrameDelaysForFps(RobloxFPS.load(std::memory_order_relaxed));
+            compat::ExecuteSpeedglitchCycle(
+                delays,
+                [] { MoveMouse(speed_strengthx, 0); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [] { MoveMouse(speed_strengthy, 0); });
+        }
+        speedglitchWorkerActive_.store(false, std::memory_order_release);
+    });
 }
 
 void MacroRuntime::processHhjMacro(bool foregroundAllowed)
@@ -1195,6 +1214,7 @@ void MacroRuntime::processItemUnequipComOffsetMacro(bool foregroundAllowed)
 void MacroRuntime::processItemClipMacro(bool foregroundAllowed)
 {
     const bool sectionEnabled = foregroundAllowed && section_toggles[8];
+    itemClipWorkerAllowed_.store(sectionEnabled, std::memory_order_release);
     const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_clipkey);
     const bool toggleSwitch = !hotkeyPressed && isitemclipswitch;
     const auto edge = compat::EvaluateToggleLoopEdge(
@@ -1210,23 +1230,42 @@ void MacroRuntime::processItemClipMacro(bool foregroundAllowed)
     }
     itemClipWasPressed_ = edge.nextWasPressed;
 
-    if (!foregroundAllowed || !section_toggles[8] || !isitemloop.load(std::memory_order_acquire)) {
+    if (!sectionEnabled || !isitemloop.load(std::memory_order_acquire)) {
         return;
     }
 
-    const int halfDelay = compat::ItemClipHalfDelayMs(clip_delay);
-    const unsigned int slotKey = compat::InventorySlotKey(clip_slot);
-    compat::ExecuteItemClipCycle(
-        slotKey,
-        halfDelay,
-        [](unsigned int key) { HoldKey(key); },
-        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-        [](unsigned int key) { ReleaseKey(key); });
+    bool expected = false;
+    if (!itemClipWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    runWorker([this] {
+        while (running_.load(std::memory_order_acquire) &&
+               ShouldKeepRunning() &&
+               macrotoggled &&
+               notbinding.load(std::memory_order_acquire) &&
+               !g_keybindCaptureActive.load(std::memory_order_acquire) &&
+               !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
+               itemClipWorkerAllowed_.load(std::memory_order_acquire) &&
+               section_toggles[8] &&
+               isitemloop.load(std::memory_order_acquire)) {
+            const int halfDelay = compat::ItemClipHalfDelayMs(clip_delay);
+            const unsigned int slotKey = compat::InventorySlotKey(clip_slot);
+            compat::ExecuteItemClipCycle(
+                slotKey,
+                halfDelay,
+                [](unsigned int key) { HoldKey(key); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [](unsigned int key) { ReleaseKey(key); });
+        }
+        itemClipWorkerActive_.store(false, std::memory_order_release);
+    });
 }
 
 void MacroRuntime::processWallWalkMacro(bool foregroundAllowed)
 {
     const bool sectionEnabled = foregroundAllowed && section_toggles[10];
+    wallWalkWorkerAllowed_.store(sectionEnabled, std::memory_order_release);
     const bool hotkeyPressed = sectionEnabled && isHotkeyPressed(vk_wallkey);
     const bool toggleSwitch = !hotkeyPressed && iswallwalkswitch;
     const auto edge = compat::EvaluateToggleLoopEdge(
@@ -1242,21 +1281,39 @@ void MacroRuntime::processWallWalkMacro(bool foregroundAllowed)
     }
     wallWalkWasPressed_ = edge.nextWasPressed;
 
-    if (!foregroundAllowed || !section_toggles[10] || !iswallwalkloop.load(std::memory_order_acquire)) {
+    if (!sectionEnabled || !iswallwalkloop.load(std::memory_order_acquire)) {
         return;
     }
 
-    const int delay = compat::WallWalkFrameDelayMs(RobloxFPS.load(std::memory_order_relaxed));
-    const int firstMove = wallwalktoggleside ? -wallwalk_strengthx : wallwalk_strengthx;
-    const int secondMove = wallwalktoggleside ? -wallwalk_strengthy : wallwalk_strengthy;
-    compat::ExecuteWallWalkCycle(
-        firstMove,
-        secondMove,
-        delay,
-        [](int dx, int dy) { MoveMouse(dx, dy); },
-        [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
-        [] { return RobloxWallWalkValueDelay; },
-        [](int delayUs) { std::this_thread::sleep_for(std::chrono::microseconds(delayUs)); });
+    bool expected = false;
+    if (!wallWalkWorkerActive_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        return;
+    }
+
+    runWorker([this] {
+        while (running_.load(std::memory_order_acquire) &&
+               ShouldKeepRunning() &&
+               macrotoggled &&
+               notbinding.load(std::memory_order_acquire) &&
+               !g_keybindCaptureActive.load(std::memory_order_acquire) &&
+               !g_suppressHotkeysUntilRelease.load(std::memory_order_acquire) &&
+               wallWalkWorkerAllowed_.load(std::memory_order_acquire) &&
+               section_toggles[10] &&
+               iswallwalkloop.load(std::memory_order_acquire)) {
+            const int delay = compat::WallWalkFrameDelayMs(RobloxFPS.load(std::memory_order_relaxed));
+            const int firstMove = wallwalktoggleside ? -wallwalk_strengthx : wallwalk_strengthx;
+            const int secondMove = wallwalktoggleside ? -wallwalk_strengthy : wallwalk_strengthy;
+            compat::ExecuteWallWalkCycle(
+                firstMove,
+                secondMove,
+                delay,
+                [](int dx, int dy) { MoveMouse(dx, dy); },
+                [](int delayMs) { std::this_thread::sleep_for(std::chrono::milliseconds(delayMs)); },
+                [] { return RobloxWallWalkValueDelay; },
+                [](int delayUs) { std::this_thread::sleep_for(std::chrono::microseconds(delayUs)); });
+        }
+        wallWalkWorkerActive_.store(false, std::memory_order_release);
+    });
 }
 
 void MacroRuntime::processLaughClipMacro(bool foregroundAllowed)

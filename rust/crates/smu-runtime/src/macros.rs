@@ -2065,9 +2065,14 @@ mod tests {
     fn cpp_itemclip_matrix_timing_and_slots_match() {
         for case in fixture().itemclip_cases {
             let mut trace = TraceRecorder::default();
+            let worker = case.execute_cycle.then(|| {
+                trace
+                    .spawn_dedicated_worker(LaneId::CONTROLLER)
+                    .expect("controller lane should exist")
+            });
             let observed = execute_itemclip_step(
                 &mut trace,
-                LaneId::CONTROLLER,
+                worker.unwrap_or(LaneId::CONTROLLER),
                 ItemClipStepInput {
                     foreground_allowed: case.foreground_allowed,
                     section_press: case.section_press,
@@ -2102,6 +2107,20 @@ mod tests {
             });
             assert_eq!(plan, case.plan, "case {} plan", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            if let (Some(worker), Some(plan)) = (worker, observed.plan) {
+                assert_eq!(
+                    trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                    Some(u64::try_from(plan.half_delay_ms * 2).unwrap_or_default() * 1_000),
+                    "case {} worker duration",
+                    case.name
+                );
+            }
         }
     }
 
@@ -2116,9 +2135,14 @@ mod tests {
     fn cpp_wallwalk_matrix_moves_and_tail_waits_match() {
         for case in fixture().wallwalk_cases {
             let mut trace = TraceRecorder::default();
+            let worker = case.execute_cycle.then(|| {
+                trace
+                    .spawn_dedicated_worker(LaneId::CONTROLLER)
+                    .expect("controller lane should exist")
+            });
             let observed = execute_wallwalk_step(
                 &mut trace,
-                LaneId::CONTROLLER,
+                worker.unwrap_or(LaneId::CONTROLLER),
                 WallWalkStepInput {
                     foreground_allowed: case.foreground_allowed,
                     section_press: case.section_press,
@@ -2158,6 +2182,22 @@ mod tests {
             });
             assert_eq!(plan, case.plan, "case {} plan", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            if let (Some(worker), Some(plan)) = (worker, observed.plan) {
+                let expected_us = u64::try_from(plan.frame_delay_ms).unwrap_or_default() * 1_000
+                    + u64::try_from(case.tail_delay_us.max(0)).unwrap_or_default();
+                assert_eq!(
+                    trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                    Some(expected_us),
+                    "case {} worker duration",
+                    case.name
+                );
+            }
         }
     }
 
@@ -2722,11 +2762,16 @@ mod tests {
             assert_eq!(execute_cycle, case.execute_cycle, "case {} execute", case.name);
 
             let mut trace = TraceRecorder::default();
+            let worker = execute_cycle.then(|| {
+                trace
+                    .spawn_dedicated_worker(LaneId::CONTROLLER)
+                    .expect("controller lane should exist")
+            });
             let observed_plan = if execute_cycle {
                 let plan = build_speedglitch_cycle_plan(case.fps, case.strength_x, case.strength_y);
                 execute_speedglitch_cycle(
                     &mut trace,
-                    LaneId::CONTROLLER,
+                    worker.expect("executing cycle should have a worker"),
                     plan.delays,
                     || plan.strength_x,
                     || plan.strength_y,
@@ -2742,6 +2787,23 @@ mod tests {
             };
             assert_eq!(observed_plan, case.plan, "case {} plan", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
+            assert_eq!(
+                trace.lane_now(LaneId::CONTROLLER),
+                Some(crate::MonotonicMicros::default()),
+                "case {} controller must not advance",
+                case.name
+            );
+            if let Some(worker) = worker {
+                let delays = frame_delays_for_fps(case.fps);
+                let expected_ms =
+                    u64::try_from(delays.first_ms + delays.second_ms).unwrap_or_default();
+                assert_eq!(
+                    trace.lane_now(worker).map(crate::MonotonicMicros::as_micros),
+                    Some(expected_ms * 1_000),
+                    "case {} worker duration",
+                    case.name
+                );
+            }
         }
     }
 }

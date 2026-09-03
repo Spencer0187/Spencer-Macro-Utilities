@@ -8,8 +8,9 @@ characterization; such migrations must keep their own differential lane-topology
 
 - `MacroRuntime::controllerLoop` polls most macro state on one controller thread. Remaining sleeps
   performed by controller-path macros still stall unrelated polling during that interval.
-- HHJ motion is an intentional post-characterization migration: one long-lived dedicated worker owns
-  its repeating two-frame movement cycle, so those sleeps no longer stall controller polling.
+- HHJ motion, Speedglitch, ItemClip, and WallWalk are intentional post-characterization migrations:
+  each active repeating cycle has one long-lived dedicated worker, so its sleeps no longer stall
+  controller polling.
 - One-shot and persistent worker macros created by `MacroRuntime::runWorker` run on independent
   native threads and may overlap each other and the controller.
 - Imported scripts execute on independent runtime workers. Coroutines inside one script are resumed
@@ -51,10 +52,11 @@ copy of the timing arithmetic or PressKey worker sequence.
 The current automated Rust slice freezes all integer FPS inputs from 0 through 1000, all rising-edge
 states, PressKey delay clamping / trigger-release / cancellation ordering, the full boolean
 Speedglitch edge/toggle matrix, Freeze hold/toggle/wheel behavior and timeout recovery, ItemDesync
-slot clamping plus its four direct key transitions, ItemClip toggle/hold state with controller-lane
-half-delay waits, and WallWalk frame-delay/mouse/tail-delay ordering. Freeze, Speedglitch, ItemClip,
-and WallWalk waits remain controller-lane stalls; PressKey waits remain independent worker-lane
-waits. Freeze fixtures include failed suspend/resume attempts and post-timeout re-suspension. The
+slot clamping plus its four direct key transitions, ItemClip toggle/hold state with dedicated-worker
+half-delay waits, and WallWalk frame-delay/mouse/tail-delay ordering. Speedglitch, ItemClip, and
+WallWalk are intentional post-characterization worker migrations; their cycle waits no longer advance
+the controller lane. PressKey waits remain independent worker-lane waits. Freeze fixtures include
+failed suspend/resume attempts and post-timeout re-suspension. The
 production Speedglitch path deliberately reads its second strength value only after the first sleep.
 WallWalk snapshots both movement strengths before its first move, but reads the microsecond tail
 delay only after the first frame wait and second move; the trace freezes that distinction. Wallhop

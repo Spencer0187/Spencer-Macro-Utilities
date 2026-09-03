@@ -62,7 +62,7 @@ architecture remains open to either one deterministic scheduler or a small numbe
 workers until measurements prove which preserves current behavior best. After a controller stall has
 been differentially characterized, it may be intentionally migrated to a named worker when doing so
 removes unrelated macro interference; preserve its internal action/wait order and add a lane-topology
-regression test. HHJ motion is the first approved migration of this kind.
+regression test. HHJ motion, Speedglitch, ItemClip, and WallWalk are approved migrations of this kind.
 
 ## UI parity contract
 
