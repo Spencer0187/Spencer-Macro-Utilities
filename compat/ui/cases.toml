@@ -1,0 +1,77 @@
+# Deterministic UI capture matrix. `logical_*` is the SDL client size in logical units; framebuffer
+# size is recorded from the running application because it depends on platform/DPI policy.
+
+# User-provided reference image. It is a crop/reference image, not evidence that the actual SMU
+# client window was 872x580 (the current app enforces a larger minimum client size).
+[[reference]]
+name = "lag-switch-user-reference"
+image_width = 872
+image_height = 580
+baseline = "../screenshots/lag-switch-user-reference-872x580.png"
+
+[[case]]
+name = "minimum-windows-linux"
+logical_width = 1180
+logical_height = 700
+scale = 1.0
+
+[[case]]
+name = "minimum-macos"
+logical_width = 1220
+logical_height = 700
+scale = 1.0
+platform = "macos"
+
+[[case]]
+name = "canonical-1280x800"
+logical_width = 1280
+logical_height = 800
+scale = 1.0
+
+[[case]]
+name = "canonical-1280x800-scale-125"
+logical_width = 1280
+logical_height = 800
+scale = 1.25
+
+[[case]]
+name = "canonical-1280x800-scale-150"
+logical_width = 1280
+logical_height = 800
+scale = 1.5
+
+[[case]]
+name = "canonical-1280x800-scale-200"
+logical_width = 1280
+logical_height = 800
+scale = 2.0
+
+[[case]]
+name = "large-1600x900"
+logical_width = 1600
+logical_height = 900
+scale = 1.0
+
+[[case]]
+name = "fhd-1920x1080"
+logical_width = 1920
+logical_height = 1080
+scale = 1.0
+
+[[case]]
+name = "fhd-1920x1080-scale-200"
+logical_width = 1920
+logical_height = 1080
+scale = 2.0
+
+[[case]]
+name = "ultrawide-2560x1080"
+logical_width = 2560
+logical_height = 1080
+scale = 1.0
+
+[[case]]
+name = "qhd-2560x1440"
+logical_width = 2560
+logical_height = 1440
+scale = 1.0

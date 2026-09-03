@@ -1,0 +1,47 @@
+name: Rust rewrite checks
+
+on:
+  push:
+    branches:
+      - rewrite/rust
+    paths:
+      - "rust/**"
+      - "compat/**"
+      - "docs/RUST_REWRITE.md"
+      - ".github/workflows/rust-rewrite.yml"
+  pull_request:
+    paths:
+      - "rust/**"
+      - "compat/**"
+      - "docs/RUST_REWRITE.md"
+      - ".github/workflows/rust-rewrite.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
+      - name: Select pinned Rust toolchain
+        run: rustup override set 1.98.0
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy compatibility/core crates
+        run: cargo clippy --workspace --exclude smu-app --all-targets -- -D warnings
+      - name: Test compatibility/core crates
+        run: cargo test --workspace --exclude smu-app
+      - name: Check SDL3 + Dear ImGui application spike
+        run: cargo check -p smu-app
+      - name: Clippy SDL3 + Dear ImGui application spike
+        run: cargo clippy -p smu-app --all-targets -- -D warnings
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked --version 0.19.9
+      - name: Dependency policy
+        run: cargo deny check

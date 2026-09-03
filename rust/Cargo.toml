@@ -1,0 +1,44 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/smu-app",
+    "crates/smu-compat",
+    "crates/smu-core",
+    "crates/smu-profile",
+    "crates/smu-runtime",
+]
+default-members = [
+    "crates/smu-compat",
+    "crates/smu-core",
+    "crates/smu-profile",
+    "crates/smu-runtime",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+
+[workspace.dependencies]
+dear-imgui-rs = "0.17"
+dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+sdl3 = { version = "0.18", features = ["build-from-source"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+toml = "0.9"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+dbg_macro = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
