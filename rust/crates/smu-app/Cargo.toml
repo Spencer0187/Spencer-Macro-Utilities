@@ -18,4 +18,5 @@ workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 libc.workspace = true
 smu-network = { path = "../smu-network", version = "=0.0.0" }
+smu-process = { path = "../smu-process", version = "=0.0.0" }
 smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }

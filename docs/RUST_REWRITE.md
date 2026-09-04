@@ -40,8 +40,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `processhelper` socket protocol behind an injected authorization gate. Foreground detection keeps
   Wayland/unknown sessions in the C++ false path, reads `_NET_ACTIVE_WINDOW` / `_NET_WM_PID` through
   X11 when available, and reconciles namespace PIDs against target cgroups for Sober. `smu-scripting`
-  wires the three legacy freeze globals through these capabilities with frozen-PID snapshots; the app
-  still owns the graphical helper authorization UX.
+  wires the three legacy freeze globals through these capabilities with frozen-PID snapshots. On
+  Linux, `smu-app` now also owns the C++-style two-minute authorization gate and Additional Freeze
+  Permission Required modal; approval stages the bundled `processhelper`, launches it through
+  graphical `pkexec`, verifies the root peer, and wakes the blocked process-control caller.
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.

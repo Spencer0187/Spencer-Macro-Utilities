@@ -1,4 +1,5 @@
 use smu_network::linux::{NetHelperClient, UnixNetHelperClient};
+use smu_process::linux::{FreezeHelperClient, UnixFreezeHelper};
 use std::ffi::CStr;
 use std::fs::{self, File, Permissions};
 use std::io::{self, Write};
@@ -10,7 +11,144 @@ use std::time::{Duration, Instant};
 
 const START_TIMEOUT: Duration = Duration::from_secs(120);
 const START_POLL_INTERVAL: Duration = Duration::from_millis(100);
-const STAGE_TEMPLATE: &[u8] = b"/tmp/smu-nethelper-stage-XXXXXX\0";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HelperKind {
+    Network,
+    Process,
+}
+
+impl HelperKind {
+    const fn binary_name(self) -> &'static str {
+        match self {
+            Self::Network => "nethelper",
+            Self::Process => "processhelper",
+        }
+    }
+
+    const fn stage_template(self) -> &'static [u8] {
+        match self {
+            Self::Network => b"/tmp/smu-nethelper-stage-XXXXXX\0",
+            Self::Process => b"/tmp/smu-processhelper-stage-XXXXXX\0",
+        }
+    }
+
+    const fn direct_when_root(self) -> bool {
+        matches!(self, Self::Network)
+    }
+
+    const fn include_cwd_candidate(self) -> bool {
+        matches!(self, Self::Network)
+    }
+
+    const fn identity_error(self) -> &'static str {
+        match self {
+            Self::Network => {
+                "Could not read the SMU process identity required to safely start the Linux lagswitch helper."
+            }
+            Self::Process => {
+                "Could not read the SMU process identity required to safely start the Linux process helper."
+            }
+        }
+    }
+
+    fn missing_error(self, path: &Path) -> String {
+        match self {
+            Self::Network => format!("Linux lagswitch helper was not found at {}.", path.display()),
+            Self::Process => format!("Linux process helper was not found at {}.", path.display()),
+        }
+    }
+
+    fn stage_create_error(self, error: &io::Error) -> String {
+        match self {
+            Self::Network => {
+                format!("Could not create a private Linux lagswitch helper staging file: {error}.")
+            }
+            Self::Process => format!("Could not stage Linux process helper: {error}."),
+        }
+    }
+
+    const fn stage_protect_error(self) -> &'static str {
+        match self {
+            Self::Network => "Could not protect the staged Linux lagswitch helper.",
+            Self::Process => "Could not protect staged Linux process helper.",
+        }
+    }
+
+    fn stage_read_error(self, path: &Path) -> String {
+        match self {
+            Self::Network => {
+                format!("Could not read Linux lagswitch helper at {}.", path.display())
+            }
+            Self::Process => "Could not read Linux process helper.".to_owned(),
+        }
+    }
+
+    fn stage_copy_error(self, error: &io::Error) -> String {
+        match self {
+            Self::Network => format!("Could not stage Linux lagswitch helper: {error}."),
+            Self::Process => "Could not copy Linux process helper.".to_owned(),
+        }
+    }
+
+    fn stage_finish_error(self, error: &io::Error) -> String {
+        match self {
+            Self::Network => format!("Could not finish staging Linux lagswitch helper: {error}."),
+            Self::Process => "Could not finish staging Linux process helper.".to_owned(),
+        }
+    }
+
+    const fn pkexec_missing_error(self) -> &'static str {
+        match self {
+            Self::Network => {
+                "pkexec was not found. Install polkit or start nethelper manually with elevated permissions."
+            }
+            Self::Process => {
+                "pkexec was not found. Install polkit to use the privileged freeze fallback."
+            }
+        }
+    }
+
+    fn spawn_error(self, error: &io::Error, using_pkexec: bool) -> String {
+        if using_pkexec && error.kind() == io::ErrorKind::NotFound {
+            return self.pkexec_missing_error().to_owned();
+        }
+        match self {
+            Self::Network => format!("Failed to fork Linux lagswitch helper: {error}."),
+            Self::Process => format!("Failed to fork Linux process helper: {error}."),
+        }
+    }
+
+    const fn exited_error(self, code: Option<i32>) -> &'static str {
+        match self {
+            Self::Network => match code {
+                Some(127) => self.pkexec_missing_error(),
+                Some(126) => "Linux lagswitch helper could not be launched.",
+                _ => "Linux lagswitch helper permission prompt was cancelled or denied.",
+            },
+            Self::Process => match code {
+                Some(127) => self.pkexec_missing_error(),
+                _ => {
+                    "Linux process helper permission prompt was cancelled, denied, or the helper failed to start."
+                }
+            },
+        }
+    }
+
+    const fn monitor_error(self) -> &'static str {
+        match self {
+            Self::Network => "Could not monitor Linux lagswitch helper startup",
+            Self::Process => "Could not monitor Linux process helper startup",
+        }
+    }
+
+    const fn timeout_error(self) -> &'static str {
+        match self {
+            Self::Network => "Timed out waiting for Linux lagswitch helper authentication.",
+            Self::Process => "Timed out waiting for Linux process helper authentication.",
+        }
+    }
+}
 
 #[derive(Debug)]
 struct StagedHelper {
@@ -36,36 +174,40 @@ fn app_dir_candidates() -> Vec<PathBuf> {
         .collect()
 }
 
-fn resolve_nethelper_path_from(
+fn resolve_helper_path_from(
+    kind: HelperKind,
     executable_dir: &Path,
     app_dirs: &[PathBuf],
     current_dir: &Path,
 ) -> PathBuf {
-    for candidate in [executable_dir.join("nethelper"), executable_dir.join("usr/bin/nethelper")] {
+    let name = kind.binary_name();
+    for candidate in [executable_dir.join(name), executable_dir.join("usr/bin").join(name)] {
         if candidate.exists() {
             return candidate;
         }
     }
 
     for app_dir in app_dirs {
-        for candidate in [app_dir.join("usr/bin/nethelper"), app_dir.join("nethelper")] {
+        for candidate in [app_dir.join("usr/bin").join(name), app_dir.join(name)] {
             if candidate.exists() {
                 return candidate;
             }
         }
     }
 
-    let cwd_candidate = current_dir.join("nethelper");
-    if cwd_candidate.exists() {
-        return cwd_candidate;
+    if kind.include_cwd_candidate() {
+        let candidate = current_dir.join(name);
+        if candidate.exists() {
+            return candidate;
+        }
     }
-    executable_dir.join("nethelper")
+    executable_dir.join(name)
 }
 
-fn resolve_nethelper_path() -> PathBuf {
+fn resolve_helper_path(kind: HelperKind) -> PathBuf {
     let executable_dir = executable_directory().unwrap_or_default();
     let current_dir = std::env::current_dir().unwrap_or_default();
-    resolve_nethelper_path_from(&executable_dir, &app_dir_candidates(), &current_dir)
+    resolve_helper_path_from(kind, &executable_dir, &app_dir_candidates(), &current_dir)
 }
 
 fn parse_process_start_time(stat: &str) -> Option<u64> {
@@ -107,42 +249,46 @@ fn mkstemp(template: &[u8]) -> io::Result<(File, PathBuf)> {
     Ok((file, PathBuf::from(path.to_string_lossy().into_owned())))
 }
 
-fn stage_nethelper(source_path: &Path) -> Result<StagedHelper, String> {
+fn stage_helper(kind: HelperKind, source_path: &Path) -> Result<StagedHelper, String> {
     if !source_path.exists() {
-        return Err(format!("Linux lagswitch helper was not found at {}.", source_path.display()));
+        return Err(kind.missing_error(source_path));
     }
-    let (mut destination, staged_path) = mkstemp(STAGE_TEMPLATE).map_err(|error| {
-        format!("Could not create a private Linux lagswitch helper staging file: {error}.")
-    })?;
+    let (mut destination, staged_path) =
+        mkstemp(kind.stage_template()).map_err(|error| kind.stage_create_error(&error))?;
     let cleanup = || {
         let _ = fs::remove_file(&staged_path);
     };
     if destination.set_permissions(Permissions::from_mode(0o700)).is_err() {
         cleanup();
-        return Err("Could not protect the staged Linux lagswitch helper.".to_owned());
+        return Err(kind.stage_protect_error().to_owned());
     }
     let mut source = File::open(source_path).map_err(|_| {
         cleanup();
-        format!("Could not read Linux lagswitch helper at {}.", source_path.display())
+        kind.stage_read_error(source_path)
     })?;
     if let Err(error) = io::copy(&mut source, &mut destination) {
         cleanup();
-        return Err(format!("Could not stage Linux lagswitch helper: {error}."));
+        return Err(kind.stage_copy_error(&error));
     }
     if let Err(error) = destination.flush().and_then(|()| destination.sync_all()) {
         cleanup();
-        return Err(format!("Could not finish staging Linux lagswitch helper: {error}."));
+        return Err(kind.stage_finish_error(&error));
     }
     drop(destination);
     Ok(StagedHelper { path: staged_path })
 }
 
-fn spawn_nethelper(staged: &Path, owner_pid: u32, start_time: u64) -> Result<Child, String> {
+fn spawn_helper(
+    kind: HelperKind,
+    staged: &Path,
+    owner_pid: u32,
+    start_time: u64,
+) -> Result<Child, String> {
     // SAFETY: `geteuid` has no preconditions and touches no caller-owned memory.
     let root = unsafe { libc::geteuid() } == 0;
     // SAFETY: `getuid` has no preconditions and touches no caller-owned memory.
     let uid = unsafe { libc::getuid() };
-    let direct = root;
+    let direct = root && kind.direct_when_root();
     let mut command = if direct {
         Command::new(staged)
     } else {
@@ -157,42 +303,30 @@ fn spawn_nethelper(staged: &Path, owner_pid: u32, start_time: u64) -> Result<Chi
         .arg(owner_pid.to_string())
         .arg("--owner-start-time")
         .arg(start_time.to_string());
-    command.spawn().map_err(|error| {
-        if !direct && error.kind() == io::ErrorKind::NotFound {
-            "pkexec was not found. Install polkit or start nethelper manually with elevated permissions."
-                .to_owned()
-        } else {
-            format!("Failed to fork Linux lagswitch helper: {error}.")
-        }
-    })
+    command.spawn().map_err(|error| kind.spawn_error(&error, !direct))
 }
 
-fn exit_status_error(status: ExitStatus) -> String {
-    match status.code() {
-        Some(127) => {
-            "pkexec was not found. Install polkit or start nethelper manually with elevated permissions."
-                .to_owned()
-        }
-        Some(126) => "Linux lagswitch helper could not be launched.".to_owned(),
-        _ => "Linux lagswitch helper permission prompt was cancelled or denied.".to_owned(),
-    }
+fn exit_status_error(kind: HelperKind, status: ExitStatus) -> String {
+    kind.exited_error(status.code()).to_owned()
 }
 
-fn wait_for_nethelper(child: &mut Child, reachable: &dyn Fn() -> bool) -> Result<(), String> {
+fn wait_for_helper(
+    kind: HelperKind,
+    child: &mut Child,
+    reachable: &dyn Fn() -> bool,
+) -> Result<(), String> {
     let deadline = Instant::now() + START_TIMEOUT;
     while Instant::now() < deadline {
         if reachable() {
             return Ok(());
         }
         match child.try_wait() {
-            Ok(Some(status)) => return Err(exit_status_error(status)),
+            Ok(Some(status)) => return Err(exit_status_error(kind, status)),
             Ok(None) => std::thread::sleep(START_POLL_INTERVAL),
-            Err(error) => {
-                return Err(format!("Could not monitor Linux lagswitch helper startup: {error}."));
-            }
+            Err(error) => return Err(format!("{}: {error}.", kind.monitor_error())),
         }
     }
-    Err("Timed out waiting for Linux lagswitch helper authentication.".to_owned())
+    Err(kind.timeout_error().to_owned())
 }
 
 fn reap_in_background(mut child: Child) {
@@ -201,26 +335,32 @@ fn reap_in_background(mut child: Child) {
     });
 }
 
-pub fn start_linux_network_helper_with_graphical_pkexec() -> Result<(), String> {
-    let client = UnixNetHelperClient::default();
-    let reachable = || client.send_command("ping").as_deref() == Some("PONG");
+fn start_helper(kind: HelperKind, reachable: &dyn Fn() -> bool) -> Result<(), String> {
     if reachable() {
         return Ok(());
     }
 
     let owner_pid = std::process::id();
-    let start_time = read_process_start_time(owner_pid).ok_or_else(|| {
-        "Could not read the SMU process identity required to safely start the Linux lagswitch helper."
-            .to_owned()
-    })?;
-    let source = resolve_nethelper_path();
-    let staged = stage_nethelper(&source)?;
-    let mut child = spawn_nethelper(&staged.path, owner_pid, start_time)?;
-    let result = wait_for_nethelper(&mut child, &reachable);
+    let start_time =
+        read_process_start_time(owner_pid).ok_or_else(|| kind.identity_error().to_owned())?;
+    let source = resolve_helper_path(kind);
+    let staged = stage_helper(kind, &source)?;
+    let mut child = spawn_helper(kind, &staged.path, owner_pid, start_time)?;
+    let result = wait_for_helper(kind, &mut child, reachable);
     if child.try_wait().ok().flatten().is_none() {
         reap_in_background(child);
     }
     result
+}
+
+pub fn start_linux_network_helper_with_graphical_pkexec() -> Result<(), String> {
+    let client = UnixNetHelperClient::default();
+    start_helper(HelperKind::Network, &|| client.send_command("ping").as_deref() == Some("PONG"))
+}
+
+pub fn start_linux_process_helper_with_graphical_pkexec() -> Result<(), String> {
+    let client = UnixFreezeHelper::default();
+    start_helper(HelperKind::Process, &|| client.is_available())
 }
 
 #[cfg(test)]
@@ -251,7 +391,7 @@ mod tests {
     }
 
     #[test]
-    fn path_resolution_matches_cpp_candidate_order() {
+    fn network_path_resolution_matches_cpp_candidate_order() {
         let root = temp_dir("network-path");
         let exe = root.join("exe");
         let app = root.join("app");
@@ -261,16 +401,29 @@ mod tests {
         fs::create_dir_all(&cwd).expect("cwd tree");
         fs::write(cwd.join("nethelper"), b"cwd").expect("cwd helper");
         assert_eq!(
-            resolve_nethelper_path_from(&exe, std::slice::from_ref(&app), &cwd),
+            resolve_helper_path_from(HelperKind::Network, &exe, std::slice::from_ref(&app), &cwd),
             cwd.join("nethelper")
         );
         fs::write(app.join("usr/bin/nethelper"), b"app").expect("app helper");
         assert_eq!(
-            resolve_nethelper_path_from(&exe, std::slice::from_ref(&app), &cwd),
+            resolve_helper_path_from(HelperKind::Network, &exe, std::slice::from_ref(&app), &cwd),
             app.join("usr/bin/nethelper")
         );
-        fs::write(exe.join("nethelper"), b"exe").expect("exe helper");
-        assert_eq!(resolve_nethelper_path_from(&exe, &[app], &cwd), exe.join("nethelper"));
+        fs::remove_dir_all(root).expect("fixture should be removable");
+    }
+
+    #[test]
+    fn process_path_resolution_does_not_use_cwd_fallback() {
+        let root = temp_dir("process-path");
+        let exe = root.join("exe");
+        let cwd = root.join("cwd");
+        fs::create_dir_all(&exe).expect("exe tree");
+        fs::create_dir_all(&cwd).expect("cwd tree");
+        fs::write(cwd.join("processhelper"), b"cwd").expect("cwd helper");
+        assert_eq!(
+            resolve_helper_path_from(HelperKind::Process, &exe, &[], &cwd),
+            exe.join("processhelper")
+        );
         fs::remove_dir_all(root).expect("fixture should be removable");
     }
 
@@ -279,7 +432,7 @@ mod tests {
         let root = temp_dir("stage");
         let source = root.join("nethelper");
         fs::write(&source, b"helper bytes").expect("helper should be written");
-        let staged = stage_nethelper(&source).expect("helper should stage");
+        let staged = stage_helper(HelperKind::Network, &source).expect("helper should stage");
         assert_eq!(fs::read(&staged.path).expect("staged bytes should read"), b"helper bytes");
         let mode =
             fs::metadata(&staged.path).expect("staged metadata should exist").permissions().mode()
@@ -289,5 +442,25 @@ mod tests {
         drop(staged);
         assert!(!staged_path.exists());
         fs::remove_dir_all(root).expect("fixture should be removable");
+    }
+
+    #[test]
+    fn exit_messages_match_both_cpp_launchers() {
+        assert_eq!(
+            HelperKind::Network.exited_error(Some(127)),
+            "pkexec was not found. Install polkit or start nethelper manually with elevated permissions."
+        );
+        assert_eq!(
+            HelperKind::Network.exited_error(Some(126)),
+            "Linux lagswitch helper could not be launched."
+        );
+        assert_eq!(
+            HelperKind::Process.exited_error(Some(127)),
+            "pkexec was not found. Install polkit to use the privileged freeze fallback."
+        );
+        assert_eq!(
+            HelperKind::Process.exited_error(Some(1)),
+            "Linux process helper permission prompt was cancelled, denied, or the helper failed to start."
+        );
     }
 }

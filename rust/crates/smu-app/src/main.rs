@@ -12,11 +12,15 @@ use sdl3::{event::Event, keyboard::Keycode, video::GLProfile};
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
 #[cfg(target_os = "linux")]
+use smu_process::linux::{ProcCgroupProcessControl, UnixFreezeHelper};
+#[cfg(target_os = "linux")]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 
 mod capture;
 mod global_settings;
 mod lag_switch;
+#[cfg(target_os = "linux")]
+mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
 mod linux_privileged_helper;
 mod parity;
@@ -59,6 +63,7 @@ fn sync_linux_lag_switch_status(
 fn handle_linux_shell_action(
     action: Option<shell::ShellAction>,
     backend: &LinuxLagSwitchBackend,
+    freeze_authorization: &linux_freeze_authorization::FreezeHelperAuthorizationGate,
     shell_state: &mut shell::ShellState,
 ) {
     match action {
@@ -85,6 +90,12 @@ fn handle_linux_shell_action(
                 }
             }
         }
+        Some(shell::ShellAction::StartFreezeHelper) => {
+            let approved =
+                linux_privileged_helper::start_linux_process_helper_with_graphical_pkexec().is_ok();
+            freeze_authorization.resolve(approved);
+        }
+        Some(shell::ShellAction::CancelFreezeHelper) => freeze_authorization.resolve(false),
         None => {}
     }
 }
@@ -141,6 +152,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         LinuxLagSwitchBackend::new(Some(roblox_log))
     };
+    #[cfg(target_os = "linux")]
+    let freeze_authorization =
+        Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
+    #[cfg(target_os = "linux")]
+    let _process_control = ProcCgroupProcessControl::default()
+        .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone());
     let mut rendered_frames = 0_u32;
 
     'main: loop {
@@ -158,10 +175,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         #[cfg(target_os = "linux")]
-        sync_linux_lag_switch_status(&lag_switch_backend, &mut shell_state);
+        {
+            sync_linux_lag_switch_status(&lag_switch_backend, &mut shell_state);
+            if freeze_authorization.is_pending() {
+                shell_state.request_freeze_helper_popup();
+            }
+        }
         let shell_action = shell::render(ui, &mut shell_state);
         #[cfg(target_os = "linux")]
-        handle_linux_shell_action(shell_action, &lag_switch_backend, &mut shell_state);
+        handle_linux_shell_action(
+            shell_action,
+            &lag_switch_backend,
+            freeze_authorization.as_ref(),
+            &mut shell_state,
+        );
         #[cfg(not(target_os = "linux"))]
         let _ = shell_action;
 

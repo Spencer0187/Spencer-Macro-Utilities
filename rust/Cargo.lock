@@ -662,6 +662,7 @@ dependencies = [
  "libc",
  "sdl3",
  "smu-network",
+ "smu-process",
  "smu-roblox",
 ]
 

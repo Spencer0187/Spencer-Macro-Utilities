@@ -11,6 +11,10 @@ pub enum ShellAction {
     ToggleLagSwitchBackend,
     #[cfg(target_os = "linux")]
     StartLagSwitchHelper,
+    #[cfg(target_os = "linux")]
+    StartFreezeHelper,
+    #[cfg(target_os = "linux")]
+    CancelFreezeHelper,
 }
 
 const ROOT_WINDOW: &str = "Main SMU Window";
@@ -43,6 +47,8 @@ pub struct ShellState {
     open_admin_popup: bool,
     #[cfg(target_os = "linux")]
     admin_error: String,
+    #[cfg(target_os = "linux")]
+    open_freeze_popup: bool,
 }
 
 impl Default for ShellState {
@@ -56,6 +62,8 @@ impl Default for ShellState {
             open_admin_popup: false,
             #[cfg(target_os = "linux")]
             admin_error: String::new(),
+            #[cfg(target_os = "linux")]
+            open_freeze_popup: false,
         }
     }
 }
@@ -83,6 +91,11 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub fn set_lag_switch_helper_error(&mut self, error: impl Into<String>) {
         self.admin_error = error.into();
+    }
+
+    #[cfg(target_os = "linux")]
+    pub const fn request_freeze_helper_popup(&mut self) {
+        self.open_freeze_popup = true;
     }
 }
 
@@ -126,6 +139,38 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
             }
             ui.same_line();
             if ui.button_with_size("Cancel", [120.0, 0.0]) {
+                ui.close_current_popup();
+            }
+        }
+
+        if state.open_freeze_popup {
+            let _ = ui.open_popup("Additional Freeze Permission Required");
+            state.open_freeze_popup = false;
+        }
+        if let Some(_popup) = ui.begin_modal_popup("Additional Freeze Permission Required") {
+            ui.text_wrapped(
+                "SMU cannot move Sober's game process into the temporary cgroup used by Freeze with your current Linux permissions.",
+            );
+            ui.new_line();
+            ui.text_wrapped(
+                "To keep Sober-compatible freezing working, SMU can start its bundled privileged Linux helper with pkexec.",
+            );
+            ui.text_wrapped("This grants the helper root access for this SMU session.");
+            ui.new_line();
+            ui.bullet_text("The SMU GUI remains running as your normal desktop user.");
+            ui.bullet_text("The helper only accepts commands from this exact SMU process.");
+            ui.bullet_text("The helper exits when SMU exits; nothing is installed permanently.");
+            ui.bullet_text(
+                "This helper is bundled with SMU and is dedicated to the Sober freeze workaround.",
+            );
+            crate::parity::separator(ui);
+            if ui.button_with_size("Start Privileged Helper", [220.0, 0.0]) {
+                action = Some(ShellAction::StartFreezeHelper);
+                ui.close_current_popup();
+            }
+            ui.same_line();
+            if ui.button_with_size("Cancel##FreezeHelper", [120.0, 0.0]) {
+                action = Some(ShellAction::CancelFreezeHelper);
                 ui.close_current_popup();
             }
         }
