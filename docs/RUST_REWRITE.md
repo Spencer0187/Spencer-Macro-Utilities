@@ -63,8 +63,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
   wrappers, and foundational timing/cancellation functions. Service-backed globals now cover direct
-  input/text/hotkeys, display/pixels/movement, process freeze, lag switch, Roblox log reads/callbacks,
-  `log`, `getPlatform`, `getSMUVersion`, and `getSavedValue`. Saved app-setting scalars are exposed by
+  input/text/hotkeys, edge-triggered input callbacks/listeners and managed hotkey mirroring,
+  display/pixels/movement, process freeze, lag switch, Roblox log reads/callbacks, `log`,
+  `getPlatform`, `getSMUVersion`, and `getSavedValue`. Saved app-setting scalars are exposed by
   `smu-profile`; transient active-monitor values stay in `smu-display`. Settings render/callback mode
   is treated as one restricted scripting phase, matching the C++ `IsSettingsCallbackActive` helper.
 

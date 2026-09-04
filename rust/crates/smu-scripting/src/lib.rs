@@ -7,6 +7,7 @@ pub mod core_api;
 pub mod display_api;
 pub mod hotkey;
 pub mod input_api;
+pub mod input_callbacks;
 pub mod lua_runtime;
 pub mod managed_hotkeys;
 pub mod memory;
@@ -29,6 +30,11 @@ pub use hotkey::{parse_script_hotkey, parse_script_key_name};
 pub use input_api::{
     ScriptExecutionMode, ScriptInputApiError, ScriptInputContext, ScriptMouseMotionMode,
     install_input_api,
+};
+pub use input_callbacks::{
+    DEFAULT_INPUT_CALLBACK_SCAN_MS, HotkeyCallbackKind, MAX_INPUT_CALLBACK_SCAN_MS,
+    MAX_INPUT_CALLBACKS, MIN_INPUT_CALLBACK_SCAN_MS, ScriptInputCallbackApiError,
+    ScriptInputCallbackContext, install_input_callback_api,
 };
 pub use lua_runtime::{
     DEFAULT_SHOULD_YIELD_MICROS, LUA_HOOK_INSTRUCTION_COUNT, LuaExecutionError,

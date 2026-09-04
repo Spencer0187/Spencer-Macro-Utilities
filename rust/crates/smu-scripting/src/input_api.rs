@@ -1,7 +1,10 @@
 //! Input-facing Lua API adapters.
 
 use crate::lua_runtime::{ExecutionState, LuaScriptVm};
-use crate::{ManagedHotkeys, ManagedKeyAction, parse_script_hotkey, parse_script_key_name};
+use crate::{
+    ManagedHotkeyResult, ManagedHotkeys, ManagedKeyAction, parse_script_hotkey,
+    parse_script_key_name,
+};
 use mlua::{Error as LuaError, Lua, Table, Value};
 use smu_core::{Hotkey, KeyCode};
 use smu_input::{HotkeyMatch, InputDevice, compatibility_key_action, is_hotkey_pressed};
@@ -141,6 +144,14 @@ impl ScriptInputContext {
             Err(poisoned) => poisoned.into_inner(),
         }
     }
+
+    pub(crate) fn set_managed_hotkey_held(
+        &self,
+        hotkey: Hotkey,
+        down: bool,
+    ) -> ManagedHotkeyResult {
+        self.managed().set_held(hotkey, down)
+    }
 }
 
 #[derive(Debug)]
@@ -207,7 +218,7 @@ fn key_from_value(lua: &Lua, value: Value) -> mlua::Result<KeyCode> {
         .ok_or_else(|| LuaError::RuntimeError(format!("invalid key: {text}")))
 }
 
-fn hotkey_from_value(value: Value, argument_name: &str) -> mlua::Result<Hotkey> {
+pub(crate) fn hotkey_from_value(value: Value, argument_name: &str) -> mlua::Result<Hotkey> {
     let parsed = match value {
         Value::Integer(integer) if (0..=SCRIPT_HOTKEY_INTEGER_MAX).contains(&integer) => {
             let raw = u32::try_from(integer).unwrap_or_default();
@@ -224,7 +235,7 @@ fn hotkey_from_value(value: Value, argument_name: &str) -> mlua::Result<Hotkey> 
     })
 }
 
-fn parse_strict_text(value: &str, argument_name: &str) -> mlua::Result<bool> {
+pub(crate) fn parse_strict_text(value: &str, argument_name: &str) -> mlua::Result<bool> {
     match value {
         "strict" | "exact" => Ok(true),
         "loose" | "default" => Ok(false),
@@ -234,7 +245,11 @@ fn parse_strict_text(value: &str, argument_name: &str) -> mlua::Result<bool> {
     }
 }
 
-fn strict_option(value: Option<Value>, default: bool, argument_name: &str) -> mlua::Result<bool> {
+pub(crate) fn strict_option(
+    value: Option<Value>,
+    default: bool,
+    argument_name: &str,
+) -> mlua::Result<bool> {
     let Some(value) = value else {
         return Ok(default);
     };
@@ -277,7 +292,7 @@ const fn is_mouse_related(key: KeyCode) -> bool {
     )
 }
 
-fn check_managed_target(hotkey: Hotkey, argument_name: &str) -> mlua::Result<()> {
+pub(crate) fn check_managed_target(hotkey: Hotkey, argument_name: &str) -> mlua::Result<()> {
     if matches!(hotkey.key(), KeyCode::MOUSE_WHEEL_UP | KeyCode::MOUSE_WHEEL_DOWN) {
         return Err(LuaError::RuntimeError(format!(
             "{argument_name} cannot be a mouse wheel action"
@@ -286,7 +301,10 @@ fn check_managed_target(hotkey: Hotkey, argument_name: &str) -> mlua::Result<()>
     Ok(())
 }
 
-fn dispatch_actions(device: Option<&Arc<dyn InputDevice>>, actions: &[ManagedKeyAction]) {
+pub(crate) fn dispatch_actions(
+    device: Option<&Arc<dyn InputDevice>>,
+    actions: &[ManagedKeyAction],
+) {
     let Some(device) = device else {
         return;
     };
@@ -298,7 +316,10 @@ fn dispatch_actions(device: Option<&Arc<dyn InputDevice>>, actions: &[ManagedKey
     }
 }
 
-fn check_settings_callback(context: &ScriptInputContext, function_name: &str) -> mlua::Result<()> {
+pub(crate) fn check_settings_callback(
+    context: &ScriptInputContext,
+    function_name: &str,
+) -> mlua::Result<()> {
     if settings_callback_active(context) {
         return Err(LuaError::RuntimeError(format!(
             "{function_name} is not available inside script settings"
@@ -307,7 +328,10 @@ fn check_settings_callback(context: &ScriptInputContext, function_name: &str) ->
     Ok(())
 }
 
-fn check_cleanup_start(context: &ScriptInputContext, function_name: &str) -> mlua::Result<()> {
+pub(crate) fn check_cleanup_start(
+    context: &ScriptInputContext,
+    function_name: &str,
+) -> mlua::Result<()> {
     if cleanup_restricted(context) {
         return Err(LuaError::RuntimeError(format!(
             "{function_name} is not available inside onCleanup"
