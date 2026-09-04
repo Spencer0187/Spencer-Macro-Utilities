@@ -132,6 +132,18 @@ def write_input_hotkeys() -> None:
     )
 
 
+
+def write_linux_keymap() -> None:
+    observed = run_json(ORACLE, "linux-keymap", "all")
+    write_json(
+        ROOT / "compat" / "input" / "linux_keymap.json",
+        {
+            "oracle": "smu_compat_oracle linux-keymap",
+            "win_to_evdev": observed["win_to_evdev"],
+            "evdev_to_win": observed["evdev_to_win"],
+        },
+    )
+
 def roblox_regex_inputs() -> list[dict[str, str]]:
     return [
         {"name": "literal", "pattern": "server", "text": "connected to server 123"},
@@ -2516,7 +2528,7 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "move-degrees", "profiles", "roblox", "roblox-regex", "runtime", "script-metadata", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "linux-keymap", "move-degrees", "profiles", "roblox", "roblox-regex", "runtime", "script-metadata", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
@@ -2525,6 +2537,9 @@ def main() -> int:
     if args.fixture in {"input-hotkeys", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_input_hotkeys()
+    if args.fixture in {"linux-keymap", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_linux_keymap()
     if args.fixture in {"roblox-regex", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_roblox_regex()

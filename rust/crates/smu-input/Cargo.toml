@@ -14,3 +14,7 @@ smu-core = { version = "=0.0.0", path = "../smu-core" }
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+evdev.workspace = true
+x11rb.workspace = true

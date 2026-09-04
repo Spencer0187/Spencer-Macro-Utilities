@@ -2,6 +2,7 @@
 #include "../app/script_api_compat_logic.h"
 #include "../app/script_metadata.h"
 #include "../core/key_codes.h"
+#include "../core/keymapping.h"
 #include "../platform/roblox_log_reader.h"
 
 #include "json.hpp"
@@ -139,6 +140,69 @@ Json InputHotkeyJson(const std::string& input)
     };
 }
 
+std::optional<unsigned int> LinuxVkToEvdev(unsigned int vk)
+{
+    switch (vk) {
+    case 0xA0: return 42;
+    case 0xA1: return 54;
+    case 0xA2: return 29;
+    case 0xA3: return 97;
+    case 0xA4: return 56;
+    case 0xA5: return 100;
+    default: break;
+    }
+    if (vk > 0xFFu) {
+        return std::nullopt;
+    }
+    const auto evdev = win_vkey_to_evdev_key(static_cast<std::uint8_t>(vk));
+    if (evdev == EVDEV_UNASSIGNED) {
+        return std::nullopt;
+    }
+    return evdev;
+}
+
+unsigned int LinuxEvdevToVk(unsigned int evdev)
+{
+    switch (evdev) {
+    case 42:
+    case 54: return 0x10;
+    case 29:
+    case 97: return 0x11;
+    case 56:
+    case 100: return 0x12;
+    default:
+        if (evdev > 0xFFFFu) {
+            return VK_UNASSIGNED;
+        }
+        return evdev_to_win_vkey(static_cast<std::uint16_t>(evdev));
+    }
+}
+
+Json LinuxKeymapJson(const std::string&)
+{
+    Json winToEvdev = Json::array();
+    for (unsigned int vk = 0; vk <= 257; ++vk) {
+        const auto evdev = LinuxVkToEvdev(vk);
+        winToEvdev.push_back(Json{
+            {"vk", vk},
+            {"evdev", evdev ? Json(*evdev) : Json(nullptr)},
+        });
+    }
+
+    Json evdevToWin = Json::array();
+    for (unsigned int evdev = 0; evdev < 0x2FFu; ++evdev) {
+        evdevToWin.push_back(Json{
+            {"evdev", evdev},
+            {"vk", LinuxEvdevToVk(evdev)},
+        });
+    }
+    return Json{
+        {"operation", "linux-keymap"},
+        {"win_to_evdev", std::move(winToEvdev)},
+        {"evdev_to_win", std::move(evdevToWin)},
+    };
+}
+
 Json KeyNameJson(const std::string& input)
 {
     const auto parsed = smu::app::ParseScriptKeyName(input);
@@ -239,6 +303,8 @@ int main(int argc, char** argv)
         result = HotkeyJson(argv[2]);
     } else if (operation == "input-hotkey") {
         result = InputHotkeyJson(argv[2]);
+    } else if (operation == "linux-keymap") {
+        result = LinuxKeymapJson(argv[2]);
     } else if (operation == "move-degrees") {
         result = MoveDegreesJson(argv[2]);
     } else if (operation == "roblox-regex") {

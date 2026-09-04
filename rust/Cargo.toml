@@ -33,6 +33,7 @@ edition = "2024"
 rust-version = "1.98"
 
 [workspace.dependencies]
+evdev = "=0.13.2"
 dear-imgui-rs = "0.17"
 dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
 gl = "0.14"

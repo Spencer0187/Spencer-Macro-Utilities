@@ -47,6 +47,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
+- `smu-input` now has a native Linux evdev/uinput backend: it creates the historical `SMU Native
+  Linux Input` virtual device, passively reads physical keyboard/mouse event devices, keeps injected
+  events out of physical state, preserves wheel binding sentinels and generic modifier collapse,
+  supports X11 absolute pointer warps, and falls back to the C++ 12-second interactive device
+  discovery path when capability probes do not identify both keyboard and mouse. The full VK/evdev
+  mapping is differential-tested from a generated C++ oracle fixture. Native Wayland absolute pointer
+  control still belongs to the pending portal/RemoteDesktop slice.
 - `smu-display` owns monitor/cursor geometry, active-monitor refresh metadata, script coordinate
   modes, pixel colors/rectangle reads, and the screen-capture capability. Linux now has a native
   X11/XWayland implementation for cursor position, Xinerama active-monitor selection, and root-window

@@ -5,6 +5,8 @@
 
 use smu_core::KeyCode;
 
+#[cfg(target_os = "linux")]
+pub mod linux;
 pub mod state;
 pub mod text;
 
