@@ -1,6 +1,8 @@
 //! Compatibility text-entry mapping from `platform/text_input_backend.cpp`.
 
-use smu_core::KeyCode;
+use crate::InputInjector;
+use smu_core::{Hotkey, KeyCode};
+use std::time::Duration;
 
 pub const FALLBACK_SCAN_CODE_NONE: u32 = 0;
 
@@ -115,6 +117,34 @@ pub const fn compatibility_key_action(character: u8) -> TextKeyAction {
         b'?' => action(KeyCode::OEM_2, true),
         _ => TextKeyAction { key: KeyCode::NONE, scan_code: 0, needs_shift: false, valid: false },
     }
+}
+
+/// Execute the C++ fallback text path against one injector. Returns whether any byte was emitted.
+pub fn execute_fallback_text(
+    input: &dyn InputInjector,
+    text: &[u8],
+    delay_ms: i32,
+    mut sleep: impl FnMut(Duration),
+) -> bool {
+    let safe_delay_ms = delay_ms.max(0);
+    let mut typed_any = false;
+    for &character in text {
+        let action = compatibility_key_action(character);
+        if !action.valid {
+            continue;
+        }
+        if action.needs_shift {
+            input.hold_key_chord(Hotkey::new(KeyCode::SHIFT.raw()));
+        }
+        input.hold_key_chord(Hotkey::new(action.key.raw()));
+        sleep(Duration::from_millis(u64::try_from(safe_delay_ms).unwrap_or_default()));
+        input.release_key_chord(Hotkey::new(action.key.raw()));
+        if action.needs_shift {
+            input.release_key_chord(Hotkey::new(KeyCode::SHIFT.raw()));
+        }
+        typed_any = true;
+    }
+    typed_any
 }
 
 /// Produce the fallback key/wait sequence used by C++ `typeText` after native-layout handling fails.

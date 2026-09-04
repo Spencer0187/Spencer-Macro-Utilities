@@ -8,7 +8,9 @@ use crate::{
     hhj::{self, HhjGlobals, HhjUiState},
     item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
+    item_unequip::{self, ItemUnequipGlobals, ItemUnequipUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
+    laugh_clip::{self, LaughClipGlobals, LaughClipUiState},
     ledge_bounce::{self, LedgeBounceUiState},
     press_key::{self, PressKeyUiState},
     sidebar,
@@ -86,6 +88,8 @@ pub struct ShellState {
     hhj: HhjUiState,
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
+    item_unequip: ItemUnequipUiState,
+    laugh_clip: LaughClipUiState,
     press_key: PressKeyUiState,
     ledge_bounce: LedgeBounceUiState,
     spam_key: SpamKeyUiState,
@@ -111,6 +115,8 @@ impl Default for ShellState {
             hhj: HhjUiState::default(),
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
+            item_unequip: ItemUnequipUiState::default(),
+            laugh_clip: LaughClipUiState::default(),
             press_key: PressKeyUiState::default(),
             ledge_bounce: LedgeBounceUiState::default(),
             spam_key: SpamKeyUiState::default(),
@@ -151,10 +157,12 @@ impl ShellState {
         enabled[1] = self.item_desync.enabled;
         enabled[2] = self.hhj.enabled;
         enabled[3] = self.speedglitch.enabled;
+        enabled[4] = self.item_unequip.enabled;
         enabled[5] = self.press_key.first_enabled();
         enabled[6] = self.wallhop.first_enabled();
         enabled[7] = self.walless_lhj.enabled;
         enabled[8] = self.item_clip.enabled;
+        enabled[9] = self.laugh_clip.enabled;
         enabled[10] = self.wall_walk.enabled;
         enabled[11] = self.spam_key.first_enabled();
         enabled[12] = self.ledge_bounce.enabled;
@@ -196,6 +204,21 @@ impl ShellState {
 
     #[cfg(target_os = "linux")]
     #[must_use]
+    pub fn item_unequip_controller_settings(
+        &self,
+    ) -> crate::item_unequip_runtime::ItemUnequipControllerSettings {
+        self.item_unequip.controller_settings(ItemUnequipGlobals {
+            macro_enabled: self.global.macro_enabled(),
+            process_selector: self.global.process_selector(),
+            chat_override: self.global.chat_override(),
+            chat_key: self.global.chat_key(),
+            enter_key: self.global.enter_key(),
+            paste_delay_ms: self.global.paste_delay_ms(),
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
     pub fn item_desync_controller_settings(
         &self,
     ) -> crate::item_desync_runtime::ItemDesyncControllerSettings {
@@ -210,6 +233,24 @@ impl ShellState {
     ) -> crate::item_clip_runtime::ItemClipControllerSettings {
         self.item_clip
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn laugh_clip_controller_settings(
+        &self,
+    ) -> crate::laugh_clip_runtime::LaughClipControllerSettings {
+        self.laugh_clip.controller_settings(LaughClipGlobals {
+            macro_enabled: self.global.macro_enabled(),
+            process_selector: self.global.process_selector(),
+            chat_override: self.global.chat_override(),
+            chat_key: self.global.chat_key(),
+            enter_key: self.global.enter_key(),
+            paste_delay_ms: self.global.paste_delay_ms(),
+            global_zoom: self.global.global_zoom(),
+            shift_key: self.global.shift_key(),
+            zoom_reverse: self.global.zoom_reverse(),
+        })
     }
 
     #[cfg(target_os = "linux")]
@@ -607,6 +648,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             1 => item_desync::render(ui, &mut state.item_desync),
             2 => hhj::render(ui, &mut state.hhj),
             3 => speedglitch::render(ui, &mut state.speedglitch),
+            4 => item_unequip::render(ui, &mut state.item_unequip),
             5 => press_key::render(ui, &mut state.press_key),
             6 => wallhop::render(
                 ui,
@@ -616,6 +658,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             ),
             7 => walless_lhj::render(ui, &mut state.walless_lhj),
             8 => item_clip::render(ui, &mut state.item_clip),
+            9 => laugh_clip::render(ui, &mut state.laugh_clip),
             10 => wall_walk::render(
                 ui,
                 &mut state.wall_walk,

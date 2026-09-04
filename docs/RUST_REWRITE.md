@@ -49,8 +49,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   second, X11 foreground eligibility at most every 25 ms, foreground matching always considers every
   matching PID, and process-control users may independently select main-vs-all targets.
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
-  hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
-  Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
+  hotkey matching, transient-input boundaries, and both native-layout and historical fallback text
+  entry. Linux character injection queries the current X11 keyboard/modifier maps and mirrors the C++
+  six-state `XLookupString` search (`none`, Shift, Mod1, Mod5, Shift+Mod1, Shift+Mod5), including the
+  first-key-per-modifier and X11-keycode-minus-8 evdev rules; synthetic-map tests freeze plain Shift
+  and Mod5/ISO-Level3 behavior. If native layout resolution is unavailable, callers retain the exact
+  compatibility US key map. Cursor/screen/pixel APIs are intentionally excluded; those belong to
+  `smu-display`.
 - `smu-input` now has a native Linux evdev/uinput backend: it creates the historical `SMU Native
   Linux Input` virtual device, passively reads physical keyboard/mouse event devices, keeps injected
   events out of physical state, preserves wheel binding sentinels and generic modifier collapse,
@@ -79,6 +84,17 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
+  Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
+  path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
+  back to the live configured chat hotkey when that native attempt fails; normal text tries native
+  layout per byte and then the historical fallback map. Item Unequip keeps the C++ single-worker active
+  guard, captures only custom/emote text before spawn, re-reads paste/Enter/dropdown/slot/keep-equipped
+  settings inside the worker, and preserves the custom-text early return plus three separate dropdown
+  reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
+  independently at action and release sites, so mid-worker setting drift retains the characterized
+  asymmetries. This completes built-in macro execution cutover only; profile/settings UI, scripting UI,
+  updater UI, and final C++ entry-point removal remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

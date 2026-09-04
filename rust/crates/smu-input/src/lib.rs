@@ -13,7 +13,7 @@ pub mod text;
 pub use state::{HotkeyMatch, KeyState, is_hotkey_pressed};
 pub use text::{
     FALLBACK_SCAN_CODE_NONE, TextKeyAction, TextPlanEvent, compatibility_key_action,
-    fallback_text_plan,
+    execute_fallback_text, fallback_text_plan,
 };
 
 pub const NO_KEY: KeyCode = KeyCode::NONE;
@@ -72,6 +72,12 @@ pub trait InputInjector: Send + Sync {
 
     fn mouse_wheel(&self, delta: i32);
 
+    /// Try the platform's active keyboard-layout character path. Returns `false` when unavailable so
+    /// callers can use the compatibility fallback mapping.
+    fn press_character(&self, _character: u8, _delay_ms: i32) -> bool {
+        false
+    }
+
     /// Inject a packed SMU hotkey in the same order as C++ `holdKeyChord`.
     fn hold_key_chord(&self, hotkey: Hotkey) {
         let key = hotkey.key();
@@ -108,14 +114,6 @@ pub trait InputDevice: KeyState + InputInjector {
 }
 
 impl<T: KeyState + InputInjector> InputDevice for T {}
-
-/// Optional native-layout character injection capability.
-pub trait CharacterInput: InputInjector {
-    /// Returns `true` only when the native keyboard-layout path emitted the character.
-    fn press_character(&self, _character: char, _delay_ms: i32) -> bool {
-        false
-    }
-}
 
 #[cfg(test)]
 mod tests {

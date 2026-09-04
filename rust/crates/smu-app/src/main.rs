@@ -45,9 +45,15 @@ mod item_clip_runtime;
 mod item_desync;
 #[cfg(target_os = "linux")]
 mod item_desync_runtime;
+mod item_unequip;
+#[cfg(target_os = "linux")]
+mod item_unequip_runtime;
 mod lag_switch;
 #[cfg(target_os = "linux")]
 mod lag_switch_runtime;
+mod laugh_clip;
+#[cfg(target_os = "linux")]
+mod laugh_clip_runtime;
 mod ledge_bounce;
 #[cfg(target_os = "linux")]
 mod ledge_bounce_runtime;
@@ -55,6 +61,7 @@ mod ledge_bounce_runtime;
 mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
 mod linux_privileged_helper;
+mod macro_text;
 mod multi_instance;
 mod parity;
 mod press_key;
@@ -183,6 +190,8 @@ struct LinuxRuntimeServices {
     freeze_controller: Option<freeze_runtime::FreezeController>,
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
+    item_unequip_controller: Option<item_unequip_runtime::ItemUnequipController>,
+    laugh_clip_controller: Option<laugh_clip_runtime::LaughClipController>,
     press_key_controller: Option<press_key_runtime::PressKeyController>,
     spam_key_controller: Option<spam_key_runtime::SpamKeyController>,
     ledge_bounce_controller: Option<ledge_bounce_runtime::LedgeBounceController>,
@@ -340,16 +349,14 @@ fn start_freeze_controller(
 
 #[cfg(target_os = "linux")]
 fn start_item_desync_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
-    process_discovery: &Arc<ProcDiscovery>,
-    process_foreground: &Arc<ProcForegroundProcess>,
+    platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
 ) -> Option<item_desync_runtime::ItemDesyncController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
         item_desync_runtime::ItemDesyncController::start(
             input,
             discovery,
@@ -360,22 +367,72 @@ fn start_item_desync_controller(
 }
 
 #[cfg(target_os = "linux")]
+fn start_item_unequip_controller(
+    platform: &LinuxPlatformServices,
+    shell_state: &shell::ShellState,
+) -> Option<item_unequip_runtime::ItemUnequipController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        item_unequip_runtime::ItemUnequipController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.item_unequip_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
 fn start_item_clip_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
-    process_discovery: &Arc<ProcDiscovery>,
-    process_foreground: &Arc<ProcForegroundProcess>,
+    platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
 ) -> Option<item_clip_runtime::ItemClipController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
         item_clip_runtime::ItemClipController::start(
             input,
             discovery,
             foreground,
             shell_state.item_clip_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_chat_macro_controllers(
+    platform: &LinuxPlatformServices,
+    shell_state: &shell::ShellState,
+) -> (
+    Option<item_unequip_runtime::ItemUnequipController>,
+    Option<laugh_clip_runtime::LaughClipController>,
+) {
+    (
+        start_item_unequip_controller(platform, shell_state),
+        start_laugh_clip_controller(platform, shell_state),
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn start_laugh_clip_controller(
+    platform: &LinuxPlatformServices,
+    shell_state: &shell::ShellState,
+) -> Option<laugh_clip_runtime::LaughClipController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        laugh_clip_runtime::LaughClipController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.laugh_clip_controller_settings(),
         )
     })
 }
@@ -505,20 +562,10 @@ impl LinuxRuntimeServices {
             shell_state,
         );
         let freeze_controller = start_freeze_controller(&platform, shell_state);
-        let item_desync_controller = start_item_desync_controller(
-            platform.input_ready,
-            &platform.input_service,
-            &platform.process_discovery,
-            &platform.process_foreground,
-            shell_state,
-        );
-        let item_clip_controller = start_item_clip_controller(
-            platform.input_ready,
-            &platform.input_service,
-            &platform.process_discovery,
-            &platform.process_foreground,
-            shell_state,
-        );
+        let item_desync_controller = start_item_desync_controller(&platform, shell_state);
+        let item_clip_controller = start_item_clip_controller(&platform, shell_state);
+        let (item_unequip_controller, laugh_clip_controller) =
+            start_chat_macro_controllers(&platform, shell_state);
         let press_key_controller = start_press_key_controller(
             platform.input_ready,
             &platform.input_service,
@@ -578,6 +625,8 @@ impl LinuxRuntimeServices {
             freeze_controller,
             item_desync_controller,
             item_clip_controller,
+            item_unequip_controller,
+            laugh_clip_controller,
             press_key_controller,
             spam_key_controller,
             ledge_bounce_controller,
@@ -636,6 +685,12 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.item_clip_controller.as_ref() {
             controller.update_settings(shell_state.item_clip_controller_settings());
+        }
+        if let Some(controller) = self.item_unequip_controller.as_ref() {
+            controller.update_settings(shell_state.item_unequip_controller_settings());
+        }
+        if let Some(controller) = self.laugh_clip_controller.as_ref() {
+            controller.update_settings(shell_state.laugh_clip_controller_settings());
         }
         if let Some(controller) = self.press_key_controller.as_ref() {
             controller.update_settings(shell_state.press_key_controller_settings());
@@ -753,6 +808,12 @@ impl LinuxRuntimeServices {
             controller.stop();
         }
         if let Some(controller) = self.wall_walk_controller.as_ref() {
+            controller.stop();
+        }
+        if let Some(controller) = self.laugh_clip_controller.as_ref() {
+            controller.stop();
+        }
+        if let Some(controller) = self.item_unequip_controller.as_ref() {
             controller.stop();
         }
         if let Some(controller) = self.item_clip_controller.as_ref() {

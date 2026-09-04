@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use x11rb::connection::Connection;
-use x11rb::protocol::xproto::ConnectionExt as _;
+use x11rb::protocol::xproto::{ConnectionExt as _, Keysym};
 
 const DEVICE_NAME: &str = "SMU Native Linux Input";
 const KEY_STATE_COUNT: usize = 258;
@@ -27,6 +27,26 @@ const EVDEV_KEY_MAX_EXCLUSIVE: u16 = 0x2ff;
 const INTERACTIVE_DETECTION_TIMEOUT: Duration = Duration::from_secs(12);
 const READER_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const INTERACTIVE_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
+const X11_SHIFT_MASK: u8 = 1 << 0;
+const X11_MOD1_MASK: u8 = 1 << 3;
+const X11_MOD5_MASK: u8 = 1 << 7;
+const X11_CANDIDATE_STATES: [u8; 6] = [
+    0,
+    X11_SHIFT_MASK,
+    X11_MOD1_MASK,
+    X11_MOD5_MASK,
+    X11_SHIFT_MASK | X11_MOD1_MASK,
+    X11_SHIFT_MASK | X11_MOD5_MASK,
+];
+const XK_MODE_SWITCH: Keysym = 0xFF7E;
+const XK_ISO_LEVEL3_SHIFT: Keysym = 0xFE03;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct X11CharacterKey {
+    evdev_key: u16,
+    modifier_evdev_keys: Vec<u16>,
+}
 
 #[derive(Debug)]
 struct SharedInputState {
@@ -223,6 +243,36 @@ impl InputInjector for EvdevUinputInputDevice {
         self.emit(&[InputEvent::new(EventType::KEY.0, evdev.0, 0)]);
     }
 
+    fn press_character(&self, character: u8, delay_ms: i32) -> bool {
+        let Some(resolved) = resolve_character_with_x11(character) else {
+            return false;
+        };
+        let mut down = resolved
+            .modifier_evdev_keys
+            .iter()
+            .copied()
+            .map(|key| InputEvent::new(EventType::KEY.0, key, 1))
+            .collect::<Vec<_>>();
+        down.push(InputEvent::new(EventType::KEY.0, resolved.evdev_key, 1));
+        self.emit(&down);
+        std::thread::sleep(Duration::from_millis(
+            u64::try_from(delay_ms.max(0)).unwrap_or_default(),
+        ));
+
+        let mut up = Vec::with_capacity(resolved.modifier_evdev_keys.len() + 1);
+        up.push(InputEvent::new(EventType::KEY.0, resolved.evdev_key, 0));
+        up.extend(
+            resolved
+                .modifier_evdev_keys
+                .iter()
+                .rev()
+                .copied()
+                .map(|key| InputEvent::new(EventType::KEY.0, key, 0)),
+        );
+        self.emit(&up);
+        true
+    }
+
     fn move_mouse(&self, dx: i32, dy: i32) {
         self.emit(&[
             InputEvent::new(EventType::RELATIVE.0, RelativeAxisCode::REL_X.0, dx),
@@ -262,6 +312,172 @@ impl InputInjector for EvdevUinputInputDevice {
         let value = if delta >= 0 { 1 } else { -1 };
         self.emit(&[InputEvent::new(EventType::RELATIVE.0, RelativeAxisCode::REL_WHEEL.0, value)]);
     }
+}
+
+fn resolve_character_with_x11(character: u8) -> Option<X11CharacterKey> {
+    let (connection, _) = x11rb::connect(None).ok()?;
+    let setup = connection.setup();
+    let minimum_keycode = setup.min_keycode;
+    let maximum_keycode = setup.max_keycode;
+    let count = maximum_keycode.checked_sub(minimum_keycode)?.checked_add(1)?;
+    let keyboard = connection.get_keyboard_mapping(minimum_keycode, count).ok()?.reply().ok()?;
+    let modifiers = connection.get_modifier_mapping().ok()?.reply().ok()?;
+    resolve_character_from_x11_maps(
+        character,
+        minimum_keycode,
+        maximum_keycode,
+        keyboard.keysyms_per_keycode,
+        &keyboard.keysyms,
+        &modifiers.keycodes,
+    )
+}
+
+fn resolve_character_from_x11_maps(
+    character: u8,
+    minimum_keycode: u8,
+    maximum_keycode: u8,
+    keysyms_per_keycode: u8,
+    keysyms: &[Keysym],
+    modifier_keycodes: &[u8],
+) -> Option<X11CharacterKey> {
+    if keysyms_per_keycode == 0 || !modifier_keycodes.len().is_multiple_of(8) {
+        return None;
+    }
+    let mod1_level3 = modifier_has_level3(
+        3,
+        modifier_keycodes,
+        minimum_keycode,
+        maximum_keycode,
+        keysyms_per_keycode,
+        keysyms,
+    );
+    let mod5_level3 = modifier_has_level3(
+        7,
+        modifier_keycodes,
+        minimum_keycode,
+        maximum_keycode,
+        keysyms_per_keycode,
+        keysyms,
+    );
+
+    for keycode in minimum_keycode..=maximum_keycode {
+        let symbols = keysyms_for_keycode(
+            keycode,
+            minimum_keycode,
+            maximum_keycode,
+            keysyms_per_keycode,
+            keysyms,
+        );
+        for state in X11_CANDIDATE_STATES {
+            let symbol = keysym_for_state(symbols, state, mod1_level3, mod5_level3);
+            if keysym_to_byte(symbol) != Some(character) || keycode < 8 {
+                continue;
+            }
+            let evdev_key = u16::from(keycode) - 8;
+            if evdev_key == 0 || evdev_key >= EVDEV_KEY_MAX_EXCLUSIVE {
+                return None;
+            }
+            let modifier_evdev_keys = modifier_evdev_keys_for_state(state, modifier_keycodes)?;
+            return Some(X11CharacterKey { evdev_key, modifier_evdev_keys });
+        }
+    }
+    None
+}
+
+fn keysyms_for_keycode(
+    keycode: u8,
+    minimum_keycode: u8,
+    maximum_keycode: u8,
+    keysyms_per_keycode: u8,
+    keysyms: &[Keysym],
+) -> &[Keysym] {
+    if keycode < minimum_keycode || keycode > maximum_keycode || keysyms_per_keycode == 0 {
+        return &[];
+    }
+    let width = usize::from(keysyms_per_keycode);
+    let start = usize::from(keycode - minimum_keycode).saturating_mul(width);
+    let end = start.saturating_add(width);
+    keysyms.get(start..end).unwrap_or(&[])
+}
+
+fn modifier_has_level3(
+    modifier_index: usize,
+    modifier_keycodes: &[u8],
+    minimum_keycode: u8,
+    maximum_keycode: u8,
+    keysyms_per_keycode: u8,
+    keysyms: &[Keysym],
+) -> bool {
+    let per_modifier = modifier_keycodes.len() / 8;
+    let start = modifier_index.saturating_mul(per_modifier);
+    let end = start.saturating_add(per_modifier);
+    modifier_keycodes.get(start..end).is_some_and(|keys| {
+        keys.iter().copied().filter(|keycode| *keycode != 0).any(|keycode| {
+            keysyms_for_keycode(
+                keycode,
+                minimum_keycode,
+                maximum_keycode,
+                keysyms_per_keycode,
+                keysyms,
+            )
+            .iter()
+            .any(|symbol| matches!(*symbol, XK_MODE_SWITCH | XK_ISO_LEVEL3_SHIFT))
+        })
+    })
+}
+
+fn keysym_for_state(symbols: &[Keysym], state: u8, mod1_level3: bool, mod5_level3: bool) -> Keysym {
+    let shift = state & X11_SHIFT_MASK != 0;
+    let level3 =
+        (state & X11_MOD1_MASK != 0 && mod1_level3) || (state & X11_MOD5_MASK != 0 && mod5_level3);
+    let mut pair = if level3 { 2 } else { 0 };
+    if pair >= symbols.len()
+        || (symbols.get(pair).copied().unwrap_or_default() == 0
+            && symbols.get(pair + 1).copied().unwrap_or_default() == 0)
+    {
+        pair = 0;
+    }
+    let base = symbols.get(pair).copied().unwrap_or_default();
+    let shifted = symbols.get(pair + 1).copied().unwrap_or_default();
+    if shift {
+        if shifted != 0 { shifted } else { ascii_upper_keysym(base) }
+    } else if shifted == 0 {
+        ascii_lower_keysym(base)
+    } else {
+        base
+    }
+}
+
+const fn ascii_lower_keysym(symbol: Keysym) -> Keysym {
+    if symbol >= b'A' as u32 && symbol <= b'Z' as u32 { symbol + 32 } else { symbol }
+}
+
+const fn ascii_upper_keysym(symbol: Keysym) -> Keysym {
+    if symbol >= b'a' as u32 && symbol <= b'z' as u32 { symbol - 32 } else { symbol }
+}
+
+fn keysym_to_byte(symbol: Keysym) -> Option<u8> {
+    u8::try_from(symbol).ok()
+}
+
+fn modifier_evdev_keys_for_state(state: u8, modifier_keycodes: &[u8]) -> Option<Vec<u16>> {
+    let per_modifier = modifier_keycodes.len() / 8;
+    let mut result = Vec::new();
+    for modifier_index in 0..8 {
+        if state & (1 << modifier_index) == 0 {
+            continue;
+        }
+        let start = modifier_index * per_modifier;
+        let end = start + per_modifier;
+        let modifier_keycode =
+            modifier_keycodes.get(start..end)?.iter().copied().find(|keycode| *keycode >= 8)?;
+        let evdev_key = u16::from(modifier_keycode) - 8;
+        if evdev_key == 0 || evdev_key >= EVDEV_KEY_MAX_EXCLUSIVE {
+            return None;
+        }
+        result.push(evdev_key);
+    }
+    Some(result)
 }
 
 fn create_virtual_device() -> std::io::Result<VirtualDevice> {
@@ -799,6 +1015,50 @@ mod tests {
             .expect("fixture vk should fit u32");
             assert_eq!(evdev_to_vk(evdev).raw(), expected, "evdev mapping mismatch for {evdev}");
         }
+    }
+
+    #[test]
+    fn x11_character_map_resolves_plain_and_shifted_ascii() {
+        let symbols = [u32::from(b'1'), u32::from(b'!'), 0, 0];
+        let mut modifiers = [0_u8; 8];
+        modifiers[0] = 50;
+        assert_eq!(
+            resolve_character_from_x11_maps(b'1', 10, 10, 4, &symbols, &modifiers),
+            Some(X11CharacterKey { evdev_key: 2, modifier_evdev_keys: vec![] })
+        );
+        assert_eq!(
+            resolve_character_from_x11_maps(b'!', 10, 10, 4, &symbols, &modifiers),
+            Some(X11CharacterKey { evdev_key: 2, modifier_evdev_keys: vec![42] })
+        );
+    }
+
+    #[test]
+    fn x11_character_map_uses_mod5_iso_level3_shift() {
+        let minimum = 8_u8;
+        let maximum = 92_u8;
+        let width = 4_usize;
+        let mut symbols = vec![0_u32; usize::from(maximum - minimum + 1) * width];
+        let q = usize::from(24 - minimum) * width;
+        symbols[q..q + width].copy_from_slice(&[
+            u32::from(b'q'),
+            u32::from(b'Q'),
+            u32::from(b'@'),
+            u32::from(b'#'),
+        ]);
+        let level3 = usize::from(92 - minimum) * width;
+        symbols[level3] = XK_ISO_LEVEL3_SHIFT;
+        let mut modifiers = [0_u8; 8];
+        modifiers[0] = 50;
+        modifiers[7] = 92;
+
+        assert_eq!(
+            resolve_character_from_x11_maps(b'@', minimum, maximum, 4, &symbols, &modifiers,),
+            Some(X11CharacterKey { evdev_key: 16, modifier_evdev_keys: vec![84] })
+        );
+        assert_eq!(
+            resolve_character_from_x11_maps(b'#', minimum, maximum, 4, &symbols, &modifiers,),
+            Some(X11CharacterKey { evdev_key: 16, modifier_evdev_keys: vec![42, 84] })
+        );
     }
 
     #[test]

@@ -41,6 +41,9 @@ pub struct GlobalSettingsState {
     wallhop_sensitivity_revision: u64,
     shift_key: u32,
     chat_key: u32,
+    enter_key: u32,
+    chat_override: bool,
+    paste_delay_ms: i32,
     global_zoom: bool,
     zoom_reverse: bool,
 }
@@ -92,6 +95,21 @@ impl GlobalSettingsState {
     }
 
     #[must_use]
+    pub const fn enter_key(&self) -> u32 {
+        self.enter_key
+    }
+
+    #[must_use]
+    pub const fn chat_override(&self) -> bool {
+        self.chat_override
+    }
+
+    #[must_use]
+    pub const fn paste_delay_ms(&self) -> i32 {
+        self.paste_delay_ms
+    }
+
+    #[must_use]
     pub const fn global_zoom(&self) -> bool {
         self.global_zoom
     }
@@ -134,6 +152,9 @@ impl Default for GlobalSettingsState {
             wallhop_sensitivity_revision: 1,
             shift_key: 0x10,
             chat_key: 0xBF,
+            enter_key: 0x0D,
+            chat_override: true,
+            paste_delay_ms: 1,
             global_zoom: false,
             zoom_reverse: false,
         }
@@ -269,6 +290,9 @@ mod tests {
         assert!(!state.cam_fix_enabled());
         assert_eq!(state.shift_key(), 0x10);
         assert_eq!(state.chat_key(), 0xBF);
+        assert_eq!(state.enter_key(), 0x0D);
+        assert!(state.chat_override());
+        assert_eq!(state.paste_delay_ms(), 1);
         assert!(!state.global_zoom());
         assert!(!state.zoom_reverse());
     }
