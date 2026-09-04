@@ -55,8 +55,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
-  wrappers, and foundational timing/cancellation functions. Platform-sensitive Lua APIs continue to
-  be added through service adapters instead of application globals.
+  wrappers, and foundational timing/cancellation functions. Its first service-backed Lua slice now
+  covers direct key press/hold/release/state, strict/loose hotkey reads, managed hotkey holds, script
+  hotkey lookup, and wheel input through `smu-input`, including settings/cleanup restrictions and
+  cancellation-safe release behavior. Remaining platform-sensitive Lua APIs follow the same adapter
+  pattern instead of reaching application globals.
 
 ## Architecture rules
 

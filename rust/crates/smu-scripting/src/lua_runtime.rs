@@ -107,7 +107,7 @@ impl Default for BudgetData {
 }
 
 #[derive(Debug, Default)]
-struct ExecutionState {
+pub(crate) struct ExecutionState {
     reason: AtomicU8,
     budget: Mutex<BudgetData>,
     wake: Condvar,
@@ -121,11 +121,11 @@ impl ExecutionState {
         }
     }
 
-    fn reason(&self) -> ScriptStopReason {
+    pub(crate) fn reason(&self) -> ScriptStopReason {
         ScriptStopReason::from_u8(self.reason.load(Ordering::Acquire))
     }
 
-    fn set_reason(&self, reason: ScriptStopReason) {
+    pub(crate) fn set_reason(&self, reason: ScriptStopReason) {
         let _ = self.reason.compare_exchange(
             ScriptStopReason::None as u8,
             reason as u8,
@@ -152,7 +152,7 @@ impl ExecutionState {
         budget.deadline = None;
     }
 
-    fn check_deadline(&self) -> Result<(), LuaError> {
+    pub(crate) fn check_deadline(&self) -> Result<(), LuaError> {
         let reason = self.reason();
         if reason != ScriptStopReason::None {
             return Err(LuaError::RuntimeError(reason.message().to_owned()));
@@ -202,7 +202,7 @@ impl ExecutionState {
             && Instant::now().saturating_duration_since(budget.active_started) >= threshold
     }
 
-    fn wait_coarse(&self, duration: Duration) -> Result<(), LuaError> {
+    pub(crate) fn wait_coarse(&self, duration: Duration) -> Result<(), LuaError> {
         self.pause()?;
         let wake_time = Instant::now().checked_add(duration);
         let mut guard = self.lock_budget();
@@ -472,8 +472,8 @@ fn install_safe_wrappers(lua: &Lua) -> mlua::Result<()> {
 }
 
 pub struct LuaScriptVm {
-    lua: Lua,
-    state: Arc<ExecutionState>,
+    pub(crate) lua: Lua,
+    pub(crate) state: Arc<ExecutionState>,
     memory_limit_bytes: usize,
 }
 
