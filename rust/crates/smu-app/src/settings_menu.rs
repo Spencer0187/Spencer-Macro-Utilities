@@ -18,6 +18,9 @@ pub struct UpdaterPanelStatus {
     pub enabled: bool,
     pub checked_once: bool,
     pub checking: bool,
+    pub applying: bool,
+    pub apply_failed: bool,
+    pub update_confirm_open: bool,
     pub check_succeeded: bool,
     pub update_available: bool,
     pub auto_apply_supported: bool,
@@ -31,7 +34,12 @@ pub struct UpdaterPanelStatus {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingsAction {
     CheckUpdates,
+    RequestInstallUpdate,
+    ConfirmInstallUpdate,
+    SkipUpdate,
+    CancelUpdate,
     OpenLatestRelease,
+    OpenLatestReleaseAndDismiss,
     StartWaylandScreenCapture,
     StopWaylandScreenCapture,
     StartWaylandRemoteDesktop,
@@ -110,20 +118,30 @@ fn render_updater(
     }
     drop(check_disabled);
 
+    let can_apply = updater.checked_once
+        && updater.update_available
+        && updater.auto_apply_supported
+        && !updater.selected_package.is_empty()
+        && !updater.checking
+        && !updater.applying;
     ui.same_line();
-    let apply_disabled = ui.begin_disabled();
-    let _ = ui.button("Download and install update");
-    drop(apply_disabled);
-    if ui.is_item_hovered() {
-        ui.tooltip_text(
-            "Automatic installation remains disabled until the Rust AppImage verification and rollback path is ported.",
-        );
+    let apply_disabled = (!can_apply).then(|| ui.begin_disabled());
+    let apply_label = if updater.applying {
+        "Applying update..."
+    } else if updater.apply_failed {
+        "Retry update"
+    } else {
+        "Download and install update"
+    };
+    if ui.button(apply_label) {
+        *action = Some(SettingsAction::RequestInstallUpdate);
     }
+    drop(apply_disabled);
 
     if updater.checked_once && updater.update_available && !updater.auto_apply_supported {
         ui.text_colored(
             theme.warning_color,
-            "An update is available. Open the official release and reinstall it with the same Linux package method you used before.",
+            "This Linux package cannot replace itself. Download the release and reinstall it with the same AppImage, Debian, RPM, portable, or Nix method you used before.",
         );
     }
 
@@ -134,6 +152,69 @@ fn render_updater(
         ui.text_wrapped(&updater.action_message);
     }
     crate::parity::separator(ui);
+}
+
+pub fn render_update_confirmation(ui: &Ui, updater: &UpdaterPanelStatus) -> Option<SettingsAction> {
+    if updater.update_confirm_open {
+        let _ = ui.open_popup("Update Available");
+    }
+    let _popup = ui.begin_modal_popup("Update Available")?;
+
+    let latest =
+        if updater.latest_version.is_empty() { "unknown" } else { &updater.latest_version };
+    let package = if updater.selected_package.is_empty() {
+        "No matching asset"
+    } else {
+        &updater.selected_package
+    };
+    let can_auto_apply = updater.auto_apply_supported && !updater.selected_package.is_empty();
+    ui.text_wrapped("A new version of Spencer Macro Utilities is available.");
+    ui.spacing();
+    ui.text(format!("Current version: {}", updater.local_version));
+    ui.text(format!("Latest version: {latest}"));
+    ui.text(format!("Package: {package}"));
+    ui.spacing();
+    if can_auto_apply {
+        ui.text_wrapped("Do you want to download and install this update now?");
+    } else {
+        ui.text_wrapped(
+            "This Linux installation cannot safely replace itself. Open the official release and update with the same AppImage, Debian, RPM, portable, or Nix method you used before.",
+        );
+    }
+    crate::parity::separator(ui);
+
+    if updater.applying {
+        ui.text("Downloading update...");
+        return None;
+    }
+    if can_auto_apply {
+        if ui.button_with_size("Yes", [90.0, 0.0]) {
+            ui.close_current_popup();
+            return Some(SettingsAction::ConfirmInstallUpdate);
+        }
+        ui.same_line();
+        if ui.button_with_size("No", [90.0, 0.0]) {
+            ui.close_current_popup();
+            return Some(SettingsAction::SkipUpdate);
+        }
+        ui.same_line();
+        if ui.button_with_size("Cancel", [90.0, 0.0]) {
+            ui.close_current_popup();
+            return Some(SettingsAction::CancelUpdate);
+        }
+        return None;
+    }
+
+    if ui.button_with_size("Open latest release", [170.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(SettingsAction::OpenLatestReleaseAndDismiss);
+    }
+    ui.same_line();
+    if ui.button_with_size("Not now", [100.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(SettingsAction::SkipUpdate);
+    }
+    None
 }
 
 fn render_wayland(

@@ -7,6 +7,8 @@
 mod check;
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "linux")]
+mod linux_install;
 
 pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
@@ -14,6 +16,10 @@ pub use check::{
 };
 #[cfg(target_os = "linux")]
 pub use linux::CurlUpdateTransport;
+#[cfg(target_os = "linux")]
+pub use linux_install::{
+    LinuxUpdateError, LinuxUpdateLaunch, apply_linux_update, linux_auto_apply_supported,
+};
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;

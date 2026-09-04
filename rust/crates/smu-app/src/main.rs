@@ -1496,8 +1496,23 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::CheckUpdatesFromSettings) => {
                 self.update_service.start_check(true);
             }
+            Some(shell::ShellAction::RequestInstallUpdateFromSettings) => {
+                self.update_service.request_apply();
+            }
+            Some(shell::ShellAction::ConfirmInstallUpdate) => {
+                self.update_service.confirm_apply();
+            }
+            Some(shell::ShellAction::SkipUpdate) => {
+                self.update_service.dismiss_update("Update skipped.");
+            }
+            Some(shell::ShellAction::CancelUpdate) => {
+                self.update_service.dismiss_update("Update cancelled.");
+            }
             Some(shell::ShellAction::OpenLatestReleaseFromSettings) => {
                 self.update_service.open_latest_release();
+            }
+            Some(shell::ShellAction::OpenLatestReleaseAndDismiss) => {
+                self.update_service.open_latest_release_and_dismiss();
             }
             Some(shell::ShellAction::StartWaylandScreenCaptureFromSettings) => {
                 self.start_wayland_settings_task(WaylandSettingsTask::StartScreenCapture);
@@ -1554,6 +1569,10 @@ impl LinuxRuntimeServices {
             }
             Some(shell::ShellAction::Profile(_)) | None => {}
         }
+    }
+
+    fn update_restart_requested(&self) -> bool {
+        self.update_service.restart_requested()
     }
 
     fn profile_script_state(&self) -> serde_json::Value {
@@ -1911,6 +1930,10 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         apply_shell_window_style(window, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        #[cfg(target_os = "linux")]
+        if linux_services.update_restart_requested() {
+            break 'main;
+        }
         #[cfg(not(target_os = "linux"))]
         let _ = shell_action;
 

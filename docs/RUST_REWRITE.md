@@ -138,12 +138,21 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   macro controllers receive the resulting effective-macro gate, and Escape remains bindable while
   capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
   fixing trait-object wheel capture. The Settings window also now composes the live Linux updater
-  check path: opening Settings starts one background check, explicit retry/check is available, release
-  metadata/manifest validation runs through `smu-updater`, and SDL opens the official release page for
-  manual installation. Update checks are disabled during parity capture. Automatic installation stays
-  deliberately disabled until Rust owns the C++ AppImage download, SHA-256/ELF validation,
-  replaceability checks, replacement script, and rollback path. Anti-AFK is Windows-only in the legacy
-  runtime and has no Linux execution path to port.
+  check and AppImage auto-install path: opening Settings starts one background check, explicit
+  retry/check is available, release metadata/manifest validation runs through `smu-updater`, and SDL
+  opens the official release page for manual installation. Auto-apply is advertised only when the
+  current process is actually running from the declared AppImage mount and the external AppImage is
+  safely replaceable. Downloads remain HTTPS-only and are rechecked against manifest size/SHA-256;
+  direct images and exact root-level AppImages extracted from Linux ZIP bundles must pass the current
+  architecture's 64-bit little-endian ELF header check before staging. Replaceability preserves the
+  APPIMAGE/APPDIR, strict mount-descendant, sticky-directory ownership, and same-directory write-probe
+  guards. A detached helper waits for normal Rust profile/service shutdown, swaps through a unique
+  backup, relaunches the new image, and restores/relaunches the previous image if installation or the
+  two-second startup check fails. The C++ Yes/No/Cancel/manual-install confirmation flow is preserved,
+  while a successful Rust staging worker requests clean app shutdown instead of exiting from that
+  worker. Installer tests use temporary files/ZIPs only and never invoke the live helper or current
+  APPIMAGE. Debian/RPM/portable/Nix installs remain manual. Update work is disabled during parity
+  capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -154,8 +163,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
   asymmetries. This completes built-in macro execution cutover only; remaining Settings controls,
-  updater auto-install, cross-platform app-service composition, and final C++ entry-point removal
-  remain separate rewrite gates.
+  cross-platform app-service composition, and final C++ entry-point removal remain separate rewrite
+  gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

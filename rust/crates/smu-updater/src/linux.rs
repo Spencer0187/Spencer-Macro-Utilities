@@ -2,6 +2,7 @@
 
 use crate::{MAXIMUM_UPDATE_BYTES, UpdateTransport, UpdateTransportError};
 use std::ffi::{OsStr, OsString};
+use std::path::Path;
 use std::process::Command;
 
 const CURL_TIMEOUT_SECONDS: &str = "60";
@@ -24,6 +25,30 @@ impl CurlUpdateTransport {
     #[cfg(test)]
     fn with_program(program: impl Into<OsString>) -> Self {
         Self { program: program.into() }
+    }
+
+    /// Download one HTTPS URL directly to a file using the same curl restrictions as C++.
+    pub(crate) fn download_to_file(
+        &self,
+        url: &str,
+        destination: &Path,
+    ) -> Result<(), UpdateTransportError> {
+        if !url.starts_with("https://") {
+            return Err(UpdateTransportError::new("Updater refused a non-HTTPS URL."));
+        }
+        let status = Command::new(&self.program)
+            .args(curl_file_arguments(url, destination))
+            .status()
+            .map_err(|error| {
+                UpdateTransportError::new(format!("Failed to launch curl: {error}"))
+            })?;
+        if !status.success() {
+            return Err(UpdateTransportError::new(format!(
+                "Update download failed; {}",
+                exit_status_message(status)
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -71,6 +96,27 @@ fn curl_arguments(url: &str) -> [&OsStr; 15] {
         OsStr::new(USER_AGENT_HEADER),
         OsStr::new("-H"),
         OsStr::new(GITHUB_ACCEPT_HEADER),
+        OsStr::new("--"),
+        OsStr::new(url),
+    ]
+}
+
+fn curl_file_arguments<'a>(url: &'a str, destination: &'a Path) -> Vec<&'a OsStr> {
+    vec![
+        OsStr::new("-fsSL"),
+        OsStr::new("--max-time"),
+        OsStr::new(CURL_TIMEOUT_SECONDS),
+        OsStr::new("--max-filesize"),
+        OsStr::new(CURL_MAXIMUM_BYTES),
+        OsStr::new("--proto"),
+        OsStr::new("=https"),
+        OsStr::new("--proto-redir"),
+        OsStr::new("=https"),
+        OsStr::new("-H"),
+        OsStr::new(USER_AGENT_HEADER),
+        OsStr::new("-L"),
+        OsStr::new("-o"),
+        destination.as_os_str(),
         OsStr::new("--"),
         OsStr::new(url),
     ]
