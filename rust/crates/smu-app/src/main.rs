@@ -39,6 +39,9 @@ mod item_desync_runtime;
 mod lag_switch;
 #[cfg(target_os = "linux")]
 mod lag_switch_runtime;
+mod ledge_bounce;
+#[cfg(target_os = "linux")]
+mod ledge_bounce_runtime;
 #[cfg(target_os = "linux")]
 mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
@@ -161,6 +164,7 @@ struct LinuxRuntimeServices {
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
     press_key_controller: Option<press_key_runtime::PressKeyController>,
     spam_key_controller: Option<spam_key_runtime::SpamKeyController>,
+    ledge_bounce_controller: Option<ledge_bounce_runtime::LedgeBounceController>,
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
     wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
     walless_lhj_controller: Option<walless_lhj_runtime::WallessLhjController>,
@@ -290,6 +294,25 @@ fn start_item_clip_controller(
             discovery,
             foreground,
             shell_state.item_clip_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_ledge_bounce_controller(
+    platform: &LinuxPlatformServices,
+    shell_state: &shell::ShellState,
+) -> Option<ledge_bounce_runtime::LedgeBounceController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        ledge_bounce_runtime::LedgeBounceController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.ledge_bounce_controller_settings(),
         )
     })
 }
@@ -433,6 +456,7 @@ impl LinuxRuntimeServices {
             &platform.process_foreground,
             shell_state,
         );
+        let ledge_bounce_controller = start_ledge_bounce_controller(&platform, shell_state);
         let speedglitch_controller = start_speedglitch_controller(
             platform.input_ready,
             &platform.input_service,
@@ -476,6 +500,7 @@ impl LinuxRuntimeServices {
             item_clip_controller,
             press_key_controller,
             spam_key_controller,
+            ledge_bounce_controller,
             speedglitch_controller,
             wall_walk_controller,
             walless_lhj_controller,
@@ -528,6 +553,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.spam_key_controller.as_ref() {
             controller.update_settings(shell_state.spam_key_controller_settings());
+        }
+        if let Some(controller) = self.ledge_bounce_controller.as_ref() {
+            controller.update_settings(shell_state.ledge_bounce_controller_settings());
         }
         if let Some(controller) = self.speedglitch_controller.as_ref() {
             controller.update_settings(shell_state.speedglitch_controller_settings());
@@ -611,6 +639,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.ledge_bounce_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.spam_key_controller.as_ref() {
             controller.stop();
         }

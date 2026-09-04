@@ -6,6 +6,7 @@ use crate::{
     item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
+    ledge_bounce::{self, LedgeBounceUiState},
     press_key::{self, PressKeyUiState},
     sidebar,
     spam_key::{self, SpamKeyUiState},
@@ -80,6 +81,7 @@ pub struct ShellState {
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
     press_key: PressKeyUiState,
+    ledge_bounce: LedgeBounceUiState,
     spam_key: SpamKeyUiState,
     speedglitch: SpeedglitchUiState,
     wall_walk: WallWalkUiState,
@@ -101,6 +103,7 @@ impl Default for ShellState {
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
             press_key: PressKeyUiState::default(),
+            ledge_bounce: LedgeBounceUiState::default(),
             spam_key: SpamKeyUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
             wall_walk: WallWalkUiState::default(),
@@ -144,6 +147,7 @@ impl ShellState {
         enabled[8] = self.item_clip.enabled;
         enabled[10] = self.wall_walk.enabled;
         enabled[11] = self.spam_key.first_enabled();
+        enabled[12] = self.ledge_bounce.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -173,6 +177,19 @@ impl ShellState {
     ) -> crate::spam_key_runtime::SpamKeyControllerSettings {
         self.spam_key
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn ledge_bounce_controller_settings(
+        &self,
+    ) -> crate::ledge_bounce_runtime::LedgeBounceControllerSettings {
+        self.ledge_bounce.controller_settings(
+            self.global.macro_enabled(),
+            self.global.sensitivity().to_owned(),
+            self.global.cam_fix_enabled(),
+            self.global.process_selector(),
+        )
     }
 
     #[cfg(target_os = "linux")]
@@ -551,6 +568,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
                 state.global.cam_fix_enabled(),
             ),
             11 => spam_key::render(ui, &mut state.spam_key),
+            12 => ledge_bounce::render(ui, &mut state.ledge_bounce),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));

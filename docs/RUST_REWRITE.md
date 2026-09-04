@@ -79,6 +79,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Ledge Bounce slice. The C-key controller keeps the C++
+  rising-edge latch and foreground gate, then launches overlapping one-shot workers with no active
+  guard. Sensitivity, Cam-Fix, and side are read at worker start; the worker executes the frozen
+  90/40/16 ms prefix, re-reads horizontal realign at 146 ms, and re-reads auto-hold at 146 ms without
+  realign or 216 ms with realign. The C-style sensitivity parser and turn calculation continue to
+  come from the characterized `smu-runtime` helper, including invalid/negative/NaN flooring and
+  overflow/truncation behavior.
 - `smu-app` now owns the live Linux Spam a Key (`SpamKey`) slice as the third consumer of the
   shared multi-instance container. It preserves the constructor quirk where the UI initially displays
   `20` ms but the worker's `real_delay` remains `1000` ms until that text field is edited; edits use
