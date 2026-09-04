@@ -79,6 +79,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Wallhop/Rotation slice and the first shared multi-instance UI
+  container. The container preserves the C++ rules used by Wallhop, PressKey, and SpamKey: there is
+  always one main instance; new instances append defaults; removing while the main slot is selected
+  targets the final extra instance; removing an extra slot targets that slot; and removal requires a
+  second click inside the 0.7-second confirmation window. Wallhop sidebar sub-instance selection is
+  now live. Runtime state keeps one rising-edge latch per instance and resets the entire latch vector
+  whenever the instance count changes, matching `wallhopWasPressed_.assign(size, false)`. Each edge
+  snapshots the complete characterized worker plan before spawning an overlapping one-shot worker,
+  including instance-local foreground gating and packed bound jump-key injection.
 - `smu-app` now owns the live Linux Walless LHJ slice. The F6 controller snapshots the current
   process-target vector at the rising edge, then launches one-shot workers whose internal 645 ms
   sequence is preserved exactly. Side selection is read at worker start; global zoom/shift mode and

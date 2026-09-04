@@ -10,6 +10,7 @@ use crate::{
     speedglitch::{self, SpeedglitchUiState},
     wall_walk::{self, WallWalkUiState},
     walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
+    wallhop::{self, WallhopUiState},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -79,6 +80,7 @@ pub struct ShellState {
     speedglitch: SpeedglitchUiState,
     wall_walk: WallWalkUiState,
     walless_lhj: WallessLhjUiState,
+    wallhop: WallhopUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -97,6 +99,7 @@ impl Default for ShellState {
             speedglitch: SpeedglitchUiState::default(),
             wall_walk: WallWalkUiState::default(),
             walless_lhj: WallessLhjUiState::default(),
+            wallhop: WallhopUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -124,11 +127,12 @@ impl ShellState {
     }
 
     #[must_use]
-    const fn section_enabled(&self) -> [bool; 16] {
+    fn section_enabled(&self) -> [bool; 16] {
         let mut enabled = [false; 16];
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
         enabled[3] = self.speedglitch.enabled;
+        enabled[6] = self.wallhop.first_enabled();
         enabled[7] = self.walless_lhj.enabled;
         enabled[8] = self.item_clip.enabled;
         enabled[10] = self.wall_walk.enabled;
@@ -164,6 +168,13 @@ impl ShellState {
             self.global.fps_runtime(),
             self.global.process_selector(),
         )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn wallhop_controller_settings(&self) -> crate::wallhop_runtime::WallhopControllerSettings {
+        self.wallhop
+            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -413,16 +424,43 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         state.global.cam_fix_enabled(),
         state.global.speed_calibration_revision(),
     );
+    state.wallhop.sync_sensitivity_edit(
+        state.global.sensitivity(),
+        state.global.cam_fix_enabled(),
+        state.global.wallhop_sensitivity_revision(),
+    );
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
+    state.wallhop.tick_remove_confirmation(ui.io().delta_time(), state.selected_section == 6);
     let section_enabled = state.section_enabled();
+    let wallhop_summary = sidebar::MultiInstanceSummary {
+        section_index: 6,
+        enabled: state.wallhop.enabled_flags(),
+        selected_instance: state.wallhop.selected_index(),
+    };
+    let mut sidebar_action = None;
     ui.child_window(LEFT_SCROLL_CHILD)
         .size([left_panel_width, left_panel_height])
         .border(true)
         .build(ui, || {
-            sidebar::render(ui, left_panel_width, &mut state.selected_section, &section_enabled);
+            sidebar_action = sidebar::render(
+                ui,
+                left_panel_width,
+                &mut state.selected_section,
+                &section_enabled,
+                &[wallhop_summary],
+            );
         });
+    match sidebar_action {
+        Some(sidebar::SidebarAction::SelectInstance { section_index: 6, instance_index }) => {
+            state.wallhop.select(instance_index);
+        }
+        Some(sidebar::SidebarAction::AddInstance { section_index: 6 }) => {
+            state.wallhop.add_default();
+        }
+        _ => {}
+    }
 
     ui.same_line();
     let right_section_size = [
@@ -435,6 +473,12 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
             3 => speedglitch::render(ui, &mut state.speedglitch),
+            6 => wallhop::render(
+                ui,
+                &mut state.wallhop,
+                state.global.sensitivity(),
+                state.global.cam_fix_enabled(),
+            ),
             7 => walless_lhj::render(ui, &mut state.walless_lhj),
             8 => item_clip::render(ui, &mut state.item_clip),
             10 => wall_walk::render(

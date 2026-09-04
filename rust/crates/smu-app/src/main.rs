@@ -43,6 +43,7 @@ mod lag_switch_runtime;
 mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
 mod linux_privileged_helper;
+mod multi_instance;
 mod parity;
 #[cfg(target_os = "linux")]
 mod runtime_input;
@@ -60,6 +61,9 @@ mod wall_walk_runtime;
 mod walless_lhj;
 #[cfg(target_os = "linux")]
 mod walless_lhj_runtime;
+mod wallhop;
+#[cfg(target_os = "linux")]
+mod wallhop_runtime;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -112,6 +116,70 @@ struct LinuxRuntimeServices {
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
     wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
     walless_lhj_controller: Option<walless_lhj_runtime::WallessLhjController>,
+    wallhop_controller: Option<wallhop_runtime::WallhopController>,
+}
+
+#[cfg(target_os = "linux")]
+fn start_wallhop_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<wallhop_runtime::WallhopController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        wallhop_runtime::WallhopController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.wallhop_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_item_desync_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<item_desync_runtime::ItemDesyncController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        item_desync_runtime::ItemDesyncController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.item_desync_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_item_clip_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<item_clip_runtime::ItemClipController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        item_clip_runtime::ItemClipController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.item_clip_controller_settings(),
+        )
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -221,28 +289,20 @@ impl LinuxRuntimeServices {
                 shell_state.freeze_controller_settings(),
             )
         });
-        let item_desync_controller = input_ready.then(|| {
-            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-            item_desync_runtime::ItemDesyncController::start(
-                input,
-                discovery,
-                foreground,
-                shell_state.item_desync_controller_settings(),
-            )
-        });
-        let item_clip_controller = input_ready.then(|| {
-            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-            item_clip_runtime::ItemClipController::start(
-                input,
-                discovery,
-                foreground,
-                shell_state.item_clip_controller_settings(),
-            )
-        });
+        let item_desync_controller = start_item_desync_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            shell_state,
+        );
+        let item_clip_controller = start_item_clip_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            shell_state,
+        );
         let speedglitch_controller = start_speedglitch_controller(
             input_ready,
             &input_service,
@@ -265,6 +325,13 @@ impl LinuxRuntimeServices {
             &process_control,
             shell_state,
         );
+        let wallhop_controller = start_wallhop_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            shell_state,
+        );
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -280,6 +347,7 @@ impl LinuxRuntimeServices {
             speedglitch_controller,
             wall_walk_controller,
             walless_lhj_controller,
+            wallhop_controller,
         }
     }
 
@@ -331,6 +399,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.walless_lhj_controller.as_ref() {
             controller.update_settings(shell_state.walless_lhj_controller_settings());
+        }
+        if let Some(controller) = self.wallhop_controller.as_ref() {
+            controller.update_settings(shell_state.wallhop_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -402,6 +473,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.wallhop_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.walless_lhj_controller.as_ref() {
             controller.stop();
         }

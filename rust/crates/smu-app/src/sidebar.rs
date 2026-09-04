@@ -49,15 +49,30 @@ const SECTION_CONFIGS: [SectionConfig; 16] = [
     SectionConfig::new("Lag Switch", "Temporarily block or delay Roblox network traffic."),
 ];
 
+#[derive(Clone, Debug)]
+pub struct MultiInstanceSummary {
+    pub section_index: usize,
+    pub enabled: Vec<bool>,
+    pub selected_instance: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SidebarAction {
+    SelectInstance { section_index: usize, instance_index: usize },
+    AddInstance { section_index: usize },
+}
+
 #[allow(clippy::suboptimal_flops)] // Preserve C++ sidebar layout arithmetic for pixel parity.
 pub fn render(
     ui: &Ui,
     left_panel_width: f32,
     selected_section: &mut usize,
     section_enabled: &[bool; 16],
-) {
+    multi_instances: &[MultiInstanceSummary],
+) -> Option<SidebarAction> {
     let style = ui.clone_style();
     let button_width = left_panel_width - style.frame_padding()[0] * 2.0;
+    let mut action = None;
 
     for section_index in DEFAULT_SECTION_ORDER {
         let config = SECTION_CONFIGS[section_index];
@@ -93,6 +108,9 @@ pub fn render(
             [button_width - scroll_adjustment, button_height],
         ) {
             *selected_section = section_index;
+            if multi_instances.iter().any(|summary| summary.section_index == section_index) {
+                action = Some(SidebarAction::SelectInstance { section_index, instance_index: 0 });
+            }
         }
 
         let button_position = ui.item_rect_min();
@@ -114,7 +132,18 @@ pub fn render(
         drop(hovered_color);
         drop(button_color);
 
-        if matches!(section_index, 5 | 6 | 11) {
+        if let Some(summary) =
+            multi_instances.iter().find(|summary| summary.section_index == section_index)
+        {
+            if let Some(instance_action) =
+                render_multi_instance_rows(ui, button_width, config.title, summary)
+            {
+                if let SidebarAction::SelectInstance { .. } = instance_action {
+                    *selected_section = section_index;
+                }
+                action = Some(instance_action);
+            }
+        } else if matches!(section_index, 5 | 11) {
             render_add_instance_row(ui, button_width, section_index);
         }
         if section_index == 14 {
@@ -123,6 +152,48 @@ pub fn render(
             crate::parity::separator(ui);
         }
     }
+    action
+}
+
+fn render_multi_instance_rows(
+    ui: &Ui,
+    button_width: f32,
+    title: &str,
+    summary: &MultiInstanceSummary,
+) -> Option<SidebarAction> {
+    let width = if ui.scroll_max_y() == 0.0 { button_width - 7.0 } else { button_width - 18.0 };
+    let mut action = None;
+    for index in 1..summary.enabled.len() {
+        let enabled = summary.enabled[index];
+        let selected = summary.selected_instance == index;
+        let base = if enabled { ACCENT_PRIMARY } else { DISABLED_COLOR };
+        let button = if selected { brighten(base, if enabled { 1.4 } else { 1.6 }) } else { base };
+        let button_color = ui.push_style_color(StyleColor::Button, button);
+        let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(base, 1.3));
+        let active = ui.push_style_color(StyleColor::ButtonActive, brighten(base, 0.8));
+        if ui.button_with_size(
+            format!("{title} {}##SubInstance{}_{}", index + 1, summary.section_index, index),
+            [width, 0.0],
+        ) {
+            action = Some(SidebarAction::SelectInstance {
+                section_index: summary.section_index,
+                instance_index: index,
+            });
+        }
+        drop(active);
+        drop(hovered);
+        drop(button_color);
+    }
+    let button = ui.push_style_color(StyleColor::Button, BG_LIGHT);
+    let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(BG_LIGHT, 1.3));
+    let active = ui.push_style_color(StyleColor::ButtonActive, brighten(BG_LIGHT, 1.1));
+    if ui.button_with_size(format!("+##AddInstance{}", summary.section_index), [width, 0.0]) {
+        action = Some(SidebarAction::AddInstance { section_index: summary.section_index });
+    }
+    drop(active);
+    drop(hovered);
+    drop(button);
+    action
 }
 
 fn render_add_instance_row(ui: &Ui, button_width: f32, section_index: usize) {

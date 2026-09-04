@@ -38,6 +38,7 @@ pub struct GlobalSettingsState {
     fps: String,
     fps_runtime: u32,
     speed_calibration_revision: u64,
+    wallhop_sensitivity_revision: u64,
     shift_key: u32,
     global_zoom: bool,
     zoom_reverse: bool,
@@ -72,6 +73,11 @@ impl GlobalSettingsState {
     #[must_use]
     pub const fn speed_calibration_revision(&self) -> u64 {
         self.speed_calibration_revision
+    }
+
+    #[must_use]
+    pub const fn wallhop_sensitivity_revision(&self) -> u64 {
+        self.wallhop_sensitivity_revision
     }
 
     #[must_use]
@@ -119,6 +125,7 @@ impl Default for GlobalSettingsState {
             fps: "60".to_owned(),
             fps_runtime: 120,
             speed_calibration_revision: 1,
+            wallhop_sensitivity_revision: 1,
             shift_key: 0x10,
             global_zoom: false,
             zoom_reverse: false,
@@ -207,6 +214,7 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) {
         .build()
     {
         state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
+        state.wallhop_sensitivity_revision = state.wallhop_sensitivity_revision.wrapping_add(1);
     }
     ui.same_line();
     ui.text_wrapped("Your Roblox FPS:");
