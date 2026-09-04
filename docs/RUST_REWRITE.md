@@ -79,6 +79,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Spam a Key (`SpamKey`) slice as the third consumer of the
+  shared multi-instance container. It preserves the constructor quirk where the UI initially displays
+  `20` ms but the worker's `real_delay` remains `1000` ms until that text field is edited; edits use
+  C++ `std::stof` numeric-prefix behavior and `int((delay + 0.5f) / 2)` conversion. Per-index runtime
+  slots are stable and own one long-lived worker each. This intentionally removes C++'s dangling
+  reference hazard while retaining copy-left/pop-back semantics: middle removal keeps the surviving
+  slot/worker identity and only stops the popped final slot. Controller hold/toggle decisions use the
+  characterized state machine; global Macro Toggle clears active worker state while preserving edge
+  latches; each cycle snapshots delay and key-down, then re-reads the output key only after the first
+  half-delay for release, matching the frozen live-read point.
 - `smu-app` now also owns the live Linux Press a Button (`PressKey`) slice using the shared
   multi-instance container. Each instance keeps its own Z-by-default trigger, D-by-default bound
   output key, foreground gate, 16 ms output hold, and 0 ms bonus delay. Runtime keeps one rising-edge

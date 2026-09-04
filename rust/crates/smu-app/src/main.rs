@@ -52,6 +52,9 @@ mod press_key_runtime;
 mod runtime_input;
 mod shell;
 mod sidebar;
+mod spam_key;
+#[cfg(target_os = "linux")]
+mod spam_key_runtime;
 mod speedglitch;
 #[cfg(target_os = "linux")]
 mod speedglitch_runtime;
@@ -104,6 +107,46 @@ fn configure_gl_attributes(video: &sdl3::VideoSubsystem) {
 }
 
 #[cfg(target_os = "linux")]
+struct LinuxPlatformServices {
+    process_control: Arc<ProcCgroupProcessControl>,
+    process_discovery: Arc<ProcDiscovery>,
+    process_foreground: Arc<ProcForegroundProcess>,
+    display_service: Arc<LinuxDisplayCapture>,
+    wayland_portal: Arc<WaylandPortalCapture>,
+    input_service: Arc<EvdevUinputInputDevice>,
+    input_ready: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxPlatformServices {
+    fn new(
+        freeze_authorization: Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>,
+    ) -> Self {
+        let process_control = Arc::new(
+            ProcCgroupProcessControl::default()
+                .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization),
+        );
+        let process_discovery = Arc::new(ProcDiscovery::default());
+        let process_foreground = Arc::new(ProcForegroundProcess::default());
+        let display_service = Arc::new(LinuxDisplayCapture::new());
+        let wayland_portal = display_service.wayland_portal();
+        let input_service = Arc::new(
+            EvdevUinputInputDevice::new().with_wayland_portal(Arc::clone(&wayland_portal)),
+        );
+        let input_ready = input_service.init().is_ok();
+        Self {
+            process_control,
+            process_discovery,
+            process_foreground,
+            display_service,
+            wayland_portal,
+            input_service,
+            input_ready,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
@@ -117,6 +160,7 @@ struct LinuxRuntimeServices {
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
     press_key_controller: Option<press_key_runtime::PressKeyController>,
+    spam_key_controller: Option<spam_key_runtime::SpamKeyController>,
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
     wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
     walless_lhj_controller: Option<walless_lhj_runtime::WallessLhjController>,
@@ -251,6 +295,27 @@ fn start_item_clip_controller(
 }
 
 #[cfg(target_os = "linux")]
+fn start_spam_key_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<spam_key_runtime::SpamKeyController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        spam_key_runtime::SpamKeyController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.spam_key_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
 fn start_speedglitch_controller(
     input_ready: bool,
     input_service: &Arc<EvdevUinputInputDevice>,
@@ -324,95 +389,93 @@ impl LinuxRuntimeServices {
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let freeze_authorization =
             Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
-        let process_control = Arc::new(
-            ProcCgroupProcessControl::default()
-                .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone()),
-        );
-        let process_discovery = Arc::new(ProcDiscovery::default());
-        let process_foreground = Arc::new(ProcForegroundProcess::default());
-        let display_service = Arc::new(LinuxDisplayCapture::new());
-        let wayland_portal = display_service.wayland_portal();
-        let input_service =
-            Arc::new(EvdevUinputInputDevice::new().with_wayland_portal(wayland_portal.clone()));
-        let input_ready = input_service.init().is_ok();
+        let platform = LinuxPlatformServices::new(Arc::clone(&freeze_authorization));
         let lag_switch_controller = start_lag_switch_controller(
-            input_ready,
-            &input_service,
+            platform.input_ready,
+            &platform.input_service,
             &lag_switch_backend,
             &lag_switch_enabled,
             shell_state,
         );
         let freeze_controller = start_freeze_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
-            &process_control,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
+            &platform.process_control,
             shell_state,
         );
         let item_desync_controller = start_item_desync_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         let item_clip_controller = start_item_clip_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         let press_key_controller = start_press_key_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
+            shell_state,
+        );
+        let spam_key_controller = start_spam_key_controller(
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         let speedglitch_controller = start_speedglitch_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         let wall_walk_controller = start_wall_walk_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         let walless_lhj_controller = start_walless_lhj_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
-            &process_control,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
+            &platform.process_control,
             shell_state,
         );
         let wallhop_controller = start_wallhop_controller(
-            input_ready,
-            &input_service,
-            &process_discovery,
-            &process_foreground,
+            platform.input_ready,
+            &platform.input_service,
+            &platform.process_discovery,
+            &platform.process_foreground,
             shell_state,
         );
         Self {
             lag_switch_backend,
             lag_switch_enabled,
             freeze_authorization,
-            _process_control: process_control,
-            _display_service: display_service,
-            wayland_portal,
-            input_service,
+            _process_control: platform.process_control,
+            _display_service: platform.display_service,
+            wayland_portal: platform.wayland_portal,
+            input_service: platform.input_service,
             lag_switch_controller,
             freeze_controller,
             item_desync_controller,
             item_clip_controller,
             press_key_controller,
+            spam_key_controller,
             speedglitch_controller,
             wall_walk_controller,
             walless_lhj_controller,
@@ -462,6 +525,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.press_key_controller.as_ref() {
             controller.update_settings(shell_state.press_key_controller_settings());
+        }
+        if let Some(controller) = self.spam_key_controller.as_ref() {
+            controller.update_settings(shell_state.spam_key_controller_settings());
         }
         if let Some(controller) = self.speedglitch_controller.as_ref() {
             controller.update_settings(shell_state.speedglitch_controller_settings());
@@ -545,6 +611,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.spam_key_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.press_key_controller.as_ref() {
             controller.stop();
         }

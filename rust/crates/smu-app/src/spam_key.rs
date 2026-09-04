@@ -1,0 +1,258 @@
+use crate::multi_instance::MultiInstanceState;
+use dear_imgui_rs::{StyleColor, Ui};
+use smu_core::{Hotkey, KeyCode};
+use std::ffi::{CStr, CString};
+
+const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
+const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
+const ARMED_TEXT: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+const ARMED_BUTTON: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SpamKeyUiInstance {
+    pub enabled: bool,
+    pub trigger: Hotkey,
+    pub output: Hotkey,
+    pub disable_outside_target: bool,
+    pub hold_mode: bool,
+    spam_delay: f32,
+    real_delay_ms: i32,
+    delay_text: String,
+}
+
+impl Default for SpamKeyUiInstance {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            trigger: Hotkey::new(KeyCode::new(0xDB).raw()),
+            output: Hotkey::new(KeyCode::LBUTTON.raw()),
+            disable_outside_target: false,
+            hold_mode: false,
+            spam_delay: 20.0,
+            // Intentional legacy split: constructor displays 20 but leaves real_delay at 1000 until
+            // the delay text is edited.
+            real_delay_ms: 1_000,
+            delay_text: "20".to_owned(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct SpamKeyUiState {
+    instances: MultiInstanceState<SpamKeyUiInstance>,
+}
+
+impl SpamKeyUiState {
+    #[must_use]
+    pub fn instances(&self) -> &[SpamKeyUiInstance] {
+        self.instances.instances()
+    }
+
+    #[must_use]
+    pub const fn selected_index(&self) -> usize {
+        self.instances.selected_index()
+    }
+
+    pub const fn select(&mut self, index: usize) {
+        self.instances.select(index);
+    }
+
+    pub fn add_default(&mut self) {
+        self.instances.add_default();
+    }
+
+    pub fn tick_remove_confirmation(&mut self, delta_seconds: f32, section_selected: bool) {
+        self.instances.tick_remove_confirmation(delta_seconds, section_selected);
+    }
+
+    #[must_use]
+    pub fn first_enabled(&self) -> bool {
+        self.instances().first().is_some_and(|instance| instance.enabled)
+    }
+
+    #[must_use]
+    pub fn enabled_flags(&self) -> Vec<bool> {
+        self.instances().iter().map(|instance| instance.enabled).collect()
+    }
+
+    #[must_use]
+    pub fn controller_settings(
+        &self,
+        macro_enabled: bool,
+        process_selector: String,
+    ) -> crate::spam_key_runtime::SpamKeyControllerSettings {
+        crate::spam_key_runtime::SpamKeyControllerSettings {
+            macro_enabled,
+            process_selector,
+            instances: self
+                .instances()
+                .iter()
+                .map(|instance| crate::spam_key_runtime::SpamKeyInstanceSettings {
+                    section_enabled: instance.enabled,
+                    trigger: instance.trigger,
+                    output: instance.output,
+                    disable_outside_target: instance.disable_outside_target,
+                    hold_mode: instance.hold_mode,
+                    real_delay_ms: instance.real_delay_ms,
+                })
+                .collect(),
+        }
+    }
+}
+
+pub fn render(ui: &Ui, state: &mut SpamKeyUiState) {
+    let count = state.instances.instances().len();
+    let selected = state.instances.selected_index();
+    let sid = format!("_sk{selected}");
+    render_header(ui, state, count, selected);
+    {
+        let instance = state.instances.selected_mut();
+        render_enablement(ui, instance, &sid);
+    }
+    render_instance_controls(ui, state, count, selected, &sid);
+    let instance = state.instances.selected_mut();
+    render_settings(ui, instance, &sid);
+
+    crate::parity::separator(ui);
+    ui.text_wrapped("Explanation:");
+    ui.new_line();
+    ui.text_wrapped("This macro allows you to spam a key very fast while the macro is active. You can use it for gear clipping, autoclicking, or general key-spam.");
+    ui.text_wrapped("For gear clipping, set up near the wall, trigger the macro, and hold W. This can be RNG, but lower FPS often helps.");
+}
+
+fn render_header(ui: &Ui, state: &mut SpamKeyUiState, count: usize, selected: usize) {
+    if count > 1 {
+        ui.text_wrapped(format!("Settings for Spam a Key {}", selected + 1));
+    } else {
+        ui.text_wrapped("Settings for Spam a Key");
+    }
+    crate::parity::separator(ui);
+    ui.new_line();
+    ui.text_wrapped("Keybind:");
+    ui.same_line();
+    ui.text(state.instances.selected_mut().trigger.key().legacy_label());
+}
+
+fn render_enablement(ui: &Ui, instance: &mut SpamKeyUiInstance, sid: &str) {
+    let color =
+        ui.push_style_color(StyleColor::Text, if instance.enabled { SUCCESS } else { ERROR });
+    ui.text_wrapped("Enable This Macro:");
+    drop(color);
+    ui.same_line();
+    ui.checkbox(format!("##SpamKeyEnabled{sid}"), &mut instance.enabled);
+    ui.same_line();
+    ui.text_wrapped("Disable outside of Target Application:");
+    ui.same_line();
+    ui.checkbox(format!("##SpamKeyOutside{sid}"), &mut instance.disable_outside_target);
+}
+
+fn render_instance_controls(
+    ui: &Ui,
+    state: &mut SpamKeyUiState,
+    count: usize,
+    selected: usize,
+    sid: &str,
+) {
+    if count > 1 {
+        ui.text_wrapped(format!("Spam a Key {} of {count}", selected + 1));
+        ui.same_line();
+    }
+    if ui.button(format!("+ Add New##AddSK{sid}")) {
+        state.instances.add_default();
+    }
+    render_remove_button(ui, state, sid);
+    crate::parity::separator(ui);
+}
+
+fn render_settings(ui: &Ui, instance: &mut SpamKeyUiInstance, sid: &str) {
+    ui.text_wrapped("Key to Press:");
+    ui.same_line();
+    ui.text(instance.output.key().legacy_label());
+    ui.text_wrapped("Spam Delay (Milliseconds):");
+    ui.same_line();
+    ui.set_next_item_width(120.0);
+    if ui
+        .input_text(format!("##SpamDelay{sid}"), &mut instance.delay_text)
+        .chars_decimal(true)
+        .chars_no_blank(true)
+        .build()
+        && let Some(delay) = cpp_stof_prefix(&instance.delay_text)
+    {
+        instance.spam_delay = delay;
+        instance.real_delay_ms = spam_real_delay(delay);
+    }
+    ui.text_wrapped("I do not take any responsibility if you set the delay to 0ms");
+    ui.checkbox(format!("Switch from Toggle Key to Hold Key##{sid}"), &mut instance.hold_mode);
+}
+
+fn render_remove_button(ui: &Ui, state: &mut SpamKeyUiState, sid: &str) {
+    let Some(_target) = state.instances.removal_target() else {
+        return;
+    };
+    ui.same_line();
+    let armed = state.instances.removal_is_armed();
+    let _text = armed.then(|| ui.push_style_color(StyleColor::Text, ARMED_TEXT));
+    let _button = armed.then(|| ui.push_style_color(StyleColor::Button, ARMED_BUTTON));
+    let _hovered = armed.then(|| ui.push_style_color(StyleColor::ButtonHovered, ARMED_BUTTON));
+    let _active = armed.then(|| ui.push_style_color(StyleColor::ButtonActive, ARMED_BUTTON));
+    let label = if state.instances.selected_index() == 0 {
+        "- Remove Last Instance"
+    } else {
+        "- Remove Current Instance"
+    };
+    if ui.button(format!("{label}##RemSK{sid}")) {
+        let _ = state.instances.click_remove();
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::manual_midpoint)] // Exact C++ `(delay + .5f) / 2` then int cast.
+fn spam_real_delay(delay: f32) -> i32 {
+    ((delay + 0.5) / 2.0) as i32
+}
+
+fn cpp_stof_prefix(value: &str) -> Option<f32> {
+    let value = CString::new(value).ok()?;
+    let mut end = std::ptr::null_mut();
+    // SAFETY: `value` is NUL-terminated and `end` is a valid out-pointer for `strtof`.
+    let parsed = unsafe { libc::strtof(value.as_ptr(), &raw mut end) };
+    if end == value.as_ptr().cast_mut() {
+        return None;
+    }
+    // Match std::stof's acceptance of a numeric prefix. Reading the tail only verifies that `end`
+    // points inside the same CString allocation.
+    // SAFETY: `strtof` returns `end` pointing into the input string or at its terminating NUL.
+    let _tail = unsafe { CStr::from_ptr(end) };
+    Some(parsed)
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::{SpamKeyUiInstance, SpamKeyUiState, cpp_stof_prefix, spam_real_delay};
+    use smu_core::KeyCode;
+
+    #[test]
+    fn defaults_preserve_cpp_display_runtime_delay_split() {
+        let instance = SpamKeyUiInstance::default();
+        assert!(!instance.enabled);
+        assert_eq!(instance.trigger.key(), KeyCode::new(0xDB));
+        assert_eq!(instance.output.key(), KeyCode::LBUTTON);
+        assert!(!instance.disable_outside_target);
+        assert!(!instance.hold_mode);
+        assert!((instance.spam_delay - 20.0).abs() < f32::EPSILON);
+        assert_eq!(instance.delay_text, "20");
+        assert_eq!(instance.real_delay_ms, 1_000);
+    }
+
+    #[test]
+    fn delay_edit_formula_matches_cpp_cast() {
+        let mut state = SpamKeyUiState::default();
+        let instance = state.instances.selected_mut();
+        let delay = cpp_stof_prefix("20junk").expect("numeric prefix should parse");
+        instance.spam_delay = delay;
+        instance.real_delay_ms = spam_real_delay(delay);
+        assert_eq!(instance.real_delay_ms, 10);
+    }
+}

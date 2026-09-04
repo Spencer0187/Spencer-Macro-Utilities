@@ -8,6 +8,7 @@ use crate::{
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     press_key::{self, PressKeyUiState},
     sidebar,
+    spam_key::{self, SpamKeyUiState},
     speedglitch::{self, SpeedglitchUiState},
     wall_walk::{self, WallWalkUiState},
     walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
@@ -79,6 +80,7 @@ pub struct ShellState {
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
     press_key: PressKeyUiState,
+    spam_key: SpamKeyUiState,
     speedglitch: SpeedglitchUiState,
     wall_walk: WallWalkUiState,
     walless_lhj: WallessLhjUiState,
@@ -99,6 +101,7 @@ impl Default for ShellState {
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
             press_key: PressKeyUiState::default(),
+            spam_key: SpamKeyUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
             wall_walk: WallWalkUiState::default(),
             walless_lhj: WallessLhjUiState::default(),
@@ -140,6 +143,7 @@ impl ShellState {
         enabled[7] = self.walless_lhj.enabled;
         enabled[8] = self.item_clip.enabled;
         enabled[10] = self.wall_walk.enabled;
+        enabled[11] = self.spam_key.first_enabled();
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -159,6 +163,15 @@ impl ShellState {
         &self,
     ) -> crate::item_clip_runtime::ItemClipControllerSettings {
         self.item_clip
+            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn spam_key_controller_settings(
+        &self,
+    ) -> crate::spam_key_runtime::SpamKeyControllerSettings {
+        self.spam_key
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
     }
 
@@ -425,6 +438,7 @@ fn render_macro_sidebar(
     let delta_time = ui.io().delta_time();
     state.press_key.tick_remove_confirmation(delta_time, state.selected_section == 5);
     state.wallhop.tick_remove_confirmation(delta_time, state.selected_section == 6);
+    state.spam_key.tick_remove_confirmation(delta_time, state.selected_section == 11);
     let section_enabled = state.section_enabled();
     let multi_instances = [
         sidebar::MultiInstanceSummary {
@@ -436,6 +450,11 @@ fn render_macro_sidebar(
             section_index: 6,
             enabled: state.wallhop.enabled_flags(),
             selected_instance: state.wallhop.selected_index(),
+        },
+        sidebar::MultiInstanceSummary {
+            section_index: 11,
+            enabled: state.spam_key.enabled_flags(),
+            selected_instance: state.spam_key.selected_index(),
         },
     ];
     let mut sidebar_action = None;
@@ -463,6 +482,12 @@ fn render_macro_sidebar(
         }
         Some(sidebar::SidebarAction::AddInstance { section_index: 6 }) => {
             state.wallhop.add_default();
+        }
+        Some(sidebar::SidebarAction::SelectInstance { section_index: 11, instance_index }) => {
+            state.spam_key.select(instance_index);
+        }
+        Some(sidebar::SidebarAction::AddInstance { section_index: 11 }) => {
+            state.spam_key.add_default();
         }
         _ => {}
     }
@@ -525,6 +550,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
                 state.global.sensitivity(),
                 state.global.cam_fix_enabled(),
             ),
+            11 => spam_key::render(ui, &mut state.spam_key),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));
