@@ -79,6 +79,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now also owns the live Linux Press a Button (`PressKey`) slice using the shared
+  multi-instance container. Each instance keeps its own Z-by-default trigger, D-by-default bound
+  output key, foreground gate, 16 ms output hold, and 0 ms bonus delay. Runtime keeps one rising-edge
+  latch per instance and resets the entire latch vector on count changes, just like C++. Each rising
+  edge snapshots trigger/output/delays before spawning an overlapping one-shot worker. The worker
+  preserves the same-key quirk (release the trigger first when trigger and output match), clamps bonus
+  delay to nonnegative and hold delay to at least 1 ms through the characterized runtime plan, checks
+  the shared running flag only after the optional bonus delay, and otherwise completes output
+  hold/release even if shutdown begins during the hold.
 - `smu-app` now owns the live Linux Wallhop/Rotation slice and the first shared multi-instance UI
   container. The container preserves the C++ rules used by Wallhop, PressKey, and SpamKey: there is
   always one main instance; new instances append defaults; removing while the main slot is selected

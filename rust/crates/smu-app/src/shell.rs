@@ -6,6 +6,7 @@ use crate::{
     item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
+    press_key::{self, PressKeyUiState},
     sidebar,
     speedglitch::{self, SpeedglitchUiState},
     wall_walk::{self, WallWalkUiState},
@@ -77,6 +78,7 @@ pub struct ShellState {
     freeze: FreezeUiState,
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
+    press_key: PressKeyUiState,
     speedglitch: SpeedglitchUiState,
     wall_walk: WallWalkUiState,
     walless_lhj: WallessLhjUiState,
@@ -96,6 +98,7 @@ impl Default for ShellState {
             freeze: FreezeUiState::default(),
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
+            press_key: PressKeyUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
             wall_walk: WallWalkUiState::default(),
             walless_lhj: WallessLhjUiState::default(),
@@ -132,6 +135,7 @@ impl ShellState {
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
         enabled[3] = self.speedglitch.enabled;
+        enabled[5] = self.press_key.first_enabled();
         enabled[6] = self.wallhop.first_enabled();
         enabled[7] = self.walless_lhj.enabled;
         enabled[8] = self.item_clip.enabled;
@@ -168,6 +172,15 @@ impl ShellState {
             self.global.fps_runtime(),
             self.global.process_selector(),
         )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn press_key_controller_settings(
+        &self,
+    ) -> crate::press_key_runtime::PressKeyControllerSettings {
+        self.press_key
+            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -403,6 +416,58 @@ fn render_wayland_remote_desktop_modal(
     None
 }
 
+fn render_macro_sidebar(
+    ui: &Ui,
+    state: &mut ShellState,
+    left_panel_width: f32,
+    left_panel_height: f32,
+) {
+    let delta_time = ui.io().delta_time();
+    state.press_key.tick_remove_confirmation(delta_time, state.selected_section == 5);
+    state.wallhop.tick_remove_confirmation(delta_time, state.selected_section == 6);
+    let section_enabled = state.section_enabled();
+    let multi_instances = [
+        sidebar::MultiInstanceSummary {
+            section_index: 5,
+            enabled: state.press_key.enabled_flags(),
+            selected_instance: state.press_key.selected_index(),
+        },
+        sidebar::MultiInstanceSummary {
+            section_index: 6,
+            enabled: state.wallhop.enabled_flags(),
+            selected_instance: state.wallhop.selected_index(),
+        },
+    ];
+    let mut sidebar_action = None;
+    ui.child_window(LEFT_SCROLL_CHILD)
+        .size([left_panel_width, left_panel_height])
+        .border(true)
+        .build(ui, || {
+            sidebar_action = sidebar::render(
+                ui,
+                left_panel_width,
+                &mut state.selected_section,
+                &section_enabled,
+                &multi_instances,
+            );
+        });
+    match sidebar_action {
+        Some(sidebar::SidebarAction::SelectInstance { section_index: 5, instance_index }) => {
+            state.press_key.select(instance_index);
+        }
+        Some(sidebar::SidebarAction::AddInstance { section_index: 5 }) => {
+            state.press_key.add_default();
+        }
+        Some(sidebar::SidebarAction::SelectInstance { section_index: 6, instance_index }) => {
+            state.wallhop.select(instance_index);
+        }
+        Some(sidebar::SidebarAction::AddInstance { section_index: 6 }) => {
+            state.wallhop.add_default();
+        }
+        _ => {}
+    }
+}
+
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
 fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> Option<ShellAction> {
     let style = ui.clone_style();
@@ -432,35 +497,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
-    state.wallhop.tick_remove_confirmation(ui.io().delta_time(), state.selected_section == 6);
-    let section_enabled = state.section_enabled();
-    let wallhop_summary = sidebar::MultiInstanceSummary {
-        section_index: 6,
-        enabled: state.wallhop.enabled_flags(),
-        selected_instance: state.wallhop.selected_index(),
-    };
-    let mut sidebar_action = None;
-    ui.child_window(LEFT_SCROLL_CHILD)
-        .size([left_panel_width, left_panel_height])
-        .border(true)
-        .build(ui, || {
-            sidebar_action = sidebar::render(
-                ui,
-                left_panel_width,
-                &mut state.selected_section,
-                &section_enabled,
-                &[wallhop_summary],
-            );
-        });
-    match sidebar_action {
-        Some(sidebar::SidebarAction::SelectInstance { section_index: 6, instance_index }) => {
-            state.wallhop.select(instance_index);
-        }
-        Some(sidebar::SidebarAction::AddInstance { section_index: 6 }) => {
-            state.wallhop.add_default();
-        }
-        _ => {}
-    }
+    render_macro_sidebar(ui, state, left_panel_width, left_panel_height);
 
     ui.same_line();
     let right_section_size = [
@@ -473,6 +510,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
             3 => speedglitch::render(ui, &mut state.speedglitch),
+            5 => press_key::render(ui, &mut state.press_key),
             6 => wallhop::render(
                 ui,
                 &mut state.wallhop,

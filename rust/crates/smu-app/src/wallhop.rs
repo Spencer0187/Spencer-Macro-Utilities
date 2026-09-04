@@ -149,10 +149,13 @@ pub fn render(ui: &Ui, state: &mut WallhopUiState, sensitivity: &str, cam_fix: b
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
     let sid = format!("_wh{selected}");
-    render_instance_header(ui, state, count, selected, &sid);
-
+    render_instance_header(ui, state, count, selected);
+    {
+        let instance = state.instances.selected_mut();
+        render_instance_enablement(ui, instance, &sid);
+    }
+    render_instance_controls(ui, state, count, selected, &sid);
     let instance = state.instances.selected_mut();
-    render_instance_enablement(ui, instance, &sid);
     render_instance_motion(ui, instance, sensitivity, cam_fix, &sid);
     render_instance_options(ui, instance, &sid);
 
@@ -162,16 +165,26 @@ pub fn render(ui: &Ui, state: &mut WallhopUiState, sensitivity: &str, cam_fix: b
     ui.text_wrapped("This macro automates the camera flick, optional jump, and flick-back timing used for wallhops. Each instance has independent settings and a trigger key.");
 }
 
-fn render_instance_header(
+fn render_instance_header(ui: &Ui, state: &mut WallhopUiState, count: usize, selected: usize) {
+    if count > 1 {
+        ui.text_wrapped(format!("Settings for Wallhop/Rotation {}", selected + 1));
+    } else {
+        ui.text_wrapped("Settings for Wallhop/Rotation");
+    }
+    crate::parity::separator(ui);
+    ui.new_line();
+    ui.text_wrapped("Keybind:");
+    ui.same_line();
+    ui.text(state.instances.selected_mut().trigger.key().legacy_label());
+}
+
+fn render_instance_controls(
     ui: &Ui,
     state: &mut WallhopUiState,
     count: usize,
     selected: usize,
     sid: &str,
 ) {
-    ui.text_wrapped("Settings for Wallhop/Rotation");
-    crate::parity::separator(ui);
-    ui.new_line();
     if count > 1 {
         ui.text_wrapped(format!("Wallhop/Rotation {} of {count}", selected + 1));
         ui.same_line();
@@ -184,9 +197,6 @@ fn render_instance_header(
 }
 
 fn render_instance_enablement(ui: &Ui, instance: &mut WallhopUiInstance, sid: &str) {
-    ui.text_wrapped("Keybind:");
-    ui.same_line();
-    ui.text(instance.trigger.key().legacy_label());
     let color =
         ui.push_style_color(StyleColor::Text, if instance.enabled { SUCCESS } else { ERROR });
     ui.text_wrapped("Enable This Macro:");
