@@ -40,6 +40,7 @@ pub struct GlobalSettingsState {
     speed_calibration_revision: u64,
     wallhop_sensitivity_revision: u64,
     shift_key: u32,
+    chat_key: u32,
     global_zoom: bool,
     zoom_reverse: bool,
 }
@@ -86,6 +87,11 @@ impl GlobalSettingsState {
     }
 
     #[must_use]
+    pub const fn chat_key(&self) -> u32 {
+        self.chat_key
+    }
+
+    #[must_use]
     pub const fn global_zoom(&self) -> bool {
         self.global_zoom
     }
@@ -127,6 +133,7 @@ impl Default for GlobalSettingsState {
             speed_calibration_revision: 1,
             wallhop_sensitivity_revision: 1,
             shift_key: 0x10,
+            chat_key: 0xBF,
             global_zoom: false,
             zoom_reverse: false,
         }
@@ -261,6 +268,7 @@ mod tests {
         assert_eq!(state.fps_runtime(), 120);
         assert!(!state.cam_fix_enabled());
         assert_eq!(state.shift_key(), 0x10);
+        assert_eq!(state.chat_key(), 0xBF);
         assert!(!state.global_zoom());
         assert!(!state.zoom_reverse());
     }

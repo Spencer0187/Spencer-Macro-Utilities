@@ -1,6 +1,7 @@
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 
 use crate::{
+    bunnyhop::{self, BunnyhopUiState},
     freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsState},
     item_clip::{self, ItemClipUiState},
@@ -78,6 +79,7 @@ pub struct ShellState {
     global: GlobalSettingsState,
     selected_section: usize,
     freeze: FreezeUiState,
+    bunnyhop: BunnyhopUiState,
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
     press_key: PressKeyUiState,
@@ -100,6 +102,7 @@ impl Default for ShellState {
             global: GlobalSettingsState::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
+            bunnyhop: BunnyhopUiState::default(),
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
             press_key: PressKeyUiState::default(),
@@ -148,6 +151,7 @@ impl ShellState {
         enabled[10] = self.wall_walk.enabled;
         enabled[11] = self.spam_key.first_enabled();
         enabled[12] = self.ledge_bounce.enabled;
+        enabled[13] = self.bunnyhop.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -177,6 +181,18 @@ impl ShellState {
     ) -> crate::spam_key_runtime::SpamKeyControllerSettings {
         self.spam_key
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn bunnyhop_controller_settings(
+        &self,
+    ) -> crate::bunnyhop_runtime::BunnyhopControllerSettings {
+        self.bunnyhop.controller_settings(
+            self.global.macro_enabled(),
+            self.global.chat_key(),
+            self.global.process_selector(),
+        )
     }
 
     #[cfg(target_os = "linux")]
@@ -569,6 +585,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             ),
             11 => spam_key::render(ui, &mut state.spam_key),
             12 => ledge_bounce::render(ui, &mut state.ledge_bounce),
+            13 => bunnyhop::render(ui, &mut state.bunnyhop),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));

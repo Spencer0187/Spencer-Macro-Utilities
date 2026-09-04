@@ -25,6 +25,9 @@ use smu_process::linux::{
 #[cfg(target_os = "linux")]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 
+mod bunnyhop;
+#[cfg(target_os = "linux")]
+mod bunnyhop_runtime;
 mod capture;
 mod freeze;
 #[cfg(target_os = "linux")]
@@ -150,6 +153,15 @@ impl LinuxPlatformServices {
 }
 
 #[cfg(target_os = "linux")]
+fn create_linux_platform_services()
+-> (Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>, LinuxPlatformServices) {
+    let authorization =
+        Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
+    let platform = LinuxPlatformServices::new(Arc::clone(&authorization));
+    (authorization, platform)
+}
+
+#[cfg(target_os = "linux")]
 struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
@@ -159,6 +171,7 @@ struct LinuxRuntimeServices {
     wayland_portal: Arc<WaylandPortalCapture>,
     input_service: Arc<EvdevUinputInputDevice>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
+    bunnyhop_controller: Option<bunnyhop_runtime::BunnyhopController>,
     freeze_controller: Option<freeze_runtime::FreezeController>,
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
@@ -169,6 +182,25 @@ struct LinuxRuntimeServices {
     wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
     walless_lhj_controller: Option<walless_lhj_runtime::WallessLhjController>,
     wallhop_controller: Option<wallhop_runtime::WallhopController>,
+}
+
+#[cfg(target_os = "linux")]
+fn start_bunnyhop_controller(
+    platform: &LinuxPlatformServices,
+    shell_state: &shell::ShellState,
+) -> Option<bunnyhop_runtime::BunnyhopController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        bunnyhop_runtime::BunnyhopController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.bunnyhop_controller_settings(),
+        )
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -410,9 +442,8 @@ impl LinuxRuntimeServices {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend = Arc::new(LinuxLagSwitchBackend::new(Some(roblox_log)));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
-        let freeze_authorization =
-            Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
-        let platform = LinuxPlatformServices::new(Arc::clone(&freeze_authorization));
+        let (freeze_authorization, platform) = create_linux_platform_services();
+        let bunnyhop_controller = start_bunnyhop_controller(&platform, shell_state);
         let lag_switch_controller = start_lag_switch_controller(
             platform.input_ready,
             &platform.input_service,
@@ -495,6 +526,7 @@ impl LinuxRuntimeServices {
             wayland_portal: platform.wayland_portal,
             input_service: platform.input_service,
             lag_switch_controller,
+            bunnyhop_controller,
             freeze_controller,
             item_desync_controller,
             item_clip_controller,
@@ -531,6 +563,9 @@ impl LinuxRuntimeServices {
         action: Option<shell::ShellAction>,
         shell_state: &mut shell::ShellState,
     ) {
+        if let Some(controller) = self.bunnyhop_controller.as_ref() {
+            controller.update_settings(shell_state.bunnyhop_controller_settings());
+        }
         if let Some(controller) = self.lag_switch_controller.as_ref() {
             controller.update_settings(shell_state.lag_switch_controller_settings());
             if controller.take_helper_prompt_request() {
@@ -639,6 +674,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.bunnyhop_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.ledge_bounce_controller.as_ref() {
             controller.stop();
         }

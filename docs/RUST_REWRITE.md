@@ -79,6 +79,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Bunnyhop slice. Its 2 ms controller owns target-foreground
+  eligibility, Intelligent Auto-Toggle chat locking, and the physical hotkey decision; the lock uses
+  the C++ update order where chat-open is applied before Enter/left-click clears it, and guard exits do
+  not reset it. Linux `smu-input` reads physical state only from real evdev devices and excludes SMU's
+  uinput device, so the C++ keyboard-latch requirement is satisfied without a second synthetic state
+  source. One long-lived owned worker replaces repeated activation-thread creation while preserving
+  the active handoff: each iteration snapshots output hotkey and half-delay, performs bound key-down,
+  waits the first half, always releases that snapshotted hotkey, and only then honors mid-cycle
+  cancellation before the optional second half-delay. Wheel triggers remain physically ineligible and
+  mouse-button/packed-modifier triggers use the characterized source classification.
 - `smu-app` now owns the live Linux Ledge Bounce slice. The C-key controller keeps the C++
   rising-edge latch and foreground gate, then launches overlapping one-shot workers with no active
   guard. Sensitivity, Cam-Fix, and side are read at worker start; the worker executes the frozen
