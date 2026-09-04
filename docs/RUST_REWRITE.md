@@ -34,8 +34,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 
 ## Current Rust service slices
 
-- `smu-input` owns physical/injected input contracts plus the historical text-entry fallback
-  mapping. Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
+- `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
+  hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
+  Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
 - `smu-display` owns monitor geometry, script coordinate modes, pixel colors/rectangle reads, and
   the screen-capture capability. This freezes `input_actions.cpp` coordinate behavior without
   recreating the legacy mixed input/display backend.

@@ -10,3 +10,7 @@ workspace = true
 
 [dependencies]
 smu-core = { version = "=0.0.0", path = "../smu-core" }
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true

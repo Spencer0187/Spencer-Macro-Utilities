@@ -1,0 +1,279 @@
+{
+  "cases": [
+    {
+      "hotkey": 131072,
+      "name": "unbound",
+      "pressed": [
+        17
+      ],
+      "result": false,
+      "strict": false
+    },
+    {
+      "hotkey": 65,
+      "name": "plain-down",
+      "pressed": [
+        65
+      ],
+      "result": true,
+      "strict": false
+    },
+    {
+      "hotkey": 65,
+      "name": "plain-up",
+      "pressed": [],
+      "result": false,
+      "strict": false
+    },
+    {
+      "hotkey": 131137,
+      "name": "loose-extra-shift",
+      "pressed": [
+        17,
+        16,
+        65
+      ],
+      "result": true,
+      "strict": false
+    },
+    {
+      "hotkey": 131137,
+      "name": "strict-extra-shift",
+      "pressed": [
+        17,
+        16,
+        65
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 196673,
+      "name": "strict-exact",
+      "pressed": [
+        17,
+        16,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 131137,
+      "name": "left-ctrl-satisfies-generic",
+      "pressed": [
+        162,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 131137,
+      "name": "right-ctrl-satisfies-generic",
+      "pressed": [
+        163,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 65601,
+      "name": "left-shift-satisfies-generic",
+      "pressed": [
+        160,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 65601,
+      "name": "right-shift-satisfies-generic",
+      "pressed": [
+        161,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 262209,
+      "name": "left-alt-satisfies-generic",
+      "pressed": [
+        164,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 262209,
+      "name": "right-alt-satisfies-generic",
+      "pressed": [
+        165,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 524353,
+      "name": "left-win-satisfies-win",
+      "pressed": [
+        91,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 524353,
+      "name": "right-win-satisfies-win",
+      "pressed": [
+        92,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 17,
+      "name": "generic-ctrl-main-strict",
+      "pressed": [
+        162
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 162,
+      "name": "left-ctrl-main-strict",
+      "pressed": [
+        17
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 163,
+      "name": "right-ctrl-main-strict",
+      "pressed": [
+        162
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 16,
+      "name": "generic-shift-main-strict",
+      "pressed": [
+        161
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 164,
+      "name": "left-alt-main-strict",
+      "pressed": [
+        18
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 92,
+      "name": "right-win-main-strict",
+      "pressed": [
+        91
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 162,
+      "name": "modifier-main-extra-family-rejected",
+      "pressed": [
+        162,
+        16
+      ],
+      "result": false,
+      "strict": true
+    },
+    {
+      "hotkey": 1,
+      "name": "mouse-button",
+      "pressed": [
+        1
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 256,
+      "name": "wheel-up-predicate",
+      "pressed": [
+        256
+      ],
+      "result": true,
+      "strict": false
+    },
+    {
+      "hotkey": 257,
+      "name": "wheel-down-predicate",
+      "pressed": [
+        257
+      ],
+      "result": true,
+      "strict": false
+    },
+    {
+      "hotkey": 4026531905,
+      "name": "high-bits-ignored",
+      "pressed": [
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 983105,
+      "name": "all-modifiers-left",
+      "pressed": [
+        91,
+        162,
+        164,
+        160,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 983105,
+      "name": "all-modifiers-right",
+      "pressed": [
+        92,
+        163,
+        165,
+        161,
+        65
+      ],
+      "result": true,
+      "strict": true
+    },
+    {
+      "hotkey": 393281,
+      "name": "missing-required-alt",
+      "pressed": [
+        17,
+        65
+      ],
+      "result": false,
+      "strict": false
+    }
+  ],
+  "oracle": "smu_compat_oracle input-hotkey"
+}

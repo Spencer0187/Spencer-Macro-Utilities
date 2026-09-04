@@ -566,6 +566,8 @@ version = "0.0.0"
 name = "smu-input"
 version = "0.0.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "smu-core",
 ]
 

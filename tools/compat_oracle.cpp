@@ -1,3 +1,4 @@
+#include "../app/input_actions_compat_logic.h"
 #include "../app/script_metadata.h"
 #include "../core/key_codes.h"
 #include "../platform/roblox_log_reader.h"
@@ -7,6 +8,7 @@
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -45,6 +47,31 @@ Json HotkeyJson(const std::string& input)
     result["alt"] = (raw & smu::core::HOTKEY_MASK_ALT) != 0;
     result["win"] = (raw & smu::core::HOTKEY_MASK_WIN) != 0;
     return result;
+}
+
+Json InputHotkeyJson(const std::string& input)
+{
+    const Json payload = Json::parse(input);
+    const unsigned int hotkey = payload.at("hotkey").get<unsigned int>();
+    const bool strict = payload.value("strict", false);
+    std::set<unsigned int> pressed;
+    for (const auto& value : payload.value("pressed", Json::array())) {
+        pressed.insert(value.get<unsigned int>());
+    }
+
+    const bool result = smu::app::compat::IsHotkeyPressedWithPredicate(
+        [&pressed](smu::core::KeyCode key) {
+            return pressed.contains(static_cast<unsigned int>(key));
+        },
+        hotkey,
+        strict);
+    return Json{
+        {"operation", "input-hotkey"},
+        {"hotkey", hotkey},
+        {"strict", strict},
+        {"pressed", pressed},
+        {"result", result},
+    };
 }
 
 Json KeyNameJson(const std::string& input)
@@ -124,6 +151,7 @@ int Usage()
 {
     std::cerr << "usage:\n"
               << "  smu_compat_oracle hotkey <text>\n"
+              << "  smu_compat_oracle input-hotkey <json>\n"
               << "  smu_compat_oracle key-name <text>\n"
               << "  smu_compat_oracle script-metadata <path>\n"
               << "  smu_compat_oracle roblox-file <path>\n";
@@ -142,6 +170,8 @@ int main(int argc, char** argv)
     Json result;
     if (operation == "hotkey") {
         result = HotkeyJson(argv[2]);
+    } else if (operation == "input-hotkey") {
+        result = InputHotkeyJson(argv[2]);
     } else if (operation == "key-name") {
         result = KeyNameJson(argv[2]);
     } else if (operation == "script-metadata") {

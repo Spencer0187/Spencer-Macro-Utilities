@@ -79,6 +79,59 @@ def write_hotkeys() -> None:
     write_json(ROOT / "compat" / "hotkeys" / "cases.json", output)
 
 
+def input_hotkey_inputs() -> list[dict[str, Any]]:
+    shift = 0x10000
+    ctrl = 0x20000
+    alt = 0x40000
+    win = 0x80000
+    cases: list[dict[str, Any]] = [
+        {"name": "unbound", "hotkey": ctrl, "strict": False, "pressed": [0x11]},
+        {"name": "plain-down", "hotkey": 0x41, "strict": False, "pressed": [0x41]},
+        {"name": "plain-up", "hotkey": 0x41, "strict": False, "pressed": []},
+        {"name": "loose-extra-shift", "hotkey": ctrl | 0x41, "strict": False, "pressed": [0x11, 0x10, 0x41]},
+        {"name": "strict-extra-shift", "hotkey": ctrl | 0x41, "strict": True, "pressed": [0x11, 0x10, 0x41]},
+        {"name": "strict-exact", "hotkey": ctrl | shift | 0x41, "strict": True, "pressed": [0x11, 0x10, 0x41]},
+        {"name": "left-ctrl-satisfies-generic", "hotkey": ctrl | 0x41, "strict": True, "pressed": [0xA2, 0x41]},
+        {"name": "right-ctrl-satisfies-generic", "hotkey": ctrl | 0x41, "strict": True, "pressed": [0xA3, 0x41]},
+        {"name": "left-shift-satisfies-generic", "hotkey": shift | 0x41, "strict": True, "pressed": [0xA0, 0x41]},
+        {"name": "right-shift-satisfies-generic", "hotkey": shift | 0x41, "strict": True, "pressed": [0xA1, 0x41]},
+        {"name": "left-alt-satisfies-generic", "hotkey": alt | 0x41, "strict": True, "pressed": [0xA4, 0x41]},
+        {"name": "right-alt-satisfies-generic", "hotkey": alt | 0x41, "strict": True, "pressed": [0xA5, 0x41]},
+        {"name": "left-win-satisfies-win", "hotkey": win | 0x41, "strict": True, "pressed": [0x5B, 0x41]},
+        {"name": "right-win-satisfies-win", "hotkey": win | 0x41, "strict": True, "pressed": [0x5C, 0x41]},
+        {"name": "generic-ctrl-main-strict", "hotkey": 0x11, "strict": True, "pressed": [0xA2]},
+        {"name": "left-ctrl-main-strict", "hotkey": 0xA2, "strict": True, "pressed": [0x11]},
+        {"name": "right-ctrl-main-strict", "hotkey": 0xA3, "strict": True, "pressed": [0xA2]},
+        {"name": "generic-shift-main-strict", "hotkey": 0x10, "strict": True, "pressed": [0xA1]},
+        {"name": "left-alt-main-strict", "hotkey": 0xA4, "strict": True, "pressed": [0x12]},
+        {"name": "right-win-main-strict", "hotkey": 0x5C, "strict": True, "pressed": [0x5B]},
+        {"name": "modifier-main-extra-family-rejected", "hotkey": 0xA2, "strict": True, "pressed": [0xA2, 0x10]},
+        {"name": "mouse-button", "hotkey": 0x01, "strict": True, "pressed": [0x01]},
+        {"name": "wheel-up-predicate", "hotkey": 256, "strict": False, "pressed": [256]},
+        {"name": "wheel-down-predicate", "hotkey": 257, "strict": False, "pressed": [257]},
+        {"name": "high-bits-ignored", "hotkey": 0xF0000000 | 0x41, "strict": True, "pressed": [0x41]},
+        {"name": "all-modifiers-left", "hotkey": win | ctrl | alt | shift | 0x41, "strict": True, "pressed": [0x5B, 0xA2, 0xA4, 0xA0, 0x41]},
+        {"name": "all-modifiers-right", "hotkey": win | ctrl | alt | shift | 0x41, "strict": True, "pressed": [0x5C, 0xA3, 0xA5, 0xA1, 0x41]},
+        {"name": "missing-required-alt", "hotkey": ctrl | alt | 0x41, "strict": False, "pressed": [0x11, 0x41]},
+    ]
+    return cases
+
+
+def write_input_hotkeys() -> None:
+    cases = []
+    for case in input_hotkey_inputs():
+        observed = run_json(ORACLE, "input-hotkey", compact({
+            "hotkey": case["hotkey"],
+            "strict": case["strict"],
+            "pressed": case["pressed"],
+        }))
+        cases.append({**case, "result": observed["result"]})
+    write_json(
+        ROOT / "compat" / "input" / "hotkey_cases.json",
+        {"oracle": "smu_compat_oracle input-hotkey", "cases": cases},
+    )
+
+
 def script_metadata_inputs() -> list[tuple[str, str, str]]:
     return [
         ("empty-fallback", "Fallback.lua", ""),
@@ -2397,12 +2450,15 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "profiles", "roblox", "runtime", "script-metadata", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "profiles", "roblox", "runtime", "script-metadata", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_hotkeys()
+    if args.fixture in {"input-hotkeys", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_input_hotkeys()
     if args.fixture in {"script-metadata", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_script_metadata()
