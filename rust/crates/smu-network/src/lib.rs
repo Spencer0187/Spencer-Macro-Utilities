@@ -3,6 +3,9 @@
 //! Privileged packet interception is a transport concern. This crate owns the deterministic config
 //! arbitration and command grammar so Windows/Linux transports can share one tested policy layer.
 
+#[cfg(target_os = "linux")]
+pub mod linux;
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum LagSwitchTargetMode {
     #[default]

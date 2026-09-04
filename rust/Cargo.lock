@@ -695,6 +695,10 @@ dependencies = [
 [[package]]
 name = "smu-network"
 version = "0.0.0"
+dependencies = [
+ "libc",
+ "smu-roblox",
+]
 
 [[package]]
 name = "smu-process"

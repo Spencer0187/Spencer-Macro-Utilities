@@ -64,10 +64,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
 - `smu-network` owns lag-switch config arbitration, the deterministic Linux helper command grammar,
-  and the runtime control capability used by scripting. `smu-scripting` now wires `lagSwitch` /
-  `lagswitch`, config get/set/clear, and status through that service with the legacy field/range,
-  owner-token, settings, and cleanup semantics. Privileged packet interception remains a transport
-  implementation; Roblox endpoint discovery is supplied by `smu-roblox`.
+  and the runtime control capability used by scripting. Linux now also has the real root-validated
+  `nethelper` Unix-socket transport, applied-command dedup/error semantics, script/base ownership,
+  and the one-second dynamic Roblox-target refresh worker; endpoint metadata comes from `smu-roblox`
+  instead of duplicating log parsing. `smu-scripting` wires `lagSwitch` / `lagswitch`, config
+  get/set/clear, and status through that service with the legacy field/range, owner-token, settings,
+  and cleanup semantics. The graphical `pkexec` helper-launch UX remains app-owned.
 - `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop

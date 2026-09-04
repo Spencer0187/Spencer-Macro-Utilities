@@ -5,5 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[dependencies]
+smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
+
 [lints]
 workspace = true
