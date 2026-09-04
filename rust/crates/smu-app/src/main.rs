@@ -29,10 +29,16 @@ mod bunnyhop;
 #[cfg(target_os = "linux")]
 mod bunnyhop_runtime;
 mod capture;
+mod floor_bounce;
+#[cfg(target_os = "linux")]
+mod floor_bounce_runtime;
 mod freeze;
 #[cfg(target_os = "linux")]
 mod freeze_runtime;
 mod global_settings;
+mod hhj;
+#[cfg(target_os = "linux")]
+mod hhj_runtime;
 mod item_clip;
 #[cfg(target_os = "linux")]
 mod item_clip_runtime;
@@ -172,6 +178,8 @@ struct LinuxRuntimeServices {
     input_service: Arc<EvdevUinputInputDevice>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     bunnyhop_controller: Option<bunnyhop_runtime::BunnyhopController>,
+    hhj_controller: Option<hhj_runtime::HhjController>,
+    floor_bounce_controller: Option<floor_bounce_runtime::FloorBounceController>,
     freeze_controller: Option<freeze_runtime::FreezeController>,
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
@@ -204,15 +212,60 @@ fn start_bunnyhop_controller(
 }
 
 #[cfg(target_os = "linux")]
+fn start_floor_bounce_controller(
+    platform: &LinuxPlatformServices,
+    shared_hhj_active: Arc<AtomicBool>,
+    shell_state: &shell::ShellState,
+) -> Option<floor_bounce_runtime::FloorBounceController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
+        floor_bounce_runtime::FloorBounceController::start(
+            input,
+            discovery,
+            foreground,
+            control,
+            shared_hhj_active,
+            shell_state.floor_bounce_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_hhj_controller(
+    platform: &LinuxPlatformServices,
+    shared_active: Arc<AtomicBool>,
+    shell_state: &shell::ShellState,
+) -> Option<hhj_runtime::HhjController> {
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
+        hhj_runtime::HhjController::start(
+            input,
+            discovery,
+            foreground,
+            control,
+            shared_active,
+            shell_state.hhj_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
 fn start_lag_switch_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
+    platform: &LinuxPlatformServices,
     lag_switch_backend: &Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: &Arc<AtomicBool>,
     shell_state: &shell::ShellState,
 ) -> Option<lag_switch_runtime::LagSwitchController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::KeyState> = input_service.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
         lag_switch_runtime::LagSwitchController::start(
             input,
             Arc::clone(lag_switch_backend),
@@ -266,18 +319,15 @@ fn start_wallhop_controller(
 
 #[cfg(target_os = "linux")]
 fn start_freeze_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
-    process_discovery: &Arc<ProcDiscovery>,
-    process_foreground: &Arc<ProcForegroundProcess>,
-    process_control: &Arc<ProcCgroupProcessControl>,
+    platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
 ) -> Option<freeze_runtime::FreezeController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::KeyState> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-        let control: Arc<dyn smu_process::ProcessControl> = process_control.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
         freeze_runtime::FreezeController::start(
             input,
             discovery,
@@ -443,22 +493,18 @@ impl LinuxRuntimeServices {
         let lag_switch_backend = Arc::new(LinuxLagSwitchBackend::new(Some(roblox_log)));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let (freeze_authorization, platform) = create_linux_platform_services();
+        let hhj_active = Arc::new(AtomicBool::new(false));
         let bunnyhop_controller = start_bunnyhop_controller(&platform, shell_state);
+        let hhj_controller = start_hhj_controller(&platform, Arc::clone(&hhj_active), shell_state);
+        let floor_bounce_controller =
+            start_floor_bounce_controller(&platform, Arc::clone(&hhj_active), shell_state);
         let lag_switch_controller = start_lag_switch_controller(
-            platform.input_ready,
-            &platform.input_service,
+            &platform,
             &lag_switch_backend,
             &lag_switch_enabled,
             shell_state,
         );
-        let freeze_controller = start_freeze_controller(
-            platform.input_ready,
-            &platform.input_service,
-            &platform.process_discovery,
-            &platform.process_foreground,
-            &platform.process_control,
-            shell_state,
-        );
+        let freeze_controller = start_freeze_controller(&platform, shell_state);
         let item_desync_controller = start_item_desync_controller(
             platform.input_ready,
             &platform.input_service,
@@ -527,6 +573,8 @@ impl LinuxRuntimeServices {
             input_service: platform.input_service,
             lag_switch_controller,
             bunnyhop_controller,
+            hhj_controller,
+            floor_bounce_controller,
             freeze_controller,
             item_desync_controller,
             item_clip_controller,
@@ -565,6 +613,12 @@ impl LinuxRuntimeServices {
     ) {
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
             controller.update_settings(shell_state.bunnyhop_controller_settings());
+        }
+        if let Some(controller) = self.hhj_controller.as_ref() {
+            controller.update_settings(shell_state.hhj_controller_settings());
+        }
+        if let Some(controller) = self.floor_bounce_controller.as_ref() {
+            controller.update_settings(shell_state.floor_bounce_controller_settings());
         }
         if let Some(controller) = self.lag_switch_controller.as_ref() {
             controller.update_settings(shell_state.lag_switch_controller_settings());
@@ -674,6 +728,12 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.floor_bounce_controller.as_ref() {
+            controller.stop();
+        }
+        if let Some(controller) = self.hhj_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
             controller.stop();
         }

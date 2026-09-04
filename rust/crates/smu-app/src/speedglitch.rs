@@ -53,6 +53,11 @@ impl SpeedglitchUiState {
     }
 
     #[must_use]
+    pub const fn motion_strengths(&self) -> (i32, i32) {
+        (self.strength_x, self.strength_y)
+    }
+
+    #[must_use]
     pub const fn controller_settings(
         &self,
         macro_enabled: bool,

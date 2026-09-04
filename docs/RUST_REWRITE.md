@@ -79,6 +79,22 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
+  The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
+  zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
+  one-shot worker preserves the freeze-delay override/fast-HHJ branches and the historical quirk where
+  HHJ length can activate the shared `isHHJ` state and later change to zero before the finish check,
+  leaving that state active. A long-lived motion worker replaces repeated worker creation while keeping
+  the section-2 + `isHHJ` gate and per-cycle FPS/strength live reads; X strength is read before the first
+  move, Y strength only after the first frame wait. Linux Floor Bounce shares that same atomic rather
+  than maintaining separate helicopter state.
+- `smu-app` now owns the live Linux Floor Bounce slice. Its F4 rising edge snapshots the current target
+  PID vector and launches overlapping one-shot workers. The fixed prefix remains direct Space-down,
+  521 ms, suspend 72 ms, resume 72 ms, suspend 72 ms, resume, Space-up. Only after that 737 ms prefix
+  does the worker re-read the experimental HHJ toggle; when enabled it re-reads delay 1, the shift key
+  for bound key-down, delay 2, delay 3, then—after disabling shared HHJ state and a fixed 100 ms wait—
+  re-reads the shift key for bound release. Negative configurable delays clamp to zero while retaining
+  the wait boundary, matching the characterized C++ helper.
 - `smu-app` now owns the live Linux Bunnyhop slice. Its 2 ms controller owns target-foreground
   eligibility, Intelligent Auto-Toggle chat locking, and the physical hotkey decision; the lock uses
   the C++ update order where chat-open is applied before Enter/left-click clears it, and guard exits do

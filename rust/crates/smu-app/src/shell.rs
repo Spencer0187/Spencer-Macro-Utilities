@@ -2,8 +2,10 @@ use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 
 use crate::{
     bunnyhop::{self, BunnyhopUiState},
+    floor_bounce::{self, FloorBounceUiState},
     freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsState},
+    hhj::{self, HhjGlobals, HhjUiState},
     item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
@@ -79,7 +81,9 @@ pub struct ShellState {
     global: GlobalSettingsState,
     selected_section: usize,
     freeze: FreezeUiState,
+    floor_bounce: FloorBounceUiState,
     bunnyhop: BunnyhopUiState,
+    hhj: HhjUiState,
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
     press_key: PressKeyUiState,
@@ -102,7 +106,9 @@ impl Default for ShellState {
             global: GlobalSettingsState::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
+            floor_bounce: FloorBounceUiState::default(),
             bunnyhop: BunnyhopUiState::default(),
+            hhj: HhjUiState::default(),
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
             press_key: PressKeyUiState::default(),
@@ -143,6 +149,7 @@ impl ShellState {
         let mut enabled = [false; 16];
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
+        enabled[2] = self.hhj.enabled;
         enabled[3] = self.speedglitch.enabled;
         enabled[5] = self.press_key.first_enabled();
         enabled[6] = self.wallhop.first_enabled();
@@ -152,8 +159,39 @@ impl ShellState {
         enabled[11] = self.spam_key.first_enabled();
         enabled[12] = self.ledge_bounce.enabled;
         enabled[13] = self.bunnyhop.enabled;
+        enabled[14] = self.floor_bounce.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn floor_bounce_controller_settings(
+        &self,
+    ) -> crate::floor_bounce_runtime::FloorBounceControllerSettings {
+        self.floor_bounce.controller_settings(
+            self.global.macro_enabled(),
+            self.global.process_selector(),
+            self.freeze.take_all_process_ids,
+            self.global.shift_key(),
+        )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn hhj_controller_settings(&self) -> crate::hhj_runtime::HhjControllerSettings {
+        let (strength_x, strength_y) = self.speedglitch.motion_strengths();
+        self.hhj.controller_settings(HhjGlobals {
+            macro_enabled: self.global.macro_enabled(),
+            process_selector: self.global.process_selector(),
+            take_all_process_ids: self.freeze.take_all_process_ids,
+            global_zoom: self.global.global_zoom(),
+            shift_key: self.global.shift_key(),
+            zoom_reverse: self.global.zoom_reverse(),
+            fps: self.global.fps_runtime(),
+            strength_x,
+            strength_y,
+        })
     }
 
     #[cfg(target_os = "linux")]
@@ -567,6 +605,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         match state.selected_section {
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
+            2 => hhj::render(ui, &mut state.hhj),
             3 => speedglitch::render(ui, &mut state.speedglitch),
             5 => press_key::render(ui, &mut state.press_key),
             6 => wallhop::render(
@@ -586,6 +625,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             11 => spam_key::render(ui, &mut state.spam_key),
             12 => ledge_bounce::render(ui, &mut state.ledge_bounce),
             13 => bunnyhop::render(ui, &mut state.bunnyhop),
+            14 => floor_bounce::render(ui, &mut state.floor_bounce),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));
