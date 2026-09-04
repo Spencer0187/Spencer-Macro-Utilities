@@ -685,6 +685,7 @@ dependencies = [
  "smu-core",
  "smu-display",
  "smu-input",
+ "smu-network",
 ]
 
 [[package]]

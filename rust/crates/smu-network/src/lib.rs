@@ -3,8 +3,6 @@
 //! Privileged packet interception is a transport concern. This crate owns the deterministic config
 //! arbitration and command grammar so Windows/Linux transports can share one tested policy layer.
 
-use std::net::Ipv4Addr;
-
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum LagSwitchTargetMode {
     #[default]
@@ -134,6 +132,18 @@ impl LagSwitchState {
     }
 }
 
+/// Runtime lag-switch capability consumed by the app and scripting layers.
+pub trait LagSwitchControl: Send + Sync {
+    fn is_available(&self) -> bool;
+    fn effective_config(&self) -> LagSwitchConfig;
+    fn is_blocking_active(&self) -> bool;
+    fn is_base_blocking_active(&self) -> bool;
+    fn unsupported_reason(&self) -> String;
+    fn set_script_blocking_active(&self, owner_token: usize, active: bool);
+    fn set_script_config_override(&self, owner_token: usize, config: LagSwitchConfig);
+    fn clear_script_config_override(&self, owner_token: usize);
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LagCommandError(&'static str);
 
@@ -145,8 +155,38 @@ impl std::fmt::Display for LagCommandError {
 
 impl std::error::Error for LagCommandError {}
 
-fn valid_ipv4(value: &str) -> bool {
-    value.parse::<Ipv4Addr>().is_ok()
+#[must_use]
+pub fn is_valid_ipv4_address(value: &str) -> bool {
+    if value.is_empty() || value.len() > 15 || value.as_bytes().contains(&0) {
+        return false;
+    }
+    let mut parts = 0_u8;
+    let mut index = 0_usize;
+    let bytes = value.as_bytes();
+    while index < bytes.len() {
+        if parts >= 4 || !bytes[index].is_ascii_digit() {
+            return false;
+        }
+        let mut octet = 0_u16;
+        let mut digits = 0_u8;
+        while index < bytes.len() && bytes[index].is_ascii_digit() {
+            octet = octet.saturating_mul(10).saturating_add(u16::from(bytes[index] - b'0'));
+            digits = digits.saturating_add(1);
+            if octet > 255 || digits > 3 {
+                return false;
+            }
+            index += 1;
+        }
+        parts = parts.saturating_add(1);
+        if parts == 4 {
+            return index == bytes.len();
+        }
+        if index >= bytes.len() || bytes[index] != b'.' {
+            return false;
+        }
+        index += 1;
+    }
+    false
 }
 
 fn join_strings(values: &[String]) -> String {
@@ -196,7 +236,7 @@ pub fn build_linux_target_command(
                 ));
             }
             for ip in &config.remote_ips {
-                if !valid_ipv4(ip) {
+                if !is_valid_ipv4_address(ip) {
                     return Err(LagCommandError(
                         "Linux custom targeting received an invalid IPv4 address.",
                     ));
@@ -269,6 +309,16 @@ pub fn build_linux_apply_command(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ipv4_validation_matches_cpp_manual_parser() {
+        for valid in ["0.0.0.0", "255.255.255.255", "001.002.003.004", "1.2.3.4"] {
+            assert!(is_valid_ipv4_address(valid), "{valid}");
+        }
+        for invalid in ["", "1.2.3", "1.2.3.4.5", "256.1.1.1", "1..2.3", "+1.2.3.4", "1.2.3.0044"] {
+            assert!(!is_valid_ipv4_address(invalid), "{invalid}");
+        }
+    }
 
     #[test]
     fn defaults_match_cpp_network_backend_contract() {

@@ -10,6 +10,7 @@ pub mod lua_runtime;
 pub mod managed_hotkeys;
 pub mod memory;
 pub mod metadata;
+pub mod network_api;
 pub mod persistence;
 pub mod settings_ui;
 
@@ -33,6 +34,7 @@ pub use metadata::{
     ImportedScriptHeader, ImportedScriptMetadata, is_supported_script_extension,
     parse_script_header, parse_script_hotkey_metadata, parse_script_metadata,
 };
+pub use network_api::{ScriptNetworkApiError, install_network_api};
 pub use persistence::{
     MAX_UI_ID_BYTES, MAX_UI_STATE_ENTRIES, MAX_UI_STATE_STRING_BYTES, SCRIPT_UNBOUND_HOTKEY,
     SavedScriptRecord, deserialize_saved_scripts, is_safe_ui_state_key, normalize_script_hotkey,

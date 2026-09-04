@@ -6,13 +6,14 @@ use mlua::{Error as LuaError, Lua, Table, Value};
 use smu_core::{Hotkey, KeyCode};
 use smu_input::{HotkeyMatch, InputDevice, is_hotkey_pressed};
 use std::fmt;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 const MAX_INPUT_DELAY_MS: i64 = 300_000;
 const SCRIPT_HOTKEY_INTEGER_MAX: i64 = 2_147_483_647;
 const HOTKEY_KEY_MASK: u32 = 0xFFFF;
+static NEXT_SCRIPT_OWNER_TOKEN: AtomicUsize = AtomicUsize::new(1);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScriptExecutionMode {
@@ -63,13 +64,27 @@ impl ScriptExecutionMode {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ScriptInputState {
+    owner_token: usize,
     mode: AtomicU32,
     strict_hotkey_matching: AtomicBool,
     script_hotkey: AtomicU32,
     mouse_motion_mode: AtomicU32,
     managed: Mutex<ManagedHotkeys>,
+}
+
+impl Default for ScriptInputState {
+    fn default() -> Self {
+        Self {
+            owner_token: NEXT_SCRIPT_OWNER_TOKEN.fetch_add(1, Ordering::Relaxed),
+            mode: AtomicU32::new(ScriptExecutionMode::Normal.as_u32()),
+            strict_hotkey_matching: AtomicBool::new(false),
+            script_hotkey: AtomicU32::new(0),
+            mouse_motion_mode: AtomicU32::new(ScriptMouseMotionMode::Raw as u32),
+            managed: Mutex::new(ManagedHotkeys::default()),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -78,6 +93,11 @@ pub struct ScriptInputContext {
 }
 
 impl ScriptInputContext {
+    #[must_use]
+    pub fn owner_token(&self) -> usize {
+        self.state.owner_token
+    }
+
     pub fn set_mode(&self, mode: ScriptExecutionMode) {
         self.state.mode.store(mode.as_u32(), Ordering::Release);
     }
