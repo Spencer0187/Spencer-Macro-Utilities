@@ -3,6 +3,7 @@
 //! Lua execution is still being ported. Deterministic metadata/hotkey parsing is isolated here
 //! because it can be differential-tested against the C++ compatibility oracle.
 
+pub mod display_api;
 pub mod hotkey;
 pub mod input_api;
 pub mod lua_runtime;
@@ -12,9 +13,11 @@ pub mod metadata;
 pub mod persistence;
 pub mod settings_ui;
 
+pub use display_api::{ScriptDisplayApiError, install_display_api};
 pub use hotkey::{parse_script_hotkey, parse_script_key_name};
 pub use input_api::{
-    ScriptExecutionMode, ScriptInputApiError, ScriptInputContext, install_input_api,
+    ScriptExecutionMode, ScriptInputApiError, ScriptInputContext, ScriptMouseMotionMode,
+    install_input_api,
 };
 pub use lua_runtime::{
     DEFAULT_SHOULD_YIELD_MICROS, LUA_HOOK_INSTRUCTION_COUNT, LuaExecutionError,

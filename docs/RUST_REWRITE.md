@@ -37,9 +37,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
-- `smu-display` owns monitor geometry, script coordinate modes, pixel colors/rectangle reads, and
-  the screen-capture capability. This freezes `input_actions.cpp` coordinate behavior without
-  recreating the legacy mixed input/display backend.
+- `smu-display` owns monitor/cursor geometry, script coordinate modes, pixel colors/rectangle reads,
+  and the screen-capture capability. `smu-scripting` now wires `moveMouse`, `moveMouseAbs`, mouse
+  motion mode, `getPixelColor`, `getPixelRect`, and the macOS cursor toggle through separate
+  input/display services, preserving the old coordinate/error behavior without recreating the mixed
+  C++ `InputBackend`.
 - `smu-process` owns legacy process-selector semantics plus Linux `/proc` discovery. Process
   suspension and foreground-window detection are intentionally not folded into that discovery API;
   they will be separate capabilities wired at the application composition root.

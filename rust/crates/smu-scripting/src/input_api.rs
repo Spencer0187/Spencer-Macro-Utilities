@@ -22,6 +22,27 @@ pub enum ScriptExecutionMode {
     Cleanup,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[repr(u32)]
+pub enum ScriptMouseMotionMode {
+    #[default]
+    Raw = 0,
+    Absolute = 1,
+}
+
+impl ScriptMouseMotionMode {
+    const fn from_u32(value: u32) -> Self {
+        if value == Self::Absolute as u32 { Self::Absolute } else { Self::Raw }
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Raw => "raw",
+            Self::Absolute => "absolute",
+        }
+    }
+}
 impl ScriptExecutionMode {
     const fn as_u32(self) -> u32 {
         match self {
@@ -47,6 +68,7 @@ struct ScriptInputState {
     mode: AtomicU32,
     strict_hotkey_matching: AtomicBool,
     script_hotkey: AtomicU32,
+    mouse_motion_mode: AtomicU32,
     managed: Mutex<ManagedHotkeys>,
 }
 
@@ -81,6 +103,15 @@ impl ScriptInputContext {
     #[must_use]
     pub fn script_hotkey(&self) -> Hotkey {
         Hotkey::new(self.state.script_hotkey.load(Ordering::Acquire))
+    }
+
+    pub fn set_mouse_motion_mode(&self, mode: ScriptMouseMotionMode) {
+        self.state.mouse_motion_mode.store(mode as u32, Ordering::Release);
+    }
+
+    #[must_use]
+    pub fn mouse_motion_mode(&self) -> ScriptMouseMotionMode {
+        ScriptMouseMotionMode::from_u32(self.state.mouse_motion_mode.load(Ordering::Acquire))
     }
 
     fn managed(&self) -> MutexGuard<'_, ManagedHotkeys> {

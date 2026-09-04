@@ -18,6 +18,29 @@ pub const NO_KEY: KeyCode = KeyCode::NONE;
 pub const MOUSE_WHEEL_UP: KeyCode = KeyCode::MOUSE_WHEEL_UP;
 pub const MOUSE_WHEEL_DOWN: KeyCode = KeyCode::MOUSE_WHEEL_DOWN;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InputError(String);
+
+impl InputError {
+    #[must_use]
+    pub fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for InputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for InputError {}
+
 /// Physical/injected output operations only. Display queries intentionally do not appear here.
 pub trait InputInjector: Send + Sync {
     fn hold_key(&self, key: KeyCode, extended: bool);
@@ -26,6 +49,23 @@ pub trait InputInjector: Send + Sync {
 
     fn move_mouse_raw(&self, dx: i32, dy: i32) {
         self.move_mouse(dx, dy);
+    }
+
+    /// Move the pointer to one global screen coordinate.
+    ///
+    /// # Errors
+    ///
+    /// Returns the platform/session absolute-pointer failure when unsupported.
+    fn move_mouse_absolute(&self, _x: i32, _y: i32) -> Result<(), InputError> {
+        Err(InputError::new(self.absolute_pointer_unavailable_reason()))
+    }
+
+    fn prefers_direct_absolute_positioning(&self) -> bool {
+        false
+    }
+
+    fn absolute_pointer_unavailable_reason(&self) -> String {
+        "cursor/screen position is not available on this platform/session".to_owned()
     }
 
     fn mouse_wheel(&self, delta: i32);

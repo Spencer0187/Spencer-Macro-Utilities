@@ -21,6 +21,12 @@ impl ScreenBounds {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CursorPosition {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PixelColor {
     pub r: u8,
     pub g: u8,
@@ -210,6 +216,14 @@ pub fn resolve_pixel_rect(
 /// Screen capture/read capability independent of keyboard/mouse injection.
 pub trait DisplayCapture: Send + Sync {
     fn active_monitor_bounds(&self) -> Option<ScreenBounds>;
+
+    fn cursor_position(&self) -> Option<CursorPosition> {
+        None
+    }
+
+    fn pointer_unavailable_reason(&self) -> String {
+        "cursor/screen position is not available on this platform/session".to_owned()
+    }
 
     /// Sample one global screen coordinate.
     ///

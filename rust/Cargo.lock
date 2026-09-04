@@ -683,6 +683,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smu-core",
+ "smu-display",
  "smu-input",
 ]
 

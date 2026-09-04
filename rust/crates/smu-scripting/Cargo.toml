@@ -9,6 +9,7 @@ publish = false
 mlua.workspace = true
 serde_json.workspace = true
 smu-core = { path = "../smu-core", version = "=0.0.0" }
+smu-display = { path = "../smu-display", version = "=0.0.0" }
 smu-input = { path = "../smu-input", version = "=0.0.0" }
 
 [dev-dependencies]
