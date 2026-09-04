@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <regex>
 #include <set>
 #include <string>
 #include <string_view>
@@ -46,6 +47,27 @@ Json HotkeyJson(const std::string& input)
     result["ctrl"] = (raw & smu::core::HOTKEY_MASK_CTRL) != 0;
     result["alt"] = (raw & smu::core::HOTKEY_MASK_ALT) != 0;
     result["win"] = (raw & smu::core::HOTKEY_MASK_WIN) != 0;
+    return result;
+}
+
+Json RobloxRegexJson(const std::string& input)
+{
+    const Json payload = Json::parse(input);
+    const std::string pattern = payload.at("pattern").get<std::string>();
+    const std::string text = payload.at("text").get<std::string>();
+    Json result{
+        {"operation", "roblox-regex"},
+        {"pattern", pattern},
+        {"text", text},
+        {"valid", false},
+        {"matches", false},
+    };
+    try {
+        const std::regex expression(pattern, std::regex::ECMAScript | std::regex::optimize);
+        result["valid"] = true;
+        result["matches"] = std::regex_search(text, expression);
+    } catch (const std::regex_error&) {
+    }
     return result;
 }
 
@@ -152,6 +174,7 @@ int Usage()
     std::cerr << "usage:\n"
               << "  smu_compat_oracle hotkey <text>\n"
               << "  smu_compat_oracle input-hotkey <json>\n"
+              << "  smu_compat_oracle roblox-regex <json>\n"
               << "  smu_compat_oracle key-name <text>\n"
               << "  smu_compat_oracle script-metadata <path>\n"
               << "  smu_compat_oracle roblox-file <path>\n";
@@ -172,6 +195,8 @@ int main(int argc, char** argv)
         result = HotkeyJson(argv[2]);
     } else if (operation == "input-hotkey") {
         result = InputHotkeyJson(argv[2]);
+    } else if (operation == "roblox-regex") {
+        result = RobloxRegexJson(argv[2]);
     } else if (operation == "key-name") {
         result = KeyNameJson(argv[2]);
     } else if (operation == "script-metadata") {

@@ -132,6 +132,39 @@ def write_input_hotkeys() -> None:
     )
 
 
+def roblox_regex_inputs() -> list[dict[str, str]]:
+    return [
+        {"name": "literal", "pattern": "server", "text": "connected to server 123"},
+        {"name": "digit-class", "pattern": r"server [0-9]+", "text": "server 123"},
+        {"name": "anchors-match", "pattern": r"^foo$", "text": "foo"},
+        {"name": "anchors-reject", "pattern": r"^foo$", "text": "xfoo"},
+        {"name": "alternation", "pattern": r"(?:foo|bar)", "text": "xxbarxx"},
+        {"name": "backreference-match", "pattern": r"(ab)\1", "text": "zzababzz"},
+        {"name": "backreference-reject", "pattern": r"(ab)\1", "text": "zzabaczz"},
+        {"name": "positive-lookahead", "pattern": r"a(?=b)", "text": "ab"},
+        {"name": "negative-lookahead", "pattern": r"a(?!b)", "text": "ac"},
+        {"name": "word-class", "pattern": r"\w+", "text": "abc_123"},
+        {"name": "digit-class-escape", "pattern": r"\d+", "text": "x42y"},
+        {"name": "invalid-open-class", "pattern": "[", "text": "anything"},
+        {"name": "invalid-open-group", "pattern": "(", "text": "anything"},
+    ]
+
+
+def write_roblox_regex() -> None:
+    cases = []
+    for case in roblox_regex_inputs():
+        observed = run_json(
+            ORACLE,
+            "roblox-regex",
+            compact({"pattern": case["pattern"], "text": case["text"]}),
+        )
+        cases.append({**case, "valid": observed["valid"], "matches": observed["matches"]})
+    write_json(
+        ROOT / "compat" / "scripting" / "roblox_regex_cases.json",
+        {"oracle": "smu_compat_oracle roblox-regex", "cases": cases},
+    )
+
+
 def script_metadata_inputs() -> list[tuple[str, str, str]]:
     return [
         ("empty-fallback", "Fallback.lua", ""),
@@ -2450,7 +2483,7 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "profiles", "roblox", "runtime", "script-metadata", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "profiles", "roblox", "roblox-regex", "runtime", "script-metadata", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
@@ -2459,6 +2492,9 @@ def main() -> int:
     if args.fixture in {"input-hotkeys", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_input_hotkeys()
+    if args.fixture in {"roblox-regex", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_roblox_regex()
     if args.fixture in {"script-metadata", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_script_metadata()

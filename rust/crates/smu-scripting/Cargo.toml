@@ -6,6 +6,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+regress.workspace = true
 mlua.workspace = true
 serde_json.workspace = true
 smu-core = { path = "../smu-core", version = "=0.0.0" }

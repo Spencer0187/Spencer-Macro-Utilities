@@ -1,0 +1,96 @@
+{
+  "cases": [
+    {
+      "matches": true,
+      "name": "literal",
+      "pattern": "server",
+      "text": "connected to server 123",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "digit-class",
+      "pattern": "server [0-9]+",
+      "text": "server 123",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "anchors-match",
+      "pattern": "^foo$",
+      "text": "foo",
+      "valid": true
+    },
+    {
+      "matches": false,
+      "name": "anchors-reject",
+      "pattern": "^foo$",
+      "text": "xfoo",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "alternation",
+      "pattern": "(?:foo|bar)",
+      "text": "xxbarxx",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "backreference-match",
+      "pattern": "(ab)\\1",
+      "text": "zzababzz",
+      "valid": true
+    },
+    {
+      "matches": false,
+      "name": "backreference-reject",
+      "pattern": "(ab)\\1",
+      "text": "zzabaczz",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "positive-lookahead",
+      "pattern": "a(?=b)",
+      "text": "ab",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "negative-lookahead",
+      "pattern": "a(?!b)",
+      "text": "ac",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "word-class",
+      "pattern": "\\w+",
+      "text": "abc_123",
+      "valid": true
+    },
+    {
+      "matches": true,
+      "name": "digit-class-escape",
+      "pattern": "\\d+",
+      "text": "x42y",
+      "valid": true
+    },
+    {
+      "matches": false,
+      "name": "invalid-open-class",
+      "pattern": "[",
+      "text": "anything",
+      "valid": false
+    },
+    {
+      "matches": false,
+      "name": "invalid-open-group",
+      "pattern": "(",
+      "text": "anything",
+      "valid": false
+    }
+  ],
+  "oracle": "smu_compat_oracle roblox-regex"
+}
