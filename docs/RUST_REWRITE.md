@@ -82,8 +82,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `robloxLog.onLine` callbacks and `listenUntilCancelled`; callback limits, reentrancy guards,
   cancellation, and a representative ECMAScript regex corpus are checked against the C++ path.
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
-  cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
-  remains separate, so untrusted metadata is validated before install-side effects are possible.
+  cross-platform update-asset scoring. Linux now has the production `curl` transport matching the C++
+  HTTPS-only redirect policy, 60-second timeout, 512 MiB limit, and GitHub updater headers. HTTP remains
+  injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted metadata
+  is validated before install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
   `ScriptManager` remains the sole owner of Lua instances, cancellation, and named per-record workers;
   the app controller owns only global macro enable, target-foreground eligibility, and C++-compatible
@@ -124,9 +126,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   wheel transient capture, modifier-only release binding, and post-bind hotkey suppression; all live
   macro controllers receive the resulting effective-macro gate, and Escape remains bindable while
   capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
-  fixing trait-object wheel capture. This is intentionally a partial Settings cutover: Anti-AFK is
-  Windows-only in the legacy runtime and has no Linux execution path to port, updater HTTP/UI is not
-  composed, and Theme Editor remains unported.
+  fixing trait-object wheel capture. The Settings window also now composes the live Linux updater
+  check path: opening Settings starts one background check, explicit retry/check is available, release
+  metadata/manifest validation runs through `smu-updater`, and SDL opens the official release page for
+  manual installation. Update checks are disabled during parity capture. Automatic installation stays
+  deliberately disabled until Rust owns the C++ AppImage download, SHA-256/ELF validation,
+  replaceability checks, replacement script, and rollback path. Anti-AFK is Windows-only in the legacy
+  runtime and has no Linux execution path to port, and Theme Editor remains unported.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -137,7 +143,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
   asymmetries. This completes built-in macro execution cutover only; remaining Settings controls,
-  updater UI/transport, Theme Editor, cross-platform app-service composition, and final C++ entry-point
+  updater auto-install, Theme Editor, cross-platform app-service composition, and final C++ entry-point
   removal remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,

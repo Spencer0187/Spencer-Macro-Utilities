@@ -103,6 +103,8 @@ mod speedglitch_runtime;
 #[cfg(target_os = "linux")]
 mod target_runtime;
 mod theme;
+#[cfg(target_os = "linux")]
+mod updater_service;
 mod wall_walk;
 #[cfg(target_os = "linux")]
 mod wall_walk_runtime;
@@ -667,6 +669,7 @@ struct LinuxRuntimeServices {
     wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
     input_service: Arc<EvdevUinputInputDevice>,
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    update_service: updater_service::LinuxUpdateService,
     script_manager: Arc<ScriptManager>,
     script_runtime_controller: Option<script_runtime::ScriptRuntimeController>,
     script_dialog_busy: Arc<AtomicBool>,
@@ -1071,12 +1074,15 @@ impl LinuxRuntimeServices {
     fn new(
         shell_state: &shell::ShellState,
         saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+        updates_enabled: bool,
     ) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend =
             Arc::new(LinuxLagSwitchBackend::new(Some(Arc::clone(&roblox_log))));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let (freeze_authorization, platform) = create_linux_platform_services();
+        let update_service =
+            updater_service::LinuxUpdateService::new(app_version(), updates_enabled);
         let (script_manager, script_runtime_controller) = start_script_services(
             &platform,
             &lag_switch_backend,
@@ -1145,6 +1151,7 @@ impl LinuxRuntimeServices {
             wayland_settings_worker: Mutex::new(None),
             input_service: platform.input_service,
             saved_settings,
+            update_service,
             script_manager,
             script_runtime_controller,
             script_dialog_busy: Arc::new(AtomicBool::new(false)),
@@ -1370,6 +1377,8 @@ impl LinuxRuntimeServices {
         let selector = shell_state.process_selector();
         shell_state.set_process_found(self.process_found(&selector));
         shell_state.set_settings_platform_status(self.settings_platform_status());
+        shell_state
+            .set_settings_updater_status(self.update_service.prepare(shell_state.settings_open()));
 
         let available = self.lag_switch_backend.is_available();
         shell_state.set_lag_switch_backend(lag_switch::BackendState {
@@ -1477,6 +1486,12 @@ impl LinuxRuntimeServices {
                     }
                 }
             }
+            Some(shell::ShellAction::CheckUpdatesFromSettings) => {
+                self.update_service.start_check(true);
+            }
+            Some(shell::ShellAction::OpenLatestReleaseFromSettings) => {
+                self.update_service.open_latest_release();
+            }
             Some(shell::ShellAction::StartWaylandScreenCaptureFromSettings) => {
                 self.start_wayland_settings_task(WaylandSettingsTask::StartScreenCapture);
             }
@@ -1552,6 +1567,7 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        self.update_service.shutdown();
         if let Some(controller) = self.script_runtime_controller.as_ref() {
             controller.stop();
         }
@@ -1937,7 +1953,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut backend =
         unsafe { Sdl3OpenGl3Backend::init(&mut imgui, &window, &gl_context, GLSL_VERSION)? };
     #[cfg(target_os = "linux")]
-    let linux_services = LinuxRuntimeServices::new(&shell_state, Arc::clone(&saved_settings));
+    let linux_services =
+        LinuxRuntimeServices::new(&shell_state, Arc::clone(&saved_settings), parity_case.is_none());
     #[cfg(target_os = "linux")]
     if let Some(payload) = profile_service.current_payload() {
         linux_services.apply_profile_script_state(payload);

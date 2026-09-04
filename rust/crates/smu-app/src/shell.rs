@@ -30,6 +30,8 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ShellAction {
     ToggleLagSwitchBackend,
+    CheckUpdatesFromSettings,
+    OpenLatestReleaseFromSettings,
     Profile(ProfileAction),
     #[cfg(target_os = "linux")]
     Script(ScriptAction),
@@ -96,6 +98,7 @@ pub struct ShellState {
     settings_open: bool,
     keybind_capture: keybind::CaptureState,
     settings_platform: settings_menu::PlatformStatus,
+    settings_updater: settings_menu::UpdaterPanelStatus,
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
@@ -130,6 +133,7 @@ impl Default for ShellState {
             settings_open: false,
             keybind_capture: keybind::CaptureState::default(),
             settings_platform: settings_menu::PlatformStatus::default(),
+            settings_updater: settings_menu::UpdaterPanelStatus::default(),
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
@@ -399,6 +403,16 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub fn set_settings_platform_status(&mut self, status: settings_menu::PlatformStatus) {
         self.settings_platform = status;
+    }
+
+    #[must_use]
+    pub const fn settings_open(&self) -> bool {
+        self.settings_open
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn set_settings_updater_status(&mut self, status: settings_menu::UpdaterPanelStatus) {
+        self.settings_updater = status;
     }
 
     pub const fn profile_browser_mut(&mut self) -> &mut ProfileBrowserState {
@@ -763,8 +777,13 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         &mut state.global,
         &mut state.keybind_capture,
         &state.settings_platform,
+        &state.settings_updater,
     ) {
         action = Some(match settings_action {
+            settings_menu::SettingsAction::CheckUpdates => ShellAction::CheckUpdatesFromSettings,
+            settings_menu::SettingsAction::OpenLatestRelease => {
+                ShellAction::OpenLatestReleaseFromSettings
+            }
             settings_menu::SettingsAction::StartWaylandScreenCapture => {
                 ShellAction::StartWaylandScreenCaptureFromSettings
             }

@@ -1241,6 +1241,7 @@ dependencies = [
  "smu-roblox",
  "smu-runtime",
  "smu-scripting",
+ "smu-updater",
 ]
 
 [[package]]

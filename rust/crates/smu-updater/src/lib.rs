@@ -5,11 +5,15 @@
 //! operation is attempted and keeps HTTP transport replaceable.
 
 mod check;
+#[cfg(target_os = "linux")]
+mod linux;
 
 pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
     UpdaterStatus,
 };
+#[cfg(target_os = "linux")]
+pub use linux::CurlUpdateTransport;
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;

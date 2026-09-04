@@ -1,5 +1,5 @@
 use crate::{global_settings::GlobalSettingsState, keybind};
-use dear_imgui_rs::{Condition, Ui, WindowFlags};
+use dear_imgui_rs::{Condition, TreeNodeFlags, Ui, WindowFlags};
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -12,8 +12,26 @@ pub struct PlatformStatus {
     pub wayland_status: String,
 }
 
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct UpdaterPanelStatus {
+    pub enabled: bool,
+    pub checked_once: bool,
+    pub checking: bool,
+    pub check_succeeded: bool,
+    pub update_available: bool,
+    pub auto_apply_supported: bool,
+    pub local_version: String,
+    pub latest_version: String,
+    pub selected_package: String,
+    pub status_message: String,
+    pub action_message: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingsAction {
+    CheckUpdates,
+    OpenLatestRelease,
     StartWaylandScreenCapture,
     StopWaylandScreenCapture,
     StartWaylandRemoteDesktop,
@@ -25,6 +43,7 @@ pub fn render(
     globals: &mut GlobalSettingsState,
     capture: &mut keybind::CaptureState,
     platform: &PlatformStatus,
+    updater: &UpdaterPanelStatus,
 ) -> Option<SettingsAction> {
     if !*open {
         return None;
@@ -40,11 +59,75 @@ pub fn render(
         .flags(WindowFlags::NO_RESIZE | WindowFlags::NO_COLLAPSE)
         .build(|| {
             ui.child_window("SettingsList").border(true).build(ui, || {
+                render_updater(ui, updater, &mut action);
                 render_wayland(ui, platform, &mut action);
                 render_scalar_settings(ui, globals, capture);
             });
         });
     action
+}
+
+fn render_updater(ui: &Ui, updater: &UpdaterPanelStatus, action: &mut Option<SettingsAction>) {
+    if !ui.collapsing_header("Updates", TreeNodeFlags::DEFAULT_OPEN) {
+        return;
+    }
+
+    ui.text(format!("Local version: {}", updater.local_version));
+    if updater.checked_once && !updater.latest_version.is_empty() {
+        ui.text(format!("Latest version: {}", updater.latest_version));
+    } else {
+        ui.text("Latest version: unknown");
+    }
+
+    if updater.checking {
+        ui.text("Status: checking...");
+    } else if updater.checked_once {
+        ui.text_wrapped(format!("Status: {}", updater.status_message));
+    } else if updater.enabled {
+        ui.text("Status: not checked yet");
+    } else {
+        ui.text("Status: update checks disabled in this session");
+    }
+
+    if !updater.selected_package.is_empty() {
+        ui.text_wrapped(format!("Selected package: {}", updater.selected_package));
+    }
+
+    let check_label = if updater.checked_once && !updater.check_succeeded {
+        "Retry update check"
+    } else {
+        "Check for updates"
+    };
+    let check_disabled = (!updater.enabled || updater.checking).then(|| ui.begin_disabled());
+    if ui.button(check_label) {
+        *action = Some(SettingsAction::CheckUpdates);
+    }
+    drop(check_disabled);
+
+    ui.same_line();
+    let apply_disabled = ui.begin_disabled();
+    let _ = ui.button("Download and install update");
+    drop(apply_disabled);
+    if ui.is_item_hovered() {
+        ui.tooltip_text(
+            "Automatic installation remains disabled until the Rust AppImage verification and rollback path is ported.",
+        );
+    }
+
+    if updater.checked_once && updater.update_available && !updater.auto_apply_supported {
+        ui.text_colored(
+            [1.0, 0.54, 0.0, 1.0],
+            "An update is available. Open the official release and reinstall it with the same Linux package method you used before.",
+        );
+    }
+
+    if ui.button("Open latest release") {
+        *action = Some(SettingsAction::OpenLatestRelease);
+    }
+    if !updater.action_message.is_empty() {
+        ui.text_wrapped(&updater.action_message);
+    }
+    crate::parity::separator(ui);
 }
 
 fn render_wayland(ui: &Ui, platform: &PlatformStatus, action: &mut Option<SettingsAction>) {
@@ -168,7 +251,16 @@ fn render_scalar_settings(
 
 #[cfg(test)]
 mod tests {
-    use super::PlatformStatus;
+    use super::{PlatformStatus, UpdaterPanelStatus};
+
+    #[test]
+    fn updater_status_defaults_are_inert() {
+        let status = UpdaterPanelStatus::default();
+        assert!(!status.enabled);
+        assert!(!status.checked_once);
+        assert!(!status.checking);
+        assert!(!status.update_available);
+    }
 
     #[test]
     fn platform_status_defaults_hide_optional_wayland_panel() {
