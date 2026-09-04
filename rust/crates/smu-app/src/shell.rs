@@ -1,5 +1,7 @@
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 
+#[cfg(target_os = "linux")]
+use crate::script_ui::{self, ScriptAction, ScriptUiState};
 use crate::{
     bunnyhop::{self, BunnyhopUiState},
     floor_bounce::{self, FloorBounceUiState},
@@ -27,6 +29,8 @@ use crate::{
 pub enum ShellAction {
     ToggleLagSwitchBackend,
     Profile(ProfileAction),
+    #[cfg(target_os = "linux")]
+    Script(ScriptAction),
     StartWaylandScreenCaptureFromSettings,
     StopWaylandScreenCaptureFromSettings,
     StartWaylandRemoteDesktopFromSettings,
@@ -91,6 +95,8 @@ pub struct ShellState {
     keybind_capture: keybind::CaptureState,
     settings_platform: settings_menu::PlatformStatus,
     profile_browser: ProfileBrowserState,
+    #[cfg(target_os = "linux")]
+    script_ui: ScriptUiState,
     selected_section: usize,
     freeze: FreezeUiState,
     floor_bounce: FloorBounceUiState,
@@ -122,6 +128,8 @@ impl Default for ShellState {
             keybind_capture: keybind::CaptureState::default(),
             settings_platform: settings_menu::PlatformStatus::default(),
             profile_browser: ProfileBrowserState::default(),
+            #[cfg(target_os = "linux")]
+            script_ui: ScriptUiState::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
             floor_bounce: FloorBounceUiState::default(),
@@ -165,12 +173,21 @@ impl ShellState {
 
     #[must_use]
     pub const fn keybind_input_poll_needed(&self) -> bool {
-        self.keybind_capture.capture_active() || self.keybind_capture.suppressing_hotkeys()
+        self.keybind_capture.input_poll_needed()
     }
 
     #[must_use]
     pub const fn keybind_capture_active(&self) -> bool {
         self.keybind_capture.capture_active()
+    }
+
+    #[must_use]
+    pub const fn input_capture_active(&self) -> bool {
+        self.keybind_capture.input_capture_active()
+    }
+
+    pub const fn set_external_input_capture(&mut self, active: bool) {
+        self.keybind_capture.set_external_capture(active);
     }
 
     pub const fn set_keybind_input(&mut self, input: keybind::InputSnapshot) {
@@ -187,6 +204,17 @@ impl ShellState {
     }
 
     #[cfg(target_os = "linux")]
+    pub const fn script_ui_mut(&mut self) -> &mut ScriptUiState {
+        &mut self.script_ui
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub const fn selected_script(&self) -> Option<usize> {
+        self.script_ui.selected()
+    }
+
+    #[cfg(target_os = "linux")]
     #[must_use]
     pub fn process_selector(&self) -> String {
         self.global.process_selector()
@@ -195,6 +223,21 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub const fn set_process_found(&mut self, found: bool) {
         self.global.set_process_found(found);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn script_runtime_settings(&self) -> crate::script_runtime::ScriptRuntimeSettings {
+        crate::script_runtime::ScriptRuntimeSettings {
+            macro_enabled: self.macro_runtime_enabled(),
+            process_selector: self.global.process_selector(),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn script_process_target(&self) -> (String, bool) {
+        (self.global.process_selector(), self.freeze.take_all_process_ids)
     }
 
     #[cfg(target_os = "linux")]
@@ -458,6 +501,10 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals) {
         action = Some(modal_action);
     }
+    #[cfg(target_os = "linux")]
+    if let Some(script_action) = script_ui::render_trust_modal(ui, &mut state.script_ui) {
+        action = Some(ShellAction::Script(script_action));
+    }
 
     if let Some(settings_action) = settings_menu::render(
         ui,
@@ -620,7 +667,7 @@ fn render_macro_sidebar(
     state: &mut ShellState,
     left_panel_width: f32,
     left_panel_height: f32,
-) {
+) -> Option<ShellAction> {
     let delta_time = ui.io().delta_time();
     state.press_key.tick_remove_confirmation(delta_time, state.selected_section == 5);
     state.wallhop.tick_remove_confirmation(delta_time, state.selected_section == 6);
@@ -644,6 +691,8 @@ fn render_macro_sidebar(
         },
     ];
     let mut sidebar_action = None;
+    #[cfg(target_os = "linux")]
+    let mut script_action = None;
     ui.child_window(LEFT_SCROLL_CHILD)
         .size([left_panel_width, left_panel_height])
         .border(true)
@@ -656,7 +705,16 @@ fn render_macro_sidebar(
                 &multi_instances,
                 state.global.short_descriptions(),
             );
+            #[cfg(target_os = "linux")]
+            {
+                script_action =
+                    script_ui::render_sidebar(ui, &mut state.script_ui, left_panel_width);
+            }
         });
+    if sidebar_action.is_some() {
+        #[cfg(target_os = "linux")]
+        state.script_ui.clear_selection();
+    }
     match sidebar_action {
         Some(sidebar::SidebarAction::SelectInstance { section_index: 5, instance_index }) => {
             state.press_key.select(instance_index);
@@ -678,6 +736,11 @@ fn render_macro_sidebar(
         }
         _ => {}
     }
+    #[cfg(target_os = "linux")]
+    if let Some(action) = script_action {
+        return Some(ShellAction::Script(action));
+    }
+    None
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
@@ -715,15 +778,53 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
-    render_macro_sidebar(ui, state, left_panel_width, left_panel_height);
+    let sidebar_shell_action = render_macro_sidebar(ui, state, left_panel_width, left_panel_height);
 
     ui.same_line();
     let right_section_size = [
         display_size[0] - MAIN_HORIZONTAL_ADJUSTMENT - left_panel_width,
         display_size[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT - FOOTER_HEIGHT,
     ];
+    let (lag_action, script_pane_action) = render_right_section(ui, state, right_section_size);
+
+    let right_child_min = ui.item_rect_min();
+    let right_child_size = ui.item_rect_size();
+    let window_size = ui.window_size();
+    ui.set_cursor_pos_y(window_size[1] - FOOTER_HEIGHT - style.window_padding()[1]);
+    ui.set_cursor_pos_x(right_child_min[0]);
+
+    let _square_footer = ui.push_style_var(StyleVar::ChildRounding(0.0));
+    let mut profile_action = None;
+    ui.child_window(BOTTOM_CONTROLS_CHILD)
+        .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
+        .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
+        .build(ui, || {
+            profile_action = render_footer(ui, right_child_size[0], state);
+        });
+
+    sidebar_shell_action
+        .or(script_pane_action)
+        .or_else(|| {
+            lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
+        })
+        .or_else(|| profile_action.map(ShellAction::Profile))
+}
+
+fn render_right_section(
+    ui: &Ui,
+    state: &mut ShellState,
+    size: [f32; 2],
+) -> (Option<LagSwitchAction>, Option<ShellAction>) {
     let mut lag_action = None;
-    ui.child_window(RIGHT_SECTION_CHILD).size(right_section_size).border(true).build(ui, || {
+    let mut script_action = None;
+    ui.child_window(RIGHT_SECTION_CHILD).size(size).border(true).build(ui, || {
+        #[cfg(target_os = "linux")]
+        if state.script_ui.selected().is_some() {
+            script_action =
+                script_ui::render_selected(ui, &state.script_ui, &mut state.keybind_capture)
+                    .map(ShellAction::Script);
+            return;
+        }
         match state.selected_section {
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
@@ -759,25 +860,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             }
         }
     });
-
-    let right_child_min = ui.item_rect_min();
-    let right_child_size = ui.item_rect_size();
-    let window_size = ui.window_size();
-    ui.set_cursor_pos_y(window_size[1] - FOOTER_HEIGHT - style.window_padding()[1]);
-    ui.set_cursor_pos_x(right_child_min[0]);
-
-    let _square_footer = ui.push_style_var(StyleVar::ChildRounding(0.0));
-    let mut profile_action = None;
-    ui.child_window(BOTTOM_CONTROLS_CHILD)
-        .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
-        .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
-        .build(ui, || {
-            profile_action = render_footer(ui, right_child_size[0], state);
-        });
-
-    lag_action
-        .map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
-        .or_else(|| profile_action.map(ShellAction::Profile))
+    (lag_action, script_action)
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.

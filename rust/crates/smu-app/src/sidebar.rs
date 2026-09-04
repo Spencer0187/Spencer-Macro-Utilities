@@ -58,6 +58,7 @@ pub struct MultiInstanceSummary {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SidebarAction {
+    SelectSection { section_index: usize },
     SelectInstance { section_index: usize, instance_index: usize },
     AddInstance { section_index: usize },
 }
@@ -112,6 +113,7 @@ pub fn render(
             [button_width - scroll_adjustment, button_height],
         ) {
             *selected_section = section_index;
+            action = Some(SidebarAction::SelectSection { section_index });
             if multi_instances.iter().any(|summary| summary.section_index == section_index) {
                 action = Some(SidebarAction::SelectInstance { section_index, instance_index: 0 });
             }

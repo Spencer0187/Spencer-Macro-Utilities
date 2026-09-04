@@ -67,6 +67,7 @@ pub struct CaptureState {
     pending_modifier_combo: u32,
     key_was_pressed: [bool; KEY_STATE_COUNT],
     input: InputSnapshot,
+    external_capture_active: bool,
     suppress_hotkeys_until_release: bool,
 }
 
@@ -79,6 +80,7 @@ impl Default for CaptureState {
             pending_modifier_combo: 0,
             key_was_pressed: [false; KEY_STATE_COUNT],
             input: InputSnapshot::default(),
+            external_capture_active: false,
             suppress_hotkeys_until_release: false,
         }
     }
@@ -91,18 +93,33 @@ impl CaptureState {
     }
 
     #[must_use]
-    pub const fn suppressing_hotkeys(&self) -> bool {
-        self.suppress_hotkeys_until_release
+    pub const fn runtime_allowed(&self) -> bool {
+        !self.capture_active()
+            && !self.external_capture_active
+            && !self.suppress_hotkeys_until_release
     }
 
     #[must_use]
-    pub const fn runtime_allowed(&self) -> bool {
-        !self.capture_active() && !self.suppress_hotkeys_until_release
+    pub const fn input_capture_active(&self) -> bool {
+        self.capture_active() || self.external_capture_active
+    }
+
+    #[must_use]
+    pub const fn input_poll_needed(&self) -> bool {
+        self.input_capture_active() || self.suppress_hotkeys_until_release
+    }
+
+    pub const fn set_external_capture(&mut self, active: bool) {
+        if active || self.external_capture_active != active {
+            self.suppress_hotkeys_until_release = true;
+        }
+        self.external_capture_active = active;
     }
 
     pub const fn set_input(&mut self, input: InputSnapshot) {
         self.input = input;
         if !self.capture_active()
+            && !self.external_capture_active
             && self.suppress_hotkeys_until_release
             && !self.input.any_pressed()
         {
@@ -395,7 +412,7 @@ mod tests {
         state.set_input(snapshot(&[KeyCode::LCONTROL, KeyCode::A], None));
         assert_eq!(state.capture_value("test", Hotkey::new(0x41)).raw(), HOTKEY_MASK_CTRL | 0x41);
         assert!(!state.capture_active());
-        assert!(state.suppressing_hotkeys());
+        assert!(state.suppress_hotkeys_until_release);
     }
 
     #[test]
@@ -442,11 +459,27 @@ mod tests {
         let _ = state.capture_value("test", Hotkey::new(0x41));
         state.set_input(snapshot(&[KeyCode::A], None));
         let _ = state.capture_value("test", Hotkey::new(0x41));
-        assert!(state.suppressing_hotkeys());
+        assert!(state.suppress_hotkeys_until_release);
         state.set_input(snapshot(&[KeyCode::A], None));
-        assert!(state.suppressing_hotkeys());
+        assert!(state.suppress_hotkeys_until_release);
         state.set_input(snapshot(&[], None));
-        assert!(!state.suppressing_hotkeys());
+        assert!(!state.suppress_hotkeys_until_release);
+    }
+
+    #[test]
+    fn external_modal_capture_blocks_runtime_then_suppresses_until_release() {
+        let mut state = CaptureState::default();
+        state.set_external_capture(true);
+        assert!(state.input_capture_active());
+        assert!(!state.runtime_allowed());
+        state.set_external_capture(false);
+        assert!(!state.input_capture_active());
+        assert!(state.suppress_hotkeys_until_release);
+        state.set_input(snapshot(&[KeyCode::A], None));
+        assert!(state.suppress_hotkeys_until_release);
+        state.set_input(snapshot(&[], None));
+        assert!(!state.suppress_hotkeys_until_release);
+        assert!(state.runtime_allowed());
     }
 
     #[test]

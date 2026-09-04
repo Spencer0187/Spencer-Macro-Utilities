@@ -17,6 +17,8 @@ sdl3.workspace = true
 workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
+smu-scripting = { path = "../smu-scripting", version = "=0.0.0" }
+serde_json.workspace = true
 smu-runtime = { path = "../smu-runtime", version = "=0.0.0" }
 smu-core = { path = "../smu-core", version = "=0.0.0" }
 libc.workspace = true

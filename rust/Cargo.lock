@@ -1231,6 +1231,7 @@ dependencies = [
  "image",
  "libc",
  "sdl3",
+ "serde_json",
  "smu-core",
  "smu-display",
  "smu-input",
@@ -1239,6 +1240,7 @@ dependencies = [
  "smu-profile",
  "smu-roblox",
  "smu-runtime",
+ "smu-scripting",
 ]
 
 [[package]]

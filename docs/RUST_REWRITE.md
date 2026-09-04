@@ -84,6 +84,21 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
+  `ScriptManager` remains the sole owner of Lua instances, cancellation, and named per-record workers;
+  the app controller owns only global macro enable, target-foreground eligibility, and C++-compatible
+  per-script hotkey latches. A running script's rising edge force-stops before the foreground gate,
+  while an idle foreground-rejected script resets its latch so a held key becomes a fresh edge after
+  focus returns. The sidebar and selected-script pane now support hotkey/enable/foreground edits,
+  Execute Now, Reload, Remove, Force Stop, Revert Module, metadata/status/error display, and captured
+  `onSettings()` controls. Running scripts use cached read-only settings semantics: interactive
+  controls are disabled while text/separators remain visible and `dynamicTextbox` stays selectable and
+  copyable. Imports use SDL3's native file dialog for `.smus/.hss/.lua/.txt`, suppress all macro
+  hotkeys while the external modal owns input, and require an explicit trust modal with a read-only
+  source preview before manager import. Script imports are intentionally session-only today: profile
+  persistence is not attached, and `savedSetting`/`getSavedValue` has no production `SavedSettingSource`
+  until the complete live profile payload adapter exists. The default parity case remains script-free,
+  and its pixel gate is unchanged.
 - `smu-app` now owns a safety-scoped profile-browser slice backed by `smu-profile`. The existing
   footer `Profiles ->` control opens the C++-style drop-up list and uses backup-aware, read-only
   discovery with the same SMC-before-RMC and canonical/executable/parent/current priority, but does
@@ -105,9 +120,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   wheel transient capture, modifier-only release binding, and post-bind hotkey suppression; all live
   macro controllers receive the resulting effective-macro gate, and Escape remains bindable while
   capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
-  fixing trait-object wheel capture. This is intentionally a partial Settings cutover: Anti-AFK still
-  lacks a live Rust app controller, updater HTTP/UI is not composed, Theme Editor remains unported,
-  and profile/imported-script UI remain separate entry-point gates.
+  fixing trait-object wheel capture. This is intentionally a partial Settings cutover: Anti-AFK is
+  Windows-only in the legacy runtime and has no Linux execution path to port, updater HTTP/UI is not
+  composed, Theme Editor remains unported, and full profile Save/Load remains a separate entry-point
+  gate.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -117,8 +133,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   settings inside the worker, and preserves the custom-text early return plus three separate dropdown
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
-  asymmetries. This completes built-in macro execution cutover only; profile UI, remaining Settings
-  controls, scripting UI, updater UI, and final C++ entry-point removal remain separate rewrite gates.
+  asymmetries. This completes built-in macro execution cutover only; full profile Save/Load,
+  remaining Settings controls, imported-script persistence/saved-setting integration, updater UI, and
+  final C++ entry-point removal remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

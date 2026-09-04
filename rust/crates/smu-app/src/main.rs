@@ -30,6 +30,8 @@ use smu_process::linux::{
 };
 #[cfg(target_os = "linux")]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
+#[cfg(target_os = "linux")]
+use smu_scripting::{ScriptImportResult, ScriptManager, ScriptManagerConfig, ScriptServices};
 
 mod bunnyhop;
 #[cfg(target_os = "linux")]
@@ -78,6 +80,10 @@ mod profile_browser;
 mod profile_service;
 #[cfg(target_os = "linux")]
 mod runtime_input;
+#[cfg(target_os = "linux")]
+mod script_runtime;
+#[cfg(target_os = "linux")]
+mod script_ui;
 mod settings_menu;
 mod shell;
 mod sidebar;
@@ -106,6 +112,11 @@ const MINIMUM_WIDTH: u32 = 1220;
 #[cfg(not(target_os = "macos"))]
 const MINIMUM_WIDTH: u32 = 1180;
 const MINIMUM_HEIGHT: u32 = 700;
+const APP_VERSION_TEXT: &str = include_str!("../../../../version");
+
+fn app_version() -> String {
+    APP_VERSION_TEXT.trim().to_owned()
+}
 #[cfg(target_os = "macos")]
 const GLSL_VERSION: &str = "#version 150";
 #[cfg(not(target_os = "macos"))]
@@ -209,6 +220,14 @@ enum WaylandSettingsTask {
 }
 
 #[cfg(target_os = "linux")]
+#[derive(Debug)]
+enum ScriptDialogResult {
+    Selected(PathBuf),
+    Canceled,
+    Error(String),
+}
+
+#[cfg(target_os = "linux")]
 struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
@@ -221,6 +240,10 @@ struct LinuxRuntimeServices {
     wayland_settings_busy: Arc<AtomicBool>,
     wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
     input_service: Arc<EvdevUinputInputDevice>,
+    script_manager: Arc<ScriptManager>,
+    script_runtime_controller: Option<script_runtime::ScriptRuntimeController>,
+    script_dialog_busy: Arc<AtomicBool>,
+    script_dialog_result: Arc<Mutex<Option<ScriptDialogResult>>>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     bunnyhop_controller: Option<bunnyhop_runtime::BunnyhopController>,
     hhj_controller: Option<hhj_runtime::HhjController>,
@@ -582,12 +605,53 @@ fn start_walless_lhj_controller(
 }
 
 #[cfg(target_os = "linux")]
+fn start_script_services(
+    platform: &LinuxPlatformServices,
+    lag_switch_backend: &Arc<LinuxLagSwitchBackend>,
+    roblox_log: Arc<dyn RobloxLogSource>,
+    shell_state: &shell::ShellState,
+) -> (Arc<ScriptManager>, Option<script_runtime::ScriptRuntimeController>) {
+    let services = ScriptServices {
+        input: Some(platform.input_service.clone()),
+        display: Some(platform.display_service.clone()),
+        process_discovery: Some(platform.process_discovery.clone()),
+        process_control: Some(platform.process_control.clone()),
+        network: Some(lag_switch_backend.clone()),
+        roblox_log: Some(roblox_log),
+        saved_settings: None,
+        logger: None,
+    };
+    let (selector, take_all_process_ids) = shell_state.script_process_target();
+    let mut config = ScriptManagerConfig::new(app_version());
+    config.process_selector.clone_from(&selector);
+    config.take_all_process_ids = take_all_process_ids;
+    let manager = Arc::new(ScriptManager::new(config, services));
+    let controller = platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
+        script_runtime::ScriptRuntimeController::start(
+            input,
+            discovery,
+            foreground,
+            Arc::clone(&manager),
+            shell_state.script_runtime_settings(),
+        )
+    });
+    (manager, controller)
+}
+
+#[cfg(target_os = "linux")]
 impl LinuxRuntimeServices {
     fn new(shell_state: &shell::ShellState) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
-        let lag_switch_backend = Arc::new(LinuxLagSwitchBackend::new(Some(roblox_log)));
+        let lag_switch_backend =
+            Arc::new(LinuxLagSwitchBackend::new(Some(Arc::clone(&roblox_log))));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let (freeze_authorization, platform) = create_linux_platform_services();
+        let (script_manager, script_runtime_controller) =
+            start_script_services(&platform, &lag_switch_backend, roblox_log, shell_state);
         let hhj_active = Arc::new(AtomicBool::new(false));
         let bunnyhop_controller = start_bunnyhop_controller(&platform, shell_state);
         let hhj_controller = start_hhj_controller(&platform, Arc::clone(&hhj_active), shell_state);
@@ -660,6 +724,10 @@ impl LinuxRuntimeServices {
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
             wayland_settings_worker: Mutex::new(None),
             input_service: platform.input_service,
+            script_manager,
+            script_runtime_controller,
+            script_dialog_busy: Arc::new(AtomicBool::new(false)),
+            script_dialog_result: Arc::new(Mutex::new(None)),
             lag_switch_controller,
             bunnyhop_controller,
             hhj_controller,
@@ -676,6 +744,132 @@ impl LinuxRuntimeServices {
             wall_walk_controller,
             walless_lhj_controller,
             wallhop_controller,
+        }
+    }
+
+    fn prepare_script_ui(&self, shell_state: &mut shell::ShellState) {
+        shell_state.script_ui_mut().set_snapshots(self.script_manager.snapshot());
+        if let Some(index) = shell_state.selected_script() {
+            let running = self.script_manager.get(index).is_some_and(|record| record.is_running());
+            if !running {
+                let _ = self.script_manager.call_settings(index, true);
+            }
+            shell_state.script_ui_mut().set_controls(self.script_manager.settings_controls(index));
+        } else {
+            shell_state.script_ui_mut().set_controls(Vec::new());
+        }
+
+        let dialog_result = lock(&self.script_dialog_result).take();
+        match dialog_result {
+            Some(ScriptDialogResult::Selected(path)) => {
+                shell_state.script_ui_mut().queue_import_candidate(path);
+            }
+            Some(ScriptDialogResult::Canceled) | None => {}
+            Some(ScriptDialogResult::Error(error)) => {
+                shell_state.script_ui_mut().set_import_error(error);
+            }
+        }
+    }
+
+    fn open_script_dialog(&self, window: &sdl3::video::Window) {
+        if self
+            .script_dialog_busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let result_slot = Arc::clone(&self.script_dialog_result);
+        let busy = Arc::clone(&self.script_dialog_busy);
+        let filters =
+            [sdl3::dialog::DialogFileFilter { name: "SMU Scripts", pattern: "smus;hss;lua;txt" }];
+        let callback: sdl3::dialog::DialogCallback = Box::new(move |result, _filter| {
+            let dialog_result = match result {
+                Ok(paths) => paths
+                    .into_iter()
+                    .next()
+                    .map_or(ScriptDialogResult::Canceled, ScriptDialogResult::Selected),
+                Err(sdl3::dialog::DialogError::Canceled) => ScriptDialogResult::Canceled,
+                Err(error) => ScriptDialogResult::Error(error.to_string()),
+            };
+            *lock(&result_slot) = Some(dialog_result);
+            busy.store(false, Ordering::Release);
+        });
+        if let Err(error) = sdl3::dialog::show_open_file_dialog(
+            &filters,
+            Option::<&std::path::Path>::None,
+            false,
+            Some(window),
+            callback,
+        ) {
+            *lock(&self.script_dialog_result) = Some(ScriptDialogResult::Error(error.to_string()));
+            self.script_dialog_busy.store(false, Ordering::Release);
+        }
+    }
+
+    fn handle_script_action(
+        &self,
+        action: &script_ui::ScriptAction,
+        shell_state: &mut shell::ShellState,
+        window: &sdl3::video::Window,
+    ) {
+        use script_ui::ScriptAction;
+        match action {
+            ScriptAction::OpenImportDialog => self.open_script_dialog(window),
+            ScriptAction::ConfirmImport { path } => {
+                let result = self.script_manager.import_script_with_result(path);
+                shell_state.script_ui_mut().cancel_import();
+                match result {
+                    ScriptImportResult::Success => {
+                        shell_state.script_ui_mut().set_snapshots(self.script_manager.snapshot());
+                        shell_state.script_ui_mut().select_last_script();
+                        shell_state.script_ui_mut().set_import_notice(
+                            "Imported for this session. Rust profile persistence for imported scripts is not attached yet.",
+                        );
+                    }
+                    ScriptImportResult::UnsupportedExtension => shell_state
+                        .script_ui_mut()
+                        .set_import_error("Unsupported script extension."),
+                    ScriptImportResult::AlreadyImported => {
+                        shell_state.script_ui_mut().set_import_error("Script is already imported.");
+                    }
+                    ScriptImportResult::LoadFailed => shell_state.script_ui_mut().set_import_error(
+                        "Script could not be imported because it is malformed or invalid.",
+                    ),
+                }
+            }
+            ScriptAction::SetHotkey { index, hotkey } => {
+                let _ = self.script_manager.set_hotkey(*index, smu_core::Hotkey::new(*hotkey));
+            }
+            ScriptAction::SetEnabled { index, enabled } => {
+                let _ = self.script_manager.set_enabled(*index, *enabled);
+            }
+            ScriptAction::SetDisableOutside { index, disabled } => {
+                let _ = self.script_manager.set_disable_outside_roblox(*index, *disabled);
+            }
+            ScriptAction::Execute { index } => {
+                let _ = self.script_manager.spawn_execute_script(*index);
+            }
+            ScriptAction::Reload { index } => {
+                let _ = self.script_manager.reload_script(*index);
+            }
+            ScriptAction::Remove { index } => {
+                if self.script_manager.remove_script(*index) {
+                    shell_state.script_ui_mut().remove_completed(*index);
+                }
+            }
+            ScriptAction::ForceStop { index } => {
+                let _ = self.script_manager.force_stop_script(*index);
+            }
+            ScriptAction::Reset { index } => {
+                let _ = self.script_manager.reset_script(*index);
+            }
+            ScriptAction::SettingValue { index, id, value } => {
+                let _ = self.script_manager.queue_settings_value(*index, id.clone(), value.clone());
+            }
+            ScriptAction::SettingButton { index, id } => {
+                let _ = self.script_manager.queue_settings_button(*index, id.clone());
+            }
         }
     }
 
@@ -743,6 +937,8 @@ impl LinuxRuntimeServices {
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
         self.reap_wayland_settings_worker();
+        shell_state.set_external_input_capture(self.script_dialog_busy.load(Ordering::Acquire));
+        self.prepare_script_ui(shell_state);
         if shell_state.keybind_input_poll_needed() {
             let input = keybind::InputSnapshot::capture(
                 self.input_service.as_ref(),
@@ -775,6 +971,7 @@ impl LinuxRuntimeServices {
         &self,
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
+        window: &sdl3::video::Window,
     ) {
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
             controller.update_settings(shell_state.bunnyhop_controller_settings());
@@ -784,6 +981,11 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.floor_bounce_controller.as_ref() {
             controller.update_settings(shell_state.floor_bounce_controller_settings());
+        }
+        let (script_selector, script_take_all) = shell_state.script_process_target();
+        self.script_manager.set_process_target(script_selector, script_take_all);
+        if let Some(controller) = self.script_runtime_controller.as_ref() {
+            controller.update_settings(shell_state.script_runtime_settings());
         }
         if let Some(controller) = self.lag_switch_controller.as_ref() {
             controller.update_settings(shell_state.lag_switch_controller_settings());
@@ -829,13 +1031,14 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.wallhop_controller.as_ref() {
             controller.update_settings(shell_state.wallhop_controller_settings());
         }
-        self.handle_action(action, shell_state);
+        self.handle_action(action, shell_state, window);
     }
 
     fn handle_action(
         &self,
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
+        window: &sdl3::video::Window,
     ) {
         match action {
             Some(shell::ShellAction::ToggleLagSwitchBackend) => {
@@ -903,11 +1106,18 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
                 self.wayland_portal.decline_remote_desktop_activation_request();
             }
+            Some(shell::ShellAction::Script(action)) => {
+                self.handle_script_action(action, shell_state, window);
+            }
             Some(shell::ShellAction::Profile(_)) | None => {}
         }
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.script_runtime_controller.as_ref() {
+            controller.stop();
+        }
+        self.script_manager.shutdown();
         if let Some(controller) = self.floor_bounce_controller.as_ref() {
             controller.stop();
         }
@@ -1010,7 +1220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             backend.process_event(&mut imgui, &event)?;
             let should_quit = matches!(event, Event::Quit { .. })
                 || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
-                    && !shell_state.keybind_capture_active());
+                    && !shell_state.input_capture_active());
             if should_quit {
                 break 'main;
             }
@@ -1027,7 +1237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             profile_service.handle_action(profile_action, shell_state.profile_browser_mut());
         }
         #[cfg(target_os = "linux")]
-        linux_services.finish_shell(shell_action.as_ref(), &mut shell_state);
+        linux_services.finish_shell(shell_action.as_ref(), &mut shell_state, &window);
         #[cfg(not(target_os = "linux"))]
         let _ = shell_action;
 

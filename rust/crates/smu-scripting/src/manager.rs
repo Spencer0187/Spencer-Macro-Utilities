@@ -186,6 +186,10 @@ impl ScriptRecord {
 
     #[must_use]
     pub fn ui_state(&self) -> JsonValue {
+        let settings_context = lock(&self.settings_context).clone();
+        if let Some(context) = settings_context {
+            return context.ui_state();
+        }
         lock(&self.ui_state).clone()
     }
 
@@ -997,6 +1001,30 @@ mod tests {
         assert!(record.is_missing());
         assert!(!record.is_loaded());
         assert_eq!(record.last_error(), "Script file is missing.");
+        manager.shutdown();
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn record_snapshot_prefers_live_settings_context_state() {
+        let directory = temp_dir("live-ui-state");
+        let path = write_script(
+            &directory,
+            "dynamic.lua",
+            concat!(
+                "function onSettings() ui.dynamicTextbox('status','Status','initial') end
+",
+                "function onExecute() end"
+            ),
+        );
+        let manager = manager();
+        assert!(manager.import_script(&path));
+        assert!(manager.call_settings(0, false));
+        let record = manager.get(0).expect("record should exist");
+        let context = record.settings_context().expect("settings context should exist");
+        context.set_stored("status", serde_json::json!("live"));
+        assert_eq!(record.snapshot().ui_state["status"], serde_json::json!("live"));
+        assert_eq!(manager.serialize()[0]["ui_state"]["status"], serde_json::json!("live"));
         manager.shutdown();
         let _ = fs::remove_dir_all(directory);
     }
