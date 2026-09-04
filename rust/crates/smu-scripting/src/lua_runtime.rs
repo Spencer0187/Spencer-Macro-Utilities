@@ -552,12 +552,14 @@ impl LuaScriptVm {
         self.lua.globals().get::<Value>(name).is_ok_and(|value| matches!(value, Value::Function(_)))
     }
 
-    fn run_budgeted<T>(
+    fn run_budgeted_with_started<T>(
         &self,
         limit: Duration,
+        started: impl FnOnce(),
         operation: impl FnOnce(&Lua) -> mlua::Result<T>,
     ) -> Result<T, LuaExecutionError> {
         self.state.begin(limit);
+        started();
         let result = operation(&self.lua);
         self.state.finish();
         let reason = self.state.reason();
@@ -568,6 +570,14 @@ impl LuaScriptVm {
             }
             Err(error) => Err(map_lua_error(error, reason)),
         }
+    }
+
+    fn run_budgeted<T>(
+        &self,
+        limit: Duration,
+        operation: impl FnOnce(&Lua) -> mlua::Result<T>,
+    ) -> Result<T, LuaExecutionError> {
+        self.run_budgeted_with_started(limit, || {}, operation)
     }
 
     /// Execute raw source bytes while explicitly rejecting Lua bytecode chunks.
@@ -607,6 +617,24 @@ impl LuaScriptVm {
         limit: Duration,
     ) -> Result<(), LuaExecutionError> {
         self.run_budgeted(limit, |lua| lua.load(source).set_name(chunk_name).exec())
+    }
+
+    /// Call a global Lua function with no arguments and notify the caller after the execution
+    /// budget/cancellation state is armed but before Lua code starts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the global is missing/not callable or its execution fails.
+    pub fn call_no_args_with_started(
+        &self,
+        name: &str,
+        limit: Duration,
+        started: impl FnOnce(),
+    ) -> Result<(), LuaExecutionError> {
+        self.run_budgeted_with_started(limit, started, |lua| {
+            let function = lua.globals().get::<mlua::Function>(name)?;
+            function.call::<()>(())
+        })
     }
 
     /// Call a global Lua function with no arguments.

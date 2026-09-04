@@ -299,13 +299,28 @@ impl LuaScriptInstance {
     }
 
     #[must_use]
+    pub fn execution_context_handle(&self) -> ScriptInputContext {
+        self.execution_context.clone()
+    }
+
+    #[must_use]
     pub const fn process_context(&self) -> &ScriptProcessContext {
         &self.process_context
     }
 
     #[must_use]
+    pub fn process_context_handle(&self) -> ScriptProcessContext {
+        self.process_context.clone()
+    }
+
+    #[must_use]
     pub const fn settings_ui_context(&self) -> &ScriptSettingsUiContext {
         &self.settings_ui_context
+    }
+
+    #[must_use]
+    pub fn settings_ui_context_handle(&self) -> ScriptSettingsUiContext {
+        self.settings_ui_context.clone()
     }
 
     /// Load and execute one plain-text script chunk, then run the non-render settings callback and
@@ -379,11 +394,25 @@ impl LuaScriptInstance {
     ///
     /// Returns runtime, timeout, cancellation, or missing-function failures from `onExecute`.
     pub fn execute(&mut self) -> Result<(), LuaExecutionError> {
+        self.execute_with_started(|| {})
+    }
+
+    /// Execute `onExecute` and notify the owner only after the VM execution budget is armed.
+    /// This lets `ScriptManager` publish `running=true` without a pre-start cancellation race.
+    ///
+    /// # Errors
+    ///
+    /// Returns runtime, timeout, cancellation, or missing-function failures from `onExecute`.
+    pub fn execute_with_started(
+        &mut self,
+        started: impl FnOnce(),
+    ) -> Result<(), LuaExecutionError> {
         self.diagnostics.running = true;
         self.diagnostics.last_warning.clear();
         let result = if self.vm.has_function("onExecute") {
-            self.vm.call_no_args("onExecute", MAX_SCRIPT_RUNTIME)
+            self.vm.call_no_args_with_started("onExecute", MAX_SCRIPT_RUNTIME, started)
         } else {
+            started();
             Err(LuaExecutionError {
                 kind: LuaExecutionErrorKind::Runtime,
                 message: MISSING_EXECUTE_ERROR.to_owned(),

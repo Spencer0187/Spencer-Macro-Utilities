@@ -72,10 +72,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   adapters into one per-script VM, enforces text-only chunks and the `onExecute` gate, runs initial
   `onSettings`, maps completed/error/timeout/cancelled cleanup reasons, releases managed input and
   callbacks before `onCleanup`, clears lag-switch ownership afterward, and intentionally leaves a
-  script freeze in place until instance shutdown just like C++. The caller still owns the execution
-  worker thread. Saved app-setting scalars are exposed by `smu-profile`; transient active-monitor
-  values stay in `smu-display`. Settings render/callback mode is treated as one restricted scripting
-  phase, matching the C++ `IsSettingsCallbackActive` helper.
+  script freeze in place until instance shutdown just like C++. `ScriptManager` now owns imported
+  record/path normalization, import-from-save quirks, reload/reset/remove, persistence, live hotkey
+  and process-target handles, and named per-record execution workers. Different scripts can execute
+  concurrently; the same record is protected by an internal active reservation, while public
+  `running` is published only after the Lua budget/cancellation state is armed so Force Stop cannot
+  be lost during worker startup. Render-mode `onSettings` uses the C++ try-lock/skip behavior. Saved
+  app-setting scalars are exposed by `smu-profile`; transient active-monitor values stay in
+  `smu-display`. Settings render/callback mode is treated as one restricted scripting phase,
+  matching the C++ `IsSettingsCallbackActive` helper.
 
 ## Architecture rules
 

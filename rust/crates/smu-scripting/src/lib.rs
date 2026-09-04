@@ -11,6 +11,7 @@ pub mod input_callbacks;
 pub mod instance;
 pub mod lua_runtime;
 pub mod managed_hotkeys;
+pub mod manager;
 pub mod memory;
 pub mod metadata;
 pub mod network_api;
@@ -48,6 +49,9 @@ pub use lua_runtime::{
     MAX_SETTINGS_RUNTIME, MAX_SINGLE_SLEEP_MICROS, ScriptStopReason,
 };
 pub use managed_hotkeys::{ManagedHotkeyResult, ManagedHotkeys, ManagedKeyAction};
+pub use manager::{
+    ScriptImportResult, ScriptManager, ScriptManagerConfig, ScriptRecord, ScriptRecordSnapshot,
+};
 pub use memory::{
     DEFAULT_SCRIPT_MEMORY_LIMIT_MB, LuaMemoryBudget, MAX_SCRIPT_MEMORY_LIMIT_MB,
     MIN_SCRIPT_MEMORY_LIMIT_MB, memory_limit_bytes,
