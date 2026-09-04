@@ -924,6 +924,91 @@ def payload_sequence_cases() -> list[dict[str, Any]]:
     return output
 
 
+def profile_reset_section_cases() -> list[dict[str, Any]]:
+    defaults = run_json(PROFILE_ORACLE, "snapshot-default")["payload"]
+    changes: list[dict[str, Any]] = [
+        {"vk_mbutton": 65, "maxfreezetime": 8.75, "maxfreezeoverride": 222, "isfreezeswitch": True, "takeallprocessids": True},
+        {"vk_f5": 65, "ItemDesyncSlot": "8"},
+        {"vk_xbutton1": 65, "autotoggle": True, "fasthhj": True, "HHJFreezeDelayApply": True,
+         "HHJLengthChar": "333", "HHJFreezeDelayOverrideChar": "44", "HHJDelay1Char": "21",
+         "HHJDelay2Char": "22", "HHJDelay3Char": "23", "vk_autohhjkey1": 66,
+         "vk_autohhjkey2": 67, "AutoHHJKey1TimeChar": "111", "AutoHHJKey2TimeChar": "112"},
+        {"vk_xkey": 65, "isspeedswitch": True, "RobloxPixelValueChar": "777"},
+        {"vk_f8": 65, "ItemSpeedSlot": "8", "CustomTextChar": "changed", "selected_dropdown": 2,
+         "vk_enterkey": 66, "unequiptoggle": True},
+        {"vk_zkey": 65, "vk_dkey": 66, "PressKeyDelayChar": "31", "PressKeyBonusDelayChar": "7",
+         "extra_presskey_instances": [
+             {"vk_trigger": 67, "vk_presskey": 68, "PressKeyDelay": 41, "PressKeyBonusDelay": 8,
+              "PressKeyDelayChar": "41", "PressKeyBonusDelayChar": "8", "disable_outside_roblox": True,
+              "presskeyinroblox": True, "section_enabled": True},
+             {"vk_trigger": 69, "vk_presskey": 70, "PressKeyDelay": 51, "PressKeyBonusDelay": 9,
+              "PressKeyDelayChar": "51", "PressKeyBonusDelayChar": "9", "disable_outside_roblox": False,
+              "presskeyinroblox": False, "section_enabled": True},
+         ]},
+        {"vk_xbutton2": 65, "vk_wallhopjumpkey": 66, "WallhopPixels": "444", "WallhopVerticalChar": "12",
+         "WallhopDelayChar": "33", "WallhopBonusDelayChar": "4", "wallhopswitch": True,
+         "toggle_jump": False, "toggle_flick": False, "wallhopcamfix": True,
+         "extra_wallhop_instances": [
+             {"vk_trigger": 67, "vk_jumpkey": 68, "wallhop_dx": 123, "wallhop_dy": -123,
+              "wallhop_vertical": 5, "WallhopDelay": 42, "WallhopBonusDelay": 6,
+              "WallhopPixels": "123", "WallhopVerticalChar": "5", "WallhopDelayChar": "42",
+              "WallhopBonusDelayChar": "6", "WallhopDegrees": "151", "wallhopswitch": True,
+              "toggle_jump": False, "toggle_flick": False, "wallhopcamfix": True,
+              "disable_outside_roblox": True, "section_enabled": True},
+         ]},
+        {"vk_f6": 65, "wallesslhjswitch": True},
+        {"vk_clipkey": 65, "ItemClipSlot": "8", "ItemClipDelay": "88", "isitemclipswitch": True},
+        {"vk_laughkey": 65, "laughmoveswitch": True},
+        {"vk_wallkey": 65, "iswallwalkswitch": True, "wallwalktoggleside": True,
+         "RobloxWallWalkValueChar": "-777", "RobloxWallWalkValueDelayChar": "444"},
+        {"vk_leftbracket": 65, "vk_spamkey": 66, "isspamswitch": True, "SpamDelay": "44",
+         "extra_spamkey_instances": [
+             {"vk_trigger": 67, "vk_spamkey": 68, "SpamDelay": "55", "spam_delay": 55.0,
+              "real_delay": 27, "isspamswitch": True, "disable_outside_roblox": True,
+              "section_enabled": True},
+         ]},
+        {"vk_bouncekey": 65, "bouncesidetoggle": True, "bouncerealignsideways": True,
+         "bounceautohold": True},
+        {"vk_bunnyhopkey": 65, "bunnyhopsmart": True, "chatoverride": False, "BunnyHopDelayChar": "44"},
+        {"vk_floorbouncekey": 65, "floorbouncehhj": True, "FloorBounceDelay1Char": "41",
+         "FloorBounceDelay2Char": "42", "FloorBounceDelay3Char": "43"},
+        {"vk_lagswitchkey": 65, "islagswitchswitch": True, "prevent_disconnect": False,
+         "lagswitchoutbound": False, "lagswitchinbound": True, "lagswitchtargetroblox": False,
+         "lagswitchusetcp": False, "lagswitch_autounblock": False, "lagswitchlag": True,
+         "lagswitchlaginbound": True, "lagswitchlagoutbound": True, "lagswitch_max_duration": 4.25,
+         "lagswitch_unblock_ms": 4321, "lagswitchlagdelay": 77},
+    ]
+    cases: list[dict[str, Any]] = []
+    for section, payload in enumerate(changes):
+        payload = dict(payload)
+        enabled = list(defaults["section_toggles"])
+        enabled[section] = not enabled[section]
+        disable = list(defaults["disable_outside_roblox"])
+        disable[section] = not disable[section]
+        payload["section_toggles"] = enabled
+        payload["disable_outside_roblox"] = disable
+        # Unrelated sentinel must survive every section reset.
+        payload["fps"] = 333
+        observed = run_json(PROFILE_ORACLE, "reset-section", str(section), compact(payload))
+        cases.append({
+            "section": section,
+            "input": payload,
+            "success": observed["success"],
+            "expected": observed["payload"],
+        })
+    return cases
+
+
+def write_profile_reset_cases() -> None:
+    write_json(
+        ROOT / "compat" / "profiles" / "reset_section_cases.json",
+        {
+            "oracle": "smu_profile_compat_oracle reset-section",
+            "cases": profile_reset_section_cases(),
+        },
+    )
+
+
 def write_payload_cases() -> None:
     schema = run_json(PROFILE_ORACLE, "payload-schema")["schema"]
     default_payload = run_json(PROFILE_ORACLE, "snapshot-default")["payload"]
@@ -959,6 +1044,7 @@ def write_profiles() -> None:
     legacy_keys = run_json(PROFILE_ORACLE, "legacy-keys")["keys"]
     write_generated_legacy_keys(legacy_keys)
     write_payload_cases()
+    write_profile_reset_cases()
     output = {
         "oracle": "smu_profile_compat_oracle",
         "legacy_keys": legacy_keys,

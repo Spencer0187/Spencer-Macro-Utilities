@@ -84,6 +84,22 @@ impl SpamKeyUiState {
         self.instances().iter().map(|instance| instance.enabled).collect()
     }
 
+    pub(crate) fn reset_base_to_profile_defaults(&mut self, defaults: &PreservedProfilePayload) {
+        let Some(base) = self.instances.instances_mut().first_mut() else {
+            return;
+        };
+        let enabled = base.enabled;
+        let disable_outside_target = base.disable_outside_target;
+        let mut default_state = Self::default();
+        default_state.apply_profile(defaults);
+        let Some(default_base) = default_state.instances().first().cloned() else {
+            return;
+        };
+        *base = default_base;
+        base.enabled = enabled;
+        base.disable_outside_target = disable_outside_target;
+    }
+
     pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
         // C++ clears the instance deque but preserves flat globals before rebuilding instances[0].
         // The current base instance is the Rust owner of those flat-global values, so omitted profile

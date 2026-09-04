@@ -70,6 +70,11 @@ pub enum SidebarAction {
     AddInstance { section_index: usize },
 }
 
+#[must_use]
+pub fn section_title(index: usize) -> Option<&'static str> {
+    SECTION_CONFIGS.get(index).map(|config| config.title)
+}
+
 #[allow(clippy::suboptimal_flops)] // Preserve C++ sidebar layout arithmetic for pixel parity.
 pub fn render(
     ui: &Ui,

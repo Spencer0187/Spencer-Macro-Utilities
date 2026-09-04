@@ -57,6 +57,11 @@ impl ScriptUiState {
         self.selected
     }
 
+    #[must_use]
+    pub fn selected_snapshot(&self) -> Option<&ScriptRecordSnapshot> {
+        self.selected.and_then(|index| self.snapshots.get(index))
+    }
+
     #[cfg(test)]
     pub fn select(&mut self, index: usize) {
         if index < self.snapshots.len() {

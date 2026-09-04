@@ -247,6 +247,62 @@ impl ShellState {
         }
     }
 
+    pub(crate) fn reset_section_to_defaults(&mut self, section: usize) {
+        if section >= 16 {
+            return;
+        }
+        let defaults = PreservedProfilePayload::cpp_default();
+        match section {
+            0 => self.freeze.apply_profile(&defaults),
+            1 => self.item_desync.apply_profile(&defaults),
+            2 => self.hhj.apply_profile(&defaults),
+            3 => self.speedglitch.apply_profile(&defaults),
+            4 => {
+                self.item_unequip.apply_profile(&defaults);
+                if let Some(value) = crate::profile_adapter::u32_value(&defaults, "vk_enterkey") {
+                    *self.global.enter_key_mut() = value;
+                }
+            }
+            5 => self.press_key.reset_base_to_profile_defaults(&defaults),
+            6 => self.wallhop.reset_base_to_profile_defaults(&defaults),
+            7 => self.walless_lhj.apply_profile(&defaults),
+            8 => self.item_clip.apply_profile(&defaults),
+            9 => self.laugh_clip.apply_profile(&defaults),
+            10 => self.wall_walk.apply_profile(&defaults),
+            11 => self.spam_key.reset_base_to_profile_defaults(&defaults),
+            12 => self.ledge_bounce.apply_profile(&defaults),
+            13 => {
+                self.bunnyhop.apply_profile(&defaults);
+                if let Some(value) = crate::profile_adapter::bool_value(&defaults, "chatoverride") {
+                    *self.global.chat_override_mut() = value;
+                }
+            }
+            14 => self.floor_bounce.apply_profile(&defaults),
+            15 => self.lag_switch.apply_profile(&defaults),
+            _ => return,
+        }
+
+        // C++ ResetSectionToDefaults mutates the legacy flat section arrays for every section, but
+        // the three multi-instance serializers source their visible base flags from instance[0]. The
+        // resulting C++ payload therefore preserves those flags for sections 5/6/11; oracle fixtures
+        // freeze that quirk and Rust intentionally mirrors the observable result.
+        if !matches!(section, 5 | 6 | 11) {
+            let mut enabled = self.section_enabled();
+            let mut disable = self.section_disable_outside();
+            if let Some(value) =
+                crate::profile_adapter::section_flag(&defaults, "section_toggles", section)
+            {
+                enabled[section] = value;
+            }
+            if let Some(value) =
+                crate::profile_adapter::section_flag(&defaults, "disable_outside_roblox", section)
+            {
+                disable[section] = value;
+            }
+            self.set_section_flags(enabled, disable);
+        }
+    }
+
     #[must_use]
     pub(crate) fn overlay_profile_payload(
         &self,
@@ -1157,12 +1213,12 @@ fn render_contents(
     ui.set_cursor_pos_x(right_child_min[0]);
 
     let _square_footer = ui.push_style_var(StyleVar::ChildRounding(0.0));
-    let mut profile_action = None;
+    let mut footer_action = None;
     ui.child_window(BOTTOM_CONTROLS_CHILD)
         .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
         .build(ui, || {
-            profile_action = render_footer(ui, right_child_size[0], state, theme);
+            footer_action = render_footer(ui, right_child_size[0], state, theme);
         });
 
     sidebar_shell_action
@@ -1170,7 +1226,7 @@ fn render_contents(
         .or_else(|| {
             lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
         })
-        .or_else(|| profile_action.map(ShellAction::Profile))
+        .or(footer_action)
 }
 
 fn render_right_section(
@@ -1259,7 +1315,7 @@ fn render_footer(
     right_child_width: f32,
     state: &mut ShellState,
     theme: &theme::ThemeDefinition,
-) -> Option<ProfileAction> {
+) -> Option<ShellAction> {
     ui.same_line_with_pos((right_child_width - FOOTER_CONTROLS_FROM_RIGHT).max(0.0));
     ui.align_text_to_frame_padding();
     nudge_footer_y(ui);
@@ -1285,11 +1341,49 @@ fn render_footer(
         right_child_width - PROFILES_BUTTON_WIDTH - style.item_spacing()[0] - revert_width,
     );
     nudge_footer_y(ui);
-    let _ = ui.button("Revert Module");
+
+    let mut footer_action = None;
+    #[cfg(target_os = "linux")]
+    if let Some(script) = state.script_ui.selected_snapshot().cloned() {
+        let disabled = script.running.then(|| ui.begin_disabled());
+        if ui.button("Revert Module")
+            && let Some(index) = state.script_ui.selected()
+        {
+            footer_action = Some(ShellAction::Script(ScriptAction::Reset { index }));
+        }
+        drop(disabled);
+        if ui.is_item_hovered() {
+            ui.tooltip_text(
+                "Reset this script's hotkey, enable state, and all custom settings to their defaults.",
+            );
+        }
+    } else {
+        render_builtin_revert_button(ui, state);
+    }
+    #[cfg(not(target_os = "linux"))]
+    render_builtin_revert_button(ui, state);
 
     ui.same_line_with_pos(right_child_width - PROFILES_BUTTON_WIDTH);
     nudge_footer_y(ui);
-    profile_browser::render(ui, &mut state.profile_browser, PROFILES_BUTTON_WIDTH, theme)
+    let profile_action =
+        profile_browser::render(ui, &mut state.profile_browser, PROFILES_BUTTON_WIDTH, theme)
+            .map(ShellAction::Profile);
+    footer_action.or(profile_action)
+}
+
+fn render_builtin_revert_button(ui: &Ui, state: &mut ShellState) {
+    let Some(section) = usize::try_from(state.selected_section).ok().filter(|index| *index < 16)
+    else {
+        return;
+    };
+    if ui.button("Revert Module") {
+        state.reset_section_to_defaults(section);
+    }
+    if ui.is_item_hovered()
+        && let Some(title) = sidebar::section_title(section)
+    {
+        ui.tooltip_text(format!("Reset all settings for '{title}' to their defaults."));
+    }
 }
 
 fn nudge_footer_y(ui: &Ui) {
@@ -1306,6 +1400,8 @@ mod profile_adapter_tests {
 
     const CPP_PAYLOAD_FIXTURE: &str =
         include_str!("../../../../compat/profiles/payload_cases.json");
+    const CPP_RESET_SECTION_FIXTURE: &str =
+        include_str!("../../../../compat/profiles/reset_section_cases.json");
 
     fn cpp_payload_fixture() -> serde_json::Value {
         serde_json::from_str(CPP_PAYLOAD_FIXTURE).expect("C++ payload fixture should parse")
@@ -1358,6 +1454,31 @@ mod profile_adapter_tests {
                     .raw_snapshot();
                 assert_eq!(actual, step["payload"], "C++ sequence {name} step {index}");
             }
+        }
+    }
+
+    #[test]
+    fn cpp_generated_section_resets_match_live_shell_adapter() {
+        let fixture: serde_json::Value = serde_json::from_str(CPP_RESET_SECTION_FIXTURE)
+            .expect("C++ reset-section fixture should parse");
+        for case in fixture["cases"].as_array().expect("reset cases should be an array") {
+            if !case["success"].as_bool().unwrap_or(false) {
+                continue;
+            }
+            let section = usize::try_from(case["section"].as_u64().expect("section index"))
+                .expect("section index should fit usize");
+            let input = PreservedProfilePayload::from_value(&case["input"])
+                .expect("successful C++ reset input should validate in Rust");
+            let baseline = PreservedProfilePayload::cpp_default();
+            let mut state = ShellState::default();
+            state.apply_profile_payload(&baseline);
+            state.apply_profile_payload(&input);
+            state.reset_section_to_defaults(section);
+            let actual = state
+                .overlay_profile_payload(&baseline)
+                .expect("reset overlay should validate")
+                .raw_snapshot();
+            assert_eq!(actual, case["expected"], "C++ reset section {section}");
         }
     }
 

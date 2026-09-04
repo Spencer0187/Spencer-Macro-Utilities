@@ -49,6 +49,7 @@ int Usage()
               << "  smu_profile_compat_oracle validate-payload <json>\n"
               << "  smu_profile_compat_oracle apply-payload <json>\n"
               << "  smu_profile_compat_oracle apply-sequence <json> [<json> ...]\n"
+              << "  smu_profile_compat_oracle reset-section <index> <json>\n"
               << "  smu_profile_compat_oracle duplicate <path> <source> <new>\n"
               << "  smu_profile_compat_oracle rename <path> <old> <new>\n"
               << "  smu_profile_compat_oracle delete <path> <name>\n"
@@ -67,7 +68,8 @@ int main(int argc, char** argv)
     const std::string_view operation(argv[1]);
     Json result;
 
-    if (operation == "snapshot-default" || operation == "apply-payload" || operation == "apply-sequence") {
+    if (operation == "snapshot-default" || operation == "apply-payload" || operation == "apply-sequence"
+        || operation == "reset-section") {
         InitializeProfilePayloadOracleForTesting();
     }
 
@@ -126,6 +128,18 @@ int main(int argc, char** argv)
             {"operation", "apply-sequence"},
             {"success", all_success},
             {"steps", std::move(steps)},
+        };
+    } else if (operation == "reset-section" && argc == 4) {
+        const int section = std::stoi(argv[2]);
+        const bool success = ApplyProfileDataForTesting(argv[3]);
+        if (success) {
+            ResetSectionToDefaults(section);
+        }
+        result = Json{
+            {"operation", "reset-section"},
+            {"section", section},
+            {"success", success},
+            {"payload", PayloadSnapshot()},
         };
     } else if (operation == "duplicate" && argc == 5) {
         result = MutationResult(argv[2], DuplicateProfileInFile(argv[2], argv[3], argv[4]));

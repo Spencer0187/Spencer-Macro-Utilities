@@ -81,6 +81,22 @@ impl PressKeyUiState {
         self.instances().iter().map(|instance| instance.enabled).collect()
     }
 
+    pub(crate) fn reset_base_to_profile_defaults(&mut self, defaults: &PreservedProfilePayload) {
+        let Some(base) = self.instances.instances_mut().first_mut() else {
+            return;
+        };
+        let enabled = base.enabled;
+        let disable_outside_target = base.disable_outside_target;
+        let mut default_state = Self::default();
+        default_state.apply_profile(defaults);
+        let Some(default_base) = default_state.instances().first().cloned() else {
+            return;
+        };
+        *base = default_base;
+        base.enabled = enabled;
+        base.disable_outside_target = disable_outside_target;
+    }
+
     pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
         let mut base = PressKeyUiInstance::default();
         if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_zkey") {

@@ -18,6 +18,7 @@ pub struct WallhopUiInstance {
     pub left_flick: bool,
     pub jump: bool,
     pub flick_back: bool,
+    wallhop_cam_fix: bool,
     pub jump_key: Hotkey,
     dx: i32,
     dy: i32,
@@ -40,6 +41,7 @@ impl Default for WallhopUiInstance {
             left_flick: false,
             jump: true,
             flick_back: true,
+            wallhop_cam_fix: false,
             jump_key: Hotkey::new(KeyCode::SPACE.raw()),
             dx: 300,
             dy: -300,
@@ -103,6 +105,9 @@ fn wallhop_base_from_profile(payload: &PreservedProfilePayload) -> WallhopUiInst
     if let Some(value) = crate::profile_adapter::bool_value(payload, "toggle_flick") {
         instance.flick_back = value;
     }
+    if let Some(value) = crate::profile_adapter::bool_value(payload, "wallhopcamfix") {
+        instance.wallhop_cam_fix = value;
+    }
     if let Some(value) = crate::profile_adapter::section_flag(payload, "section_toggles", 6) {
         instance.enabled = value;
     }
@@ -159,6 +164,9 @@ fn wallhop_extra_from_profile(
     if let Some(value) = crate::profile_adapter::object_bool(object, "toggle_flick") {
         instance.flick_back = value;
     }
+    if let Some(value) = crate::profile_adapter::object_bool(object, "wallhopcamfix") {
+        instance.wallhop_cam_fix = value;
+    }
     instance.disable_outside_target =
         crate::profile_adapter::object_bool(object, "disable_outside_roblox")
             .unwrap_or(base_disable_outside);
@@ -207,6 +215,22 @@ impl WallhopUiState {
         self.instances().iter().map(|instance| instance.enabled).collect()
     }
 
+    pub(crate) fn reset_base_to_profile_defaults(&mut self, defaults: &PreservedProfilePayload) {
+        let Some(base) = self.instances.instances_mut().first_mut() else {
+            return;
+        };
+        let enabled = base.enabled;
+        let disable_outside_target = base.disable_outside_target;
+        let mut default_state = Self::default();
+        default_state.apply_profile(defaults);
+        let Some(default_base) = default_state.instances().first().cloned() else {
+            return;
+        };
+        *base = default_base;
+        base.enabled = enabled;
+        base.disable_outside_target = disable_outside_target;
+    }
+
     pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
         let base = wallhop_base_from_profile(payload);
         let base_disable_outside = base.disable_outside_target;
@@ -250,6 +274,7 @@ impl WallhopUiState {
         crate::profile_adapter::insert_bool(overlay, "wallhopswitch", base.left_flick);
         crate::profile_adapter::insert_bool(overlay, "toggle_jump", base.jump);
         crate::profile_adapter::insert_bool(overlay, "toggle_flick", base.flick_back);
+        crate::profile_adapter::insert_bool(overlay, "wallhopcamfix", base.wallhop_cam_fix);
         crate::profile_adapter::insert_i32(
             overlay,
             "selected_wallhop_instance",
@@ -276,7 +301,7 @@ impl WallhopUiState {
                     "wallhopswitch": instance.left_flick,
                     "toggle_jump": instance.jump,
                     "toggle_flick": instance.flick_back,
-                    "wallhopcamfix": false,
+                    "wallhopcamfix": instance.wallhop_cam_fix,
                     "disable_outside_roblox": instance.disable_outside_target,
                     "section_enabled": instance.enabled
                 })

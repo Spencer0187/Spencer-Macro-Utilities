@@ -102,6 +102,17 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   set, and `savedSetting`/`getSavedValue` reads from a thread-safe normalized snapshot of the currently
   loaded profile. The default parity case remains script-free and storage-isolated, and its pixel gate
   is unchanged.
+- `smu-app` now owns C++-compatible `Revert Module` behavior for all 16 built-in sections and for
+  imported scripts. A new C++ oracle command generates `compat/profiles/reset_section_cases.json`;
+  Rust applies each adversarial sparse payload, resets one section, overlays back onto the full default
+  preservation baseline, and compares the complete serializer snapshot for all 16 sections. This
+  freezes section-local/global reset side effects such as Item Unequip's Enter key and Bunnyhop's
+  shared chat override, while preserving unrelated settings. Sections 5/6/11 intentionally mirror the
+  C++ multi-instance quirk: only instance 0's module data resets, and its serialized base enable/target
+  flags remain instance-owned. The differential fixture also exposed and fixed a pre-existing profile
+  omission where Rust dropped per-Wallhop-instance `wallhopcamfix`; base and extra instances now
+  round-trip that compatibility field even though live wallhop execution still uses the separate global
+  sensitivity/camera-fix calibration path.
 - `smu-app` now owns preservation-safe live profile startup, Save To, Load, duplication, rename,
   deletion, selection autosave, shutdown save, window geometry, imported-script persistence, and Lua
   saved-setting integration over `smu-profile`. `PreservedProfilePayload` keeps unknown/future keys and
