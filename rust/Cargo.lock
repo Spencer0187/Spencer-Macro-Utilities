@@ -679,6 +679,9 @@ version = "0.0.0"
 [[package]]
 name = "smu-display"
 version = "0.0.0"
+dependencies = [
+ "x11rb",
+]
 
 [[package]]
 name = "smu-input"

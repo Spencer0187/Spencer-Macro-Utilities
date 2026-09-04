@@ -7,3 +7,6 @@ publish = false
 
 [lints]
 workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb.workspace = true

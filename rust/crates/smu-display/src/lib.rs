@@ -5,6 +5,9 @@
 
 use std::fmt;
 
+#[cfg(target_os = "linux")]
+pub mod linux;
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ScreenBounds {
     pub x: i32,

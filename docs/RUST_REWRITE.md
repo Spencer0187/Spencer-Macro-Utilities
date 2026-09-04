@@ -46,7 +46,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
 - `smu-display` owns monitor/cursor geometry, active-monitor refresh metadata, script coordinate
-  modes, pixel colors/rectangle reads, and the screen-capture capability. `smu-scripting` wires
+  modes, pixel colors/rectangle reads, and the screen-capture capability. Linux now has a native
+  X11/XWayland implementation for cursor position, Xinerama active-monitor selection, and root-window
+  pixel sampling; native Wayland ScreenCast/RemoteDesktop remains a separate portal/PipeWire slice.
+  `smu-scripting` wires
   `moveMouse`, `moveMouseAbs`, `moveDegrees`, mouse motion mode, `getPixelColor`, `getPixelRect`, and
   the macOS cursor toggle through separate input/display services. `moveDegrees` caches its saved
   camfix/sensitivity calibration at API registration and is differential-tested against a C++
