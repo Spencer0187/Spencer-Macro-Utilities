@@ -74,6 +74,8 @@ mod parity;
 mod press_key;
 #[cfg(target_os = "linux")]
 mod press_key_runtime;
+mod profile_browser;
+mod profile_service;
 #[cfg(target_os = "linux")]
 mod runtime_input;
 mod settings_menu;
@@ -771,7 +773,7 @@ impl LinuxRuntimeServices {
 
     fn finish_shell(
         &self,
-        action: Option<shell::ShellAction>,
+        action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
     ) {
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
@@ -832,7 +834,7 @@ impl LinuxRuntimeServices {
 
     fn handle_action(
         &self,
-        action: Option<shell::ShellAction>,
+        action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
     ) {
         match action {
@@ -901,7 +903,7 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
                 self.wayland_portal.decline_remote_desktop_activation_request();
             }
-            None => {}
+            Some(shell::ShellAction::Profile(_)) | None => {}
         }
     }
 
@@ -998,6 +1000,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let mut shell_state = shell::ShellState::for_parity_case(parity_case.as_deref());
+    let profile_service = profile_service::ProfileBrowserService::new(parity_case.is_some());
     #[cfg(target_os = "linux")]
     let linux_services = LinuxRuntimeServices::new(&shell_state);
     let mut rendered_frames = 0_u32;
@@ -1016,11 +1019,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backend.new_frame(&mut imgui)?;
         let frame = imgui.begin_frame();
         let ui = frame.ui();
+        profile_service.prepare_shell(shell_state.profile_browser_mut());
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(&mut shell_state);
         let shell_action = shell::render(ui, &mut shell_state);
+        if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
+            profile_service.handle_action(profile_action, shell_state.profile_browser_mut());
+        }
         #[cfg(target_os = "linux")]
-        linux_services.finish_shell(shell_action, &mut shell_state);
+        linux_services.finish_shell(shell_action.as_ref(), &mut shell_state);
         #[cfg(not(target_os = "linux"))]
         let _ = shell_action;
 

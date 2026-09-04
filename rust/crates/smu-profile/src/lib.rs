@@ -136,6 +136,37 @@ pub fn profile_names(root: &Value) -> Vec<String> {
     names
 }
 
+/// Read-only profile catalog loaded through the same primary/backup recovery order as mutations.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfileCatalog {
+    pub names: Vec<String>,
+    pub preferred_profile: Option<String>,
+    pub loaded_from_backup: bool,
+}
+
+/// Reads a profile catalog without modifying either the primary file or its backup.
+#[must_use]
+pub fn profile_catalog_from_file(path: &Path) -> Option<ProfileCatalog> {
+    let (root, loaded_from_backup) = read_json_file_with_backup(path)?;
+    Some(ProfileCatalog {
+        names: profile_names(&root),
+        preferred_profile: find_best_profile(&root, ""),
+        loaded_from_backup,
+    })
+}
+
+/// Produces the C++ profile UI's first available `Profile N` name.
+#[must_use]
+pub fn generate_new_profile_name(existing_names: &[String]) -> String {
+    for index in 1..=1000 {
+        let candidate = format!("Profile {index}");
+        if !existing_names.contains(&candidate) {
+            return candidate;
+        }
+    }
+    "Profile Error".to_owned()
+}
+
 /// Produces the same duplicate-profile default name used by the C++ profile UI.
 #[must_use]
 pub fn generate_unique_profile_name(base_name: &str, existing_names: &[String]) -> String {
@@ -255,6 +286,38 @@ pub fn delete_profile_from_file(path: &Path, profile_name: &str) -> bool {
         return false;
     }
     write_json_file(path, &root, false)
+}
+
+/// Discovers the first readable settings source using C++ priority without migrating or repairing it.
+///
+/// This is intended for read-only UI/catalog composition while full live profile serialization is not
+/// yet attached. `SMCSettings.json` globally outranks `RMCSettings.json`; within one filename the
+/// canonical, executable, executable-parent, then current-directory order is preserved.
+#[must_use]
+pub fn discover_settings_file_path_read_only_from_directories(
+    canonical_directory: &Path,
+    executable_directory: &Path,
+    current_directory: &Path,
+) -> Option<PathBuf> {
+    let mut directories = Vec::new();
+    append_unique_directory(&mut directories, canonical_directory);
+    append_unique_directory(&mut directories, executable_directory);
+    if !path_is_empty(executable_directory)
+        && let Some(parent) = executable_directory.parent()
+    {
+        append_unique_directory(&mut directories, parent);
+    }
+    append_unique_directory(&mut directories, current_directory);
+
+    for filename in [CURRENT_SETTINGS_FILENAME, LEGACY_SETTINGS_FILENAME] {
+        for directory in &directories {
+            let candidate = directory.join(filename);
+            if has_settings_source(&candidate) && profile_catalog_from_file(&candidate).is_some() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
 
 /// Resolves and, when necessary, migrates settings exactly in the C++ discovery order.
@@ -493,8 +556,10 @@ mod tests {
 
     use super::{
         CURRENT_SETTINGS_FILENAME, ContainerFormat, DEFAULT_PROFILE_NAME, LEGACY_FORMAT_KEYS,
-        delete_profile_from_file, detect_format, duplicate_profile_in_file, find_best_profile,
-        generate_unique_profile_name, metadata_mut, profile_names, rename_profile_in_file,
+        LEGACY_SETTINGS_FILENAME, delete_profile_from_file, detect_format,
+        discover_settings_file_path_read_only_from_directories, duplicate_profile_in_file,
+        find_best_profile, generate_new_profile_name, generate_unique_profile_name, metadata_mut,
+        profile_catalog_from_file, profile_names, rename_profile_in_file,
         resolve_settings_file_path_from_directories,
     };
     use serde::Deserialize;
@@ -667,6 +732,77 @@ mod tests {
             [kind, profile] if kind == "delete" => delete_profile_from_file(path, profile),
             _ => false,
         }
+    }
+
+    #[test]
+    fn read_only_discovery_preserves_cpp_source_priority_without_migration() {
+        let temporary = TestDirectory::new("readonly-discovery");
+        let canonical = temporary.path.join("canonical");
+        let executable = temporary.path.join("app").join("bin");
+        let current = temporary.path.join("cwd");
+        fs::create_dir_all(&canonical).expect("canonical dir");
+        fs::create_dir_all(&executable).expect("executable dir");
+        fs::create_dir_all(&current).expect("current dir");
+
+        let legacy = canonical.join(LEGACY_SETTINGS_FILENAME);
+        write_source(&legacy, &json!({"vk_f5": 1}));
+        let current_primary = current.join(CURRENT_SETTINGS_FILENAME);
+        write_source(&current_primary, &json!({"_metadata": {}, "Profile 9": {"vk_f5": 9}}));
+
+        let resolved = discover_settings_file_path_read_only_from_directories(
+            &canonical,
+            &executable,
+            &current,
+        );
+        assert_eq!(resolved.as_deref(), Some(current_primary.as_path()));
+        assert!(legacy.exists());
+        assert!(!canonical.join(CURRENT_SETTINGS_FILENAME).exists());
+    }
+
+    #[test]
+    fn profile_catalog_reads_primary_without_mutation() {
+        let temporary = TestDirectory::new("catalog-primary");
+        let path = temporary.path.join("settings.json");
+        let document = json!({
+            "_metadata": {"last_active_profile": "Profile 2"},
+            "(default)": {"x": 0},
+            "Profile 1": {"x": 1},
+            "Profile 2": {"x": 2}
+        });
+        write_source(&path, &document);
+        let before = fs::read(&path).expect("catalog primary should be readable");
+        let catalog = profile_catalog_from_file(&path).expect("catalog should load");
+        assert_eq!(catalog.names, ["(default)", "Profile 1", "Profile 2"]);
+        assert_eq!(catalog.preferred_profile.as_deref(), Some("Profile 2"));
+        assert!(!catalog.loaded_from_backup);
+        assert_eq!(fs::read(&path).expect("catalog primary should remain readable"), before);
+    }
+
+    #[test]
+    fn profile_catalog_falls_back_to_backup_without_repairing_primary() {
+        let temporary = TestDirectory::new("catalog-backup");
+        let path = temporary.path.join("settings.json");
+        let backup = PathBuf::from(format!("{}.bak", path.display()));
+        fs::write(&path, b"{ broken").expect("corrupt primary should be writable");
+        write_source(
+            &backup,
+            &json!({
+                "_metadata": {"last_active_profile": "Profile 3"},
+                "Profile 3": {"x": 3}
+            }),
+        );
+        let primary_before = fs::read(&path).expect("primary should be readable as bytes");
+        let catalog = profile_catalog_from_file(&path).expect("backup catalog should load");
+        assert_eq!(catalog.names, ["Profile 3"]);
+        assert_eq!(catalog.preferred_profile.as_deref(), Some("Profile 3"));
+        assert!(catalog.loaded_from_backup);
+        assert_eq!(fs::read(&path).expect("primary should not be repaired"), primary_before);
+    }
+
+    #[test]
+    fn new_profile_name_matches_cpp_first_gap_policy() {
+        let names = vec!["Profile 1".to_owned(), "Profile 3".to_owned(), "Other".to_owned()];
+        assert_eq!(generate_new_profile_name(&names), "Profile 2");
     }
 
     #[test]

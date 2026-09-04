@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 dear-imgui-rs.workspace = true
 dear-imgui-sdl3.workspace = true
+smu-profile = { path = "../smu-profile", version = "=0.0.0" }
 gl.workspace = true
 image.workspace = true
 sdl3.workspace = true

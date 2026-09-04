@@ -14,6 +14,7 @@ use crate::{
     laugh_clip::{self, LaughClipGlobals, LaughClipUiState},
     ledge_bounce::{self, LedgeBounceUiState},
     press_key::{self, PressKeyUiState},
+    profile_browser::{self, ProfileAction, ProfileBrowserState},
     settings_menu, sidebar,
     spam_key::{self, SpamKeyUiState},
     speedglitch::{self, SpeedglitchUiState},
@@ -22,9 +23,10 @@ use crate::{
     wallhop::{self, WallhopUiState},
 };
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ShellAction {
     ToggleLagSwitchBackend,
+    Profile(ProfileAction),
     StartWaylandScreenCaptureFromSettings,
     StopWaylandScreenCaptureFromSettings,
     StartWaylandRemoteDesktopFromSettings,
@@ -88,6 +90,7 @@ pub struct ShellState {
     settings_open: bool,
     keybind_capture: keybind::CaptureState,
     settings_platform: settings_menu::PlatformStatus,
+    profile_browser: ProfileBrowserState,
     selected_section: usize,
     freeze: FreezeUiState,
     floor_bounce: FloorBounceUiState,
@@ -118,6 +121,7 @@ impl Default for ShellState {
             settings_open: false,
             keybind_capture: keybind::CaptureState::default(),
             settings_platform: settings_menu::PlatformStatus::default(),
+            profile_browser: ProfileBrowserState::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
             floor_bounce: FloorBounceUiState::default(),
@@ -176,6 +180,10 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub fn set_settings_platform_status(&mut self, status: settings_menu::PlatformStatus) {
         self.settings_platform = status;
+    }
+
+    pub const fn profile_browser_mut(&mut self) -> &mut ProfileBrowserState {
+        &mut self.profile_browser
     }
 
     #[cfg(target_os = "linux")]
@@ -759,16 +767,21 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
     ui.set_cursor_pos_x(right_child_min[0]);
 
     let _square_footer = ui.push_style_var(StyleVar::ChildRounding(0.0));
+    let mut profile_action = None;
     ui.child_window(BOTTOM_CONTROLS_CHILD)
         .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
-        .build(ui, || render_footer(ui, right_child_size[0], state));
+        .build(ui, || {
+            profile_action = render_footer(ui, right_child_size[0], state);
+        });
 
-    lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
+    lag_action
+        .map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
+        .or_else(|| profile_action.map(ShellAction::Profile))
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
-fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) {
+fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) -> Option<ProfileAction> {
     ui.same_line_with_pos((right_child_width - FOOTER_CONTROLS_FROM_RIGHT).max(0.0));
     ui.align_text_to_frame_padding();
     nudge_footer_y(ui);
@@ -798,7 +811,7 @@ fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) {
 
     ui.same_line_with_pos(right_child_width - PROFILES_BUTTON_WIDTH);
     nudge_footer_y(ui);
-    let _ = ui.button_with_size("Profiles ->", [PROFILES_BUTTON_WIDTH, 0.0]);
+    profile_browser::render(ui, &mut state.profile_browser, PROFILES_BUTTON_WIDTH)
 }
 
 fn nudge_footer_y(ui: &Ui) {

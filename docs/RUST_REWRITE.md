@@ -84,6 +84,17 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns a safety-scoped profile-browser slice backed by `smu-profile`. The existing
+  footer `Profiles ->` control opens the C++-style drop-up list and uses backup-aware, read-only
+  discovery with the same SMC-before-RMC and canonical/executable/parent/current priority, but does
+  not migrate, repair, create, or auto-save any file. The browser preserves default-first sorting,
+  preferred-resume selection, rename validation, duplicate naming, and the 0.7 s two-click delete
+  confirmation. Non-default duplicate/rename/delete operate on whole profile JSON objects through the
+  already differential-tested backup-safe mutations; `(default)` duplication is disabled because C++
+  captures live globals there. Save To and Load are intentionally disabled until Rust can round-trip
+  every live/unported profile field through a complete `ShellState`/payload adapter. All browser CRUD
+  tests use temporary settings files, and parity sessions instantiate a storage-isolated profile
+  service so UI capture cannot touch user configuration.
 - `smu-app` now owns the first live Linux Settings-window slice and shared keybind editor. The
   floating window is opened by the existing global Settings button and is backed by real app/service
   state for process-found status, Shift/Chat keybinds, chat override, paste delay, global zoom/reverse,
