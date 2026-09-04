@@ -10,3 +10,4 @@ workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc.workspace = true
+x11rb.workspace = true

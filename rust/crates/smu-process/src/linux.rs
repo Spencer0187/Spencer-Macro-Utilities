@@ -6,8 +6,13 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 mod control;
+mod foreground;
 pub use control::{
     FreezeHelperAuthorization, FreezeHelperClient, ProcCgroupProcessControl, UnixFreezeHelper,
+};
+pub use foreground::{
+    DisplayServer, DisplayServerSource, EnvironmentDisplayServer, ForegroundPidSource,
+    ProcForegroundProcess, X11rbForegroundSource, detect_display_server,
 };
 
 /// Linux process discovery backed by a procfs tree.

@@ -31,6 +31,11 @@ pub trait ProcessControl: Send + Sync {
     fn resume(&self, pid: u32) -> bool;
 }
 
+/// Foreground-process eligibility capability kept independent from discovery and process control.
+pub trait ProcessForeground: Send + Sync {
+    fn is_foreground_process(&self, pid: u32) -> bool;
+}
+
 pub trait ProcessDiscovery: Send + Sync {
     /// Capture the currently visible process table.
     ///
