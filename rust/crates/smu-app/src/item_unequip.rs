@@ -1,10 +1,9 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{StyleColor, Ui};
 use serde_json::{Map, Value};
 use smu_core::Hotkey;
 use smu_profile::payload::PreservedProfilePayload;
 
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
 const EMOTES: [&str; 3] = ["/e dance2", "/e laugh", "/e cheer"];
 
 #[derive(Debug)]
@@ -107,20 +106,23 @@ impl ItemUnequipUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut ItemUnequipUiState) {
+pub fn render(ui: &Ui, state: &mut ItemUnequipUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("Settings for Item Unequip COM Offset");
     crate::parity::separator(ui);
     ui.new_line();
-    render_enablement(ui, state);
+    render_enablement(ui, state, theme);
     render_content(ui, state);
 }
 
-fn render_enablement(ui: &Ui, state: &mut ItemUnequipUiState) {
+fn render_enablement(ui: &Ui, state: &mut ItemUnequipUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("Keybind:");
     ui.same_line();
     ui.text(state.hotkey.key().legacy_label());
 
-    let color = ui.push_style_color(StyleColor::Text, if state.enabled { SUCCESS } else { ERROR });
+    let color = ui.push_style_color(
+        StyleColor::Text,
+        if state.enabled { theme.success_color } else { theme.error_color },
+    );
     ui.text_wrapped("Enable This Macro:");
     drop(color);
     ui.same_line();

@@ -1,12 +1,11 @@
 use crate::multi_instance::MultiInstanceState;
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{StyleColor, Ui};
 use serde_json::{Map, Value, json};
 use smu_core::{Hotkey, KeyCode};
 use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::{CStr, CString};
 
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
 const ARMED_TEXT: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
 const ARMED_BUTTON: [f32; 4] = [1.0, 1.0, 0.0, 1.0];
 
@@ -211,14 +210,14 @@ impl SpamKeyUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut SpamKeyUiState) {
+pub fn render(ui: &Ui, state: &mut SpamKeyUiState, theme: &ThemeDefinition) {
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
     let sid = format!("_sk{selected}");
     render_header(ui, state, count, selected);
     {
         let instance = state.instances.selected_mut();
-        render_enablement(ui, instance, &sid);
+        render_enablement(ui, instance, &sid, theme);
     }
     render_instance_controls(ui, state, count, selected, &sid);
     let instance = state.instances.selected_mut();
@@ -244,9 +243,16 @@ fn render_header(ui: &Ui, state: &mut SpamKeyUiState, count: usize, selected: us
     ui.text(state.instances.selected_mut().trigger.key().legacy_label());
 }
 
-fn render_enablement(ui: &Ui, instance: &mut SpamKeyUiInstance, sid: &str) {
-    let color =
-        ui.push_style_color(StyleColor::Text, if instance.enabled { SUCCESS } else { ERROR });
+fn render_enablement(
+    ui: &Ui,
+    instance: &mut SpamKeyUiInstance,
+    sid: &str,
+    theme: &ThemeDefinition,
+) {
+    let color = ui.push_style_color(
+        StyleColor::Text,
+        if instance.enabled { theme.success_color } else { theme.error_color },
+    );
     ui.text_wrapped("Enable This Macro:");
     drop(color);
     ui.same_line();

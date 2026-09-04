@@ -218,16 +218,40 @@ pub fn profile_payload_from_file(
     payload::PreservedProfilePayload::from_value(profile)
 }
 
-/// Replaces or creates one named profile payload while preserving every sibling profile and unknown
-/// root field. The supplied payload must pass the C++ compatibility validator.
-///
-/// When `make_active` is true, `_metadata.last_active_profile` is updated in the same write.
+/// Returns a cloned `_metadata` object from the primary/backup settings source without mutating it.
 #[must_use]
-pub fn upsert_profile_payload_in_file(
+pub fn metadata_snapshot_from_file(path: &Path) -> Option<Map<String, Value>> {
+    let (root, _) = read_json_file_with_backup(path)?;
+    root.as_object()?.get(METADATA_KEY)?.as_object().cloned()
+}
+
+/// Overlays selected `_metadata` fields while preserving every unrelated metadata/root/profile key.
+/// The same primary/backup recovery and atomic write path as profile mutations is used.
+#[must_use]
+pub fn overlay_metadata_in_file(path: &Path, overlay: &Map<String, Value>) -> bool {
+    let mut root = match read_json_file_with_backup(path) {
+        Some((root, _)) => root,
+        None if !has_settings_source(path) => Value::Object(Map::new()),
+        None => return false,
+    };
+    let Ok(metadata) = metadata_mut(&mut root) else {
+        return false;
+    };
+    for (key, value) in overlay {
+        metadata.insert(key.clone(), value.clone());
+    }
+    write_json_file(path, &root, false)
+}
+
+/// Replaces or creates one named profile and overlays selected `_metadata` fields in one write.
+/// Unknown sibling profiles, root fields, and unrelated metadata are preserved exactly.
+#[must_use]
+pub fn upsert_profile_payload_with_metadata_in_file(
     path: &Path,
     profile_name: &str,
     profile_payload: &Value,
     make_active: bool,
+    metadata_overlay: &Map<String, Value>,
 ) -> bool {
     if profile_name.is_empty() || profile_name == METADATA_KEY {
         return false;
@@ -244,13 +268,36 @@ pub fn upsert_profile_payload_in_file(
         return false;
     };
     root_object.insert(profile_name.to_owned(), preserved.raw_snapshot());
+    let Ok(metadata) = metadata_mut(&mut root) else {
+        return false;
+    };
     if make_active {
-        let Ok(metadata) = metadata_mut(&mut root) else {
-            return false;
-        };
         metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
     }
+    for (key, value) in metadata_overlay {
+        metadata.insert(key.clone(), value.clone());
+    }
     write_json_file(path, &root, false)
+}
+
+/// Replaces or creates one named profile payload while preserving every sibling profile and unknown
+/// root field. The supplied payload must pass the C++ compatibility validator.
+///
+/// When `make_active` is true, `_metadata.last_active_profile` is updated in the same write.
+#[must_use]
+pub fn upsert_profile_payload_in_file(
+    path: &Path,
+    profile_name: &str,
+    profile_payload: &Value,
+    make_active: bool,
+) -> bool {
+    upsert_profile_payload_with_metadata_in_file(
+        path,
+        profile_name,
+        profile_payload,
+        make_active,
+        &Map::new(),
+    )
 }
 
 /// Replaces a legacy-flat settings document with one profile container, matching the C++
@@ -697,14 +744,15 @@ mod tests {
         delete_profile_from_file, detect_format,
         discover_settings_file_path_read_only_from_directories, duplicate_profile_in_file,
         find_best_profile, generate_new_profile_name, generate_unique_profile_name, metadata_mut,
-        profile_catalog_from_file, profile_names, profile_payload_from_file,
-        read_json_file_with_backup, rename_profile_in_file,
-        replace_legacy_flat_with_profile_in_file, resolve_settings_file_path_from_directories,
-        settings_backup_path, settings_source_exists, startup_profile_source_from_file,
-        upsert_profile_payload_in_file,
+        metadata_snapshot_from_file, overlay_metadata_in_file, profile_catalog_from_file,
+        profile_names, profile_payload_from_file, read_json_file_with_backup,
+        rename_profile_in_file, replace_legacy_flat_with_profile_in_file,
+        resolve_settings_file_path_from_directories, settings_backup_path, settings_source_exists,
+        startup_profile_source_from_file, upsert_profile_payload_in_file,
+        upsert_profile_payload_with_metadata_in_file,
     };
     use serde::Deserialize;
-    use serde_json::{Value, json};
+    use serde_json::{Map, Value, json};
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -1067,6 +1115,61 @@ mod tests {
         assert_eq!(written["_metadata"]["future_meta"], json!(7));
         assert_eq!(written["_metadata"][LAST_ACTIVE_PROFILE_KEY], json!("New Profile"));
         assert_eq!(written["New Profile"]["future_profile_key"], json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn metadata_snapshot_and_overlay_preserve_unrelated_root_profile_and_metadata_fields() {
+        let temporary = TestDirectory::new("metadata-overlay");
+        let path = temporary.path.join("settings.json");
+        write_source(
+            &path,
+            &json!({
+                "_metadata": {"future_meta": {"keep": true}, "current_theme_index": 1},
+                "root_future": [1,2,3],
+                "Profile 1": {"vk_f5": 0x74}
+            }),
+        );
+        let before = metadata_snapshot_from_file(&path).expect("metadata should load");
+        assert_eq!(before.get("future_meta"), Some(&json!({"keep": true})));
+
+        let overlay = Map::from_iter([
+            ("current_theme_index".to_owned(), json!(2)),
+            ("show_theme_menu".to_owned(), json!(true)),
+        ]);
+        assert!(overlay_metadata_in_file(&path, &overlay));
+        let (written, _) = read_json_file_with_backup(&path).expect("metadata overlay should load");
+        assert_eq!(written["root_future"], json!([1, 2, 3]));
+        assert_eq!(written["Profile 1"]["vk_f5"], json!(0x74));
+        assert_eq!(written["_metadata"]["future_meta"], json!({"keep": true}));
+        assert_eq!(written["_metadata"]["current_theme_index"], json!(2));
+        assert_eq!(written["_metadata"]["show_theme_menu"], json!(true));
+    }
+
+    #[test]
+    fn profile_and_metadata_overlay_are_written_in_one_preservation_safe_mutation() {
+        let temporary = TestDirectory::new("payload-metadata-overlay");
+        let path = temporary.path.join("settings.json");
+        write_source(
+            &path,
+            &json!({
+                "_metadata": {"future_meta": 7},
+                "Other": {"sentinel": true}
+            }),
+        );
+        let payload = crate::payload::ProfilePayloadState::default().snapshot();
+        let overlay = Map::from_iter([("current_theme_index".to_owned(), json!(2))]);
+        assert!(upsert_profile_payload_with_metadata_in_file(
+            &path,
+            "Profile 1",
+            &payload,
+            true,
+            &overlay,
+        ));
+        let (written, _) = read_json_file_with_backup(&path).expect("combined write should load");
+        assert_eq!(written["Other"], json!({"sentinel": true}));
+        assert_eq!(written["_metadata"]["future_meta"], json!(7));
+        assert_eq!(written["_metadata"]["current_theme_index"], json!(2));
+        assert_eq!(written["_metadata"][LAST_ACTIVE_PROFILE_KEY], json!("Profile 1"));
     }
 
     #[test]

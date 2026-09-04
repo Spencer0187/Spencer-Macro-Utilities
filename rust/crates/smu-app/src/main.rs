@@ -213,7 +213,8 @@ fn save_live_profile(
     }
     let baseline = baseline_for_profile_save(service, name);
     let payload = live_profile_payload(shell_state, &baseline, window, imported_scripts)?;
-    if !service.save_payload(name, &payload) {
+    let theme_metadata = shell_state.profile_metadata_overlay();
+    if !service.save_payload_with_metadata(name, &payload, &theme_metadata) {
         return None;
     }
     service.mark_loaded(name.to_owned(), payload.clone());
@@ -317,6 +318,9 @@ fn handle_profile_action(
                 return ProfileActionOutcome::None;
             };
             shell_state.apply_profile_payload(&payload);
+            if let Some(metadata) = service.metadata_snapshot() {
+                shell_state.apply_profile_metadata(&metadata);
+            }
             service.mark_loaded(name.clone(), payload.clone());
             service.refresh_selected(shell_state.profile_browser_mut(), Some(name));
             ProfileActionOutcome::Loaded(payload)
@@ -349,6 +353,9 @@ fn handle_profile_action(
                 return ProfileActionOutcome::None;
             };
             shell_state.apply_profile_payload(&payload);
+            if let Some(metadata) = service.metadata_snapshot() {
+                shell_state.apply_profile_metadata(&metadata);
+            }
             service.mark_loaded(new_name.clone(), payload.clone());
             service.refresh_selected(shell_state.profile_browser_mut(), Some(&new_name));
             ProfileActionOutcome::Loaded(payload)
@@ -1687,6 +1694,9 @@ fn initialize_profile_state_with_service(
             profile_service.mark_current_name_only("Profile 1".to_owned());
         }
     }
+    if let Some(metadata) = profile_service.metadata_snapshot() {
+        shell_state.apply_profile_metadata(&metadata);
+    }
     (shell_state, profile_service)
 }
 
@@ -1855,6 +1865,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             }
         }
 
+        shell_state.apply_theme_to_context(imgui);
         backend.new_frame(imgui)?;
         let frame = imgui.begin_frame();
         let ui = frame.ui();
@@ -1946,7 +1957,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut imgui = Context::create();
     imgui.set_ini_filename::<PathBuf>(None)?;
-    theme::configure(&mut imgui)?;
+    theme::load_fonts(&imgui)?;
+    shell_state.apply_theme_to_context(&mut imgui);
 
     // SAFETY: `window` and `gl_context` are declared before `imgui`/backend and therefore outlive
     // the native Dear ImGui attachments that retain their pointers.

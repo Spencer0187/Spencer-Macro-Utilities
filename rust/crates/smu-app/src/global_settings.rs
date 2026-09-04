@@ -1,5 +1,6 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{StyleColor, Ui};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use smu_profile::payload::PreservedProfilePayload;
 
 const DISCLAIMER_FROM_RIGHT: f32 = 795.0;
@@ -14,14 +15,10 @@ const PROCESS_RESET_WIDTH: f32 = 25.0;
 const SENSITIVITY_INPUT_WIDTH: f32 = 70.0;
 const FPS_INPUT_WIDTH: f32 = 40.0;
 
-const ACCENT_PRIMARY: [f32; 4] = [0.0, 0.49, 0.62, 1.0];
-const ACCENT_SECONDARY: [f32; 4] = [0.0, 0.44, 0.60, 1.0];
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GlobalSettingsAction {
     ToggleSettings,
+    ToggleThemeEditor,
 }
 
 #[derive(Debug)]
@@ -176,6 +173,17 @@ impl GlobalSettingsState {
     #[must_use]
     pub const fn short_descriptions(&self) -> bool {
         self.short_descriptions
+    }
+
+    pub fn apply_metadata(&mut self, metadata: &Map<String, Value>) {
+        if let Some(value) = metadata.get("shortdescriptions").and_then(Value::as_bool) {
+            self.short_descriptions = value;
+        }
+    }
+
+    #[must_use]
+    pub fn metadata_overlay(&self) -> Map<String, Value> {
+        Map::from_iter([("shortdescriptions".to_owned(), json!(self.short_descriptions))])
     }
 
     pub const fn display_scale_mut(&mut self) -> &mut i32 {
@@ -357,17 +365,20 @@ impl Default for GlobalSettingsState {
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's absolute-placement arithmetic.
-pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettingsAction> {
+pub fn render(
+    ui: &Ui,
+    state: &mut GlobalSettingsState,
+    theme: &ThemeDefinition,
+) -> Option<GlobalSettingsAction> {
     let window_width = ui.window_size()[0];
-    let mut action = None;
-
     ui.align_text_to_frame_padding();
     ui.text_wrapped("Global Settings");
 
     ui.same_line_with_pos(window_width - DISCLAIMER_FROM_RIGHT);
     ui.text_wrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");
 
-    let macro_color = if state.toggles.macro_enabled { SUCCESS } else { ERROR };
+    let macro_color =
+        if state.toggles.macro_enabled { theme.success_color } else { theme.error_color };
     let macro_text = ui.push_style_color(StyleColor::Text, macro_color);
     ui.align_text_to_frame_padding();
     #[cfg(target_os = "windows")]
@@ -378,7 +389,7 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettings
 
     ui.same_line_with_pos(window_width - OFFICIAL_SOURCE_FROM_RIGHT);
     ui.text_wrapped("The ONLY official source for this is");
-    let link = ui.push_style_color(StyleColor::Text, ACCENT_SECONDARY);
+    let link = ui.push_style_color(StyleColor::Text, theme.accent_secondary);
     ui.same_line_with_pos(window_width - OFFICIAL_URL_FROM_RIGHT);
     ui.text_wrapped("https://github.com/Spencer0187/Spencer-Macro-Utilities");
     drop(link);
@@ -402,7 +413,11 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettings
     let position = ui.cursor_screen_pos();
     let center = [position[0] + 5.0, position[1] + ui.text_line_height() / 2.0 + 3.0];
     ui.get_window_draw_list()
-        .add_circle(center, 5.0, if state.process.found { SUCCESS } else { ERROR })
+        .add_circle(
+            center,
+            5.0,
+            if state.process.found { theme.success_color } else { theme.error_color },
+        )
         .filled(true)
         .build();
     ui.dummy([10.0, 10.0]);
@@ -418,7 +433,7 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettings
     ui.same_line_with_pos(window_width - ANTI_AFK_FROM_RIGHT);
     ui.text("Toggle Anti-AFK (");
     ui.same_line_with_spacing(0.0, 0.0);
-    ui.text_colored(ACCENT_PRIMARY, "?");
+    ui.text_colored(theme.accent_primary, "?");
     ui.same_line_with_spacing(0.0, 0.0);
     ui.text("):");
     ui.same_line();
@@ -460,13 +475,16 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettings
         state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
     }
 
+    render_global_window_buttons(ui, window_width)
+}
+
+fn render_global_window_buttons(ui: &Ui, window_width: f32) -> Option<GlobalSettingsAction> {
     ui.same_line_with_pos(window_width - SETTINGS_FROM_RIGHT);
     if ui.button("Settings ->") {
-        action = Some(GlobalSettingsAction::ToggleSettings);
+        return Some(GlobalSettingsAction::ToggleSettings);
     }
     ui.same_line_with_pos(window_width - THEME_FROM_RIGHT);
-    let _ = ui.button("Theme Editor ->");
-    action
+    ui.button("Theme Editor ->").then_some(GlobalSettingsAction::ToggleThemeEditor)
 }
 
 fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
@@ -483,6 +501,7 @@ fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::{GlobalSettingsState, parse_cpp_fps_buffer};
+    use serde_json::{Map, json};
 
     #[test]
     fn production_defaults_keep_cpp_display_and_runtime_fps_split() {
@@ -504,6 +523,20 @@ mod tests {
         assert!(!state.short_descriptions);
         assert!(!state.global_zoom());
         assert!(!state.zoom_reverse());
+    }
+
+    #[test]
+    fn short_descriptions_metadata_matches_cpp_bool_load_and_save() {
+        let mut state = GlobalSettingsState::default();
+        state.apply_metadata(&Map::from_iter([("shortdescriptions".to_owned(), json!(true))]));
+        assert!(state.short_descriptions());
+        assert_eq!(state.metadata_overlay()["shortdescriptions"], json!(true));
+
+        state.apply_metadata(&Map::from_iter([(
+            "shortdescriptions".to_owned(),
+            json!("not-a-bool"),
+        )]));
+        assert!(state.short_descriptions());
     }
 
     #[test]

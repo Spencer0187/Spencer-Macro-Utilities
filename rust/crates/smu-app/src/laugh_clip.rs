@@ -1,10 +1,8 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{StyleColor, Ui};
 use serde_json::{Map, Value};
 use smu_core::Hotkey;
 use smu_profile::payload::PreservedProfilePayload;
-
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
 
 #[derive(Debug)]
 pub struct LaughClipUiState {
@@ -76,7 +74,7 @@ impl LaughClipUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut LaughClipUiState) {
+pub fn render(ui: &Ui, state: &mut LaughClipUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("Settings for Laugh Clip");
     crate::parity::separator(ui);
     ui.new_line();
@@ -85,7 +83,10 @@ pub fn render(ui: &Ui, state: &mut LaughClipUiState) {
     ui.same_line();
     ui.text(state.hotkey.key().legacy_label());
 
-    let color = ui.push_style_color(StyleColor::Text, if state.enabled { SUCCESS } else { ERROR });
+    let color = ui.push_style_color(
+        StyleColor::Text,
+        if state.enabled { theme.success_color } else { theme.error_color },
+    );
     ui.text_wrapped("Enable This Macro:");
     drop(color);
     ui.same_line();

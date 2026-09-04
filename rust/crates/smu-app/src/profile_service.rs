@@ -2,10 +2,10 @@ use crate::profile_browser::{ProfileAction, ProfileBrowserState};
 use smu_profile::payload::PreservedProfilePayload;
 use smu_profile::{
     StartupProfileSource, delete_profile_from_file, duplicate_profile_in_file,
-    generate_unique_profile_name, profile_catalog_from_file, profile_payload_from_file,
-    rename_profile_in_file, replace_legacy_flat_with_profile_in_file,
+    generate_unique_profile_name, metadata_snapshot_from_file, profile_catalog_from_file,
+    profile_payload_from_file, rename_profile_in_file, replace_legacy_flat_with_profile_in_file,
     resolve_settings_file_path_from_directories, startup_profile_source_from_file,
-    upsert_profile_payload_in_file,
+    upsert_profile_payload_in_file, upsert_profile_payload_with_metadata_in_file,
 };
 use std::path::{Path, PathBuf};
 
@@ -31,6 +31,11 @@ impl ProfileBrowserService {
     #[must_use]
     pub fn startup_source(&self) -> StartupProfileSource {
         self.path.as_deref().map_or(StartupProfileSource::Missing, startup_profile_source_from_file)
+    }
+
+    #[must_use]
+    pub fn metadata_snapshot(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        self.path.as_deref().and_then(metadata_snapshot_from_file)
     }
 
     #[must_use]
@@ -69,6 +74,25 @@ impl ProfileBrowserService {
             return false;
         };
         upsert_profile_payload_in_file(path, name, &payload.raw_snapshot(), true)
+    }
+
+    #[must_use]
+    pub fn save_payload_with_metadata(
+        &self,
+        name: &str,
+        payload: &PreservedProfilePayload,
+        metadata: &serde_json::Map<String, serde_json::Value>,
+    ) -> bool {
+        let Some(path) = self.path.as_deref() else {
+            return false;
+        };
+        upsert_profile_payload_with_metadata_in_file(
+            path,
+            name,
+            &payload.raw_snapshot(),
+            true,
+            metadata,
+        )
     }
 
     pub fn mark_loaded(&mut self, name: String, payload: PreservedProfilePayload) {

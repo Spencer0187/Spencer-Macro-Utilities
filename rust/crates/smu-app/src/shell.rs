@@ -22,6 +22,7 @@ use crate::{
     settings_menu, sidebar,
     spam_key::{self, SpamKeyUiState},
     speedglitch::{self, SpeedglitchUiState},
+    theme,
     wall_walk::{self, WallWalkUiState},
     walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
     wallhop::{self, WallhopUiState},
@@ -99,6 +100,7 @@ pub struct ShellState {
     keybind_capture: keybind::CaptureState,
     settings_platform: settings_menu::PlatformStatus,
     settings_updater: settings_menu::UpdaterPanelStatus,
+    theme: theme::ThemeState,
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
@@ -134,6 +136,7 @@ impl Default for ShellState {
             keybind_capture: keybind::CaptureState::default(),
             settings_platform: settings_menu::PlatformStatus::default(),
             settings_updater: settings_menu::UpdaterPanelStatus::default(),
+            theme: theme::ThemeState::default(),
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
@@ -417,6 +420,22 @@ impl ShellState {
 
     pub const fn profile_browser_mut(&mut self) -> &mut ProfileBrowserState {
         &mut self.profile_browser
+    }
+
+    pub fn apply_profile_metadata(&mut self, metadata: &Map<String, Value>) {
+        self.global.apply_metadata(metadata);
+        self.theme.apply_metadata(metadata);
+    }
+
+    #[must_use]
+    pub fn profile_metadata_overlay(&self) -> Map<String, Value> {
+        let mut metadata = self.global.metadata_overlay();
+        metadata.extend(self.theme.metadata_overlay());
+        metadata
+    }
+
+    pub fn apply_theme_to_context(&self, context: &mut dear_imgui_rs::Context) {
+        self.theme.apply_to_context(context);
     }
 
     #[cfg(target_os = "linux")]
@@ -745,6 +764,7 @@ fn overlay_section_state(
 
 pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     let display_size = ui.io().display_size();
+    let active_theme = state.theme.active().clone();
     let flags = WindowFlags::NO_RESIZE
         | WindowFlags::NO_MOVE
         | WindowFlags::NO_TITLE_BAR
@@ -759,15 +779,17 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         .position([0.0, 0.0], Condition::Always)
         .flags(flags)
         .build(|| {
-            action = render_contents(ui, state, display_size);
+            action = render_contents(ui, state, display_size, &active_theme);
         });
 
     #[cfg(target_os = "linux")]
-    if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals) {
+    if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals, &active_theme) {
         action = Some(modal_action);
     }
     #[cfg(target_os = "linux")]
-    if let Some(script_action) = script_ui::render_trust_modal(ui, &mut state.script_ui) {
+    if let Some(script_action) =
+        script_ui::render_trust_modal(ui, &mut state.script_ui, &active_theme)
+    {
         action = Some(ShellAction::Script(script_action));
     }
 
@@ -778,6 +800,7 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         &mut state.keybind_capture,
         &state.settings_platform,
         &state.settings_updater,
+        &active_theme,
     ) {
         action = Some(match settings_action {
             settings_menu::SettingsAction::CheckUpdates => ShellAction::CheckUpdatesFromSettings,
@@ -796,6 +819,7 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         });
     }
 
+    state.theme.render_editor(ui);
     action
 }
 
@@ -807,8 +831,12 @@ fn open_linux_modal(ui: &Ui, state: &mut LinuxModalState, modal: LinuxModal, nam
 }
 
 #[cfg(target_os = "linux")]
-fn render_linux_modals(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
-    if let Some(action) = render_lag_switch_helper_modal(ui, state) {
+fn render_linux_modals(
+    ui: &Ui,
+    state: &mut LinuxModalState,
+    theme: &theme::ThemeDefinition,
+) -> Option<ShellAction> {
+    if let Some(action) = render_lag_switch_helper_modal(ui, state, theme) {
         return Some(action);
     }
     if let Some(action) = render_freeze_helper_modal(ui, state) {
@@ -821,7 +849,11 @@ fn render_linux_modals(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellActi
 }
 
 #[cfg(target_os = "linux")]
-fn render_lag_switch_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
+fn render_lag_switch_helper_modal(
+    ui: &Ui,
+    state: &mut LinuxModalState,
+    theme: &theme::ThemeDefinition,
+) -> Option<ShellAction> {
     open_linux_modal(ui, state, LinuxModal::LagSwitchHelper, "Administrator Required");
     let _popup = ui.begin_modal_popup("Administrator Required")?;
     ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
@@ -829,7 +861,7 @@ fn render_lag_switch_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Optio
     ui.bullet_text("Starting the bundled nethelper with pkexec.");
     ui.bullet_text("Keeping the SMU GUI running as your normal desktop user.");
     if !state.admin_error.is_empty() {
-        ui.text_colored([1.0, 0.20, 0.40, 1.0], &state.admin_error);
+        ui.text_colored(theme.error_color, &state.admin_error);
     }
     crate::parity::separator(ui);
     if ui.button_with_size("Start Helper", [180.0, 0.0]) {
@@ -937,6 +969,7 @@ fn render_macro_sidebar(
     state: &mut ShellState,
     left_panel_width: f32,
     left_panel_height: f32,
+    theme: &theme::ThemeDefinition,
 ) -> Option<ShellAction> {
     let delta_time = ui.io().delta_time();
     state.press_key.tick_remove_confirmation(delta_time, state.selected_section == 5);
@@ -971,15 +1004,18 @@ fn render_macro_sidebar(
                 ui,
                 left_panel_width,
                 &mut state.selected_section,
-                &state.section_order,
-                &section_enabled,
-                &multi_instances,
-                state.global.short_descriptions(),
+                sidebar::SidebarRenderConfig {
+                    section_order: &state.section_order,
+                    section_enabled: &section_enabled,
+                    multi_instances: &multi_instances,
+                    short_descriptions: state.global.short_descriptions(),
+                    theme,
+                },
             );
             #[cfg(target_os = "linux")]
             {
                 script_action =
-                    script_ui::render_sidebar(ui, &mut state.script_ui, left_panel_width);
+                    script_ui::render_sidebar(ui, &mut state.script_ui, left_panel_width, theme);
             }
         });
     if sidebar_action.is_some() {
@@ -1015,7 +1051,12 @@ fn render_macro_sidebar(
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
-fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> Option<ShellAction> {
+fn render_contents(
+    ui: &Ui,
+    state: &mut ShellState,
+    display_size: [f32; 2],
+    theme: &theme::ThemeDefinition,
+) -> Option<ShellAction> {
     let style = ui.clone_style();
     let settings_panel_height = ui.text_line_height_with_spacing() * SETTINGS_TEXT_ROWS
         + style.window_padding()[1] * SETTINGS_PADDING_ROWS
@@ -1026,10 +1067,12 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         .size([display_size[0] - SETTINGS_HORIZONTAL_MARGIN, settings_panel_height])
         .border(true)
         .build(ui, || {
-            global_action = global_settings::render(ui, &mut state.global);
+            global_action = global_settings::render(ui, &mut state.global, theme);
         });
-    if global_action == Some(GlobalSettingsAction::ToggleSettings) {
-        state.settings_open = !state.settings_open;
+    match global_action {
+        Some(GlobalSettingsAction::ToggleSettings) => state.settings_open = !state.settings_open,
+        Some(GlobalSettingsAction::ToggleThemeEditor) => state.theme.toggle_editor(),
+        None => {}
     }
     state.speedglitch.sync_global_calibration(
         state.global.sensitivity(),
@@ -1049,14 +1092,16 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
-    let sidebar_shell_action = render_macro_sidebar(ui, state, left_panel_width, left_panel_height);
+    let sidebar_shell_action =
+        render_macro_sidebar(ui, state, left_panel_width, left_panel_height, theme);
 
     ui.same_line();
     let right_section_size = [
         display_size[0] - MAIN_HORIZONTAL_ADJUSTMENT - left_panel_width,
         display_size[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT - FOOTER_HEIGHT,
     ];
-    let (lag_action, script_pane_action) = render_right_section(ui, state, right_section_size);
+    let (lag_action, script_pane_action) =
+        render_right_section(ui, state, right_section_size, theme);
 
     let right_child_min = ui.item_rect_min();
     let right_child_size = ui.item_rect_size();
@@ -1070,7 +1115,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
         .build(ui, || {
-            profile_action = render_footer(ui, right_child_size[0], state);
+            profile_action = render_footer(ui, right_child_size[0], state, theme);
         });
 
     sidebar_shell_action
@@ -1085,6 +1130,7 @@ fn render_right_section(
     ui: &Ui,
     state: &mut ShellState,
     size: [f32; 2],
+    theme: &theme::ThemeDefinition,
 ) -> (Option<LagSwitchAction>, Option<ShellAction>) {
     let mut lag_action = None;
     let mut script_action = None;
@@ -1092,37 +1138,39 @@ fn render_right_section(
         #[cfg(target_os = "linux")]
         if state.script_ui.selected().is_some() {
             script_action =
-                script_ui::render_selected(ui, &state.script_ui, &mut state.keybind_capture)
+                script_ui::render_selected(ui, &state.script_ui, &mut state.keybind_capture, theme)
                     .map(ShellAction::Script);
             return;
         }
         match state.selected_section {
-            0 => freeze::render(ui, &mut state.freeze),
-            1 => item_desync::render(ui, &mut state.item_desync),
-            2 => hhj::render(ui, &mut state.hhj),
-            3 => speedglitch::render(ui, &mut state.speedglitch),
-            4 => item_unequip::render(ui, &mut state.item_unequip),
-            5 => press_key::render(ui, &mut state.press_key),
+            0 => freeze::render(ui, &mut state.freeze, theme),
+            1 => item_desync::render(ui, &mut state.item_desync, theme),
+            2 => hhj::render(ui, &mut state.hhj, theme),
+            3 => speedglitch::render(ui, &mut state.speedglitch, theme),
+            4 => item_unequip::render(ui, &mut state.item_unequip, theme),
+            5 => press_key::render(ui, &mut state.press_key, theme),
             6 => wallhop::render(
                 ui,
                 &mut state.wallhop,
                 state.global.sensitivity(),
                 state.global.cam_fix_enabled(),
+                theme,
             ),
-            7 => walless_lhj::render(ui, &mut state.walless_lhj),
-            8 => item_clip::render(ui, &mut state.item_clip),
-            9 => laugh_clip::render(ui, &mut state.laugh_clip),
+            7 => walless_lhj::render(ui, &mut state.walless_lhj, theme),
+            8 => item_clip::render(ui, &mut state.item_clip, theme),
+            9 => laugh_clip::render(ui, &mut state.laugh_clip, theme),
             10 => wall_walk::render(
                 ui,
                 &mut state.wall_walk,
                 state.global.sensitivity(),
                 state.global.cam_fix_enabled(),
+                theme,
             ),
-            11 => spam_key::render(ui, &mut state.spam_key),
-            12 => ledge_bounce::render(ui, &mut state.ledge_bounce),
-            13 => bunnyhop::render(ui, &mut state.bunnyhop),
-            14 => floor_bounce::render(ui, &mut state.floor_bounce),
-            15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
+            11 => spam_key::render(ui, &mut state.spam_key, theme),
+            12 => ledge_bounce::render(ui, &mut state.ledge_bounce, theme),
+            13 => bunnyhop::render(ui, &mut state.bunnyhop, theme),
+            14 => floor_bounce::render(ui, &mut state.floor_bounce, theme),
+            15 => lag_action = lag_switch::render(ui, &mut state.lag_switch, theme),
             _ => {}
         }
     });
@@ -1130,7 +1178,12 @@ fn render_right_section(
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
-fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) -> Option<ProfileAction> {
+fn render_footer(
+    ui: &Ui,
+    right_child_width: f32,
+    state: &mut ShellState,
+    theme: &theme::ThemeDefinition,
+) -> Option<ProfileAction> {
     ui.same_line_with_pos((right_child_width - FOOTER_CONTROLS_FROM_RIGHT).max(0.0));
     ui.align_text_to_frame_padding();
     nudge_footer_y(ui);
@@ -1160,7 +1213,7 @@ fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) -> Opt
 
     ui.same_line_with_pos(right_child_width - PROFILES_BUTTON_WIDTH);
     nudge_footer_y(ui);
-    profile_browser::render(ui, &mut state.profile_browser, PROFILES_BUTTON_WIDTH)
+    profile_browser::render(ui, &mut state.profile_browser, PROFILES_BUTTON_WIDTH, theme)
 }
 
 fn nudge_footer_y(ui: &Ui) {
@@ -1172,7 +1225,7 @@ mod profile_adapter_tests {
     #![allow(clippy::expect_used)]
 
     use super::ShellState;
-    use serde_json::json;
+    use serde_json::{Map, json};
     use smu_profile::payload::PreservedProfilePayload;
 
     const CPP_PAYLOAD_FIXTURE: &str =
@@ -1258,6 +1311,20 @@ mod profile_adapter_tests {
         {
             assert_eq!(round_trip.raw_value(key), None, "{key}");
         }
+    }
+
+    #[test]
+    fn profile_metadata_combines_theme_and_short_description_state() {
+        let mut state = ShellState::default();
+        state.apply_profile_metadata(&Map::from_iter([
+            ("shortdescriptions".to_owned(), json!(true)),
+            ("current_theme_index".to_owned(), json!(1)),
+        ]));
+        let metadata = state.profile_metadata_overlay();
+        assert_eq!(metadata["shortdescriptions"], json!(true));
+        assert_eq!(metadata["current_theme_index"], json!(1));
+        assert!(metadata["custom_theme"].is_object());
+        assert!(metadata["themes"].is_object());
     }
 
     #[test]

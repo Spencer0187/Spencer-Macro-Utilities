@@ -1,3 +1,4 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{Condition, MouseButton, SelectableFlags, StyleColor, Ui, WindowFlags};
 use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog, generate_new_profile_name};
 
@@ -131,6 +132,7 @@ pub fn render(
     ui: &Ui,
     state: &mut ProfileBrowserState,
     button_width: f32,
+    theme: &ThemeDefinition,
 ) -> Option<ProfileAction> {
     let label = if state.expanded { "Profiles <-" } else { "Profiles ->" };
     if ui.button_with_size(label, [button_width, 0.0]) {
@@ -168,12 +170,16 @@ pub fn render(
                 | WindowFlags::NO_SAVED_SETTINGS,
         )
         .build(|| {
-            action = render_menu_contents(ui, state);
+            action = render_menu_contents(ui, state, theme);
         });
     action
 }
 
-fn render_menu_contents(ui: &Ui, state: &mut ProfileBrowserState) -> Option<ProfileAction> {
+fn render_menu_contents(
+    ui: &Ui,
+    state: &mut ProfileBrowserState,
+    theme: &ThemeDefinition,
+) -> Option<ProfileAction> {
     let selected_name = state.selected_name().cloned();
     let action_width =
         ui.clone_style().item_spacing()[0].mul_add(-2.0, ui.content_region_avail()[0]) / 3.0;
@@ -228,7 +234,7 @@ fn render_menu_contents(ui: &Ui, state: &mut ProfileBrowserState) -> Option<Prof
 
     if state.loaded_from_backup {
         ui.text_colored(
-            [1.0, 0.54, 0.0, 1.0],
+            theme.warning_color,
             "Catalog is being read from the .bak file; no repair was attempted.",
         );
     }

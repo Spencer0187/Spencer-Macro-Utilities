@@ -116,6 +116,17 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   precedence, prefix arrays, section-order upgrades, multi-instance rebuilds, and historical aliases.
   Startup and filesystem tests use temporary files only; parity sessions are pathless. Real user
   settings are never used as a test target.
+- `smu-app` now owns the C++ Theme Editor and theme metadata path. Rust carries the six built-in
+  presets plus the editable custom theme, applies the selected definition to the ImGui context, and
+  routes manual/status colors through that same definition for the global strip, macro panes,
+  multi-instance/sidebar rows, imported scripts, Settings/updater/Wayland status, Lag Switch, and the
+  Rust-only backup warning. The main SMU window still forces zero rounding because C++ explicitly does
+  so; floating windows use the selected theme rounding values. Profile metadata preserves and updates
+  `current_theme_index`, `custom_theme`, named `themes`, saved-but-not-loaded `show_theme_menu`, and
+  `shortdescriptions` in the same preservation-safe mutation as the live profile payload. Numeric theme
+  indices follow C++ integer conversion/fallback behavior, theme floats use the C++ three-decimal
+  rounding expression, unknown theme entries append by name, and invalid indices fall back to
+  Cyberpunk. The default Cyberpunk capture remains pixel-identical at the compatibility gate.
 - `smu-app` now owns the first live Linux Settings-window slice and shared keybind editor. The
   floating window is opened by the existing global Settings button and is backed by real app/service
   state for process-found status, Shift/Chat keybinds, chat override, paste delay, global zoom/reverse,
@@ -132,7 +143,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   manual installation. Update checks are disabled during parity capture. Automatic installation stays
   deliberately disabled until Rust owns the C++ AppImage download, SHA-256/ELF validation,
   replaceability checks, replacement script, and rollback path. Anti-AFK is Windows-only in the legacy
-  runtime and has no Linux execution path to port, and Theme Editor remains unported.
+  runtime and has no Linux execution path to port.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -143,8 +154,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
   asymmetries. This completes built-in macro execution cutover only; remaining Settings controls,
-  updater auto-install, Theme Editor, cross-platform app-service composition, and final C++ entry-point
-  removal remain separate rewrite gates.
+  updater auto-install, cross-platform app-service composition, and final C++ entry-point removal
+  remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

@@ -1,4 +1,4 @@
-use crate::{global_settings::GlobalSettingsState, keybind};
+use crate::{global_settings::GlobalSettingsState, keybind, theme::ThemeDefinition};
 use dear_imgui_rs::{Condition, TreeNodeFlags, Ui, WindowFlags};
 
 #[allow(clippy::struct_excessive_bools)]
@@ -44,6 +44,7 @@ pub fn render(
     capture: &mut keybind::CaptureState,
     platform: &PlatformStatus,
     updater: &UpdaterPanelStatus,
+    theme: &ThemeDefinition,
 ) -> Option<SettingsAction> {
     if !*open {
         return None;
@@ -59,15 +60,20 @@ pub fn render(
         .flags(WindowFlags::NO_RESIZE | WindowFlags::NO_COLLAPSE)
         .build(|| {
             ui.child_window("SettingsList").border(true).build(ui, || {
-                render_updater(ui, updater, &mut action);
-                render_wayland(ui, platform, &mut action);
-                render_scalar_settings(ui, globals, capture);
+                render_updater(ui, updater, &mut action, theme);
+                render_wayland(ui, platform, &mut action, theme);
+                render_scalar_settings(ui, globals, capture, theme);
             });
         });
     action
 }
 
-fn render_updater(ui: &Ui, updater: &UpdaterPanelStatus, action: &mut Option<SettingsAction>) {
+fn render_updater(
+    ui: &Ui,
+    updater: &UpdaterPanelStatus,
+    action: &mut Option<SettingsAction>,
+    theme: &ThemeDefinition,
+) {
     if !ui.collapsing_header("Updates", TreeNodeFlags::DEFAULT_OPEN) {
         return;
     }
@@ -116,7 +122,7 @@ fn render_updater(ui: &Ui, updater: &UpdaterPanelStatus, action: &mut Option<Set
 
     if updater.checked_once && updater.update_available && !updater.auto_apply_supported {
         ui.text_colored(
-            [1.0, 0.54, 0.0, 1.0],
+            theme.warning_color,
             "An update is available. Open the official release and reinstall it with the same Linux package method you used before.",
         );
     }
@@ -130,7 +136,12 @@ fn render_updater(ui: &Ui, updater: &UpdaterPanelStatus, action: &mut Option<Set
     crate::parity::separator(ui);
 }
 
-fn render_wayland(ui: &Ui, platform: &PlatformStatus, action: &mut Option<SettingsAction>) {
+fn render_wayland(
+    ui: &Ui,
+    platform: &PlatformStatus,
+    action: &mut Option<SettingsAction>,
+    theme: &ThemeDefinition,
+) {
     if !platform.show_wayland {
         return;
     }
@@ -139,7 +150,11 @@ fn render_wayland(ui: &Ui, platform: &PlatformStatus, action: &mut Option<Settin
         "Pixel scripts need explicit permission to capture one monitor. The selected monitor becomes the coordinate space for getPixelColor() and getPixelRect() while capture is active.",
     );
     if platform.wayland_supported {
-        ui.text_wrapped(format!("Status: {}", platform.wayland_status));
+        if platform.wayland_active {
+            ui.text_colored(theme.success_color, format!("Status: {}", platform.wayland_status));
+        } else {
+            ui.text_wrapped(format!("Status: {}", platform.wayland_status));
+        }
         let disabled = platform.wayland_busy.then(|| ui.begin_disabled());
         if platform.wayland_active {
             if ui.button("Stop Wayland Screen Capture") {
@@ -151,7 +166,7 @@ fn render_wayland(ui: &Ui, platform: &PlatformStatus, action: &mut Option<Settin
         drop(disabled);
     } else {
         ui.text_colored(
-            [1.0, 0.20, 0.40, 1.0],
+            theme.error_color,
             "This build does not include PipeWire ScreenCast support.",
         );
     }
@@ -161,7 +176,11 @@ fn render_wayland(ui: &Ui, platform: &PlatformStatus, action: &mut Option<Settin
     ui.text_wrapped(
         "Allow moveMouseAbs() to place the pointer on the selected monitor. This replaces a screen-capture-only session with a RemoteDesktop + ScreenCast session and needs separate pointer-control permission.",
     );
-    ui.text_wrapped(format!("Status: {}", platform.wayland_status));
+    if platform.remote_desktop_active {
+        ui.text_colored(theme.success_color, format!("Status: {}", platform.wayland_status));
+    } else {
+        ui.text_wrapped(format!("Status: {}", platform.wayland_status));
+    }
     let disabled =
         (platform.wayland_busy || platform.remote_desktop_active).then(|| ui.begin_disabled());
     if ui.button("Enable Wayland Absolute Mouse Control") {
@@ -175,6 +194,7 @@ fn render_scalar_settings(
     ui: &Ui,
     globals: &mut GlobalSettingsState,
     capture: &mut keybind::CaptureState,
+    theme: &ThemeDefinition,
 ) {
     ui.text("Your Current Windows Display Scale Value (10-500%):");
     ui.set_next_item_width(150.0);
@@ -245,7 +265,7 @@ fn render_scalar_settings(
     crate::parity::separator(ui);
 
     ui.new_line();
-    ui.text_colored([0.0, 0.49, 0.62, 1.0], "Want to Donate directly to my Github?");
+    ui.text_colored(theme.accent_primary, "Want to Donate directly to my Github?");
     ui.text("Github Doesn't take any of the profits.");
 }
 

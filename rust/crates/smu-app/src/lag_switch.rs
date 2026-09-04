@@ -1,3 +1,4 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::Ui;
 use serde_json::{Map, Value};
 use smu_core::Hotkey;
@@ -5,12 +6,6 @@ use smu_profile::payload::PreservedProfilePayload;
 
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchConfig, LagSwitchTargetMode};
-
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const WARNING: [f32; 4] = [1.0, 0.50, 0.00, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
-#[cfg(target_os = "windows")]
-const ACCENT_PRIMARY: [f32; 4] = [0.0, 0.49, 0.62, 1.0];
 
 const LAG_DURATION_INPUT_WIDTH: f32 = 60.0;
 const LAG_DURATION_SLIDER_WIDTH: f32 = 300.0;
@@ -355,22 +350,26 @@ impl LagSwitchUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut LagSwitchUiState) -> Option<LagSwitchAction> {
-    render_shared_header(ui, state);
+pub fn render(
+    ui: &Ui,
+    state: &mut LagSwitchUiState,
+    theme: &ThemeDefinition,
+) -> Option<LagSwitchAction> {
+    render_shared_header(ui, state, theme);
 
     #[cfg(target_os = "macos")]
     {
-        render_macos_unavailable(ui, state);
+        render_macos_unavailable(ui, state, theme);
         None
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        render_supported_platform(ui, state)
+        render_supported_platform(ui, state, theme)
     }
 }
 
-fn render_shared_header(ui: &Ui, state: &mut LagSwitchUiState) {
+fn render_shared_header(ui: &Ui, state: &mut LagSwitchUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("Settings for Lag Switch");
     crate::parity::separator(ui);
     ui.new_line();
@@ -378,7 +377,7 @@ fn render_shared_header(ui: &Ui, state: &mut LagSwitchUiState) {
     ui.same_line();
     render_keybind_placeholder(ui);
 
-    let color = if state.enabled { SUCCESS } else { ERROR };
+    let color = if state.enabled { theme.success_color } else { theme.error_color };
     ui.text_colored(color, "Enable This Macro:");
     ui.same_line();
     ui.checkbox("##SectionEnabled", &mut state.enabled);
@@ -401,12 +400,12 @@ fn render_keybind_placeholder(ui: &Ui) {
 }
 
 #[cfg(target_os = "macos")]
-fn render_macos_unavailable(ui: &Ui, state: &mut LagSwitchUiState) {
+fn render_macos_unavailable(ui: &Ui, state: &mut LagSwitchUiState, theme: &ThemeDefinition) {
     state.enabled = false;
     state.fake_lag.enabled = false;
     ui.text_wrapped("Network Lag Switch");
     crate::parity::separator(ui);
-    ui.text_colored(WARNING, "Unavailable on macOS");
+    ui.text_colored(theme.warning_color, "Unavailable on macOS");
     ui.text_wrapped(
         "Lagswitch on macOS is impossible in this build unless someone pays for Apple's $99/year \
          Developer Program and ships a Developer ID-signed, Apple-entitled Network Extension.",
@@ -414,7 +413,11 @@ fn render_macos_unavailable(ui: &Ui, state: &mut LagSwitchUiState) {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) -> Option<LagSwitchAction> {
+fn render_supported_platform(
+    ui: &Ui,
+    state: &mut LagSwitchUiState,
+    theme: &ThemeDefinition,
+) -> Option<LagSwitchAction> {
     ui.checkbox("Switch from Hold Key to Toggle Key", &mut state.toggle_key_mode);
     crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
@@ -426,7 +429,7 @@ fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) -> Option<La
     crate::parity::separator(ui);
 
     #[cfg(target_os = "windows")]
-    render_prevent_disconnect(ui, state);
+    render_prevent_disconnect(ui, state, theme);
 
     ui.checkbox("Only Lag Switch Roblox", &mut state.filter.roblox_only);
     ui.checkbox("Also Block TCP (Websites)", &mut state.filter.use_tcp);
@@ -445,15 +448,15 @@ fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) -> Option<La
     );
     if !state.hard_block.outbound && !state.hard_block.inbound {
         ui.text_colored(
-            WARNING,
+            theme.warning_color,
             "WARNING: Both Inbound and Outbound are unchecked.\nThe Lag Switch will not block any \
              packets.",
         );
     }
 
-    render_fake_lag(ui, &mut state.fake_lag, state.hard_block);
+    render_fake_lag(ui, &mut state.fake_lag, state.hard_block, theme);
     render_overlay(ui, &mut state.overlay);
-    render_backend_status(ui, state.backend).then_some(LagSwitchAction::ToggleBackend)
+    render_backend_status(ui, state.backend, theme).then_some(LagSwitchAction::ToggleBackend)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -482,10 +485,10 @@ fn render_auto_unlag(ui: &Ui, state: &mut AutoUnlagState) {
 }
 
 #[cfg(target_os = "windows")]
-fn render_prevent_disconnect(ui: &Ui, state: &mut LagSwitchUiState) {
+fn render_prevent_disconnect(ui: &Ui, state: &mut LagSwitchUiState, theme: &ThemeDefinition) {
     ui.checkbox("Prevent Roblox Disconnection (", &mut state.prevent_disconnect);
     ui.same_line_with_spacing(0.0, 0.0);
-    ui.text_colored(ACCENT_PRIMARY, "?");
+    ui.text_colored(theme.accent_primary, "?");
     ui.same_line_with_spacing(0.0, 0.0);
     ui.text(")");
     // The C++ oracle overlays an invisible tooltip target and then advances the cursor by six
@@ -495,7 +498,12 @@ fn render_prevent_disconnect(ui: &Ui, state: &mut LagSwitchUiState) {
 }
 
 #[cfg(any(target_os = "windows", target_os = "linux"))]
-fn render_fake_lag(ui: &Ui, state: &mut FakeLagState, hard_block: DirectionPair) {
+fn render_fake_lag(
+    ui: &Ui,
+    state: &mut FakeLagState,
+    hard_block: DirectionPair,
+    theme: &ThemeDefinition,
+) {
     crate::parity::separator(ui);
     ui.checkbox("Fake Lag (Simulate High Ping)", &mut state.enabled);
     let disabled = ui.begin_disabled_with_cond(!state.enabled);
@@ -508,14 +516,14 @@ fn render_fake_lag(ui: &Ui, state: &mut FakeLagState, hard_block: DirectionPair)
     ui.same_line();
     ui.checkbox("Lag Outbound (Send)##FakeLag", &mut state.directions.outbound);
     if state.enabled && !state.directions.inbound && !state.directions.outbound {
-        ui.text_colored(WARNING, "Select at least one direction to lag!");
+        ui.text_colored(theme.warning_color, "Select at least one direction to lag!");
     }
     if state.enabled
         && ((hard_block.outbound && state.directions.outbound)
             || (hard_block.inbound && state.directions.inbound))
     {
         ui.text_colored(
-            WARNING,
+            theme.warning_color,
             "WARNING: Both Blocking and Lagging are enabled for Inbound/Outbound packets.\nBlocking \
              takes priority over lagging.",
         );
@@ -526,7 +534,13 @@ fn render_fake_lag(ui: &Ui, state: &mut FakeLagState, hard_block: DirectionPair)
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-fn render_fake_lag(_ui: &Ui, _state: &mut FakeLagState, _hard_block: DirectionPair) {}
+fn render_fake_lag(
+    _ui: &Ui,
+    _state: &mut FakeLagState,
+    _hard_block: DirectionPair,
+    _theme: &ThemeDefinition,
+) {
+}
 
 #[cfg(target_os = "windows")]
 fn render_overlay(ui: &Ui, state: &mut OverlayState) {
@@ -556,7 +570,7 @@ fn render_overlay(ui: &Ui, state: &mut OverlayState) {
 fn render_overlay(_ui: &Ui, _state: &mut OverlayState) {}
 
 #[cfg(not(target_os = "macos"))]
-fn render_backend_status(ui: &Ui, state: BackendState) -> bool {
+fn render_backend_status(ui: &Ui, state: BackendState, theme: &ThemeDefinition) -> bool {
     ui.new_line();
     crate::parity::separator(ui);
 
@@ -576,16 +590,16 @@ fn render_backend_status(ui: &Ui, state: BackendState) -> bool {
 
     #[cfg(target_os = "linux")]
     if state.available {
-        ui.text_colored(SUCCESS, "Helper Ready");
+        ui.text_colored(theme.success_color, "Helper Ready");
     } else {
-        ui.text_colored(ERROR, "Helper Not Running");
+        ui.text_colored(theme.error_color, "Helper Not Running");
     }
 
     #[cfg(not(target_os = "linux"))]
     if state.enabled {
-        ui.text_colored(SUCCESS, "Driver Running");
+        ui.text_colored(theme.success_color, "Driver Running");
     } else {
-        ui.text_colored(ERROR, "Driver Not Running");
+        ui.text_colored(theme.error_color, "Driver Not Running");
     }
 
     if state.enabled {
@@ -593,9 +607,9 @@ fn render_backend_status(ui: &Ui, state: BackendState) -> bool {
         ui.text(" |  Status: ");
         ui.same_line();
         if state.actively_lagging {
-            ui.text_colored(ERROR, "LAGGING");
+            ui.text_colored(theme.error_color, "LAGGING");
         } else {
-            ui.text_colored(SUCCESS, "Clear");
+            ui.text_colored(theme.success_color, "Clear");
         }
     }
 

@@ -1,9 +1,6 @@
+use crate::theme::ThemeDefinition;
 use dear_imgui_rs::{StyleColor, Ui};
 
-const TEXT_PRIMARY: [f32; 4] = [0.90, 0.90, 1.0, 1.0];
-const ACCENT_PRIMARY: [f32; 4] = [0.0, 0.49, 0.62, 1.0];
-const BG_LIGHT: [f32; 4] = [0.15, 0.15, 0.20, 1.0];
-const DISABLED_COLOR: [f32; 4] = [0.41, 0.02, 0.79, 1.0];
 pub const DEFAULT_SECTION_ORDER: [usize; 16] =
     [0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14];
 
@@ -57,6 +54,15 @@ pub struct MultiInstanceSummary {
     pub selected_instance: usize,
 }
 
+#[derive(Clone, Copy)]
+pub struct SidebarRenderConfig<'a> {
+    pub section_order: &'a [usize; 16],
+    pub section_enabled: &'a [bool; 16],
+    pub multi_instances: &'a [MultiInstanceSummary],
+    pub short_descriptions: bool,
+    pub theme: &'a ThemeDefinition,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SidebarAction {
     SelectSection { section_index: usize },
@@ -69,11 +75,15 @@ pub fn render(
     ui: &Ui,
     left_panel_width: f32,
     selected_section: &mut i32,
-    section_order: &[usize; 16],
-    section_enabled: &[bool; 16],
-    multi_instances: &[MultiInstanceSummary],
-    short_descriptions: bool,
+    config: SidebarRenderConfig<'_>,
 ) -> Option<SidebarAction> {
+    let SidebarRenderConfig {
+        section_order,
+        section_enabled,
+        multi_instances,
+        short_descriptions,
+        theme,
+    } = config;
     let style = ui.clone_style();
     let button_width = left_panel_width - style.frame_padding()[0] * 2.0;
     let mut action = None;
@@ -82,7 +92,7 @@ pub fn render(
         let config = SECTION_CONFIGS[section_index];
         let section_active = section_enabled[section_index];
         let selected = usize::try_from(*selected_section).ok() == Some(section_index);
-        let base = if section_active { ACCENT_PRIMARY } else { DISABLED_COLOR };
+        let base = if section_active { theme.accent_primary } else { theme.disabled_color };
         let button =
             if selected { brighten(base, if section_active { 1.4 } else { 1.6 }) } else { base };
         let hovered = if selected {
@@ -127,13 +137,13 @@ pub fn render(
             button_position[1] + style.frame_padding()[1],
         ];
         let draw_list = ui.get_window_draw_list();
-        draw_list.add_text(text_position, TEXT_PRIMARY, config.title);
+        draw_list.add_text(text_position, theme.text_primary, config.title);
         text_position[1] += title_size[1];
 
         if !short_descriptions {
             let wrap_width = button_width - if ui.scroll_max_y() == 0.0 { 11.0 } else { 22.0 };
             for line in wrap_words(ui, config.description, wrap_width) {
-                draw_list.add_text(text_position, TEXT_PRIMARY, line);
+                draw_list.add_text(text_position, theme.text_primary, line);
                 text_position[1] += ui.text_line_height();
             }
         }
@@ -146,7 +156,7 @@ pub fn render(
             multi_instances.iter().find(|summary| summary.section_index == section_index)
         {
             if let Some(instance_action) =
-                render_multi_instance_rows(ui, button_width, config.title, summary)
+                render_multi_instance_rows(ui, button_width, config.title, summary, theme)
             {
                 if let SidebarAction::SelectInstance { .. } = instance_action {
                     *selected_section = i32::try_from(section_index).unwrap_or(-1);
@@ -154,7 +164,7 @@ pub fn render(
                 action = Some(instance_action);
             }
         } else if matches!(section_index, 5 | 11) {
-            render_add_instance_row(ui, button_width, section_index);
+            render_add_instance_row(ui, button_width, section_index, theme);
         }
         if section_index == 14 {
             ui.separator();
@@ -170,17 +180,20 @@ fn render_multi_instance_rows(
     button_width: f32,
     title: &str,
     summary: &MultiInstanceSummary,
+    theme: &ThemeDefinition,
 ) -> Option<SidebarAction> {
     let width = if ui.scroll_max_y() == 0.0 { button_width - 7.0 } else { button_width - 18.0 };
     let mut action = None;
     for index in 1..summary.enabled.len() {
         let enabled = summary.enabled[index];
         let selected = summary.selected_instance == index;
-        let base = if enabled { ACCENT_PRIMARY } else { DISABLED_COLOR };
+        let base = if enabled { theme.accent_primary } else { theme.disabled_color };
         let button = if selected { brighten(base, if enabled { 1.4 } else { 1.6 }) } else { base };
         let button_color = ui.push_style_color(StyleColor::Button, button);
-        let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(base, 1.3));
-        let active = ui.push_style_color(StyleColor::ButtonActive, brighten(base, 0.8));
+        let hovered =
+            ui.push_style_color(StyleColor::ButtonHovered, brighten(theme.accent_primary, 1.3));
+        let active =
+            ui.push_style_color(StyleColor::ButtonActive, brighten(theme.accent_primary, 0.8));
         if ui.button_with_size(
             format!("{title} {}##SubInstance{}_{}", index + 1, summary.section_index, index),
             [width, 0.0],
@@ -194,9 +207,9 @@ fn render_multi_instance_rows(
         drop(hovered);
         drop(button_color);
     }
-    let button = ui.push_style_color(StyleColor::Button, BG_LIGHT);
-    let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(BG_LIGHT, 1.3));
-    let active = ui.push_style_color(StyleColor::ButtonActive, brighten(BG_LIGHT, 1.1));
+    let button = ui.push_style_color(StyleColor::Button, theme.bg_light);
+    let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(theme.bg_light, 1.3));
+    let active = ui.push_style_color(StyleColor::ButtonActive, brighten(theme.bg_light, 1.1));
     if ui.button_with_size(format!("+##AddInstance{}", summary.section_index), [width, 0.0]) {
         action = Some(SidebarAction::AddInstance { section_index: summary.section_index });
     }
@@ -206,11 +219,16 @@ fn render_multi_instance_rows(
     action
 }
 
-fn render_add_instance_row(ui: &Ui, button_width: f32, section_index: usize) {
+fn render_add_instance_row(
+    ui: &Ui,
+    button_width: f32,
+    section_index: usize,
+    theme: &ThemeDefinition,
+) {
     let width = if ui.scroll_max_y() == 0.0 { button_width - 7.0 } else { button_width - 18.0 };
-    let button = ui.push_style_color(StyleColor::Button, BG_LIGHT);
-    let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(BG_LIGHT, 1.3));
-    let active = ui.push_style_color(StyleColor::ButtonActive, brighten(BG_LIGHT, 1.1));
+    let button = ui.push_style_color(StyleColor::Button, theme.bg_light);
+    let hovered = ui.push_style_color(StyleColor::ButtonHovered, brighten(theme.bg_light, 1.3));
+    let active = ui.push_style_color(StyleColor::ButtonActive, brighten(theme.bg_light, 1.1));
     let _ = ui.button_with_size(format!("+##AddInstance{section_index}"), [width, 0.0]);
     drop(active);
     drop(hovered);

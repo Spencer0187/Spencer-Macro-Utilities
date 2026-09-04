@@ -3,17 +3,12 @@
 //! The Lua manager remains the owner of records/workers. This layer only renders immutable
 //! snapshots, queues typed actions, and owns transient selection/import-preview state.
 
-use crate::keybind;
+use crate::{keybind, theme::ThemeDefinition};
 use dear_imgui_rs::{StyleColor, Ui};
 use serde_json::{Value, json};
 use smu_scripting::{ScriptRecordSnapshot, SettingsUiControl, SettingsUiControlKind};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
-const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
-const WARNING: [f32; 4] = [1.0, 0.54, 0.0, 1.0];
-const ACCENT: [f32; 4] = [0.0, 0.49, 0.62, 1.0];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScriptAction {
@@ -129,6 +124,7 @@ pub fn render_sidebar(
     ui: &Ui,
     state: &mut ScriptUiState,
     left_panel_width: f32,
+    theme: &ThemeDefinition,
 ) -> Option<ScriptAction> {
     ui.spacing();
     ui.text_wrapped("Imported Scripts");
@@ -142,21 +138,20 @@ pub fn render_sidebar(
         let selected = state.selected == Some(index);
         let attention = script.missing || (!script.loaded && !script.last_error.is_empty());
         let active = script.enabled && script.loaded && !script.missing;
-        let color = if attention {
-            ERROR
+        let (base, selected_factor, hovered_factor, active_factor) = if attention {
+            (theme.error_color, 1.3, 1.4, 0.9)
         } else if active {
-            ACCENT
+            (theme.accent_primary, 1.4, 1.3, 0.8)
         } else {
-            [0.35, 0.35, 0.35, 1.0]
+            (theme.disabled_color, 1.6, 1.3, 1.1)
         };
-        let selected_color = [
-            (color[0] * 1.25_f32).min(1.0),
-            (color[1] * 1.25_f32).min(1.0),
-            (color[2] * 1.25_f32).min(1.0),
-            color[3],
-        ];
-        let _button =
-            ui.push_style_color(StyleColor::Button, if selected { selected_color } else { color });
+        let _button = ui.push_style_color(
+            StyleColor::Button,
+            if selected { brighten(base, selected_factor) } else { base },
+        );
+        let _hovered =
+            ui.push_style_color(StyleColor::ButtonHovered, brighten(base, hovered_factor));
+        let _active = ui.push_style_color(StyleColor::ButtonActive, brighten(base, active_factor));
         let mut label = script_label(script);
         if script.running {
             label.push_str(" (Running)");
@@ -171,10 +166,10 @@ pub fn render_sidebar(
     }
 
     if !state.import_error.is_empty() {
-        ui.text_colored(ERROR, &state.import_error);
+        ui.text_colored(theme.error_color, &state.import_error);
     }
     if !state.import_notice.is_empty() {
-        ui.text_colored(WARNING, &state.import_notice);
+        ui.text_colored(theme.warning_color, &state.import_notice);
     }
     // Terminal item in the sidebar child: do not use the compensated parity separator here,
     // because it intentionally rewinds the cursor and requires a following item before EndChild.
@@ -186,15 +181,16 @@ pub fn render_selected(
     ui: &Ui,
     state: &ScriptUiState,
     capture: &mut keybind::CaptureState,
+    theme: &ThemeDefinition,
 ) -> Option<ScriptAction> {
     let index = state.selected?;
     let script = state.snapshots.get(index)?.clone();
     ui.text_wrapped(format!("Settings for {}", script_label(&script)));
     crate::parity::separator(ui);
-    if let Some(action) = render_script_controls(ui, index, &script, capture) {
+    if let Some(action) = render_script_controls(ui, index, &script, capture, theme) {
         return Some(action);
     }
-    render_script_details(ui, &script, state.import_notice.is_empty());
+    render_script_details(ui, &script, state.import_notice.is_empty(), theme);
     crate::parity::separator(ui);
     ui.text_wrapped("Custom Settings");
     if state.controls.is_empty() {
@@ -214,6 +210,7 @@ fn render_script_controls(
     index: usize,
     script: &ScriptRecordSnapshot,
     capture: &mut keybind::CaptureState,
+    theme: &ThemeDefinition,
 ) -> Option<ScriptAction> {
     ui.text_wrapped("Keybind:");
     ui.same_line();
@@ -231,7 +228,10 @@ fn render_script_controls(
         return Some(ScriptAction::SetHotkey { index, hotkey });
     }
 
-    let color = ui.push_style_color(StyleColor::Text, if script.enabled { SUCCESS } else { ERROR });
+    let color = ui.push_style_color(
+        StyleColor::Text,
+        if script.enabled { theme.success_color } else { theme.error_color },
+    );
     ui.text_wrapped("Enable This Script:");
     drop(color);
     ui.same_line();
@@ -252,8 +252,14 @@ fn render_script_controls(
     ui.same_line();
     let reload = ui.button("Reload");
     ui.same_line();
-    let remove_color = ui.push_style_color(StyleColor::Button, ERROR);
+    let remove_color = ui.push_style_color(StyleColor::Button, theme.error_color);
+    let remove_hovered =
+        ui.push_style_color(StyleColor::ButtonHovered, brighten(theme.error_color, 1.2));
+    let remove_active =
+        ui.push_style_color(StyleColor::ButtonActive, brighten(theme.error_color, 0.8));
     let remove = ui.button("Remove");
+    drop(remove_active);
+    drop(remove_hovered);
     drop(remove_color);
     drop(disabled);
     if execute {
@@ -280,23 +286,28 @@ fn render_script_controls(
     reset.then_some(ScriptAction::Reset { index })
 }
 
-fn render_script_details(ui: &Ui, script: &ScriptRecordSnapshot, show_persistence_note: bool) {
+fn render_script_details(
+    ui: &Ui,
+    script: &ScriptRecordSnapshot,
+    show_persistence_note: bool,
+    theme: &ThemeDefinition,
+) {
     crate::parity::separator(ui);
     let (status, status_color) = if script.running {
-        ("Running", ACCENT)
+        ("Running", theme.accent_primary)
     } else if script.missing {
-        ("Missing", ERROR)
+        ("Missing", theme.error_color)
     } else if !script.loaded {
-        ("Error", ERROR)
+        ("Error", theme.error_color)
     } else {
-        ("Loaded", SUCCESS)
+        ("Loaded", theme.success_color)
     };
     ui.text_colored(status_color, format!("Status: {status}"));
     if !script.last_error.is_empty() {
-        ui.text_colored(ERROR, &script.last_error);
+        ui.text_colored(theme.error_color, &script.last_error);
     }
     if !script.last_warning.is_empty() {
-        ui.text_colored(WARNING, &script.last_warning);
+        ui.text_colored(theme.warning_color, &script.last_warning);
     }
     if !script.metadata.description.is_empty() {
         ui.text_wrapped(&script.metadata.description);
@@ -456,7 +467,11 @@ fn setting_value(index: usize, control: &SettingsUiControl, value: Value) -> Scr
     ScriptAction::SettingValue { index, id: control.id.clone(), value }
 }
 
-pub fn render_trust_modal(ui: &Ui, state: &mut ScriptUiState) -> Option<ScriptAction> {
+pub fn render_trust_modal(
+    ui: &Ui,
+    state: &mut ScriptUiState,
+    theme: &ThemeDefinition,
+) -> Option<ScriptAction> {
     if state.open_trust_modal {
         let _ = ui.open_popup("Import Script?");
         state.open_trust_modal = false;
@@ -501,9 +516,18 @@ pub fn render_trust_modal(ui: &Ui, state: &mut ScriptUiState) -> Option<ScriptAc
             .read_only(true)
             .build();
     } else {
-        ui.text_colored(ERROR, &state.preview_error);
+        ui.text_colored(theme.error_color, &state.preview_error);
     }
     None
+}
+
+fn brighten(color: [f32; 4], factor: f32) -> [f32; 4] {
+    [
+        (color[0] * factor).min(1.0),
+        (color[1] * factor).min(1.0),
+        (color[2] * factor).min(1.0),
+        color[3],
+    ]
 }
 
 fn script_label(script: &ScriptRecordSnapshot) -> String {
