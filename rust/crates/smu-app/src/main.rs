@@ -10,6 +10,10 @@ use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
 use sdl3::{event::Event, keyboard::Keycode, video::GLProfile};
 
 #[cfg(target_os = "linux")]
+use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
+#[cfg(target_os = "linux")]
+use smu_input::linux::EvdevUinputInputDevice;
+#[cfg(target_os = "linux")]
 use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
 #[cfg(target_os = "linux")]
 use smu_process::linux::{ProcCgroupProcessControl, UnixFreezeHelper};
@@ -46,6 +50,23 @@ fn capture_dimension(variable: &str, minimum: u32) -> u32 {
         .map_or(minimum, |value| value.max(minimum))
 }
 
+fn configure_gl_attributes(video: &sdl3::VideoSubsystem) {
+    let attributes = video.gl_attr();
+    #[cfg(target_os = "macos")]
+    {
+        attributes.set_context_profile(GLProfile::Core);
+        attributes.set_context_version(3, 2);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        attributes.set_context_profile(GLProfile::Compatibility);
+        attributes.set_context_version(3, 0);
+    }
+    attributes.set_double_buffer(true);
+    attributes.set_depth_size(24);
+    attributes.set_stencil_size(8);
+}
+
 #[cfg(target_os = "linux")]
 fn sync_linux_lag_switch_status(
     backend: &LinuxLagSwitchBackend,
@@ -64,6 +85,7 @@ fn handle_linux_shell_action(
     action: Option<shell::ShellAction>,
     backend: &LinuxLagSwitchBackend,
     freeze_authorization: &linux_freeze_authorization::FreezeHelperAuthorizationGate,
+    wayland_portal: &WaylandPortalCapture,
     shell_state: &mut shell::ShellState,
 ) {
     match action {
@@ -96,6 +118,18 @@ fn handle_linux_shell_action(
             freeze_authorization.resolve(approved);
         }
         Some(shell::ShellAction::CancelFreezeHelper) => freeze_authorization.resolve(false),
+        Some(shell::ShellAction::ApproveWaylandScreenCapture) => {
+            wayland_portal.approve_activation_request();
+        }
+        Some(shell::ShellAction::DeclineWaylandScreenCapture) => {
+            wayland_portal.decline_activation_request();
+        }
+        Some(shell::ShellAction::ApproveWaylandRemoteDesktop) => {
+            wayland_portal.approve_remote_desktop_activation_request();
+        }
+        Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
+            wayland_portal.decline_remote_desktop_activation_request();
+        }
         None => {}
     }
 }
@@ -106,22 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut events = sdl.event_pump()?;
 
     enable_native_ime_ui();
-    {
-        let attributes = video.gl_attr();
-        #[cfg(target_os = "macos")]
-        {
-            attributes.set_context_profile(GLProfile::Core);
-            attributes.set_context_version(3, 2);
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            attributes.set_context_profile(GLProfile::Compatibility);
-            attributes.set_context_version(3, 0);
-        }
-        attributes.set_double_buffer(true);
-        attributes.set_depth_size(24);
-        attributes.set_stencil_size(8);
-    }
+    configure_gl_attributes(&video);
 
     let window_width = capture_dimension("SMU_UI_CAPTURE_WIDTH", MINIMUM_WIDTH);
     let window_height = capture_dimension("SMU_UI_CAPTURE_HEIGHT", MINIMUM_HEIGHT);
@@ -158,6 +177,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     let _process_control = ProcCgroupProcessControl::default()
         .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone());
+    #[cfg(target_os = "linux")]
+    let display_service = Arc::new(LinuxDisplayCapture::new());
+    #[cfg(target_os = "linux")]
+    let wayland_portal = display_service.wayland_portal();
+    #[cfg(target_os = "linux")]
+    let _input_service = EvdevUinputInputDevice::new().with_wayland_portal(wayland_portal.clone());
     let mut rendered_frames = 0_u32;
 
     'main: loop {
@@ -180,6 +205,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if freeze_authorization.is_pending() {
                 shell_state.request_freeze_helper_popup();
             }
+            if wayland_portal.has_pending_activation_request() {
+                shell_state.request_wayland_screen_capture_popup();
+            }
+            if wayland_portal.has_pending_remote_desktop_activation_request() {
+                shell_state.request_wayland_remote_desktop_popup();
+            }
         }
         let shell_action = shell::render(ui, &mut shell_state);
         #[cfg(target_os = "linux")]
@@ -187,6 +218,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             shell_action,
             &lag_switch_backend,
             freeze_authorization.as_ref(),
+            wayland_portal.as_ref(),
             &mut shell_state,
         );
         #[cfg(not(target_os = "linux"))]

@@ -232,6 +232,32 @@ pub trait DisplayCapture: Send + Sync {
         "cursor/screen position is not available on this platform/session".to_owned()
     }
 
+    /// Allow an interactive platform service to obtain pixel-capture permission before a script
+    /// begins a screen read. Non-interactive backends are already ready and return `Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user-decline, cancellation, or platform activation failure.
+    fn request_pixel_access_for_script(
+        &self,
+        _cancelled: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<(), DisplayError> {
+        Ok(())
+    }
+
+    /// Allow an interactive platform service to obtain absolute-pointer permission before a script
+    /// begins direct pointer positioning. Non-interactive backends return `Ok(())`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a user-decline, cancellation, or platform activation failure.
+    fn request_absolute_pointer_access_for_script(
+        &self,
+        _cancelled: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<(), DisplayError> {
+        Ok(())
+    }
+
     /// Sample one global screen coordinate.
     ///
     /// # Errors

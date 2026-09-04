@@ -11,6 +11,7 @@ use evdev::{
     RelativeAxisCode,
 };
 use smu_core::KeyCode;
+use smu_display::linux::WaylandPortalCapture;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -50,6 +51,7 @@ pub struct EvdevUinputInputDevice {
     virtual_device: Mutex<Option<VirtualDevice>>,
     device_paths: Mutex<Vec<PathBuf>>,
     reader_threads: Mutex<Vec<JoinHandle<()>>>,
+    wayland_portal: Option<Arc<WaylandPortalCapture>>,
 }
 
 impl std::fmt::Debug for EvdevUinputInputDevice {
@@ -58,6 +60,7 @@ impl std::fmt::Debug for EvdevUinputInputDevice {
             .debug_struct("EvdevUinputInputDevice")
             .field("initialized", &self.initialized.load(Ordering::Acquire))
             .field("device_paths", &*lock(&self.device_paths))
+            .field("wayland_portal", &self.wayland_portal.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -77,6 +80,7 @@ impl Default for EvdevUinputInputDevice {
             virtual_device: Mutex::new(None),
             device_paths: Mutex::new(Vec::new()),
             reader_threads: Mutex::new(Vec::new()),
+            wayland_portal: None,
         }
     }
 }
@@ -85,6 +89,12 @@ impl EvdevUinputInputDevice {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[must_use]
+    pub fn with_wayland_portal(mut self, portal: Arc<WaylandPortalCapture>) -> Self {
+        self.wayland_portal = Some(portal);
+        self
     }
 
     /// Create the uinput device, discover readable physical keyboard/mouse event devices, and start
@@ -226,13 +236,26 @@ impl InputInjector for EvdevUinputInputDevice {
 
     fn move_mouse_absolute(&self, x: i32, y: i32) -> Result<(), InputError> {
         if is_native_wayland_session() {
-            return Err(InputError::new(self.absolute_pointer_unavailable_reason()));
+            let Some(portal) = &self.wayland_portal else {
+                return Err(InputError::new(self.absolute_pointer_unavailable_reason()));
+            };
+            return portal
+                .move_pointer_absolute(x, y)
+                .map_err(|error| InputError::new(error.to_string()));
         }
         move_mouse_absolute_x11(x, y)
     }
 
+    fn prefers_direct_absolute_positioning(&self) -> bool {
+        is_native_wayland_session()
+            && self
+                .wayland_portal
+                .as_ref()
+                .is_some_and(|portal| portal.has_remote_desktop_control())
+    }
+
     fn absolute_pointer_unavailable_reason(&self) -> String {
-        linux_absolute_pointer_unavailable_reason()
+        linux_absolute_pointer_unavailable_reason(self.wayland_portal.as_deref())
     }
 
     fn mouse_wheel(&self, delta: i32) {
@@ -678,12 +701,12 @@ fn is_native_wayland_session() -> bool {
 
 fn move_mouse_absolute_x11(x: i32, y: i32) -> Result<(), InputError> {
     let (connection, screen_index) = x11rb::connect(None)
-        .map_err(|_| InputError::new(linux_absolute_pointer_unavailable_reason()))?;
+        .map_err(|_| InputError::new(linux_absolute_pointer_unavailable_reason(None)))?;
     let screen = connection
         .setup()
         .roots
         .get(screen_index)
-        .ok_or_else(|| InputError::new(linux_absolute_pointer_unavailable_reason()))?;
+        .ok_or_else(|| InputError::new(linux_absolute_pointer_unavailable_reason(None)))?;
     let width = i32::from(screen.width_in_pixels);
     let height = i32::from(screen.height_in_pixels);
     if width <= 0 || height <= 0 {
@@ -703,9 +726,21 @@ fn move_mouse_absolute_x11(x: i32, y: i32) -> Result<(), InputError> {
     Ok(())
 }
 
-fn linux_absolute_pointer_unavailable_reason() -> String {
+fn linux_absolute_pointer_unavailable_reason(portal: Option<&WaylandPortalCapture>) -> String {
     if is_native_wayland_session() {
-        return "absolute screen coordinates are unavailable on native Wayland, and this build does not include the desktop portal support required for screen reads or pointer control."
+        if let Some(portal) = portal {
+            if portal.has_remote_desktop_control() {
+                return "Wayland RemoteDesktop lets moveMouseAbs target the selected monitor, but does not reveal the current global cursor position. Relative operations that need that position, including moveMouse in absolute mode and moveDegrees in absolute mode, remain unavailable."
+                    .to_owned();
+            }
+            if !portal.is_active() {
+                return "absolute screen coordinates are unavailable on native Wayland. moveMouseAbs cannot use a global cursor position; to use getPixelColor or getPixelRect, open Settings and choose Enable Wayland Screen Capture."
+                    .to_owned();
+            }
+            return "absolute mouse positioning is unavailable on native Wayland. The active ScreenCast monitor will become available to pixel APIs after PipeWire delivers its first frame."
+                .to_owned();
+        }
+        return "absolute screen coordinates are unavailable on native Wayland. moveMouseAbs requires a composed Wayland RemoteDesktop portal service."
             .to_owned();
     }
     let display = std::env::var_os("DISPLAY").is_some_and(|value| !value.is_empty());

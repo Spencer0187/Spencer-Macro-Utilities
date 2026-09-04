@@ -1,7 +1,7 @@
 //! Pointer/display Lua API adapters.
 
 use crate::input_api::{ScriptExecutionMode, ScriptInputContext, ScriptMouseMotionMode};
-use crate::lua_runtime::LuaScriptVm;
+use crate::lua_runtime::{LuaScriptVm, LuaStopHandle, ScriptStopReason};
 use mlua::{Error as LuaError, Lua, Value};
 use smu_display::{
     CoordinateMode, DisplayCapture, DisplayError, PixelColor, resolve_absolute_point,
@@ -465,6 +465,7 @@ fn sample_pixel(
 fn install_motion_api(
     lua: &Lua,
     context: &ScriptInputContext,
+    stop: &LuaStopHandle,
     input: Option<&Arc<dyn InputDevice>>,
     display: Option<&Arc<dyn DisplayCapture>>,
 ) -> mlua::Result<()> {
@@ -490,6 +491,7 @@ fn install_motion_api(
     )?;
 
     let abs_context = context.clone();
+    let abs_stop = stop.clone();
     let abs_input = input.cloned();
     let abs_display = display.cloned();
     lua.globals().set(
@@ -500,6 +502,15 @@ fn install_motion_api(
             let x = finite_number(lua, x, "x")?;
             let y = finite_number(lua, y, "y")?;
             let mode = coordinate_mode(mode)?;
+            if let Some(display) = abs_display.as_ref() {
+                display
+                    .request_absolute_pointer_access_for_script(&|| {
+                        abs_stop.reason() != ScriptStopReason::None
+                    })
+                    .map_err(|error| {
+                        LuaError::RuntimeError(format!("moveMouseAbs failed: {error}"))
+                    })?;
+            }
             absolute_point(
                 abs_input.as_ref(),
                 abs_display.as_ref(),
@@ -546,9 +557,11 @@ fn install_motion_api(
 fn install_pixel_api(
     lua: &Lua,
     context: &ScriptInputContext,
+    stop: &LuaStopHandle,
     display: Option<&Arc<dyn DisplayCapture>>,
 ) -> mlua::Result<()> {
     let color_context = context.clone();
+    let color_stop = stop.clone();
     let color_display = display.cloned();
     lua.globals().set(
         "getPixelColor",
@@ -559,6 +572,15 @@ fn install_pixel_api(
                 let y = finite_number(lua, y, "y")?;
                 let mode = coordinate_mode(mode)?;
                 let format = pixel_output_format(format)?;
+                if let Some(display) = color_display.as_ref() {
+                    display
+                        .request_pixel_access_for_script(&|| {
+                            color_stop.reason() != ScriptStopReason::None
+                        })
+                        .map_err(|error| {
+                            LuaError::RuntimeError(format!("getPixelColor failed: {error}"))
+                        })?;
+                }
                 let color = sample_pixel(color_display.as_ref(), x, y, mode).map_err(|error| {
                     LuaError::RuntimeError(format!("getPixelColor failed: {error}"))
                 })?;
@@ -568,6 +590,7 @@ fn install_pixel_api(
     )?;
 
     let rect_context = context.clone();
+    let rect_stop = stop.clone();
     let rect_display = display.cloned();
     lua.globals().set(
         "getPixelRect",
@@ -588,6 +611,15 @@ fn install_pixel_api(
                 let y2 = finite_number(lua, y2, "y2")?;
                 let mode = coordinate_mode(mode)?;
                 let format = pixel_output_format(format)?;
+                if let Some(display) = rect_display.as_ref() {
+                    display
+                        .request_pixel_access_for_script(&|| {
+                            rect_stop.reason() != ScriptStopReason::None
+                        })
+                        .map_err(|error| {
+                            LuaError::RuntimeError(format!("getPixelRect failed: {error}"))
+                        })?;
+                }
                 let Some(display) = rect_display.as_ref() else {
                     return Err(LuaError::RuntimeError(
                         "getPixelRect failed: input backend is not available".to_owned(),
@@ -723,8 +755,9 @@ pub fn install_display_api(
     let context = &resources.0;
     let input = resources.1.as_ref();
     let display = resources.2.as_ref();
-    install_motion_api(&vm.lua, context, input, display)?;
-    install_pixel_api(&vm.lua, context, display)?;
+    let stop = vm.stop_handle();
+    install_motion_api(&vm.lua, context, &stop, input, display)?;
+    install_pixel_api(&vm.lua, context, &stop, display)?;
     install_macos_cursor_api(&vm.lua)?;
     Ok(())
 }
@@ -741,7 +774,7 @@ mod tests {
     use smu_profile::{SavedSettingSource, SavedSettingValue};
     use std::collections::HashMap;
     use std::sync::Mutex;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     #[derive(Debug, Deserialize)]
     struct MoveDegreesFixture {
@@ -812,6 +845,8 @@ mod tests {
     struct FakeDisplay {
         bounds: Option<ScreenBounds>,
         cursor: Option<CursorPosition>,
+        pixel_requests: AtomicUsize,
+        absolute_requests: AtomicUsize,
     }
 
     impl DisplayCapture for FakeDisplay {
@@ -821,6 +856,22 @@ mod tests {
 
         fn cursor_position(&self) -> Option<CursorPosition> {
             self.cursor
+        }
+
+        fn request_pixel_access_for_script(
+            &self,
+            _cancelled: &(dyn Fn() -> bool + Send + Sync),
+        ) -> Result<(), DisplayError> {
+            self.pixel_requests.fetch_add(1, Ordering::AcqRel);
+            Ok(())
+        }
+
+        fn request_absolute_pointer_access_for_script(
+            &self,
+            _cancelled: &(dyn Fn() -> bool + Send + Sync),
+        ) -> Result<(), DisplayError> {
+            self.absolute_requests.fetch_add(1, Ordering::AcqRel);
+            Ok(())
         }
 
         fn sample_pixel(&self, x: i32, y: i32) -> Result<PixelColor, DisplayError> {
@@ -864,6 +915,8 @@ mod tests {
         let display = Arc::new(FakeDisplay {
             bounds: Some(ScreenBounds { x: -1920, y: 0, width: 1920, height: 1080 }),
             cursor: Some(CursorPosition { x: -1000, y: 500 }),
+            pixel_requests: AtomicUsize::new(0),
+            absolute_requests: AtomicUsize::new(0),
         });
         install_display_api(&vm, context.clone(), Some(input.clone()), Some(display.clone()))
             .expect("display API should install");
@@ -882,6 +935,19 @@ mod tests {
             input.events(),
             [PointerEvent::Relative(10, -20), PointerEvent::Absolute(-990, 480),]
         );
+    }
+
+    #[test]
+    fn script_pixel_and_absolute_mouse_calls_request_platform_permission_first() {
+        let (vm, _, input, display) = vm_with_display();
+        input.direct.store(true, Ordering::Release);
+        vm.execute_source(
+            "getPixelColor(0, 0); getPixelRect(0, 0, 1, 1); moveMouseAbs(0, 0)",
+            "permission-hooks.lua",
+        )
+        .expect("permission-aware display calls should run");
+        assert_eq!(display.pixel_requests.load(Ordering::Acquire), 2);
+        assert_eq!(display.absolute_requests.load(Ordering::Acquire), 1);
     }
 
     #[test]

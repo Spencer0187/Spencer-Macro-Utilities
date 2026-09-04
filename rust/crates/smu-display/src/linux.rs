@@ -7,6 +7,9 @@
 use crate::{CursorPosition, DisplayCapture, DisplayError, PixelColor, ScreenBounds};
 use std::env;
 use x11rb::connection::Connection;
+
+mod wayland;
+pub use wayland::WaylandPortalCapture;
 use x11rb::protocol::xinerama::ConnectionExt as XineramaConnectionExt;
 use x11rb::protocol::xproto::{
     ConnectionExt as XprotoConnectionExt, ImageFormat, ImageOrder, Screen,
@@ -270,13 +273,33 @@ fn linux_screen_read_unavailable_reason() -> String {
     "screen pixel color sampling failed while reading from the X11 root window.".to_owned()
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct LinuxDisplayCapture;
+#[derive(Clone, Debug)]
+pub struct LinuxDisplayCapture {
+    wayland: std::sync::Arc<WaylandPortalCapture>,
+}
+
+impl Default for LinuxDisplayCapture {
+    fn default() -> Self {
+        Self { wayland: std::sync::Arc::new(WaylandPortalCapture::default()) }
+    }
+}
+
+impl LinuxDisplayCapture {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn wayland_portal(&self) -> std::sync::Arc<WaylandPortalCapture> {
+        std::sync::Arc::clone(&self.wayland)
+    }
+}
 
 impl DisplayCapture for LinuxDisplayCapture {
     fn active_monitor_bounds(&self) -> Option<ScreenBounds> {
         if detect_display_server() == LinuxDisplayServer::Wayland {
-            return None;
+            return self.wayland.selected_monitor_bounds();
         }
         x11_active_monitor_bounds()
     }
@@ -289,17 +312,53 @@ impl DisplayCapture for LinuxDisplayCapture {
     }
 
     fn pointer_unavailable_reason(&self) -> String {
+        if detect_display_server() == LinuxDisplayServer::Wayland {
+            if self.wayland.has_remote_desktop_control() {
+                return "Wayland RemoteDesktop lets moveMouseAbs target the selected monitor, but does not reveal the current global cursor position. Relative operations that need that position, including moveMouse in absolute mode and moveDegrees in absolute mode, remain unavailable."
+                    .to_owned();
+            }
+            if !self.wayland.is_active() {
+                return "absolute screen coordinates are unavailable on native Wayland. moveMouseAbs cannot use a global cursor position; to use getPixelColor or getPixelRect, open Settings and choose Enable Wayland Screen Capture."
+                    .to_owned();
+            }
+            return "absolute mouse positioning is unavailable on native Wayland. The active ScreenCast monitor will become available to pixel APIs after PipeWire delivers its first frame."
+                .to_owned();
+        }
         linux_absolute_pointer_unavailable_reason()
+    }
+
+    fn request_pixel_access_for_script(
+        &self,
+        cancelled: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<(), DisplayError> {
+        if detect_display_server() == LinuxDisplayServer::Wayland {
+            return self.wayland.request_activation_for_script(cancelled);
+        }
+        Ok(())
+    }
+
+    fn request_absolute_pointer_access_for_script(
+        &self,
+        cancelled: &(dyn Fn() -> bool + Send + Sync),
+    ) -> Result<(), DisplayError> {
+        if detect_display_server() == LinuxDisplayServer::Wayland {
+            return self.wayland.request_remote_desktop_activation_for_script(cancelled);
+        }
+        Ok(())
     }
 
     fn sample_pixel(&self, x: i32, y: i32) -> Result<PixelColor, DisplayError> {
         if detect_display_server() == LinuxDisplayServer::Wayland {
-            return Err(DisplayError::new(linux_screen_read_unavailable_reason()));
+            return self.wayland.sample(x, y);
         }
         x11_sample_pixel(x, y)
     }
 
     fn unavailable_reason(&self) -> String {
+        if detect_display_server() == LinuxDisplayServer::Wayland {
+            return "screen pixel color sampling is unavailable. On Wayland, open Settings and choose Enable Wayland Screen Capture, then approve the monitor-selection dialog."
+                .to_owned();
+        }
         linux_screen_read_unavailable_reason()
     }
 }

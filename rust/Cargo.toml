@@ -33,6 +33,7 @@ edition = "2024"
 rust-version = "1.98"
 
 [workspace.dependencies]
+ashpd = { version = "=0.13.13", default-features = false, features = ["tokio", "screencast", "remote_desktop"] }
 evdev = "=0.13.2"
 dear-imgui-rs = "0.17"
 dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
@@ -40,12 +41,14 @@ gl = "0.14"
 image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
 libc = "=0.2.189"
 mlua = { version = "=0.12.1", features = ["lua54", "send", "vendored"] }
+pipewire = "=0.10.1"
 regress = { version = "=0.12.0", features = ["prohibit-unsafe"] }
 sdl3 = { version = "0.18", features = ["build-from-source"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 toml = "0.9"
+tokio = { version = "=1.53.1", features = ["rt", "sync", "time"] }
 x11rb = { version = "=0.14.0", features = ["xinerama"] }
 
 [workspace.lints.rust]

@@ -52,13 +52,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   events out of physical state, preserves wheel binding sentinels and generic modifier collapse,
   supports X11 absolute pointer warps, and falls back to the C++ 12-second interactive device
   discovery path when capability probes do not identify both keyboard and mouse. The full VK/evdev
-  mapping is differential-tested from a generated C++ oracle fixture. Native Wayland absolute pointer
-  control still belongs to the pending portal/RemoteDesktop slice.
+  mapping is differential-tested from a generated C++ oracle fixture. On native Wayland, the Linux
+  input backend can share `smu-display`'s approved RemoteDesktop session for direct `moveMouseAbs`
+  while correctly continuing to report global cursor-position reads as unavailable.
 - `smu-display` owns monitor/cursor geometry, active-monitor refresh metadata, script coordinate
-  modes, pixel colors/rectangle reads, and the screen-capture capability. Linux now has a native
-  X11/XWayland implementation for cursor position, Xinerama active-monitor selection, and root-window
-  pixel sampling; native Wayland ScreenCast/RemoteDesktop remains a separate portal/PipeWire slice.
-  `smu-scripting` wires
+  modes, pixel colors/rectangle reads, and the screen-capture capability. Linux has native X11/XWayland
+  cursor/Xinerama/root-window pixel support plus a native Wayland portal service using ScreenCast,
+  RemoteDesktop, and PipeWire. The Wayland service keeps portal/PipeWire objects on an owned worker,
+  converts BGRx/BGRA/RGBx/RGBA frames into immutable RGB snapshots, maps captured pixels back to the
+  portal's logical monitor size for absolute pointer motion, and preserves the C++ activation-generation
+  handoff: Lua workers wait while the app owns the approval modals. `smu-scripting` wires
   `moveMouse`, `moveMouseAbs`, `moveDegrees`, mouse motion mode, `getPixelColor`, `getPixelRect`, and
   the macOS cursor toggle through separate input/display services. `moveDegrees` caches its saved
   camfix/sensitivity calibration at API registration and is differential-tested against a C++

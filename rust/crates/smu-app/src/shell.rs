@@ -15,6 +15,14 @@ pub enum ShellAction {
     StartFreezeHelper,
     #[cfg(target_os = "linux")]
     CancelFreezeHelper,
+    #[cfg(target_os = "linux")]
+    ApproveWaylandScreenCapture,
+    #[cfg(target_os = "linux")]
+    DeclineWaylandScreenCapture,
+    #[cfg(target_os = "linux")]
+    ApproveWaylandRemoteDesktop,
+    #[cfg(target_os = "linux")]
+    DeclineWaylandRemoteDesktop,
 }
 
 const ROOT_WINDOW: &str = "Main SMU Window";
@@ -37,6 +45,22 @@ const FOOTER_CONTROL_Y_OFFSET: f32 = 3.0;
 const OPACITY_SLIDER_WIDTH: f32 = 100.0;
 const PROFILES_BUTTON_WIDTH: f32 = 125.0;
 
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum LinuxModal {
+    LagSwitchHelper,
+    FreezeHelper,
+    WaylandScreenCapture,
+    WaylandRemoteDesktop,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Default)]
+struct LinuxModalState {
+    pending_open: std::collections::BTreeSet<LinuxModal>,
+    admin_error: String,
+}
+
 #[derive(Debug)]
 pub struct ShellState {
     always_on_top: bool,
@@ -44,11 +68,7 @@ pub struct ShellState {
     global: GlobalSettingsState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
-    open_admin_popup: bool,
-    #[cfg(target_os = "linux")]
-    admin_error: String,
-    #[cfg(target_os = "linux")]
-    open_freeze_popup: bool,
+    linux_modals: LinuxModalState,
 }
 
 impl Default for ShellState {
@@ -59,11 +79,7 @@ impl Default for ShellState {
             global: GlobalSettingsState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
-            open_admin_popup: false,
-            #[cfg(target_os = "linux")]
-            admin_error: String::new(),
-            #[cfg(target_os = "linux")]
-            open_freeze_popup: false,
+            linux_modals: LinuxModalState::default(),
         }
     }
 }
@@ -84,18 +100,28 @@ impl ShellState {
     }
 
     #[cfg(target_os = "linux")]
-    pub const fn request_lag_switch_helper_popup(&mut self) {
-        self.open_admin_popup = true;
+    pub fn request_lag_switch_helper_popup(&mut self) {
+        self.linux_modals.pending_open.insert(LinuxModal::LagSwitchHelper);
     }
 
     #[cfg(target_os = "linux")]
     pub fn set_lag_switch_helper_error(&mut self, error: impl Into<String>) {
-        self.admin_error = error.into();
+        self.linux_modals.admin_error = error.into();
     }
 
     #[cfg(target_os = "linux")]
-    pub const fn request_freeze_helper_popup(&mut self) {
-        self.open_freeze_popup = true;
+    pub fn request_freeze_helper_popup(&mut self) {
+        self.linux_modals.pending_open.insert(LinuxModal::FreezeHelper);
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn request_wayland_screen_capture_popup(&mut self) {
+        self.linux_modals.pending_open.insert(LinuxModal::WaylandScreenCapture);
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn request_wayland_remote_desktop_popup(&mut self) {
+        self.linux_modals.pending_open.insert(LinuxModal::WaylandRemoteDesktop);
     }
 }
 
@@ -119,64 +145,144 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         });
 
     #[cfg(target_os = "linux")]
-    {
-        if state.open_admin_popup {
-            let _ = ui.open_popup("Administrator Required");
-            state.open_admin_popup = false;
-        }
-        if let Some(_popup) = ui.begin_modal_popup("Administrator Required") {
-            ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
-            ui.text_wrapped("This process involves:");
-            ui.bullet_text("Starting the bundled nethelper with pkexec.");
-            ui.bullet_text("Keeping the SMU GUI running as your normal desktop user.");
-            if !state.admin_error.is_empty() {
-                ui.text_colored([1.0, 0.20, 0.40, 1.0], &state.admin_error);
-            }
-            crate::parity::separator(ui);
-            if ui.button_with_size("Start Helper", [180.0, 0.0]) {
-                action = Some(ShellAction::StartLagSwitchHelper);
-                ui.close_current_popup();
-            }
-            ui.same_line();
-            if ui.button_with_size("Cancel", [120.0, 0.0]) {
-                ui.close_current_popup();
-            }
-        }
-
-        if state.open_freeze_popup {
-            let _ = ui.open_popup("Additional Freeze Permission Required");
-            state.open_freeze_popup = false;
-        }
-        if let Some(_popup) = ui.begin_modal_popup("Additional Freeze Permission Required") {
-            ui.text_wrapped(
-                "SMU cannot move Sober's game process into the temporary cgroup used by Freeze with your current Linux permissions.",
-            );
-            ui.new_line();
-            ui.text_wrapped(
-                "To keep Sober-compatible freezing working, SMU can start its bundled privileged Linux helper with pkexec.",
-            );
-            ui.text_wrapped("This grants the helper root access for this SMU session.");
-            ui.new_line();
-            ui.bullet_text("The SMU GUI remains running as your normal desktop user.");
-            ui.bullet_text("The helper only accepts commands from this exact SMU process.");
-            ui.bullet_text("The helper exits when SMU exits; nothing is installed permanently.");
-            ui.bullet_text(
-                "This helper is bundled with SMU and is dedicated to the Sober freeze workaround.",
-            );
-            crate::parity::separator(ui);
-            if ui.button_with_size("Start Privileged Helper", [220.0, 0.0]) {
-                action = Some(ShellAction::StartFreezeHelper);
-                ui.close_current_popup();
-            }
-            ui.same_line();
-            if ui.button_with_size("Cancel##FreezeHelper", [120.0, 0.0]) {
-                action = Some(ShellAction::CancelFreezeHelper);
-                ui.close_current_popup();
-            }
-        }
+    if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals) {
+        action = Some(modal_action);
     }
 
     action
+}
+
+#[cfg(target_os = "linux")]
+fn open_linux_modal(ui: &Ui, state: &mut LinuxModalState, modal: LinuxModal, name: &str) {
+    if state.pending_open.remove(&modal) {
+        let _ = ui.open_popup(name);
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn render_linux_modals(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
+    if let Some(action) = render_lag_switch_helper_modal(ui, state) {
+        return Some(action);
+    }
+    if let Some(action) = render_freeze_helper_modal(ui, state) {
+        return Some(action);
+    }
+    if let Some(action) = render_wayland_screen_capture_modal(ui, state) {
+        return Some(action);
+    }
+    render_wayland_remote_desktop_modal(ui, state)
+}
+
+#[cfg(target_os = "linux")]
+fn render_lag_switch_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
+    open_linux_modal(ui, state, LinuxModal::LagSwitchHelper, "Administrator Required");
+    let _popup = ui.begin_modal_popup("Administrator Required")?;
+    ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
+    ui.text_wrapped("This process involves:");
+    ui.bullet_text("Starting the bundled nethelper with pkexec.");
+    ui.bullet_text("Keeping the SMU GUI running as your normal desktop user.");
+    if !state.admin_error.is_empty() {
+        ui.text_colored([1.0, 0.20, 0.40, 1.0], &state.admin_error);
+    }
+    crate::parity::separator(ui);
+    if ui.button_with_size("Start Helper", [180.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(ShellAction::StartLagSwitchHelper);
+    }
+    ui.same_line();
+    if ui.button_with_size("Cancel", [120.0, 0.0]) {
+        ui.close_current_popup();
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn render_freeze_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
+    open_linux_modal(ui, state, LinuxModal::FreezeHelper, "Additional Freeze Permission Required");
+    let _popup = ui.begin_modal_popup("Additional Freeze Permission Required")?;
+    ui.text_wrapped(
+        "SMU cannot move Sober's game process into the temporary cgroup used by Freeze with your current Linux permissions.",
+    );
+    ui.new_line();
+    ui.text_wrapped(
+        "To keep Sober-compatible freezing working, SMU can start its bundled privileged Linux helper with pkexec.",
+    );
+    ui.text_wrapped("This grants the helper root access for this SMU session.");
+    ui.new_line();
+    ui.bullet_text("The SMU GUI remains running as your normal desktop user.");
+    ui.bullet_text("The helper only accepts commands from this exact SMU process.");
+    ui.bullet_text("The helper exits when SMU exits; nothing is installed permanently.");
+    ui.bullet_text(
+        "This helper is bundled with SMU and is dedicated to the Sober freeze workaround.",
+    );
+    crate::parity::separator(ui);
+    if ui.button_with_size("Start Privileged Helper", [220.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(ShellAction::StartFreezeHelper);
+    }
+    ui.same_line();
+    if ui.button_with_size("Cancel##FreezeHelper", [120.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(ShellAction::CancelFreezeHelper);
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn render_wayland_screen_capture_modal(
+    ui: &Ui,
+    state: &mut LinuxModalState,
+) -> Option<ShellAction> {
+    open_linux_modal(ui, state, LinuxModal::WaylandScreenCapture, "Enable Wayland Screen Capture?");
+    let _popup = ui.begin_modal_popup("Enable Wayland Screen Capture?")?;
+    ui.text_wrapped(
+        "A running Lua script called getPixelColor() or getPixelRect(). On Wayland, SMU must ask the desktop portal for permission to capture one monitor.",
+    );
+    ui.text_wrapped(
+        "Enable will open your desktop's monitor picker. The script stays paused until a monitor is selected and the first frame is ready.",
+    );
+    crate::parity::separator(ui);
+    if ui.button("Enable and Select Monitor") {
+        ui.close_current_popup();
+        return Some(ShellAction::ApproveWaylandScreenCapture);
+    }
+    ui.same_line();
+    if ui.button("Don't Enable##WaylandScreenCapture") {
+        ui.close_current_popup();
+        return Some(ShellAction::DeclineWaylandScreenCapture);
+    }
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn render_wayland_remote_desktop_modal(
+    ui: &Ui,
+    state: &mut LinuxModalState,
+) -> Option<ShellAction> {
+    open_linux_modal(
+        ui,
+        state,
+        LinuxModal::WaylandRemoteDesktop,
+        "Enable Wayland Absolute Mouse Control?",
+    );
+    let _popup = ui.begin_modal_popup("Enable Wayland Absolute Mouse Control?")?;
+    ui.text_wrapped(
+        "A running Lua script called moveMouseAbs(). On Wayland, SMU needs explicit permission to control the pointer and capture one monitor through the desktop portal.",
+    );
+    ui.text_wrapped(
+        "Enable opens your desktop's permission dialog. The script remains paused until pointer control and the selected monitor's first frame are ready. This does not let SMU read the current global cursor position.",
+    );
+    crate::parity::separator(ui);
+    if ui.button("Enable Pointer Control and Select Monitor") {
+        ui.close_current_popup();
+        return Some(ShellAction::ApproveWaylandRemoteDesktop);
+    }
+    ui.same_line();
+    if ui.button("Don't Enable##WaylandRemoteDesktop") {
+        ui.close_current_popup();
+        return Some(ShellAction::DeclineWaylandRemoteDesktop);
+    }
+    None
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
