@@ -57,6 +57,9 @@ mod theme;
 mod wall_walk;
 #[cfg(target_os = "linux")]
 mod wall_walk_runtime;
+mod walless_lhj;
+#[cfg(target_os = "linux")]
+mod walless_lhj_runtime;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -108,6 +111,73 @@ struct LinuxRuntimeServices {
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
     wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
+    walless_lhj_controller: Option<walless_lhj_runtime::WallessLhjController>,
+}
+
+#[cfg(target_os = "linux")]
+fn start_speedglitch_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<speedglitch_runtime::SpeedglitchController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        speedglitch_runtime::SpeedglitchController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.speedglitch_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_wall_walk_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    shell_state: &shell::ShellState,
+) -> Option<wall_walk_runtime::WallWalkController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        wall_walk_runtime::WallWalkController::start(
+            input,
+            discovery,
+            foreground,
+            shell_state.wall_walk_controller_settings(),
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn start_walless_lhj_controller(
+    input_ready: bool,
+    input_service: &Arc<EvdevUinputInputDevice>,
+    process_discovery: &Arc<ProcDiscovery>,
+    process_foreground: &Arc<ProcForegroundProcess>,
+    process_control: &Arc<ProcCgroupProcessControl>,
+    shell_state: &shell::ShellState,
+) -> Option<walless_lhj_runtime::WallessLhjController> {
+    input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = process_control.clone();
+        walless_lhj_runtime::WallessLhjController::start(
+            input,
+            discovery,
+            foreground,
+            control,
+            shell_state.walless_lhj_controller_settings(),
+        )
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -173,28 +243,28 @@ impl LinuxRuntimeServices {
                 shell_state.item_clip_controller_settings(),
             )
         });
-        let speedglitch_controller = input_ready.then(|| {
-            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-            speedglitch_runtime::SpeedglitchController::start(
-                input,
-                discovery,
-                foreground,
-                shell_state.speedglitch_controller_settings(),
-            )
-        });
-        let wall_walk_controller = input_ready.then(|| {
-            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-            wall_walk_runtime::WallWalkController::start(
-                input,
-                discovery,
-                foreground,
-                shell_state.wall_walk_controller_settings(),
-            )
-        });
+        let speedglitch_controller = start_speedglitch_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            shell_state,
+        );
+        let wall_walk_controller = start_wall_walk_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            shell_state,
+        );
+        let walless_lhj_controller = start_walless_lhj_controller(
+            input_ready,
+            &input_service,
+            &process_discovery,
+            &process_foreground,
+            &process_control,
+            shell_state,
+        );
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -209,6 +279,7 @@ impl LinuxRuntimeServices {
             item_clip_controller,
             speedglitch_controller,
             wall_walk_controller,
+            walless_lhj_controller,
         }
     }
 
@@ -257,6 +328,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.wall_walk_controller.as_ref() {
             controller.update_settings(shell_state.wall_walk_controller_settings());
+        }
+        if let Some(controller) = self.walless_lhj_controller.as_ref() {
+            controller.update_settings(shell_state.walless_lhj_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -328,6 +402,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.walless_lhj_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.wall_walk_controller.as_ref() {
             controller.stop();
         }

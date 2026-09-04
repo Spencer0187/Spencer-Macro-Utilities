@@ -162,10 +162,11 @@ fn controller_loop(
         state.suspend.target_pids = state.targets.selected_pids().to_vec();
 
         if !current.macro_enabled {
+            // C++ resumes Freeze here but deliberately preserves freezeWasPressed_, so re-enabling
+            // while a toggle hotkey is still held does not synthesize a fresh rising edge.
             if state.suspend.freeze_suspended {
                 set_target_suspended(&current, discovery, control, &mut state, false);
             }
-            state.was_pressed = false;
             suspended_flag.store(state.suspend.freeze_suspended, Ordering::Release);
             std::thread::sleep(Duration::from_millis(5));
             continue;

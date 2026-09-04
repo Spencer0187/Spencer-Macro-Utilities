@@ -9,6 +9,7 @@ use crate::{
     sidebar,
     speedglitch::{self, SpeedglitchUiState},
     wall_walk::{self, WallWalkUiState},
+    walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -77,6 +78,7 @@ pub struct ShellState {
     item_clip: ItemClipUiState,
     speedglitch: SpeedglitchUiState,
     wall_walk: WallWalkUiState,
+    walless_lhj: WallessLhjUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -94,6 +96,7 @@ impl Default for ShellState {
             item_clip: ItemClipUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
             wall_walk: WallWalkUiState::default(),
+            walless_lhj: WallessLhjUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -126,6 +129,7 @@ impl ShellState {
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
         enabled[3] = self.speedglitch.enabled;
+        enabled[7] = self.walless_lhj.enabled;
         enabled[8] = self.item_clip.enabled;
         enabled[10] = self.wall_walk.enabled;
         enabled[15] = self.lag_switch.enabled;
@@ -160,6 +164,21 @@ impl ShellState {
             self.global.fps_runtime(),
             self.global.process_selector(),
         )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn walless_lhj_controller_settings(
+        &self,
+    ) -> crate::walless_lhj_runtime::WallessLhjControllerSettings {
+        self.walless_lhj.controller_settings(WallessLhjGlobals {
+            macro_enabled: self.global.macro_enabled(),
+            process_selector: self.global.process_selector(),
+            global_zoom: self.global.global_zoom(),
+            shift_key: self.global.shift_key(),
+            zoom_reverse: self.global.zoom_reverse(),
+            take_all_process_ids: self.freeze.take_all_process_ids,
+        })
     }
 
     #[cfg(target_os = "linux")]
@@ -416,6 +435,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
             3 => speedglitch::render(ui, &mut state.speedglitch),
+            7 => walless_lhj::render(ui, &mut state.walless_lhj),
             8 => item_clip::render(ui, &mut state.item_clip),
             10 => wall_walk::render(
                 ui,

@@ -38,6 +38,9 @@ pub struct GlobalSettingsState {
     fps: String,
     fps_runtime: u32,
     speed_calibration_revision: u64,
+    shift_key: u32,
+    global_zoom: bool,
+    zoom_reverse: bool,
 }
 
 impl GlobalSettingsState {
@@ -71,6 +74,21 @@ impl GlobalSettingsState {
         self.speed_calibration_revision
     }
 
+    #[must_use]
+    pub const fn shift_key(&self) -> u32 {
+        self.shift_key
+    }
+
+    #[must_use]
+    pub const fn global_zoom(&self) -> bool {
+        self.global_zoom
+    }
+
+    #[must_use]
+    pub const fn zoom_reverse(&self) -> bool {
+        self.zoom_reverse
+    }
+
     pub fn apply_lag_switch_reference_globals(&mut self) {
         "0.6".clone_into(&mut self.sensitivity);
         "200".clone_into(&mut self.fps);
@@ -101,6 +119,9 @@ impl Default for GlobalSettingsState {
             fps: "60".to_owned(),
             fps_runtime: 120,
             speed_calibration_revision: 1,
+            shift_key: 0x10,
+            global_zoom: false,
+            zoom_reverse: false,
         }
     }
 }
@@ -231,6 +252,9 @@ mod tests {
         assert_eq!(state.fps, "60");
         assert_eq!(state.fps_runtime(), 120);
         assert!(!state.cam_fix_enabled());
+        assert_eq!(state.shift_key(), 0x10);
+        assert!(!state.global_zoom());
+        assert!(!state.zoom_reverse());
     }
 
     #[test]

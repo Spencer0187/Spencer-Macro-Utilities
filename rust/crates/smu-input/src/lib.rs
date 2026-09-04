@@ -3,7 +3,7 @@
 //! This crate deliberately excludes screen bounds, cursor reads, and pixel sampling. Those lived on
 //! the old C++ `InputBackend`, but belong to the display/capture service in the Rust architecture.
 
-use smu_core::KeyCode;
+use smu_core::{Hotkey, KeyCode};
 
 #[cfg(target_os = "linux")]
 pub mod linux;
@@ -71,6 +71,33 @@ pub trait InputInjector: Send + Sync {
     }
 
     fn mouse_wheel(&self, delta: i32);
+
+    /// Inject a packed SMU hotkey in the same order as C++ `holdKeyChord`.
+    fn hold_key_chord(&self, hotkey: Hotkey) {
+        let key = hotkey.key();
+        if key == KeyCode::MOUSE_WHEEL_UP {
+            self.mouse_wheel(1);
+            return;
+        }
+        if key == KeyCode::MOUSE_WHEEL_DOWN {
+            self.mouse_wheel(-1);
+            return;
+        }
+        for key in hotkey.expanded_keys() {
+            self.hold_key(key, false);
+        }
+    }
+
+    /// Release a packed SMU hotkey in the reverse order used by C++ `releaseKeyChord`.
+    fn release_key_chord(&self, hotkey: Hotkey) {
+        let wheel = matches!(hotkey.key(), KeyCode::MOUSE_WHEEL_UP | KeyCode::MOUSE_WHEEL_DOWN);
+        for key in hotkey.expanded_keys().into_iter().rev() {
+            if wheel && matches!(key, KeyCode::MOUSE_WHEEL_UP | KeyCode::MOUSE_WHEEL_DOWN) {
+                continue;
+            }
+            self.release_key(key, false);
+        }
+    }
 }
 
 /// Compatibility facade for consumers that need both physical state and injection.
@@ -92,7 +119,10 @@ pub trait CharacterInput: InputInjector {
 
 #[cfg(test)]
 mod tests {
-    use super::{InputDevice, InputInjector, KeyCode, KeyState};
+    #![allow(clippy::expect_used)]
+
+    use super::{Hotkey, InputDevice, InputInjector, KeyCode, KeyState};
+    use std::sync::Mutex;
 
     struct MinimalDevice;
 
@@ -107,6 +137,68 @@ mod tests {
         fn release_key(&self, _key: KeyCode, _extended: bool) {}
         fn move_mouse(&self, _dx: i32, _dy: i32) {}
         fn mouse_wheel(&self, _delta: i32) {}
+    }
+
+    struct RecordingDevice {
+        events: Mutex<Vec<String>>,
+    }
+
+    impl RecordingDevice {
+        fn new() -> Self {
+            Self { events: Mutex::new(Vec::new()) }
+        }
+    }
+
+    impl KeyState for RecordingDevice {
+        fn is_pressed(&self, _key: KeyCode) -> bool {
+            false
+        }
+    }
+
+    impl InputInjector for RecordingDevice {
+        fn hold_key(&self, key: KeyCode, _extended: bool) {
+            self.events.lock().expect("event mutex").push(format!("down:{}", key.raw()));
+        }
+        fn release_key(&self, key: KeyCode, _extended: bool) {
+            self.events.lock().expect("event mutex").push(format!("up:{}", key.raw()));
+        }
+        fn move_mouse(&self, _dx: i32, _dy: i32) {}
+        fn mouse_wheel(&self, delta: i32) {
+            self.events.lock().expect("event mutex").push(format!("wheel:{delta}"));
+        }
+    }
+
+    #[test]
+    fn packed_chord_injection_matches_cpp_modifier_and_release_order() {
+        let device = RecordingDevice::new();
+        let hotkey = Hotkey::new(0xF_0000 | 0x41);
+        device.hold_key_chord(hotkey);
+        device.release_key_chord(hotkey);
+        assert_eq!(
+            *device.events.lock().expect("event mutex"),
+            [
+                "down:91", "down:17", "down:18", "down:16", "down:65", "up:65", "up:16", "up:18",
+                "up:17", "up:91",
+            ]
+        );
+    }
+
+    #[test]
+    fn wheel_chord_matches_cpp_hold_and_modifier_release_quirk() {
+        let device = RecordingDevice::new();
+        let up = Hotkey::new(KeyCode::MOUSE_WHEEL_UP.raw());
+        device.hold_key_chord(up);
+        device.release_key_chord(up);
+        let down = Hotkey::new(KeyCode::MOUSE_WHEEL_DOWN.raw());
+        device.hold_key_chord(down);
+        device.release_key_chord(down);
+        let shift_wheel = Hotkey::new(0x1_0000 | KeyCode::MOUSE_WHEEL_UP.raw());
+        device.hold_key_chord(shift_wheel);
+        device.release_key_chord(shift_wheel);
+        assert_eq!(
+            *device.events.lock().expect("event mutex"),
+            ["wheel:1", "wheel:-1", "wheel:1", "up:16"]
+        );
     }
 
     #[test]

@@ -79,6 +79,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Walless LHJ slice. The F6 controller snapshots the current
+  process-target vector at the rising edge, then launches one-shot workers whose internal 645 ms
+  sequence is preserved exactly. Side selection is read at worker start; global zoom/shift mode and
+  reverse direction are re-read around 595 ms; the release mode and shift key are re-read around
+  645 ms. Workers intentionally continue through the sequence if the global macro toggle changes,
+  matching C++ generic-worker behavior. The controller also preserves its rising-edge latch while the
+  global Macro Toggle is off. The same pause-latch rule was corrected for live Freeze: Freeze resumes
+  suspended PIDs when globally disabled but does not reset the toggle edge latch.
 - `smu-app` now owns the live Linux Wall-Walk slice. The F1 toggle/hold controller is separated
   from a dedicated motion worker. Each iteration snapshots FPS and the two pre-move side/strength
   reads before the first move, waits one characterized frame delay, performs the second move, then
