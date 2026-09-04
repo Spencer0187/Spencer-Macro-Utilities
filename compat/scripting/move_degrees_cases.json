@@ -1,0 +1,272 @@
+{
+  "cases": [
+    {
+      "input": {
+        "camfix": false,
+        "dx": 10.0,
+        "dy": 5.0,
+        "sensitivity": "0.5"
+      },
+      "name": "default-calibration",
+      "observed": {
+        "dx_pixels": 40,
+        "dy_pixels": -20,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 4.0,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": true,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0.5"
+      },
+      "name": "camfix-calibration",
+      "observed": {
+        "dx_pixels": 6,
+        "dy_pixels": -6,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 5.555555555555555,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 0.125,
+        "dy": -0.125,
+        "sensitivity": "  +0.5  "
+      },
+      "name": "trimmed-plus",
+      "observed": {
+        "dx_pixels": 1,
+        "dy_pixels": 1,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 4.0,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 2.5,
+        "dy": 2.5,
+        "sensitivity": "0x1p-1"
+      },
+      "name": "hex-float",
+      "observed": {
+        "dx_pixels": 10,
+        "dy_pixels": -10,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 4.0,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0x1"
+      },
+      "name": "hex-no-exponent",
+      "observed": {
+        "dx_pixels": 2,
+        "dy_pixels": -2,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 2.0,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0.5"
+      },
+      "name": "missing-camfix",
+      "observed": {
+        "error": "moveDegrees requires the saved camfixtoggle setting.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": 1,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0.5"
+      },
+      "name": "wrong-camfix-type",
+      "observed": {
+        "error": "moveDegrees requires the saved camfixtoggle setting.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0
+      },
+      "name": "missing-sensitivity",
+      "observed": {
+        "error": "moveDegrees requires the saved RobloxSensValue setting.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": 0.5
+      },
+      "name": "wrong-sensitivity-type",
+      "observed": {
+        "error": "moveDegrees requires the saved RobloxSensValue setting.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0"
+      },
+      "name": "zero-sensitivity",
+      "observed": {
+        "error": "moveDegrees requires RobloxSensValue to be a finite number greater than 0.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "-0.5"
+      },
+      "name": "negative-sensitivity",
+      "observed": {
+        "error": "moveDegrees requires RobloxSensValue to be a finite number greater than 0.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "nan"
+      },
+      "name": "nan-sensitivity",
+      "observed": {
+        "error": "moveDegrees requires RobloxSensValue to be a finite number greater than 0.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 1.0,
+        "sensitivity": "0.5x"
+      },
+      "name": "junk-sensitivity",
+      "observed": {
+        "error": "moveDegrees requires RobloxSensValue to be a finite number greater than 0.",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1.0,
+        "dy": 0.0,
+        "sensitivity": "4"
+      },
+      "name": "round-positive-half",
+      "observed": {
+        "dx_pixels": 1,
+        "dy_pixels": 0,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.5,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": -1.0,
+        "dy": 0.0,
+        "sensitivity": "4"
+      },
+      "name": "round-negative-half",
+      "observed": {
+        "dx_pixels": -1,
+        "dy_pixels": 0,
+        "error": "",
+        "operation": "move-degrees",
+        "pixels_per_degree": 0.5,
+        "valid": true
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 10000000000.0,
+        "dy": 0.0,
+        "sensitivity": "0.5"
+      },
+      "name": "range-overflow",
+      "observed": {
+        "error": "dx conversion is outside the allowed range",
+        "operation": "move-degrees",
+        "pixels_per_degree": 4.0,
+        "valid": false
+      }
+    },
+    {
+      "input": {
+        "camfix": false,
+        "dx": 1e+308,
+        "dy": 0.0,
+        "sensitivity": "0.5"
+      },
+      "name": "floating-overflow",
+      "observed": {
+        "error": "dx conversion overflowed",
+        "operation": "move-degrees",
+        "pixels_per_degree": 4.0,
+        "valid": false
+      }
+    }
+  ],
+  "oracle": "smu_compat_oracle move-degrees"
+}

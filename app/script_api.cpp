@@ -1,4 +1,5 @@
 #include "script_api.h"
+#include "script_api_compat_logic.h"
 
 #include "input_actions.h"
 #include "app_ui_controls.h"
@@ -1103,60 +1104,18 @@ std::optional<std::string> TryGetSavedString(const char* name)
     return std::nullopt;
 }
 
-std::optional<double> ParseFiniteDouble(std::string text)
-{
-    const auto begin = text.find_first_not_of(" \t\r\n");
-    if (begin == std::string::npos) {
-        return std::nullopt;
-    }
-    const auto end = text.find_last_not_of(" \t\r\n");
-    text = text.substr(begin, end - begin + 1);
-
-    char* parseEnd = nullptr;
-    const double value = std::strtod(text.c_str(), &parseEnd);
-    if (parseEnd == text.c_str()) {
-        return std::nullopt;
-    }
-    while (*parseEnd != '\0' && std::isspace(static_cast<unsigned char>(*parseEnd))) {
-        ++parseEnd;
-    }
-    if (*parseEnd != '\0' || !std::isfinite(value)) {
-        return std::nullopt;
-    }
-    return value;
-}
 
 void CacheMoveDegreesSettings(lua_State* L)
 {
-    std::string error;
-    double pixelsPerDegree = 0.0;
-
-    const auto camfixEnabled = TryGetSavedBool("camfixtoggle");
-    if (!camfixEnabled) {
-        error = "moveDegrees requires the saved camfixtoggle setting.";
-    }
-
-    const auto savedSensitivity = TryGetSavedString("RobloxSensValue");
-    if (error.empty() && !savedSensitivity) {
-        error = "moveDegrees requires the saved RobloxSensValue setting.";
-    }
-
-    const auto sensitivity = savedSensitivity ? ParseFiniteDouble(*savedSensitivity) : std::nullopt;
-    if (error.empty() && (!sensitivity || *sensitivity <= 0.0)) {
-        error = "moveDegrees requires RobloxSensValue to be a finite number greater than 0.";
-    }
-
-    if (error.empty()) {
-        const double baseValue = *camfixEnabled ? 1000.0 : 720.0;
-        pixelsPerDegree = baseValue / (360.0 * *sensitivity);
-    }
+    const auto calibration = compat::ComputeMoveDegreesCalibration(
+        TryGetSavedBool("camfixtoggle"), TryGetSavedString("RobloxSensValue"));
 
     lua_newtable(L);
-    lua_pushboolean(L, error.empty());
+    lua_pushboolean(L, calibration.valid);
     lua_setfield(L, -2, "valid");
-    lua_pushnumber(L, static_cast<lua_Number>(pixelsPerDegree));
+    lua_pushnumber(L, static_cast<lua_Number>(calibration.pixelsPerDegree));
     lua_setfield(L, -2, "pixelsPerDegree");
-    lua_pushlstring(L, error.c_str(), error.size());
+    lua_pushlstring(L, calibration.error.c_str(), calibration.error.size());
     lua_setfield(L, -2, "error");
     lua_setfield(L, LUA_REGISTRYINDEX, kRegistryMoveDegreesSettingsKey);
 }
@@ -1190,16 +1149,11 @@ bool GetMoveDegreesSettings(lua_State* L, double& pixelsPerDegree, std::string& 
 
 int RoundMouseDelta(lua_State* L, double pixels, const char* name)
 {
-    if (!std::isfinite(pixels)) {
-        return static_cast<int>(luaL_error(L, "%s conversion overflowed", name));
+    const auto rounded = compat::RoundMouseDelta(pixels, name);
+    if (!rounded.valid) {
+        return static_cast<int>(luaL_error(L, "%s", rounded.error.c_str()));
     }
-
-    const double rounded = std::round(pixels);
-    if (rounded < static_cast<double>(std::numeric_limits<int>::min()) ||
-        rounded > static_cast<double>(std::numeric_limits<int>::max())) {
-        return static_cast<int>(luaL_error(L, "%s conversion is outside the allowed range", name));
-    }
-    return static_cast<int>(rounded);
+    return rounded.value;
 }
 
 void SyncLuaSettingsTable(lua_State* L, const nlohmann::json& state)

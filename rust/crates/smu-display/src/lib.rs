@@ -217,6 +217,10 @@ pub fn resolve_pixel_rect(
 pub trait DisplayCapture: Send + Sync {
     fn active_monitor_bounds(&self) -> Option<ScreenBounds>;
 
+    fn active_monitor_refresh_rate_hz(&self) -> Option<i32> {
+        None
+    }
+
     fn cursor_position(&self) -> Option<CursorPosition> {
         None
     }

@@ -91,7 +91,10 @@ impl From<LuaError> for ScriptProcessApiError {
 }
 
 fn settings_callback_active(context: &ScriptInputContext) -> bool {
-    context.mode() == ScriptExecutionMode::SettingsCallback
+    matches!(
+        context.mode(),
+        ScriptExecutionMode::SettingsRender | ScriptExecutionMode::SettingsCallback
+    )
 }
 
 fn discover_targets(

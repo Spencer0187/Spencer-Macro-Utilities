@@ -165,6 +165,39 @@ def write_roblox_regex() -> None:
     )
 
 
+def move_degrees_inputs() -> list[dict[str, Any]]:
+    return [
+        {"name": "default-calibration", "camfix": False, "sensitivity": "0.5", "dx": 10.0, "dy": 5.0},
+        {"name": "camfix-calibration", "camfix": True, "sensitivity": "0.5", "dx": 1.0, "dy": 1.0},
+        {"name": "trimmed-plus", "camfix": False, "sensitivity": "  +0.5  ", "dx": 0.125, "dy": -0.125},
+        {"name": "hex-float", "camfix": False, "sensitivity": "0x1p-1", "dx": 2.5, "dy": 2.5},
+        {"name": "hex-no-exponent", "camfix": False, "sensitivity": "0x1", "dx": 1.0, "dy": 1.0},
+        {"name": "missing-camfix", "sensitivity": "0.5", "dx": 1.0, "dy": 1.0},
+        {"name": "wrong-camfix-type", "camfix": 1, "sensitivity": "0.5", "dx": 1.0, "dy": 1.0},
+        {"name": "missing-sensitivity", "camfix": False, "dx": 1.0, "dy": 1.0},
+        {"name": "wrong-sensitivity-type", "camfix": False, "sensitivity": 0.5, "dx": 1.0, "dy": 1.0},
+        {"name": "zero-sensitivity", "camfix": False, "sensitivity": "0", "dx": 1.0, "dy": 1.0},
+        {"name": "negative-sensitivity", "camfix": False, "sensitivity": "-0.5", "dx": 1.0, "dy": 1.0},
+        {"name": "nan-sensitivity", "camfix": False, "sensitivity": "nan", "dx": 1.0, "dy": 1.0},
+        {"name": "junk-sensitivity", "camfix": False, "sensitivity": "0.5x", "dx": 1.0, "dy": 1.0},
+        {"name": "round-positive-half", "camfix": False, "sensitivity": "4", "dx": 1.0, "dy": 0.0},
+        {"name": "round-negative-half", "camfix": False, "sensitivity": "4", "dx": -1.0, "dy": 0.0},
+        {"name": "range-overflow", "camfix": False, "sensitivity": "0.5", "dx": 1.0e10, "dy": 0.0},
+        {"name": "floating-overflow", "camfix": False, "sensitivity": "0.5", "dx": 1.0e308, "dy": 0.0},
+    ]
+
+
+def write_move_degrees() -> None:
+    cases = []
+    for case in move_degrees_inputs():
+        observed = run_json(ORACLE, "move-degrees", compact({key: value for key, value in case.items() if key != "name"}))
+        cases.append({"name": case["name"], "input": {key: value for key, value in case.items() if key != "name"}, "observed": observed})
+    write_json(
+        ROOT / "compat" / "scripting" / "move_degrees_cases.json",
+        {"oracle": "smu_compat_oracle move-degrees", "cases": cases},
+    )
+
+
 def script_metadata_inputs() -> list[tuple[str, str, str]]:
     return [
         ("empty-fallback", "Fallback.lua", ""),
@@ -2483,7 +2516,7 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "profiles", "roblox", "roblox-regex", "runtime", "script-metadata", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "input-hotkeys", "move-degrees", "profiles", "roblox", "roblox-regex", "runtime", "script-metadata", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
@@ -2495,6 +2528,9 @@ def main() -> int:
     if args.fixture in {"roblox-regex", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_roblox_regex()
+    if args.fixture in {"move-degrees", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_move_degrees()
     if args.fixture in {"script-metadata", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_script_metadata()

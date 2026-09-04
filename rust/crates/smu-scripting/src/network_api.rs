@@ -35,7 +35,10 @@ impl From<LuaError> for ScriptNetworkApiError {
 }
 
 fn settings_callback_active(context: &ScriptInputContext) -> bool {
-    context.mode() == ScriptExecutionMode::SettingsCallback
+    matches!(
+        context.mode(),
+        ScriptExecutionMode::SettingsRender | ScriptExecutionMode::SettingsCallback
+    )
 }
 
 fn check_settings_callback(context: &ScriptInputContext, function_name: &str) -> mlua::Result<()> {

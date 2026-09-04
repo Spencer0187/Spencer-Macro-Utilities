@@ -1,6 +1,9 @@
 //! Compatibility-first handling of the existing SMU profile container format.
 
 pub mod payload;
+pub mod saved;
+
+pub use saved::{SavedSettingSource, SavedSettingValue};
 
 use serde::Serialize;
 use serde_json::{Map, Value};

@@ -65,6 +65,12 @@ impl ProfilePayloadState {
         Value::Object(self.values.clone())
     }
 
+    /// Read one normalized payload value without cloning the full snapshot.
+    #[must_use]
+    pub fn value(&self, key: &str) -> Option<&Value> {
+        self.values.get(key)
+    }
+
     /// Applies one partial payload with the current C++ compatibility semantics.
     ///
     /// Invalid payloads are rejected before mutation, matching the validator gate at the start of

@@ -3,6 +3,7 @@
 //! Lua execution is still being ported. Deterministic metadata/hotkey parsing is isolated here
 //! because it can be differential-tested against the C++ compatibility oracle.
 
+pub mod core_api;
 pub mod display_api;
 pub mod hotkey;
 pub mod input_api;
@@ -16,7 +17,14 @@ pub mod process_api;
 pub mod roblox_log_api;
 pub mod settings_ui;
 
-pub use display_api::{ScriptDisplayApiError, install_display_api};
+pub use core_api::{
+    MAX_SCRIPT_LOG_MESSAGE_BYTES, ScriptCoreApiError, ScriptEnvironment, ScriptLogSink,
+    install_core_api, script_platform_name,
+};
+pub use display_api::{
+    MoveDegreesCalibration, ScriptDisplayApiError, cache_move_degrees_calibration,
+    install_display_api, install_move_degrees_api,
+};
 pub use hotkey::{parse_script_hotkey, parse_script_key_name};
 pub use input_api::{
     ScriptExecutionMode, ScriptInputApiError, ScriptInputContext, ScriptMouseMotionMode,

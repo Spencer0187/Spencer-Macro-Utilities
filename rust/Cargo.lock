@@ -697,6 +697,7 @@ dependencies = [
  "smu-input",
  "smu-network",
  "smu-process",
+ "smu-profile",
  "smu-roblox",
 ]
 

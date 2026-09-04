@@ -1,4 +1,5 @@
 #include "../app/input_actions_compat_logic.h"
+#include "../app/script_api_compat_logic.h"
 #include "../app/script_metadata.h"
 #include "../core/key_codes.h"
 #include "../platform/roblox_log_reader.h"
@@ -47,6 +48,48 @@ Json HotkeyJson(const std::string& input)
     result["ctrl"] = (raw & smu::core::HOTKEY_MASK_CTRL) != 0;
     result["alt"] = (raw & smu::core::HOTKEY_MASK_ALT) != 0;
     result["win"] = (raw & smu::core::HOTKEY_MASK_WIN) != 0;
+    return result;
+}
+
+Json MoveDegreesJson(const std::string& input)
+{
+    const Json payload = Json::parse(input);
+    std::optional<bool> camfix;
+    if (const auto it = payload.find("camfix"); it != payload.end() && it->is_boolean()) {
+        camfix = it->get<bool>();
+    }
+    std::optional<std::string> sensitivity;
+    if (const auto it = payload.find("sensitivity"); it != payload.end() && it->is_string()) {
+        sensitivity = it->get<std::string>();
+    }
+
+    const auto calibration = smu::app::compat::ComputeMoveDegreesCalibration(camfix, sensitivity);
+    Json result{
+        {"operation", "move-degrees"},
+        {"valid", calibration.valid},
+        {"pixels_per_degree", calibration.pixelsPerDegree},
+        {"error", calibration.error},
+    };
+    if (!calibration.valid) {
+        return result;
+    }
+
+    const double dx = payload.value("dx", 0.0);
+    const double dy = payload.value("dy", 0.0);
+    const auto roundedX = smu::app::compat::RoundMouseDelta(dx * calibration.pixelsPerDegree, "dx");
+    if (!roundedX.valid) {
+        result["valid"] = false;
+        result["error"] = roundedX.error;
+        return result;
+    }
+    const auto roundedY = smu::app::compat::RoundMouseDelta(-dy * calibration.pixelsPerDegree, "dy");
+    if (!roundedY.valid) {
+        result["valid"] = false;
+        result["error"] = roundedY.error;
+        return result;
+    }
+    result["dx_pixels"] = roundedX.value;
+    result["dy_pixels"] = roundedY.value;
     return result;
 }
 
@@ -174,6 +217,7 @@ int Usage()
     std::cerr << "usage:\n"
               << "  smu_compat_oracle hotkey <text>\n"
               << "  smu_compat_oracle input-hotkey <json>\n"
+              << "  smu_compat_oracle move-degrees <json>\n"
               << "  smu_compat_oracle roblox-regex <json>\n"
               << "  smu_compat_oracle key-name <text>\n"
               << "  smu_compat_oracle script-metadata <path>\n"
@@ -195,6 +239,8 @@ int main(int argc, char** argv)
         result = HotkeyJson(argv[2]);
     } else if (operation == "input-hotkey") {
         result = InputHotkeyJson(argv[2]);
+    } else if (operation == "move-degrees") {
+        result = MoveDegreesJson(argv[2]);
     } else if (operation == "roblox-regex") {
         result = RobloxRegexJson(argv[2]);
     } else if (operation == "key-name") {

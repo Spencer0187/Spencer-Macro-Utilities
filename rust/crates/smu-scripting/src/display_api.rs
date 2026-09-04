@@ -8,6 +8,7 @@ use smu_display::{
     resolve_pixel_rect, sample_pixel_rect,
 };
 use smu_input::InputDevice;
+use smu_profile::{SavedSettingSource, SavedSettingValue};
 use std::fmt;
 use std::sync::Arc;
 #[cfg(target_os = "macos")]
@@ -47,7 +48,10 @@ impl From<LuaError> for ScriptDisplayApiError {
 }
 
 fn check_settings_callback(context: &ScriptInputContext, function_name: &str) -> mlua::Result<()> {
-    if context.mode() == ScriptExecutionMode::SettingsCallback {
+    if matches!(
+        context.mode(),
+        ScriptExecutionMode::SettingsRender | ScriptExecutionMode::SettingsCallback
+    ) {
         return Err(LuaError::RuntimeError(format!(
             "{function_name} is not available inside script settings"
         )));
@@ -80,6 +84,211 @@ fn integer(lua: &Lua, value: Value, name: &str) -> mlua::Result<i32> {
     };
     i32::try_from(number)
         .map_err(|_| LuaError::RuntimeError(format!("{name} is outside the allowed range")))
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MoveDegreesCalibration {
+    pixels_per_degree: Option<f64>,
+    error: String,
+}
+
+impl MoveDegreesCalibration {
+    #[must_use]
+    pub const fn is_valid(&self) -> bool {
+        self.pixels_per_degree.is_some()
+    }
+
+    #[must_use]
+    pub const fn pixels_per_degree(&self) -> Option<f64> {
+        self.pixels_per_degree
+    }
+
+    #[must_use]
+    pub fn error(&self) -> &str {
+        &self.error
+    }
+}
+
+const fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn parse_hex_float(text: &str) -> Option<f64> {
+    let bytes = text.as_bytes();
+    let mut index = 0_usize;
+    let negative = match bytes.first() {
+        Some(b'+') => {
+            index = 1;
+            false
+        }
+        Some(b'-') => {
+            index = 1;
+            true
+        }
+        _ => false,
+    };
+    if bytes.get(index..index + 2).is_none_or(|prefix| prefix != b"0x" && prefix != b"0X") {
+        return None;
+    }
+    index += 2;
+
+    let mut significand = 0.0_f64;
+    let mut digits = 0_usize;
+    while let Some(&byte) = bytes.get(index) {
+        let Some(digit) = hex_digit(byte) else {
+            break;
+        };
+        #[allow(clippy::suboptimal_flops)]
+        {
+            #[allow(clippy::suboptimal_flops)]
+            {
+                significand = significand * 16.0 + f64::from(digit);
+            }
+        }
+        digits += 1;
+        index += 1;
+    }
+
+    let mut fractional_digits = 0_usize;
+    if bytes.get(index) == Some(&b'.') {
+        index += 1;
+        while let Some(&byte) = bytes.get(index) {
+            let Some(digit) = hex_digit(byte) else {
+                break;
+            };
+            #[allow(clippy::suboptimal_flops)]
+            {
+                #[allow(clippy::suboptimal_flops)]
+                {
+                    significand = significand * 16.0 + f64::from(digit);
+                }
+            }
+            digits += 1;
+            fractional_digits += 1;
+            index += 1;
+        }
+    }
+    if digits == 0 {
+        return None;
+    }
+
+    let mut exponent = 0_i64;
+    if matches!(bytes.get(index), Some(b'p' | b'P')) {
+        index += 1;
+        let exponent_negative = match bytes.get(index) {
+            Some(b'+') => {
+                index += 1;
+                false
+            }
+            Some(b'-') => {
+                index += 1;
+                true
+            }
+            _ => false,
+        };
+        let exponent_start = index;
+        while let Some(&byte) = bytes.get(index) {
+            if !byte.is_ascii_digit() {
+                break;
+            }
+            exponent = exponent.saturating_mul(10).saturating_add(i64::from(byte - b'0'));
+            index += 1;
+        }
+        if index == exponent_start {
+            return None;
+        }
+        if exponent_negative {
+            exponent = exponent.saturating_neg();
+        }
+    }
+    if index != bytes.len() {
+        return None;
+    }
+
+    let fractional_bits = i64::try_from(fractional_digits).unwrap_or(i64::MAX).saturating_mul(4);
+    let binary_exponent = exponent.saturating_sub(fractional_bits);
+    let exponent_i32 = i32::try_from(binary_exponent)
+        .unwrap_or_else(|_| if binary_exponent.is_negative() { i32::MIN } else { i32::MAX });
+    let value = significand * 2.0_f64.powi(exponent_i32);
+    let value = if negative { -value } else { value };
+    value.is_finite().then_some(value)
+}
+
+fn parse_cpp_finite_double(text: &str) -> Option<f64> {
+    let text = text.trim_matches([' ', '\t', '\r', '\n']);
+    if text.is_empty() {
+        return None;
+    }
+    text.parse::<f64>().ok().filter(|value| value.is_finite()).or_else(|| parse_hex_float(text))
+}
+
+/// Cache the settings used by C++ `moveDegrees` when the script API is registered.
+#[must_use]
+pub fn cache_move_degrees_calibration(
+    settings: Option<&dyn SavedSettingSource>,
+) -> MoveDegreesCalibration {
+    let camfix = settings.and_then(|settings| settings.get_saved_setting("camfixtoggle")).and_then(
+        |value| match value {
+            SavedSettingValue::Bool(value) => Some(value),
+            SavedSettingValue::Integer(_)
+            | SavedSettingValue::Float(_)
+            | SavedSettingValue::String(_) => None,
+        },
+    );
+    if camfix.is_none() {
+        return MoveDegreesCalibration {
+            pixels_per_degree: None,
+            error: "moveDegrees requires the saved camfixtoggle setting.".to_owned(),
+        };
+    }
+
+    let sensitivity = settings
+        .and_then(|settings| settings.get_saved_setting("RobloxSensValue"))
+        .and_then(|value| match value {
+            SavedSettingValue::String(value) => Some(value),
+            SavedSettingValue::Bool(_)
+            | SavedSettingValue::Integer(_)
+            | SavedSettingValue::Float(_) => None,
+        });
+    let Some(sensitivity) = sensitivity else {
+        return MoveDegreesCalibration {
+            pixels_per_degree: None,
+            error: "moveDegrees requires the saved RobloxSensValue setting.".to_owned(),
+        };
+    };
+    let Some(sensitivity) = parse_cpp_finite_double(&sensitivity).filter(|value| *value > 0.0)
+    else {
+        return MoveDegreesCalibration {
+            pixels_per_degree: None,
+            error: "moveDegrees requires RobloxSensValue to be a finite number greater than 0."
+                .to_owned(),
+        };
+    };
+
+    let base_value = if camfix == Some(true) { 1000.0 } else { 720.0 };
+    MoveDegreesCalibration {
+        pixels_per_degree: Some(base_value / (360.0 * sensitivity)),
+        error: String::new(),
+    }
+}
+
+fn round_mouse_delta(pixels: f64, name: &str) -> mlua::Result<i32> {
+    if !pixels.is_finite() {
+        return Err(LuaError::RuntimeError(format!("{name} conversion overflowed")));
+    }
+    let rounded = pixels.round();
+    if rounded < f64::from(i32::MIN) || rounded > f64::from(i32::MAX) {
+        return Err(LuaError::RuntimeError(format!(
+            "{name} conversion is outside the allowed range"
+        )));
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(rounded as i32)
 }
 
 fn coordinate_mode(value: Option<Value>) -> mlua::Result<CoordinateMode> {
@@ -453,6 +662,52 @@ fn install_macos_cursor_api(lua: &Lua) -> mlua::Result<()> {
     )
 }
 
+/// Register `moveDegrees` with the saved sensitivity/camfix snapshot captured at registration.
+///
+/// # Errors
+///
+/// Returns a Lua registration error if the function cannot be installed.
+pub fn install_move_degrees_api(
+    vm: &LuaScriptVm,
+    context: ScriptInputContext,
+    input: Option<Arc<dyn InputDevice>>,
+    display: Option<Arc<dyn DisplayCapture>>,
+    settings: Option<&dyn SavedSettingSource>,
+) -> Result<(), ScriptDisplayApiError> {
+    let calibration = cache_move_degrees_calibration(settings);
+    let resources = (context, input, display, calibration);
+    let execution_context = resources.0.clone();
+    let input = resources.1.clone();
+    let display = resources.2.clone();
+    let calibration = resources.3.clone();
+
+    vm.lua.globals().set(
+        "moveDegrees",
+        vm.lua.create_function(move |lua, (dx, dy): (Value, Value)| {
+            check_settings_callback(&execution_context, "moveDegrees")?;
+            check_cleanup_start(&execution_context, "moveDegrees")?;
+            let horizontal_degrees = finite_number(lua, dx, "dx")?;
+            let vertical_degrees = finite_number(lua, dy, "dy")?;
+            let Some(pixels_per_degree) = calibration.pixels_per_degree else {
+                return Err(LuaError::RuntimeError(calibration.error.clone()));
+            };
+            let horizontal_pixels =
+                round_mouse_delta(horizontal_degrees * pixels_per_degree, "dx")?;
+            let vertical_pixels = round_mouse_delta(-vertical_degrees * pixels_per_degree, "dy")?;
+
+            if execution_context.mouse_motion_mode() == ScriptMouseMotionMode::Raw {
+                if let Some(input) = input.as_ref() {
+                    input.move_mouse(horizontal_pixels, vertical_pixels);
+                }
+                return Ok(());
+            }
+            absolute_delta(input.as_ref(), display.as_ref(), horizontal_pixels, vertical_pixels)
+                .map_err(|error| LuaError::RuntimeError(format!("moveDegrees failed: {error}")))
+        })?,
+    )?;
+    Ok(())
+}
+
 /// Register pointer movement and screen-pixel APIs against separate input/display services.
 ///
 /// # Errors
@@ -480,10 +735,34 @@ mod tests {
 
     use super::*;
     use crate::MAX_SCRIPT_RUNTIME;
+    use serde::Deserialize;
     use smu_display::{CursorPosition, ScreenBounds};
     use smu_input::{InputError, InputInjector, KeyState};
+    use smu_profile::{SavedSettingSource, SavedSettingValue};
+    use std::collections::HashMap;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[derive(Debug, Deserialize)]
+    struct MoveDegreesFixture {
+        cases: Vec<MoveDegreesCase>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct MoveDegreesCase {
+        name: String,
+        input: serde_json::Value,
+        observed: MoveDegreesObserved,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct MoveDegreesObserved {
+        valid: bool,
+        pixels_per_degree: f64,
+        error: String,
+        dx_pixels: Option<i32>,
+        dy_pixels: Option<i32>,
+    }
 
     #[derive(Clone, Debug, Eq, PartialEq)]
     enum PointerEvent {
@@ -550,6 +829,31 @@ mod tests {
                 g: u8::try_from(y.rem_euclid(256)).expect("normalized test y should fit"),
                 b: 0xA5,
             })
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct FakeSettings(Mutex<HashMap<String, SavedSettingValue>>);
+
+    impl FakeSettings {
+        fn with_calibration(camfix: bool, sensitivity: &str) -> Self {
+            Self(Mutex::new(HashMap::from([
+                ("camfixtoggle".to_owned(), SavedSettingValue::Bool(camfix)),
+                ("RobloxSensValue".to_owned(), SavedSettingValue::String(sensitivity.to_owned())),
+            ])))
+        }
+
+        fn set_sensitivity(&self, sensitivity: &str) {
+            self.0.lock().expect("settings lock").insert(
+                "RobloxSensValue".to_owned(),
+                SavedSettingValue::String(sensitivity.to_owned()),
+            );
+        }
+    }
+
+    impl SavedSettingSource for FakeSettings {
+        fn get_saved_setting(&self, name: &str) -> Option<SavedSettingValue> {
+            self.0.lock().expect("settings lock").get(name).cloned()
         }
     }
 
@@ -692,6 +996,192 @@ mod tests {
                 .message
                 .contains("mouse motion mode must be one of: raw, absolute")
         );
+    }
+
+    #[test]
+    fn move_degrees_cases_match_cpp_oracle_fixture() {
+        let fixture: MoveDegreesFixture = serde_json::from_str(include_str!(
+            "../../../../compat/scripting/move_degrees_cases.json"
+        ))
+        .expect("C++ moveDegrees fixture should parse");
+
+        for case in fixture.cases {
+            let object =
+                case.input.as_object().expect("moveDegrees fixture input should be an object");
+            let mut values = HashMap::new();
+            if let Some(value) = object.get("camfix") {
+                let saved = match value {
+                    serde_json::Value::Bool(value) => SavedSettingValue::Bool(*value),
+                    serde_json::Value::Number(number) => {
+                        SavedSettingValue::Float(number.as_f64().unwrap_or_default())
+                    }
+                    serde_json::Value::String(value) => SavedSettingValue::String(value.clone()),
+                    _ => SavedSettingValue::String(String::new()),
+                };
+                values.insert("camfixtoggle".to_owned(), saved);
+            }
+            if let Some(value) = object.get("sensitivity") {
+                let saved = match value {
+                    serde_json::Value::String(value) => SavedSettingValue::String(value.clone()),
+                    serde_json::Value::Number(number) => {
+                        SavedSettingValue::Float(number.as_f64().unwrap_or_default())
+                    }
+                    serde_json::Value::Bool(value) => SavedSettingValue::Bool(*value),
+                    _ => SavedSettingValue::String(String::new()),
+                };
+                values.insert("RobloxSensValue".to_owned(), saved);
+            }
+            let settings = FakeSettings(Mutex::new(values));
+            let calibration = cache_move_degrees_calibration(Some(&settings));
+            assert_eq!(
+                calibration.pixels_per_degree().unwrap_or_default().to_bits(),
+                case.observed.pixels_per_degree.to_bits(),
+                "case {} calibration",
+                case.name
+            );
+
+            if !calibration.is_valid() {
+                assert!(!case.observed.valid, "case {} should fail", case.name);
+                assert_eq!(calibration.error(), case.observed.error, "case {} error", case.name);
+                continue;
+            }
+
+            let pixels_per_degree = calibration
+                .pixels_per_degree()
+                .expect("valid calibration should contain pixels per degree");
+            let dx = object.get("dx").and_then(serde_json::Value::as_f64).unwrap_or_default();
+            let dy = object.get("dy").and_then(serde_json::Value::as_f64).unwrap_or_default();
+            let horizontal = round_mouse_delta(dx * pixels_per_degree, "dx");
+            let vertical = horizontal
+                .as_ref()
+                .map_or_else(|_| Ok(0), |_| round_mouse_delta(-dy * pixels_per_degree, "dy"));
+            match (horizontal, vertical) {
+                (Ok(horizontal), Ok(vertical)) => {
+                    assert!(case.observed.valid, "case {} should succeed", case.name);
+                    assert_eq!(case.observed.dx_pixels, Some(horizontal), "case {} dx", case.name);
+                    assert_eq!(case.observed.dy_pixels, Some(vertical), "case {} dy", case.name);
+                    assert!(case.observed.error.is_empty(), "case {} error", case.name);
+                }
+                (Err(error), _) | (_, Err(error)) => {
+                    assert!(!case.observed.valid, "case {} should fail", case.name);
+                    let error = match error {
+                        LuaError::RuntimeError(message) => message,
+                        other => other.to_string(),
+                    };
+                    assert_eq!(error, case.observed.error, "case {} error", case.name);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn move_degrees_uses_cached_cpp_calibration_and_y_inversion() {
+        let (vm, context, input, display) = vm_with_display();
+        let settings = FakeSettings::with_calibration(false, "0.5");
+        install_move_degrees_api(&vm, context, Some(input.clone()), Some(display), Some(&settings))
+            .expect("moveDegrees should install");
+        vm.execute_source("moveDegrees(10, 5)", "degrees.lua").expect("moveDegrees should execute");
+        assert_eq!(input.events(), [PointerEvent::Relative(40, -20)]);
+    }
+
+    #[test]
+    fn move_degrees_camfix_changes_pixels_per_degree() {
+        let calibration =
+            cache_move_degrees_calibration(Some(&FakeSettings::with_calibration(true, "0.5")));
+        assert!(calibration.is_valid());
+        assert_eq!(calibration.pixels_per_degree(), Some(1000.0 / 180.0));
+        assert!(calibration.error().is_empty());
+    }
+
+    #[test]
+    fn move_degrees_accepts_cpp_hex_float_sensitivity() {
+        let calibration = cache_move_degrees_calibration(Some(&FakeSettings::with_calibration(
+            false,
+            "  +0x1p-1  ",
+        )));
+        assert_eq!(calibration.pixels_per_degree(), Some(4.0));
+    }
+
+    #[test]
+    fn move_degrees_missing_and_wrong_type_settings_keep_cpp_errors() {
+        let missing = cache_move_degrees_calibration(None);
+        assert_eq!(missing.error(), "moveDegrees requires the saved camfixtoggle setting.");
+
+        let wrong = FakeSettings(Mutex::new(HashMap::from([
+            ("camfixtoggle".to_owned(), SavedSettingValue::Integer(1)),
+            ("RobloxSensValue".to_owned(), SavedSettingValue::String("0.5".to_owned())),
+        ])));
+        assert_eq!(
+            cache_move_degrees_calibration(Some(&wrong)).error(),
+            "moveDegrees requires the saved camfixtoggle setting."
+        );
+
+        let invalid = FakeSettings::with_calibration(false, "nan");
+        assert_eq!(
+            cache_move_degrees_calibration(Some(&invalid)).error(),
+            "moveDegrees requires RobloxSensValue to be a finite number greater than 0."
+        );
+    }
+
+    #[test]
+    fn move_degrees_calibration_is_snapshotted_at_registration() {
+        let (vm, context, input, display) = vm_with_display();
+        let settings = FakeSettings::with_calibration(false, "0.5");
+        install_move_degrees_api(&vm, context, Some(input.clone()), Some(display), Some(&settings))
+            .expect("moveDegrees should install");
+        settings.set_sensitivity("1.0");
+        vm.execute_source("moveDegrees(1, 0)", "cached.lua")
+            .expect("cached calibration should execute");
+        assert_eq!(input.events(), [PointerEvent::Relative(4, 0)]);
+    }
+
+    #[test]
+    fn move_degrees_absolute_mode_uses_cursor_delta_path() {
+        let (vm, context, input, display) = vm_with_display();
+        let settings = FakeSettings::with_calibration(false, "0.5");
+        install_move_degrees_api(
+            &vm,
+            context.clone(),
+            Some(input.clone()),
+            Some(display),
+            Some(&settings),
+        )
+        .expect("moveDegrees should install");
+        context.set_mouse_motion_mode(ScriptMouseMotionMode::Absolute);
+        vm.execute_source("moveDegrees(10, 5)", "absolute-degrees.lua")
+            .expect("absolute moveDegrees should execute");
+        assert_eq!(input.events(), [PointerEvent::Absolute(-960, 480)]);
+    }
+
+    #[test]
+    fn move_degrees_rounding_errors_match_cpp_messages() {
+        let (vm, context, input, display) = vm_with_display();
+        let settings = FakeSettings::with_calibration(false, "0.5");
+        install_move_degrees_api(&vm, context, Some(input), Some(display), Some(&settings))
+            .expect("moveDegrees should install");
+        assert!(
+            vm.execute_source("moveDegrees(1e308, 0)", "overflow.lua")
+                .expect_err("overflowing conversion should fail")
+                .message
+                .contains("dx conversion overflowed")
+        );
+        assert!(
+            vm.execute_source("moveDegrees(1e10, 0)", "range.lua")
+                .expect_err("out-of-range conversion should fail")
+                .message
+                .contains("dx conversion is outside the allowed range")
+        );
+    }
+
+    #[test]
+    fn settings_render_mode_blocks_display_actions_like_cpp_helper() {
+        let (vm, context, input, _) = vm_with_display();
+        context.set_mode(ScriptExecutionMode::SettingsRender);
+        let error = vm
+            .execute_source("moveMouse(1, 2)", "settings-render.lua")
+            .expect_err("settings render should reject movement");
+        assert!(error.message.contains("moveMouse is not available inside script settings"));
+        assert!(input.events().is_empty());
     }
 
     #[test]
