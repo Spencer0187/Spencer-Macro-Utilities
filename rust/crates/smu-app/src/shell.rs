@@ -41,6 +41,16 @@ pub enum ShellAction {
     Profile(ProfileAction),
     #[cfg(target_os = "linux")]
     Script(ScriptAction),
+    #[cfg(target_os = "linux")]
+    InstallLinuxInputPermissionsGraphical,
+    #[cfg(target_os = "linux")]
+    OpenLinuxInputPermissionTerminal,
+    #[cfg(target_os = "linux")]
+    CopyLinuxInputManualCommand,
+    #[cfg(target_os = "linux")]
+    OpenLinuxInputSetupDocs,
+    #[cfg(target_os = "linux")]
+    RetryLinuxInputPermissions,
     StartWaylandScreenCaptureFromSettings,
     StopWaylandScreenCaptureFromSettings,
     StartWaylandRemoteDesktopFromSettings,
@@ -109,6 +119,9 @@ pub struct ShellState {
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
+    #[cfg(target_os = "linux")]
+    linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus,
+    platform_input_ready: bool,
     section_order: [usize; 16],
     selected_section: i32,
     freeze: FreezeUiState,
@@ -145,6 +158,9 @@ impl Default for ShellState {
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
+            #[cfg(target_os = "linux")]
+            linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus::default(),
+            platform_input_ready: true,
             section_order: sidebar::DEFAULT_SECTION_ORDER,
             selected_section: -1,
             freeze: FreezeUiState::default(),
@@ -438,7 +454,9 @@ impl ShellState {
 
     #[must_use]
     const fn macro_runtime_enabled(&self) -> bool {
-        self.global.macro_enabled() && self.keybind_capture.runtime_allowed()
+        self.global.macro_enabled()
+            && self.keybind_capture.runtime_allowed()
+            && self.platform_input_ready
     }
 
     #[must_use]
@@ -467,6 +485,15 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub fn set_settings_platform_status(&mut self, status: settings_menu::PlatformStatus) {
         self.settings_platform = status;
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn set_linux_input_setup_status(
+        &mut self,
+        status: crate::linux_input_setup::LinuxInputSetupStatus,
+    ) {
+        self.platform_input_ready = !status.required;
+        self.linux_input_setup = status;
     }
 
     #[must_use]
@@ -848,6 +875,11 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         action = Some(modal_action);
     }
     #[cfg(target_os = "linux")]
+    if let Some(setup_action) = render_linux_input_setup(ui, state, &active_theme) {
+        action = Some(setup_action);
+    }
+
+    #[cfg(target_os = "linux")]
     if let Some(script_action) =
         script_ui::render_trust_modal(ui, &mut state.script_ui, &active_theme)
     {
@@ -924,6 +956,32 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
 
     state.theme.render_editor(ui);
     action
+}
+
+#[cfg(target_os = "linux")]
+fn render_linux_input_setup(
+    ui: &Ui,
+    state: &ShellState,
+    theme: &theme::ThemeDefinition,
+) -> Option<ShellAction> {
+    let action = crate::linux_input_setup::render(ui, &state.linux_input_setup, theme)?;
+    Some(match action {
+        crate::linux_input_setup::LinuxInputSetupAction::InstallGraphical => {
+            ShellAction::InstallLinuxInputPermissionsGraphical
+        }
+        crate::linux_input_setup::LinuxInputSetupAction::OpenTerminalInstaller => {
+            ShellAction::OpenLinuxInputPermissionTerminal
+        }
+        crate::linux_input_setup::LinuxInputSetupAction::CopyManualCommand => {
+            ShellAction::CopyLinuxInputManualCommand
+        }
+        crate::linux_input_setup::LinuxInputSetupAction::OpenSetupDocs => {
+            ShellAction::OpenLinuxInputSetupDocs
+        }
+        crate::linux_input_setup::LinuxInputSetupAction::Retry => {
+            ShellAction::RetryLinuxInputPermissions
+        }
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -1405,6 +1463,24 @@ mod profile_adapter_tests {
 
     fn cpp_payload_fixture() -> serde_json::Value {
         serde_json::from_str(CPP_PAYLOAD_FIXTURE).expect("C++ payload fixture should parse")
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_input_setup_gate_disables_and_restores_live_macro_runtime() {
+        let mut state = ShellState::default();
+        assert!(state.freeze_controller_settings().macro_enabled);
+        state.set_linux_input_setup_status(crate::linux_input_setup::LinuxInputSetupStatus {
+            required: true,
+            ..crate::linux_input_setup::LinuxInputSetupStatus::default()
+        });
+        assert!(!state.freeze_controller_settings().macro_enabled);
+        assert!(!state.script_runtime_settings().macro_enabled);
+        state.set_linux_input_setup_status(
+            crate::linux_input_setup::LinuxInputSetupStatus::default(),
+        );
+        assert!(state.freeze_controller_settings().macro_enabled);
+        assert!(state.script_runtime_settings().macro_enabled);
     }
 
     #[test]

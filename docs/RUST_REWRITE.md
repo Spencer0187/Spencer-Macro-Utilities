@@ -64,6 +64,19 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   mapping is differential-tested from a generated C++ oracle fixture. On native Wayland, the Linux
   input backend can share `smu-display`'s approved RemoteDesktop session for direct `moveMouseAbs`
   while correctly continuing to report global cursor-position reads as unavailable.
+- Linux `smu-input` now also exposes the C++ device-permission probe for `/dev/input/event*` and
+  `/dev/uinput`, and `smu-app` composes the documented recovery flow end-to-end. The app owns one
+  persistent `EvdevUinputInputDevice`; macro/script controllers are created once against that shared
+  service even when startup permissions are missing, while a non-persistent shell gate disables all
+  hotkey-driven execution until the backend is ready. The required modal shows the exact read/write
+  probe status and can stage the bundled installer outside AppImage FUSE before graphical `pkexec`,
+  launch the terminal sudo/su fallback, copy the manual sudo command, open `LINUX_SETUP.md`, or retry
+  in-place. A successful retry initializes the same input service, so existing controller threads
+  become live without restarting the application. Installer/launcher staging uses private temporary
+  files and cleanup tests; unit tests never alter real device permissions or run the installer.
+  Production Linux startup now also matches C++ by refusing to run the full GUI as root and directing
+  elevation only to temporary helpers. Parity capture explicitly suppresses the permission modal and
+  root refusal so screenshot tests remain host-permission-independent.
 - `smu-display` owns monitor/cursor geometry, active-monitor refresh metadata, script coordinate
   modes, pixel colors/rectangle reads, and the screen-capture capability. Linux has native X11/XWayland
   cursor/Xinerama/root-window pixel support plus a native Wayland portal service using ScreenCast,

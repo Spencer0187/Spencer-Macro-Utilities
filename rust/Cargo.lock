@@ -1332,6 +1332,7 @@ name = "smu-input"
 version = "0.0.0"
 dependencies = [
  "evdev",
+ "libc",
  "serde",
  "serde_json",
  "smu-core",

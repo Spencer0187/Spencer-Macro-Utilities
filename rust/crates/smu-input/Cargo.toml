@@ -16,6 +16,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
+libc.workspace = true
 smu-display = { path = "../smu-display", version = "=0.0.0" }
 evdev.workspace = true
 x11rb.workspace = true

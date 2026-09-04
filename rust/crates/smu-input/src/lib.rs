@@ -7,6 +7,10 @@ use smu_core::{Hotkey, KeyCode};
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "linux")]
+mod linux_permissions;
+#[cfg(target_os = "linux")]
+pub use linux_permissions::{LinuxInputPermissionStatus, linux_input_permission_status};
 pub mod state;
 pub mod text;
 

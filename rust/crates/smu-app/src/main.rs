@@ -75,6 +75,10 @@ mod ledge_bounce_runtime;
 #[cfg(target_os = "linux")]
 mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
+mod linux_input_setup;
+#[cfg(target_os = "linux")]
+mod linux_input_setup_service;
+#[cfg(target_os = "linux")]
 mod linux_privileged_helper;
 mod macro_text;
 mod multi_instance;
@@ -403,6 +407,14 @@ mod profile_orchestration_tests {
         )
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn root_launch_guard_matches_product_policy_and_parity_exception() {
+        assert!(root_launch_refused(0, false));
+        assert!(!root_launch_refused(0, true));
+        assert!(!root_launch_refused(1000, false));
+    }
+
     #[test]
     fn missing_startup_creates_profile1_and_read_only_default_from_cpp_snapshot() {
         let temporary = TestDirectory::new("missing");
@@ -589,7 +601,6 @@ struct LinuxPlatformServices {
     display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
     input_service: Arc<EvdevUinputInputDevice>,
-    input_ready: bool,
 }
 
 #[cfg(target_os = "linux")]
@@ -608,7 +619,6 @@ impl LinuxPlatformServices {
         let input_service = Arc::new(
             EvdevUinputInputDevice::new().with_wayland_portal(Arc::clone(&wayland_portal)),
         );
-        let input_ready = input_service.init().is_ok();
         Self {
             process_control,
             process_discovery,
@@ -616,7 +626,6 @@ impl LinuxPlatformServices {
             display_service,
             wayland_portal,
             input_service,
-            input_ready,
         }
     }
 }
@@ -674,6 +683,7 @@ struct LinuxRuntimeServices {
     wayland_portal: Arc<WaylandPortalCapture>,
     wayland_settings_busy: Arc<AtomicBool>,
     wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
+    input_setup: linux_input_setup_service::LinuxInputSetupService,
     input_service: Arc<EvdevUinputInputDevice>,
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     update_service: updater_service::LinuxUpdateService,
@@ -703,19 +713,16 @@ struct LinuxRuntimeServices {
 fn start_bunnyhop_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<bunnyhop_runtime::BunnyhopController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        bunnyhop_runtime::BunnyhopController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.bunnyhop_controller_settings(),
-        )
-    })
+) -> bunnyhop_runtime::BunnyhopController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    bunnyhop_runtime::BunnyhopController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.bunnyhop_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -723,22 +730,19 @@ fn start_floor_bounce_controller(
     platform: &LinuxPlatformServices,
     shared_hhj_active: Arc<AtomicBool>,
     shell_state: &shell::ShellState,
-) -> Option<floor_bounce_runtime::FloorBounceController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
-        floor_bounce_runtime::FloorBounceController::start(
-            input,
-            discovery,
-            foreground,
-            control,
-            shared_hhj_active,
-            shell_state.floor_bounce_controller_settings(),
-        )
-    })
+) -> floor_bounce_runtime::FloorBounceController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
+    floor_bounce_runtime::FloorBounceController::start(
+        input,
+        discovery,
+        foreground,
+        control,
+        shared_hhj_active,
+        shell_state.floor_bounce_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -746,22 +750,19 @@ fn start_hhj_controller(
     platform: &LinuxPlatformServices,
     shared_active: Arc<AtomicBool>,
     shell_state: &shell::ShellState,
-) -> Option<hhj_runtime::HhjController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
-        hhj_runtime::HhjController::start(
-            input,
-            discovery,
-            foreground,
-            control,
-            shared_active,
-            shell_state.hhj_controller_settings(),
-        )
-    })
+) -> hhj_runtime::HhjController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
+    hhj_runtime::HhjController::start(
+        input,
+        discovery,
+        foreground,
+        control,
+        shared_active,
+        shell_state.hhj_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
@@ -770,144 +771,120 @@ fn start_lag_switch_controller(
     lag_switch_backend: &Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: &Arc<AtomicBool>,
     shell_state: &shell::ShellState,
-) -> Option<lag_switch_runtime::LagSwitchController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
-        lag_switch_runtime::LagSwitchController::start(
-            input,
-            Arc::clone(lag_switch_backend),
-            Arc::clone(lag_switch_enabled),
-            shell_state.lag_switch_controller_settings(),
-        )
-    })
+) -> lag_switch_runtime::LagSwitchController {
+    let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
+    lag_switch_runtime::LagSwitchController::start(
+        input,
+        Arc::clone(lag_switch_backend),
+        Arc::clone(lag_switch_enabled),
+        shell_state.lag_switch_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_press_key_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<press_key_runtime::PressKeyController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        press_key_runtime::PressKeyController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.press_key_controller_settings(),
-        )
-    })
+) -> press_key_runtime::PressKeyController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    press_key_runtime::PressKeyController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.press_key_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_wallhop_controller(
-    input_ready: bool,
     input_service: &Arc<EvdevUinputInputDevice>,
     process_discovery: &Arc<ProcDiscovery>,
     process_foreground: &Arc<ProcForegroundProcess>,
     shell_state: &shell::ShellState,
-) -> Option<wallhop_runtime::WallhopController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-        wallhop_runtime::WallhopController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.wallhop_controller_settings(),
-        )
-    })
+) -> wallhop_runtime::WallhopController {
+    let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    wallhop_runtime::WallhopController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.wallhop_controller_settings(),
+    )
 }
-
 #[cfg(target_os = "linux")]
 fn start_freeze_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<freeze_runtime::FreezeController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
-        freeze_runtime::FreezeController::start(
-            input,
-            discovery,
-            foreground,
-            control,
-            shell_state.freeze_controller_settings(),
-        )
-    })
+) -> freeze_runtime::FreezeController {
+    let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    let control: Arc<dyn smu_process::ProcessControl> = platform.process_control.clone();
+    freeze_runtime::FreezeController::start(
+        input,
+        discovery,
+        foreground,
+        control,
+        shell_state.freeze_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_item_desync_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<item_desync_runtime::ItemDesyncController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        item_desync_runtime::ItemDesyncController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.item_desync_controller_settings(),
-        )
-    })
+) -> item_desync_runtime::ItemDesyncController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    item_desync_runtime::ItemDesyncController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.item_desync_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_item_unequip_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<item_unequip_runtime::ItemUnequipController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        item_unequip_runtime::ItemUnequipController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.item_unequip_controller_settings(),
-        )
-    })
+) -> item_unequip_runtime::ItemUnequipController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    item_unequip_runtime::ItemUnequipController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.item_unequip_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_item_clip_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<item_clip_runtime::ItemClipController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        item_clip_runtime::ItemClipController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.item_clip_controller_settings(),
-        )
-    })
+) -> item_clip_runtime::ItemClipController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    item_clip_runtime::ItemClipController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.item_clip_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_chat_macro_controllers(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> (
-    Option<item_unequip_runtime::ItemUnequipController>,
-    Option<laugh_clip_runtime::LaughClipController>,
-) {
+) -> (item_unequip_runtime::ItemUnequipController, laugh_clip_runtime::LaughClipController) {
     (
         start_item_unequip_controller(platform, shell_state),
         start_laugh_clip_controller(platform, shell_state),
@@ -918,125 +895,104 @@ fn start_chat_macro_controllers(
 fn start_laugh_clip_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<laugh_clip_runtime::LaughClipController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        laugh_clip_runtime::LaughClipController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.laugh_clip_controller_settings(),
-        )
-    })
+) -> laugh_clip_runtime::LaughClipController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    laugh_clip_runtime::LaughClipController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.laugh_clip_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_ledge_bounce_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<ledge_bounce_runtime::LedgeBounceController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        ledge_bounce_runtime::LedgeBounceController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.ledge_bounce_controller_settings(),
-        )
-    })
+) -> ledge_bounce_runtime::LedgeBounceController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    ledge_bounce_runtime::LedgeBounceController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.ledge_bounce_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_spam_key_controller(
     platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
-) -> Option<spam_key_runtime::SpamKeyController> {
-    platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        spam_key_runtime::SpamKeyController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.spam_key_controller_settings(),
-        )
-    })
+) -> spam_key_runtime::SpamKeyController {
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    spam_key_runtime::SpamKeyController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.spam_key_controller_settings(),
+    )
 }
 
 #[cfg(target_os = "linux")]
 fn start_speedglitch_controller(
-    input_ready: bool,
     input_service: &Arc<EvdevUinputInputDevice>,
     process_discovery: &Arc<ProcDiscovery>,
     process_foreground: &Arc<ProcForegroundProcess>,
     shell_state: &shell::ShellState,
-) -> Option<speedglitch_runtime::SpeedglitchController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-        speedglitch_runtime::SpeedglitchController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.speedglitch_controller_settings(),
-        )
-    })
+) -> speedglitch_runtime::SpeedglitchController {
+    let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    speedglitch_runtime::SpeedglitchController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.speedglitch_controller_settings(),
+    )
 }
-
 #[cfg(target_os = "linux")]
 fn start_wall_walk_controller(
-    input_ready: bool,
     input_service: &Arc<EvdevUinputInputDevice>,
     process_discovery: &Arc<ProcDiscovery>,
     process_foreground: &Arc<ProcForegroundProcess>,
     shell_state: &shell::ShellState,
-) -> Option<wall_walk_runtime::WallWalkController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-        wall_walk_runtime::WallWalkController::start(
-            input,
-            discovery,
-            foreground,
-            shell_state.wall_walk_controller_settings(),
-        )
-    })
+) -> wall_walk_runtime::WallWalkController {
+    let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    wall_walk_runtime::WallWalkController::start(
+        input,
+        discovery,
+        foreground,
+        shell_state.wall_walk_controller_settings(),
+    )
 }
-
 #[cfg(target_os = "linux")]
 fn start_walless_lhj_controller(
-    input_ready: bool,
     input_service: &Arc<EvdevUinputInputDevice>,
     process_discovery: &Arc<ProcDiscovery>,
     process_foreground: &Arc<ProcForegroundProcess>,
     process_control: &Arc<ProcCgroupProcessControl>,
     shell_state: &shell::ShellState,
-) -> Option<walless_lhj_runtime::WallessLhjController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
-        let control: Arc<dyn smu_process::ProcessControl> = process_control.clone();
-        walless_lhj_runtime::WallessLhjController::start(
-            input,
-            discovery,
-            foreground,
-            control,
-            shell_state.walless_lhj_controller_settings(),
-        )
-    })
+) -> walless_lhj_runtime::WallessLhjController {
+    let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    let control: Arc<dyn smu_process::ProcessControl> = process_control.clone();
+    walless_lhj_runtime::WallessLhjController::start(
+        input,
+        discovery,
+        foreground,
+        control,
+        shell_state.walless_lhj_controller_settings(),
+    )
 }
-
 #[cfg(target_os = "linux")]
 fn start_script_services(
     platform: &LinuxPlatformServices,
@@ -1060,19 +1016,16 @@ fn start_script_services(
     config.process_selector.clone_from(&selector);
     config.take_all_process_ids = take_all_process_ids;
     let manager = Arc::new(ScriptManager::new(config, services));
-    let controller = platform.input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> =
-            platform.process_foreground.clone();
-        script_runtime::ScriptRuntimeController::start(
-            input,
-            discovery,
-            foreground,
-            Arc::clone(&manager),
-            shell_state.script_runtime_settings(),
-        )
-    });
+    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
+    let controller = Some(script_runtime::ScriptRuntimeController::start(
+        input,
+        discovery,
+        foreground,
+        Arc::clone(&manager),
+        shell_state.script_runtime_settings(),
+    ));
     (manager, controller)
 }
 
@@ -1088,6 +1041,10 @@ impl LinuxRuntimeServices {
             Arc::new(LinuxLagSwitchBackend::new(Some(Arc::clone(&roblox_log))));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let (freeze_authorization, platform) = create_linux_platform_services();
+        let input_setup = linux_input_setup_service::LinuxInputSetupService::new(
+            Arc::clone(&platform.input_service),
+            updates_enabled,
+        );
         let update_service =
             updater_service::LinuxUpdateService::new(app_version(), updates_enabled);
         let (script_manager, script_runtime_controller) = start_script_services(
@@ -1117,21 +1074,18 @@ impl LinuxRuntimeServices {
         let spam_key_controller = start_spam_key_controller(&platform, shell_state);
         let ledge_bounce_controller = start_ledge_bounce_controller(&platform, shell_state);
         let speedglitch_controller = start_speedglitch_controller(
-            platform.input_ready,
             &platform.input_service,
             &platform.process_discovery,
             &platform.process_foreground,
             shell_state,
         );
         let wall_walk_controller = start_wall_walk_controller(
-            platform.input_ready,
             &platform.input_service,
             &platform.process_discovery,
             &platform.process_foreground,
             shell_state,
         );
         let walless_lhj_controller = start_walless_lhj_controller(
-            platform.input_ready,
             &platform.input_service,
             &platform.process_discovery,
             &platform.process_foreground,
@@ -1139,7 +1093,6 @@ impl LinuxRuntimeServices {
             shell_state,
         );
         let wallhop_controller = start_wallhop_controller(
-            platform.input_ready,
             &platform.input_service,
             &platform.process_discovery,
             &platform.process_foreground,
@@ -1156,6 +1109,7 @@ impl LinuxRuntimeServices {
             wayland_portal: platform.wayland_portal,
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
             wayland_settings_worker: Mutex::new(None),
+            input_setup,
             input_service: platform.input_service,
             saved_settings,
             update_service,
@@ -1163,22 +1117,22 @@ impl LinuxRuntimeServices {
             script_runtime_controller,
             script_dialog_busy: Arc::new(AtomicBool::new(false)),
             script_dialog_result: Arc::new(Mutex::new(None)),
-            lag_switch_controller,
-            bunnyhop_controller,
-            hhj_controller,
-            floor_bounce_controller,
-            freeze_controller,
-            item_desync_controller,
-            item_clip_controller,
-            item_unequip_controller,
-            laugh_clip_controller,
-            press_key_controller,
-            spam_key_controller,
-            ledge_bounce_controller,
-            speedglitch_controller,
-            wall_walk_controller,
-            walless_lhj_controller,
-            wallhop_controller,
+            lag_switch_controller: Some(lag_switch_controller),
+            bunnyhop_controller: Some(bunnyhop_controller),
+            hhj_controller: Some(hhj_controller),
+            floor_bounce_controller: Some(floor_bounce_controller),
+            freeze_controller: Some(freeze_controller),
+            item_desync_controller: Some(item_desync_controller),
+            item_clip_controller: Some(item_clip_controller),
+            item_unequip_controller: Some(item_unequip_controller),
+            laugh_clip_controller: Some(laugh_clip_controller),
+            press_key_controller: Some(press_key_controller),
+            spam_key_controller: Some(spam_key_controller),
+            ledge_bounce_controller: Some(ledge_bounce_controller),
+            speedglitch_controller: Some(speedglitch_controller),
+            wall_walk_controller: Some(wall_walk_controller),
+            walless_lhj_controller: Some(walless_lhj_controller),
+            wallhop_controller: Some(wallhop_controller),
         }
     }
 
@@ -1372,6 +1326,7 @@ impl LinuxRuntimeServices {
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
         self.reap_wayland_settings_worker();
+        shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
         shell_state.set_external_input_capture(self.script_dialog_busy.load(Ordering::Acquire));
         self.prepare_script_ui(shell_state);
         if shell_state.keybind_input_poll_needed() {
@@ -1471,6 +1426,47 @@ impl LinuxRuntimeServices {
         self.handle_action(action, shell_state, window);
     }
 
+    fn handle_input_setup_action(
+        &self,
+        action: &shell::ShellAction,
+        shell_state: &mut shell::ShellState,
+        window: &sdl3::video::Window,
+    ) {
+        match action {
+            shell::ShellAction::InstallLinuxInputPermissionsGraphical => {
+                self.input_setup.install_graphical();
+            }
+            shell::ShellAction::OpenLinuxInputPermissionTerminal => {
+                self.input_setup.open_terminal_installer();
+            }
+            shell::ShellAction::CopyLinuxInputManualCommand => {
+                self.input_setup.copy_manual_command(window);
+            }
+            shell::ShellAction::OpenLinuxInputSetupDocs => self.input_setup.open_setup_docs(),
+            shell::ShellAction::RetryLinuxInputPermissions => {
+                self.input_setup.refresh();
+                shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_lag_switch_toggle(&self, shell_state: &mut shell::ShellState) {
+        if self.lag_switch_enabled.load(Ordering::Acquire) {
+            self.lag_switch_backend.shutdown();
+            self.lag_switch_enabled.store(false, Ordering::Release);
+            return;
+        }
+        let config = shell_state.lag_switch_controller_settings().config;
+        self.lag_switch_backend.set_base_config(config);
+        if self.lag_switch_backend.init() {
+            self.lag_switch_enabled.store(true, Ordering::Release);
+        } else {
+            shell_state.set_lag_switch_helper_error(String::new());
+            shell_state.request_lag_switch_helper_popup();
+        }
+    }
+
     fn handle_action(
         &self,
         action: Option<&shell::ShellAction>,
@@ -1478,20 +1474,17 @@ impl LinuxRuntimeServices {
         window: &sdl3::video::Window,
     ) {
         match action {
+            Some(
+                action @ (shell::ShellAction::InstallLinuxInputPermissionsGraphical
+                | shell::ShellAction::OpenLinuxInputPermissionTerminal
+                | shell::ShellAction::CopyLinuxInputManualCommand
+                | shell::ShellAction::OpenLinuxInputSetupDocs
+                | shell::ShellAction::RetryLinuxInputPermissions),
+            ) => {
+                self.handle_input_setup_action(action, shell_state, window);
+            }
             Some(shell::ShellAction::ToggleLagSwitchBackend) => {
-                if self.lag_switch_enabled.load(Ordering::Acquire) {
-                    self.lag_switch_backend.shutdown();
-                    self.lag_switch_enabled.store(false, Ordering::Release);
-                } else {
-                    let config = shell_state.lag_switch_controller_settings().config;
-                    self.lag_switch_backend.set_base_config(config);
-                    if self.lag_switch_backend.init() {
-                        self.lag_switch_enabled.store(true, Ordering::Release);
-                    } else {
-                        shell_state.set_lag_switch_helper_error(String::new());
-                        shell_state.request_lag_switch_helper_popup();
-                    }
-                }
+                self.handle_lag_switch_toggle(shell_state);
             }
             Some(shell::ShellAction::CheckUpdatesFromSettings) => {
                 self.update_service.start_check(true);
@@ -1654,6 +1647,7 @@ impl LinuxRuntimeServices {
             let _ = worker.join();
         }
         self.wayland_settings_busy.store(false, Ordering::Release);
+        self.input_setup.shutdown();
         self.input_service.shutdown();
     }
 }
@@ -1802,6 +1796,32 @@ fn save_profiles_before_shutdown(
 ) {
     if parity_case.is_none() {
         let _ = save_profiles_now(profile_service, shell_state, window, None);
+    }
+}
+
+#[cfg(target_os = "linux")]
+const ROOT_LAUNCH_MESSAGE: &str = "Spencer Macro Utilities must not be run as root.
+
+Running a desktop GUI as root can break access to your Wayland/X11 session and exposes the entire application to unnecessary administrator privileges. Run SMU normally as your desktop user; when Linux requires elevated access, SMU will request it only for the specific temporary helper that needs it.";
+
+#[cfg(target_os = "linux")]
+#[must_use]
+const fn root_launch_refused(effective_uid: u32, parity_capture: bool) -> bool {
+    effective_uid == 0 && !parity_capture
+}
+
+#[cfg(target_os = "linux")]
+fn show_root_launch_error() {
+    eprintln!("Spencer Macro Utilities: {ROOT_LAUNCH_MESSAGE}");
+    if let Ok(sdl) = sdl3::init()
+        && sdl.video().is_ok()
+    {
+        let _ = sdl3::messagebox::show_simple_message_box(
+            sdl3::messagebox::MessageBoxFlag::ERROR,
+            "Do Not Run Spencer Macro Utilities as Root",
+            ROOT_LAUNCH_MESSAGE,
+            Option::<&Window>::None,
+        );
     }
 }
 
@@ -1960,6 +1980,15 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+    #[cfg(target_os = "linux")]
+    {
+        // SAFETY: `geteuid` has no preconditions and does not access caller-owned memory.
+        let effective_uid = unsafe { libc::geteuid() };
+        if root_launch_refused(effective_uid, parity_case.is_some()) {
+            show_root_launch_error();
+            return Err(std::io::Error::other(ROOT_LAUNCH_MESSAGE).into());
+        }
+    }
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let (mut shell_state, mut profile_service) = initial_profile_state(parity_case.as_deref());
     #[cfg(target_os = "linux")]
