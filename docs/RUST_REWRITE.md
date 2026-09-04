@@ -79,6 +79,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Wall-Walk slice. The F1 toggle/hold controller is separated
+  from a dedicated motion worker. Each iteration snapshots FPS and the two pre-move side/strength
+  reads before the first move, waits one characterized frame delay, performs the second move, then
+  re-reads the microsecond tail delay only at the legacy post-move point. The Rust pane also preserves
+  C++'s odd sensitivity calibration sign flip between the global-settings pass and the selected
+  Wall-Walk section.
 - `smu-app` now owns the live Linux Item Clip slice. The F3/slot-7/34-ms defaults feed a 2 ms
   foreground-gated controller and a dedicated worker. Every worker iteration snapshots delay and slot
   before key-down, clamps the half-delay exactly like C++, and always completes down/wait/up/wait before

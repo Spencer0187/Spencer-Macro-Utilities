@@ -54,6 +54,9 @@ mod speedglitch_runtime;
 #[cfg(target_os = "linux")]
 mod target_runtime;
 mod theme;
+mod wall_walk;
+#[cfg(target_os = "linux")]
+mod wall_walk_runtime;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -104,6 +107,7 @@ struct LinuxRuntimeServices {
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
     item_clip_controller: Option<item_clip_runtime::ItemClipController>,
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
+    wall_walk_controller: Option<wall_walk_runtime::WallWalkController>,
 }
 
 #[cfg(target_os = "linux")]
@@ -180,6 +184,17 @@ impl LinuxRuntimeServices {
                 shell_state.speedglitch_controller_settings(),
             )
         });
+        let wall_walk_controller = input_ready.then(|| {
+            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+            wall_walk_runtime::WallWalkController::start(
+                input,
+                discovery,
+                foreground,
+                shell_state.wall_walk_controller_settings(),
+            )
+        });
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -193,6 +208,7 @@ impl LinuxRuntimeServices {
             item_desync_controller,
             item_clip_controller,
             speedglitch_controller,
+            wall_walk_controller,
         }
     }
 
@@ -238,6 +254,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.speedglitch_controller.as_ref() {
             controller.update_settings(shell_state.speedglitch_controller_settings());
+        }
+        if let Some(controller) = self.wall_walk_controller.as_ref() {
+            controller.update_settings(shell_state.wall_walk_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -309,6 +328,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.wall_walk_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.item_clip_controller.as_ref() {
             controller.stop();
         }

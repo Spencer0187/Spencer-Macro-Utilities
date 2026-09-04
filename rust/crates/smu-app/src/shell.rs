@@ -8,6 +8,7 @@ use crate::{
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
     speedglitch::{self, SpeedglitchUiState},
+    wall_walk::{self, WallWalkUiState},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -75,6 +76,7 @@ pub struct ShellState {
     item_desync: ItemDesyncUiState,
     item_clip: ItemClipUiState,
     speedglitch: SpeedglitchUiState,
+    wall_walk: WallWalkUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -91,6 +93,7 @@ impl Default for ShellState {
             item_desync: ItemDesyncUiState::default(),
             item_clip: ItemClipUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
+            wall_walk: WallWalkUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -124,6 +127,7 @@ impl ShellState {
         enabled[1] = self.item_desync.enabled;
         enabled[3] = self.speedglitch.enabled;
         enabled[8] = self.item_clip.enabled;
+        enabled[10] = self.wall_walk.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -152,6 +156,18 @@ impl ShellState {
         &self,
     ) -> crate::speedglitch_runtime::SpeedglitchControllerSettings {
         self.speedglitch.controller_settings(
+            self.global.macro_enabled(),
+            self.global.fps_runtime(),
+            self.global.process_selector(),
+        )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn wall_walk_controller_settings(
+        &self,
+    ) -> crate::wall_walk_runtime::WallWalkControllerSettings {
+        self.wall_walk.controller_settings(
             self.global.macro_enabled(),
             self.global.fps_runtime(),
             self.global.process_selector(),
@@ -373,6 +389,11 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         state.global.cam_fix_enabled(),
         state.global.speed_calibration_revision(),
     );
+    state.wall_walk.sync_global_calibration(
+        state.global.sensitivity(),
+        state.global.cam_fix_enabled(),
+        state.global.speed_calibration_revision(),
+    );
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
@@ -396,6 +417,12 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             1 => item_desync::render(ui, &mut state.item_desync),
             3 => speedglitch::render(ui, &mut state.speedglitch),
             8 => item_clip::render(ui, &mut state.item_clip),
+            10 => wall_walk::render(
+                ui,
+                &mut state.wall_walk,
+                state.global.sensitivity(),
+                state.global.cam_fix_enabled(),
+            ),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));
