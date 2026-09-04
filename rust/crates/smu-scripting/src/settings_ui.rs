@@ -1,12 +1,14 @@
 //! Script settings-UI state and capture model from `ScriptInstance`.
 
 use crate::persistence::{MAX_UI_STATE_ENTRIES, MAX_UI_STATE_STRING_BYTES};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 pub const MAX_UI_CONTROLS_PER_SETTINGS_CALL: usize = 512;
 pub const MAX_UI_DROPDOWN_ITEMS: usize = 256;
+pub const MAX_UI_DIMENSION: f32 = 10_000.0;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingsUiControlKind {
@@ -317,6 +319,120 @@ fn clamp_ui_string(value: &str) -> String {
         boundary -= 1;
     }
     value[..boundary].to_owned()
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ScriptSettingsUiContext {
+    state: Arc<Mutex<ScriptSettingsUiState>>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ScriptSettingsUiState {
+    ui_state: Map<String, Value>,
+    capture: SettingsUiCapture,
+    cache: ScriptUiCache,
+    pending_values: HashMap<String, Value>,
+    pressed_buttons: HashSet<String>,
+}
+
+impl ScriptSettingsUiContext {
+    #[must_use]
+    pub fn from_ui_state(value: &Value) -> Self {
+        let mut state = ScriptSettingsUiState::default();
+        if let Some(object) = value.as_object() {
+            state.ui_state.clone_from(object);
+        }
+        state.cache.sync_ids(&Value::Object(state.ui_state.clone()));
+        Self { state: Arc::new(Mutex::new(state)) }
+    }
+
+    fn state(&self) -> MutexGuard<'_, ScriptSettingsUiState> {
+        match self.state.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    pub fn begin_capture(&self) {
+        let mut state = self.state();
+        state.capture.begin();
+        state.capture.reset_control_count();
+    }
+
+    pub fn finish_capture(&self, commit: bool) {
+        self.state().capture.finish(commit);
+    }
+
+    #[must_use]
+    pub fn controls(&self) -> Vec<SettingsUiControl> {
+        self.state().capture.controls().to_vec()
+    }
+
+    #[must_use]
+    pub fn ui_state(&self) -> Value {
+        Value::Object(self.state().ui_state.clone())
+    }
+
+    pub fn replace_ui_state(&self, value: &Value) {
+        let mut state = self.state();
+        state.ui_state = value.as_object().cloned().unwrap_or_default();
+        let snapshot = Value::Object(state.ui_state.clone());
+        state.cache.sync_ids(&snapshot);
+        state.pending_values.clear();
+        state.pressed_buttons.clear();
+    }
+
+    /// Queue a value that the app renderer should present as the next user edit for this control.
+    pub fn queue_value(&self, id: impl Into<String>, value: Value) {
+        self.state().pending_values.insert(id.into(), value);
+    }
+
+    /// Queue one button click for the next settings render call.
+    pub fn queue_button_press(&self, id: impl Into<String>) {
+        self.state().pressed_buttons.insert(id.into());
+    }
+
+    pub(crate) fn try_consume_control(&self) -> bool {
+        self.state().capture.try_consume_control()
+    }
+
+    pub(crate) fn try_register_id(&self, id: &str) -> bool {
+        self.state().cache.try_register_id(id)
+    }
+
+    pub(crate) fn record(&self, control: impl FnOnce(&mut SettingsUiCapture)) {
+        control(&mut self.state().capture);
+    }
+
+    pub(crate) fn stored(&self, id: &str) -> Option<Value> {
+        self.state().ui_state.get(id).cloned()
+    }
+
+    pub(crate) fn set_stored(&self, id: &str, value: Value) {
+        let mut state = self.state();
+        state.ui_state.insert(id.to_owned(), value);
+        let _ = state.cache.try_register_id(id);
+    }
+
+    pub(crate) fn take_pending_value(&self, id: &str) -> Option<Value> {
+        self.state().pending_values.remove(id)
+    }
+
+    pub(crate) fn take_button_press(&self, id: &str) -> bool {
+        self.state().pressed_buttons.remove(id)
+    }
+
+    pub(crate) fn keybind_value(&self, id: &str, default_value: Hotkey) -> Hotkey {
+        self.state().cache.keybind_value(id, default_value)
+    }
+
+    pub(crate) fn set_keybind_value(&self, id: &str, value: Hotkey) {
+        self.state().cache.set_keybind_value(id, value);
+    }
+
+    pub(crate) fn set_transient(&self, id: &str, value: &str) -> bool {
+        self.state().cache.set_transient(id, value)
+    }
 }
 
 #[cfg(test)]

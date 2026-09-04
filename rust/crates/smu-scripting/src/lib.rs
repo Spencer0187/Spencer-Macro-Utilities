@@ -17,6 +17,7 @@ pub mod persistence;
 pub mod process_api;
 pub mod roblox_log_api;
 pub mod settings_ui;
+pub mod settings_ui_api;
 
 pub use core_api::{
     MAX_SCRIPT_LOG_MESSAGE_BYTES, ScriptCoreApiError, ScriptEnvironment, ScriptLogSink,
@@ -60,6 +61,12 @@ pub use process_api::{ScriptProcessApiError, ScriptProcessContext, install_proce
 pub use roblox_log_api::{ScriptRobloxLogApiError, install_roblox_log_api};
 
 pub use settings_ui::{
-    MAX_UI_CONTROLS_PER_SETTINGS_CALL, MAX_UI_DROPDOWN_ITEMS, ScriptUiCache, SettingsUiCapture,
-    SettingsUiControl, SettingsUiControlKind,
+    MAX_UI_CONTROLS_PER_SETTINGS_CALL, MAX_UI_DIMENSION, MAX_UI_DROPDOWN_ITEMS,
+    ScriptSettingsUiContext, ScriptUiCache, SettingsUiCapture, SettingsUiControl,
+    SettingsUiControlKind,
+};
+
+pub use settings_ui_api::{
+    ScriptSettingsUiApiError, call_on_settings, install_settings_ui_api,
+    sync_ui_state_from_lua_settings,
 };

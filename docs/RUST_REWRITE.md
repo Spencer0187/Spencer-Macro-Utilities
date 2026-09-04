@@ -65,7 +65,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   wrappers, and foundational timing/cancellation functions. Service-backed globals now cover direct
   input/text/hotkeys, edge-triggered input callbacks/listeners and managed hotkey mirroring,
   display/pixels/movement, process freeze, lag switch, Roblox log reads/callbacks, `log`,
-  `getPlatform`, `getSMUVersion`, and `getSavedValue`. Saved app-setting scalars are exposed by
+  `getPlatform`, `getSMUVersion`, and `getSavedValue`. The full legacy `ui` table is also modeled
+  without ImGui in the scripting crate: persistent `settings` synchronization, control/ID budgets,
+  capture commit/rollback, render-time edits, dynamic text, keybind aliases, and button callbacks
+  are exposed through app-facing state/interaction queues. Saved app-setting scalars are exposed by
   `smu-profile`; transient active-monitor values stay in `smu-display`. Settings render/callback mode
   is treated as one restricted scripting phase, matching the C++ `IsSettingsCallbackActive` helper.
 
