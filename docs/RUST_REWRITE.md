@@ -75,6 +75,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-runtime` now includes the characterized Lag Switch controller step as a pure side-effect
+  boundary. A generated 140-case C++ oracle corpus freezes section/foreground cleanup, hold/toggle
+  edges, backend initialization failure, config-cache publication order, activation start-time resets,
+  and float32 auto-unlag thresholds before the Rust app takes ownership of the live controller loop.
 - `smu-network` owns lag-switch config arbitration, the deterministic Linux helper command grammar,
   and the runtime control capability used by scripting. Linux now also has the real root-validated
   `nethelper` Unix-socket transport, applied-command dedup/error semantics, script/base ownership,

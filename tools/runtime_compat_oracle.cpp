@@ -104,7 +104,8 @@ int Usage()
               << "  smu_runtime_compat_oracle laugh-worker <json-spec>\n"
               << "  smu_runtime_compat_oracle itemclip-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <clip-delay> <clip-slot>\n"
               << "  smu_runtime_compat_oracle wallwalk-step <foreground> <section-press> <section-execute> <hotkey> <toggle-switch> <was-pressed> <is-loop> <fps> <side-first> <strength-x> <side-second> <strength-y> <tail-delay-us>\n"
-              << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n";
+              << "  smu_runtime_compat_oracle speedglitch-step <foreground> <section> <hotkey> <toggle-switch> <was-pressed> <is-speed> <fps> <x> <y>\n"
+              << "  smu_runtime_compat_oracle lag-switch-step <json-spec>\n";
     return 2;
 }
 
@@ -1193,6 +1194,60 @@ int main(int argc, char** argv)
                 {"press_delay_ms", plan.pressDelayMs},
                 {"release_trigger_first", plan.releaseTriggerFirst},
             }},
+            {"events", std::move(events)},
+        };
+    } else if (operation == "lag-switch-step" && argc == 3) {
+        const Json spec = Json::parse(argv[2], nullptr, false);
+        if (spec.is_discarded() || !spec.is_object()) {
+            return Usage();
+        }
+        bool baseBlocking = spec.value("base_blocking", false);
+        bool configApplied = false;
+        bool startReset = false;
+        Json events = Json::array();
+        const bool initSuccess = spec.value("init_success", true);
+        const bool changed = spec.value("config_changed", false);
+        const float elapsedSeconds = spec.value("elapsed_seconds", 0.0f);
+        const auto step = ExecuteLagSwitchStep(
+            spec.value("section_enabled", false),
+            spec.value("backend_present", true),
+            spec.value("foreground_allowed", true),
+            spec.value("pressed", false),
+            spec.value("was_pressed", false),
+            spec.value("toggle_mode", true),
+            spec.value("backend_enabled", true),
+            spec.value("has_last_config", false),
+            spec.value("auto_unblock", false),
+            spec.value("max_duration_seconds", 9.0f),
+            [&] {
+                events.push_back(Json{{"action", "initialize_backend"}, {"success", initSuccess}});
+                return initSuccess;
+            },
+            [&] { return changed; },
+            [&] {
+                configApplied = true;
+                events.push_back(Event("set_config"));
+            },
+            [&] { return baseBlocking; },
+            [&](bool active) {
+                baseBlocking = active;
+                events.push_back(Json{{"action", "set_blocking"}, {"active", active}});
+            },
+            [&] {
+                startReset = true;
+                events.push_back(Event("reset_start_time"));
+            },
+            [&] {
+                events.push_back(Json{{"action", "elapsed_seconds"}, {"value", elapsedSeconds}});
+                return elapsedSeconds;
+            });
+        result = Json{
+            {"operation", "lag-switch-step"},
+            {"next_was_pressed", step.nextWasPressed},
+            {"next_has_last_config", step.nextHasLastConfig},
+            {"final_base_blocking", baseBlocking},
+            {"config_applied", configApplied},
+            {"start_reset", startReset},
             {"events", std::move(events)},
         };
     } else if (operation == "speedglitch-step" && argc == 11) {

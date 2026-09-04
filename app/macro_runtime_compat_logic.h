@@ -1037,6 +1037,101 @@ inline bool ApplySpeedglitchStateAction(SpeedglitchStateAction action, bool isSp
     }
 }
 
+struct LagSwitchStepResult {
+    bool nextWasPressed = false;
+    bool nextHasLastConfig = false;
+};
+
+template <typename InitializeBackendFn, typename ConfigChangedFn, typename ApplyConfigFn,
+          typename IsBaseBlockingFn, typename SetBlockingFn, typename ResetStartFn,
+          typename ElapsedSecondsFn>
+LagSwitchStepResult ExecuteLagSwitchStep(
+    bool sectionEnabled,
+    bool backendPresent,
+    bool foregroundAllowed,
+    bool pressed,
+    bool wasPressed,
+    bool toggleMode,
+    bool backendEnabled,
+    bool hasLastConfig,
+    bool autoUnblock,
+    float maxDurationSeconds,
+    InitializeBackendFn&& initializeBackend,
+    ConfigChangedFn&& configChanged,
+    ApplyConfigFn&& applyConfig,
+    IsBaseBlockingFn&& isBaseBlocking,
+    SetBlockingFn&& setBlocking,
+    ResetStartFn&& resetStart,
+    ElapsedSecondsFn&& elapsedSeconds)
+{
+    if (!sectionEnabled) {
+        if ((wasPressed || hasLastConfig) && backendPresent) {
+            setBlocking(false);
+        }
+        return LagSwitchStepResult{
+            .nextWasPressed = false,
+            .nextHasLastConfig = false,
+        };
+    }
+
+    if (!backendPresent) {
+        return LagSwitchStepResult{
+            .nextWasPressed = wasPressed,
+            .nextHasLastConfig = hasLastConfig,
+        };
+    }
+
+    if (!foregroundAllowed) {
+        if (wasPressed || isBaseBlocking()) {
+            setBlocking(false);
+        }
+        return LagSwitchStepResult{
+            .nextWasPressed = false,
+            .nextHasLastConfig = hasLastConfig,
+        };
+    }
+
+    const bool shouldInitializeBackend = toggleMode
+        ? pressed && !wasPressed && !isBaseBlocking()
+        : pressed;
+    if (shouldInitializeBackend && !backendEnabled && !initializeBackend()) {
+        return LagSwitchStepResult{
+            .nextWasPressed = pressed,
+            .nextHasLastConfig = hasLastConfig,
+        };
+    }
+
+    if (configChanged()) {
+        applyConfig();
+        hasLastConfig = true;
+    }
+
+    if (toggleMode) {
+        if (pressed && !wasPressed) {
+            const bool nextActive = !isBaseBlocking();
+            setBlocking(nextActive);
+            if (nextActive) {
+                resetStart();
+            }
+        }
+    } else {
+        if (pressed && !isBaseBlocking()) {
+            resetStart();
+        }
+        setBlocking(pressed);
+    }
+
+    wasPressed = pressed;
+    if (autoUnblock && isBaseBlocking() && elapsedSeconds() >= maxDurationSeconds) {
+        setBlocking(false);
+    }
+
+    return LagSwitchStepResult{
+        .nextWasPressed = wasPressed,
+        .nextHasLastConfig = hasLastConfig,
+    };
+}
+
 struct SpeedglitchCyclePlan {
     int strengthX = 0;
     int strengthY = 0;

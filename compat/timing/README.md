@@ -51,8 +51,9 @@ copy of the timing arithmetic or PressKey worker sequence.
 
 The current automated Rust slice freezes all integer FPS inputs from 0 through 1000, all rising-edge
 states, PressKey delay clamping / trigger-release / cancellation ordering, the full boolean
-Speedglitch edge/toggle matrix, Freeze hold/toggle/wheel behavior and timeout recovery, ItemDesync
-slot clamping plus its four direct key transitions, ItemClip toggle/hold state with dedicated-worker
+Speedglitch edge/toggle matrix, Freeze hold/toggle/wheel behavior and timeout recovery, Lag Switch
+section/foreground cleanup, hold/toggle edges, backend-init failure, config publication ordering, and
+auto-unlag threshold behavior, ItemDesync slot clamping plus its four direct key transitions, ItemClip toggle/hold state with dedicated-worker
 half-delay waits, and WallWalk frame-delay/mouse/tail-delay ordering. Speedglitch, ItemClip, and
 WallWalk are intentional post-characterization worker migrations; their cycle waits no longer advance
 the controller lane. PressKey waits remain independent worker-lane waits. Freeze fixtures include
@@ -101,6 +102,7 @@ worker guards. Their macro-owned waits and delayed settings reads are frozen, in
 Unequip dropdown reads, live Enter/slot/toggle values, and LaughClip's independently changing
 zoom/shift/movement state. `open_chat` and `paste_text` are recorded as synchronous boundary actions:
 their platform text-backend latency is intentionally not fabricated inside the macro-layer fake clock.
+ Lag Switch remains a non-blocking controller-path macro: its 140-case fixture freezes the full core edge matrix plus no-backend state preservation, foreground-loss cache behavior, init-failure early returns, config-before-toggle ordering, hold-mode start-time resets, and float32 auto-unlag boundaries. Its packet interception and one-second dynamic Roblox target refresh remain owned by `smu-network`, not the controller lane.
 Freeze's
 process-control layer is also differential-tested: partial suspend/resume success counts as overall
 success, resume never refreshes targets, all-failed suspension refreshes and retries only when the

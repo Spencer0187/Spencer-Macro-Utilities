@@ -2398,6 +2398,221 @@ def runtime_presskey_cases() -> list[dict[str, Any]]:
     return cases
 
 
+def runtime_lag_switch_cases() -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+
+    def observe(name: str, spec: dict[str, Any]) -> None:
+        observed = run_json(RUNTIME_ORACLE, "lag-switch-step", json.dumps(spec, separators=(",", ":")))
+        cases.append(
+            {
+                "name": name,
+                "spec": spec,
+                "next_was_pressed": observed["next_was_pressed"],
+                "next_has_last_config": observed["next_has_last_config"],
+                "final_base_blocking": observed["final_base_blocking"],
+                "config_applied": observed["config_applied"],
+                "start_reset": observed["start_reset"],
+                "events": observed["events"],
+            }
+        )
+
+    index = 0
+    for section_enabled in (False, True):
+        for foreground_allowed in (False, True):
+            for pressed in (False, True):
+                for was_pressed in (False, True):
+                    for toggle_mode in (False, True):
+                        for base_blocking in (False, True):
+                            for backend_enabled in (False, True):
+                                observe(
+                                    f"edge-matrix-{index}",
+                                    {
+                                        "section_enabled": section_enabled,
+                                        "backend_present": True,
+                                        "foreground_allowed": foreground_allowed,
+                                        "pressed": pressed,
+                                        "was_pressed": was_pressed,
+                                        "toggle_mode": toggle_mode,
+                                        "backend_enabled": backend_enabled,
+                                        "has_last_config": False,
+                                        "base_blocking": base_blocking,
+                                        "init_success": True,
+                                        "config_changed": False,
+                                        "auto_unblock": False,
+                                        "max_duration_seconds": 9.0,
+                                        "elapsed_seconds": 0.0,
+                                    },
+                                )
+                                index += 1
+
+    targeted = [
+        (
+            "backend-absent-preserves-state",
+            {
+                "section_enabled": True,
+                "backend_present": False,
+                "foreground_allowed": True,
+                "pressed": True,
+                "was_pressed": True,
+                "toggle_mode": True,
+                "backend_enabled": False,
+                "has_last_config": True,
+                "base_blocking": True,
+                "init_success": False,
+                "config_changed": True,
+                "auto_unblock": True,
+                "max_duration_seconds": 0.0,
+                "elapsed_seconds": 99.0,
+            },
+        ),
+        (
+            "disabled-clears-cached-config-and-unblocks",
+            {
+                "section_enabled": False,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": False,
+                "was_pressed": False,
+                "toggle_mode": True,
+                "backend_enabled": True,
+                "has_last_config": True,
+                "base_blocking": True,
+                "init_success": True,
+                "config_changed": True,
+                "auto_unblock": True,
+                "max_duration_seconds": 0.0,
+                "elapsed_seconds": 99.0,
+            },
+        ),
+        (
+            "foreground-loss-preserves-config-cache",
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": False,
+                "pressed": True,
+                "was_pressed": False,
+                "toggle_mode": True,
+                "backend_enabled": True,
+                "has_last_config": True,
+                "base_blocking": True,
+                "init_success": True,
+                "config_changed": True,
+                "auto_unblock": True,
+                "max_duration_seconds": 0.0,
+                "elapsed_seconds": 99.0,
+            },
+        ),
+        (
+            "toggle-init-failure-stops-before-config",
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": True,
+                "was_pressed": False,
+                "toggle_mode": True,
+                "backend_enabled": False,
+                "has_last_config": False,
+                "base_blocking": False,
+                "init_success": False,
+                "config_changed": True,
+                "auto_unblock": False,
+                "max_duration_seconds": 9.0,
+                "elapsed_seconds": 0.0,
+            },
+        ),
+        (
+            "hold-init-failure-retries-while-held",
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": True,
+                "was_pressed": True,
+                "toggle_mode": False,
+                "backend_enabled": False,
+                "has_last_config": True,
+                "base_blocking": False,
+                "init_success": False,
+                "config_changed": True,
+                "auto_unblock": False,
+                "max_duration_seconds": 9.0,
+                "elapsed_seconds": 0.0,
+            },
+        ),
+        (
+            "config-change-applies-before-toggle",
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": True,
+                "was_pressed": False,
+                "toggle_mode": True,
+                "backend_enabled": True,
+                "has_last_config": False,
+                "base_blocking": False,
+                "init_success": True,
+                "config_changed": True,
+                "auto_unblock": False,
+                "max_duration_seconds": 9.0,
+                "elapsed_seconds": 0.0,
+            },
+        ),
+        (
+            "hold-start-resets-only-on-transition",
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": True,
+                "was_pressed": True,
+                "toggle_mode": False,
+                "backend_enabled": True,
+                "has_last_config": True,
+                "base_blocking": True,
+                "init_success": True,
+                "config_changed": False,
+                "auto_unblock": False,
+                "max_duration_seconds": 9.0,
+                "elapsed_seconds": 0.0,
+            },
+        ),
+    ]
+    for name, spec in targeted:
+        observe(name, spec)
+
+    for name, max_duration, elapsed in (
+        ("auto-unblock-below", 9.0, 8.999),
+        ("auto-unblock-equal", 9.0, 9.0),
+        ("auto-unblock-above", 9.0, 9.001),
+        ("auto-unblock-zero", 0.0, 0.0),
+        ("auto-unblock-negative", -1.0, 0.0),
+    ):
+        observe(
+            name,
+            {
+                "section_enabled": True,
+                "backend_present": True,
+                "foreground_allowed": True,
+                "pressed": False,
+                "was_pressed": False,
+                "toggle_mode": True,
+                "backend_enabled": True,
+                "has_last_config": True,
+                "base_blocking": True,
+                "init_success": True,
+                "config_changed": False,
+                "auto_unblock": True,
+                "max_duration_seconds": max_duration,
+                "elapsed_seconds": elapsed,
+            },
+        )
+
+    return cases
+
+
 def runtime_speedglitch_cases() -> list[dict[str, Any]]:
     cases = []
     case_index = 0
@@ -2517,6 +2732,7 @@ def write_runtime() -> None:
         "laugh_cases": runtime_laugh_cases(),
         "presskey_cases": runtime_presskey_cases(),
         "speedglitch_cases": runtime_speedglitch_cases(),
+        "lag_switch_cases": runtime_lag_switch_cases(),
     }
     write_json(ROOT / "compat" / "timing" / "runtime_cases.json", output)
 

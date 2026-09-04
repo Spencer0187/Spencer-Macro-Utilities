@@ -25498,6 +25498,4003 @@
       "was_pressed": false
     }
   ],
+  "lag_switch_cases": [
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-0",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-1",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-2",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-3",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-4",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-5",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-6",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-7",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-8",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-9",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-10",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-11",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-12",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-13",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-14",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-15",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-16",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-17",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-18",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-19",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-20",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-21",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-22",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-23",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-24",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-25",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-26",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-27",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-28",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-29",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-30",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-31",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-32",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-33",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-34",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-35",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-36",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-37",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-38",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-39",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-40",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-41",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-42",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-43",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-44",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-45",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-46",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-47",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-48",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-49",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-50",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-51",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-52",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-53",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-54",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-55",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-56",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-57",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-58",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-59",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-60",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-61",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-62",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-63",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-64",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-65",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-66",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-67",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-68",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-69",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-70",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-71",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-72",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-73",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-74",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-75",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-76",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-77",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-78",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-79",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-80",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-81",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-82",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-83",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-84",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-85",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-86",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-87",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-88",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-89",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-90",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-91",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-92",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-93",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-94",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-95",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": false,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-96",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-97",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-98",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-99",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-100",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-101",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-102",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-103",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-104",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-105",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-106",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-107",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-108",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-109",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-110",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-111",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": true
+        },
+        {
+          "action": "reset_start_time"
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-112",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "reset_start_time"
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-113",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": true
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-114",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-115",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": true
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        },
+        {
+          "action": "reset_start_time"
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-116",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": true
+        },
+        {
+          "action": "reset_start_time"
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-117",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-118",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "edge-matrix-119",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": true
+        },
+        {
+          "action": "reset_start_time"
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-120",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "reset_start_time"
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-121",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": true
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-122",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "edge-matrix-123",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-124",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": false,
+      "name": "edge-matrix-125",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-126",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "edge-matrix-127",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [],
+      "final_base_blocking": true,
+      "name": "backend-absent-preserves-state",
+      "next_has_last_config": true,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": false,
+        "backend_present": false,
+        "base_blocking": true,
+        "config_changed": true,
+        "elapsed_seconds": 99.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": false,
+        "max_duration_seconds": 0.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "disabled-clears-cached-config-and-unblocks",
+      "next_has_last_config": false,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": true,
+        "elapsed_seconds": 99.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 0.0,
+        "pressed": false,
+        "section_enabled": false,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "foreground-loss-preserves-config-cache",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": true,
+        "elapsed_seconds": 99.0,
+        "foreground_allowed": false,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 0.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "toggle-init-failure-stops-before-config",
+      "next_has_last_config": false,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": true,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": false,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "initialize_backend",
+          "success": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "hold-init-failure-retries-while-held",
+      "next_has_last_config": true,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": false,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": true,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": false,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": true,
+      "events": [
+        {
+          "action": "set_config"
+        },
+        {
+          "action": "set_blocking",
+          "active": true
+        },
+        {
+          "action": "reset_start_time"
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "config-change-applies-before-toggle",
+      "next_has_last_config": true,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": false,
+        "config_changed": true,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": false,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": true
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "set_blocking",
+          "active": true
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "hold-start-resets-only-on-transition",
+      "next_has_last_config": true,
+      "next_was_pressed": true,
+      "spec": {
+        "auto_unblock": false,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": true,
+        "section_enabled": true,
+        "toggle_mode": false,
+        "was_pressed": true
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "elapsed_seconds",
+          "value": 8.99899959564209
+        }
+      ],
+      "final_base_blocking": true,
+      "name": "auto-unblock-below",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 8.999,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "elapsed_seconds",
+          "value": 9.0
+        },
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "auto-unblock-equal",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 9.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "elapsed_seconds",
+          "value": 9.00100040435791
+        },
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "auto-unblock-above",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 9.001,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 9.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "elapsed_seconds",
+          "value": 0.0
+        },
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "auto-unblock-zero",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": 0.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    },
+    {
+      "config_applied": false,
+      "events": [
+        {
+          "action": "elapsed_seconds",
+          "value": 0.0
+        },
+        {
+          "action": "set_blocking",
+          "active": false
+        }
+      ],
+      "final_base_blocking": false,
+      "name": "auto-unblock-negative",
+      "next_has_last_config": true,
+      "next_was_pressed": false,
+      "spec": {
+        "auto_unblock": true,
+        "backend_enabled": true,
+        "backend_present": true,
+        "base_blocking": true,
+        "config_changed": false,
+        "elapsed_seconds": 0.0,
+        "foreground_allowed": true,
+        "has_last_config": true,
+        "init_success": true,
+        "max_duration_seconds": -1.0,
+        "pressed": false,
+        "section_enabled": true,
+        "toggle_mode": true,
+        "was_pressed": false
+      },
+      "start_reset": false
+    }
+  ],
   "laugh_cases": [
     {
       "events": [
