@@ -30,6 +30,9 @@ mod freeze;
 #[cfg(target_os = "linux")]
 mod freeze_runtime;
 mod global_settings;
+mod item_desync;
+#[cfg(target_os = "linux")]
+mod item_desync_runtime;
 mod lag_switch;
 #[cfg(target_os = "linux")]
 mod lag_switch_runtime;
@@ -42,6 +45,8 @@ mod parity;
 mod runtime_input;
 mod shell;
 mod sidebar;
+#[cfg(target_os = "linux")]
+mod target_runtime;
 mod theme;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
@@ -90,6 +95,7 @@ struct LinuxRuntimeServices {
     input_service: Arc<EvdevUinputInputDevice>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     freeze_controller: Option<freeze_runtime::FreezeController>,
+    item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
 }
 
 #[cfg(target_os = "linux")]
@@ -133,6 +139,17 @@ impl LinuxRuntimeServices {
                 shell_state.freeze_controller_settings(),
             )
         });
+        let item_desync_controller = input_ready.then(|| {
+            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+            item_desync_runtime::ItemDesyncController::start(
+                input,
+                discovery,
+                foreground,
+                shell_state.item_desync_controller_settings(),
+            )
+        });
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -143,6 +160,7 @@ impl LinuxRuntimeServices {
             input_service,
             lag_switch_controller,
             freeze_controller,
+            item_desync_controller,
         }
     }
 
@@ -179,6 +197,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.freeze_controller.as_ref() {
             controller.update_settings(shell_state.freeze_controller_settings());
+        }
+        if let Some(controller) = self.item_desync_controller.as_ref() {
+            controller.update_settings(shell_state.item_desync_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -250,6 +271,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.item_desync_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.freeze_controller.as_ref() {
             controller.stop();
         }

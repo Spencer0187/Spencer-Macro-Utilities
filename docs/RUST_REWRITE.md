@@ -44,9 +44,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Linux, `smu-app` now also owns the C++-style two-minute authorization gate and Additional Freeze
   Permission Required modal; approval stages the bundled `processhelper`, launches it through
   graphical `pkexec`, verifies the root peer, and wakes the blocked process-control caller. The live
-  Rust Freeze slice now composes this service end-to-end: the app owns the Freeze pane/sidebar state,
-  one long-lived controller lane, one-second process refresh, 25 ms X11 foreground caching, main-vs-all
-  PID selection, and the characterized partial-success suspend/resume state machine.
+  Rust Freeze slice composes this service end-to-end. `smu-app` now shares one characterized target
+  cache implementation across live macro controllers: process matches refresh at most once per
+  second, X11 foreground eligibility at most every 25 ms, foreground matching always considers every
+  matching PID, and process-control users may independently select main-vs-all targets.
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.
@@ -78,6 +79,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now also owns the live Linux Item Desync slice. Its Rust pane preserves the F5/slot-5
+  defaults and foreground gate, while a dedicated 2 ms controller lane emits the characterized
+  down/up/down/up inventory-slot pulse for every active poll. The original C++ controller behavior
+  remains frozen separately in the runtime fixture; the migration test proves all four pulse events
+  moved to the dedicated lane while the shared controller clock remains unchanged.
 - `smu-runtime` includes the characterized Lag Switch controller step as a pure side-effect boundary.
   A generated 140-case C++ oracle corpus freezes section/foreground cleanup, hold/toggle edges,
   backend initialization failure, config-cache publication order, activation start-time resets, and
@@ -150,8 +156,8 @@ architecture remains open to either one deterministic scheduler or a small numbe
 workers until measurements prove which preserves current behavior best. After a controller stall has
 been differentially characterized, it may be intentionally migrated to a named worker when doing so
 removes unrelated macro interference; preserve its internal action/wait order and add a lane-topology
-regression test. HHJ motion, Speedglitch, ItemClip, WallWalk, Windows Anti-AFK, and Linux Freeze
-are approved migrations of this kind. Freeze's 50 ms auto-unfreeze override is now modeled on a
+regression test. HHJ motion, Speedglitch, ItemClip, WallWalk, Windows Anti-AFK, Linux Freeze, and
+Linux Item Desync are approved migrations of this kind. Freeze's 50 ms auto-unfreeze override is now modeled on a
 separate dedicated lane: its worker clock advances exactly 50 ms while the controller clock remains
 at zero, preserving the internal unfreeze/wait/resuspend order without stalling Lag Switch.
 

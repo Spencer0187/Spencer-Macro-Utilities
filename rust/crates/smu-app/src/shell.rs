@@ -3,6 +3,7 @@ use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use crate::{
     freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsState},
+    item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
 };
@@ -69,6 +70,7 @@ pub struct ShellState {
     global: GlobalSettingsState,
     selected_section: usize,
     freeze: FreezeUiState,
+    item_desync: ItemDesyncUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -82,6 +84,7 @@ impl Default for ShellState {
             global: GlobalSettingsState::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
+            item_desync: ItemDesyncUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -111,8 +114,18 @@ impl ShellState {
     const fn section_enabled(&self) -> [bool; 16] {
         let mut enabled = [false; 16];
         enabled[0] = self.freeze.enabled;
+        enabled[1] = self.item_desync.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn item_desync_controller_settings(
+        &self,
+    ) -> crate::item_desync_runtime::ItemDesyncControllerSettings {
+        self.item_desync
+            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -345,6 +358,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
     ui.child_window(RIGHT_SECTION_CHILD).size(right_section_size).border(true).build(ui, || {
         match state.selected_section {
             0 => freeze::render(ui, &mut state.freeze),
+            1 => item_desync::render(ui, &mut state.item_desync),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));

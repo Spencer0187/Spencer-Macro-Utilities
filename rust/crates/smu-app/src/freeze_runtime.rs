@@ -6,10 +6,7 @@
 
 use smu_core::Hotkey;
 use smu_input::KeyState;
-use smu_process::linux::{DisplayServer, detect_display_server};
-use smu_process::{
-    ProcessControl, ProcessDiscovery, ProcessForeground, select_all_processes, select_main_process,
-};
+use smu_process::{ProcessControl, ProcessDiscovery, ProcessForeground};
 use smu_runtime::macros::{freeze_timeout_threshold_ms, should_toggle_freeze};
 use smu_runtime::process_control::{TargetSuspendState, execute_target_suspend_request_untraced};
 use std::fmt;
@@ -19,8 +16,6 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 const CONTROLLER_POLL_INTERVAL: Duration = Duration::from_millis(2);
-const PROCESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
-const FOREGROUND_REFRESH_INTERVAL: Duration = Duration::from_millis(25);
 pub const DEFAULT_FREEZE_HOTKEY: Hotkey = Hotkey::new(0x04);
 
 #[allow(clippy::struct_excessive_bools)]
@@ -58,10 +53,7 @@ struct ControllerState {
     was_pressed: bool,
     suspend: TargetSuspendState,
     freeze_start: Instant,
-    next_process_refresh: Instant,
-    next_foreground_check: Instant,
-    foreground_targets: Vec<u32>,
-    cached_foreground_allowed: bool,
+    targets: crate::target_runtime::TargetProcessCache,
 }
 
 impl Default for ControllerState {
@@ -71,10 +63,7 @@ impl Default for ControllerState {
             was_pressed: false,
             suspend: TargetSuspendState::default(),
             freeze_start: now,
-            next_process_refresh: now,
-            next_foreground_check: now,
-            foreground_targets: Vec::new(),
-            cached_foreground_allowed: true,
+            targets: crate::target_runtime::TargetProcessCache::default(),
         }
     }
 }
@@ -165,7 +154,12 @@ fn controller_loop(
     let mut state = ControllerState::default();
     while running.load(Ordering::Acquire) {
         let current = lock(settings).clone();
-        refresh_targets_if_due(&current, discovery, &mut state);
+        state.targets.refresh_if_due(
+            &current.process_selector,
+            current.take_all_process_ids,
+            discovery,
+        );
+        state.suspend.target_pids = state.targets.selected_pids().to_vec();
 
         if !current.macro_enabled {
             if state.suspend.freeze_suspended {
@@ -207,7 +201,8 @@ fn process_step(
     }
 
     let pressed = crate::runtime_input::hotkey_pressed(input, settings.hotkey);
-    let foreground_allowed = foreground_allowed(settings, foreground, state);
+    let foreground_allowed =
+        state.targets.foreground_allowed(settings.disable_outside_target, foreground);
     let toggle = should_toggle_freeze(settings.configured_toggle, settings.hotkey.key().raw());
 
     if toggle {
@@ -251,59 +246,6 @@ fn elapsed_ms(start: Instant) -> i64 {
     i64::try_from(start.elapsed().as_millis()).unwrap_or(i64::MAX)
 }
 
-fn foreground_allowed(
-    settings: &FreezeControllerSettings,
-    foreground: &dyn ProcessForeground,
-    state: &mut ControllerState,
-) -> bool {
-    if !settings.disable_outside_target {
-        return true;
-    }
-    if detect_display_server() != DisplayServer::X11 {
-        return true;
-    }
-    let now = Instant::now();
-    if now < state.next_foreground_check {
-        return state.cached_foreground_allowed;
-    }
-    state.next_foreground_check = now + FOREGROUND_REFRESH_INTERVAL;
-    state.cached_foreground_allowed =
-        state.foreground_targets.iter().copied().any(|pid| foreground.is_foreground_process(pid));
-    state.cached_foreground_allowed
-}
-
-fn refresh_targets_if_due(
-    settings: &FreezeControllerSettings,
-    discovery: &dyn ProcessDiscovery,
-    state: &mut ControllerState,
-) {
-    let now = Instant::now();
-    if now < state.next_process_refresh {
-        return;
-    }
-    state.next_process_refresh = now + PROCESS_REFRESH_INTERVAL;
-    let (targets, foreground_targets) = discover_targets(settings, discovery);
-    state.suspend.target_pids = targets;
-    state.foreground_targets = foreground_targets;
-    state.next_foreground_check = now;
-}
-
-fn discover_targets(
-    settings: &FreezeControllerSettings,
-    discovery: &dyn ProcessDiscovery,
-) -> (Vec<u32>, Vec<u32>) {
-    let Ok(records) = discovery.snapshot() else {
-        return (Vec::new(), Vec::new());
-    };
-    let all = select_all_processes(&settings.process_selector, &records);
-    let targets = if settings.take_all_process_ids {
-        all.clone()
-    } else {
-        select_main_process(&settings.process_selector, &records).into_iter().collect()
-    };
-    (targets, all)
-}
-
 fn set_target_suspended(
     settings: &FreezeControllerSettings,
     discovery: &dyn ProcessDiscovery,
@@ -314,7 +256,14 @@ fn set_target_suspended(
     let outcome = execute_target_suspend_request_untraced(
         &mut state.suspend,
         suspended,
-        || discover_targets(settings, discovery).0,
+        || {
+            state.targets.force_refresh(
+                &settings.process_selector,
+                settings.take_all_process_ids,
+                discovery,
+            );
+            state.targets.selected_pids().to_vec()
+        },
         |pid, requested| {
             if requested { control.suspend(pid) } else { control.resume(pid) }
         },
@@ -413,9 +362,25 @@ mod tests {
     fn target_selection_matches_main_vs_all_cpp_setting() {
         let discovery = FakeDiscovery(records());
         let settings = FreezeControllerSettings::default();
-        assert_eq!(discover_targets(&settings, &discovery).0, [10]);
+        assert_eq!(
+            crate::target_runtime::discover_targets(
+                &settings.process_selector,
+                settings.take_all_process_ids,
+                &discovery,
+            )
+            .0,
+            [10]
+        );
         let all_settings = FreezeControllerSettings { take_all_process_ids: true, ..settings };
-        assert_eq!(discover_targets(&all_settings, &discovery).0, [10, 20]);
+        assert_eq!(
+            crate::target_runtime::discover_targets(
+                &all_settings.process_selector,
+                all_settings.take_all_process_ids,
+                &discovery,
+            )
+            .0,
+            [10, 20]
+        );
     }
 
     #[test]
@@ -431,7 +396,12 @@ mod tests {
             disable_outside_target: false,
             ..FreezeControllerSettings::default()
         };
-        refresh_targets_if_due(&settings, &discovery, &mut state);
+        state.targets.force_refresh(
+            &settings.process_selector,
+            settings.take_all_process_ids,
+            &discovery,
+        );
+        state.suspend.target_pids = state.targets.selected_pids().to_vec();
         process_step(&settings, &running, &input, &discovery, &foreground, &control, &mut state);
         assert!(state.suspend.freeze_suspended);
         input.pressed.store(false, Ordering::Release);

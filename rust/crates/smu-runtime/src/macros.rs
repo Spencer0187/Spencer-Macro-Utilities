@@ -1425,7 +1425,7 @@ mod tests {
         execute_itemclip_step, execute_laugh_clip_worker, execute_ledge_bounce_worker,
         execute_presskey_worker, execute_spam_key_iteration, execute_speedglitch_cycle,
         execute_walless_lhj_worker, execute_wallhop_worker, execute_wallwalk_step,
-        frame_delays_for_fps, freeze_timeout_threshold_ms, ledge_bounce_turn90,
+        frame_delays_for_fps, freeze_timeout_threshold_ms, inventory_slot_key, ledge_bounce_turn90,
         should_continue_bunnyhop_after_half, should_run_bunnyhop_worker,
         should_run_spam_key_worker, wallwalk_frame_delay_ms,
     };
@@ -2093,6 +2093,20 @@ mod tests {
             assert_eq!(observed.slot_key, case.slot_key, "case {} slot", case.name);
             assert_eq!(trace_events(&trace), case.events, "case {} events", case.name);
         }
+    }
+
+    #[test]
+    fn item_desync_pulse_runs_on_dedicated_lane_without_controller_work() {
+        let mut trace = TraceRecorder::default();
+        let worker =
+            trace.spawn_dedicated_worker(LaneId::CONTROLLER).expect("controller lane should exist");
+        let observed = execute_item_desync(&mut trace, worker, true, true, true, 5);
+
+        assert!(observed.pressed);
+        assert_eq!(observed.slot_key, Some(inventory_slot_key(5)));
+        assert_eq!(trace.lane_now(LaneId::CONTROLLER), Some(crate::MonotonicMicros::default()));
+        assert_eq!(trace.lane_now(worker), Some(crate::MonotonicMicros::default()));
+        assert_eq!(trace.events().iter().filter(|event| event.lane == worker).count(), 4);
     }
 
     #[test]
