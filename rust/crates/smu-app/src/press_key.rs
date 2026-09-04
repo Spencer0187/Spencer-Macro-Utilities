@@ -1,6 +1,8 @@
 use crate::multi_instance::MultiInstanceState;
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value, json};
 use smu_core::{Hotkey, KeyCode};
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -63,6 +65,13 @@ impl PressKeyUiState {
         self.instances.tick_remove_confirmation(delta_seconds, section_selected);
     }
 
+    pub(crate) fn set_base_section_flags(&mut self, enabled: bool, disable_outside: bool) {
+        if let Some(instance) = self.instances.instances_mut().first_mut() {
+            instance.enabled = enabled;
+            instance.disable_outside_target = disable_outside;
+        }
+    }
+
     #[must_use]
     pub fn first_enabled(&self) -> bool {
         self.instances().first().is_some_and(|instance| instance.enabled)
@@ -71,6 +80,125 @@ impl PressKeyUiState {
     #[must_use]
     pub fn enabled_flags(&self) -> Vec<bool> {
         self.instances().iter().map(|instance| instance.enabled).collect()
+    }
+
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        let mut base = PressKeyUiInstance::default();
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_zkey") {
+            base.trigger = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_dkey") {
+            base.output = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "PressKeyDelayChar") {
+            value.clone_into(&mut base.press_delay_text);
+            if let Ok(parsed) = value.parse::<i32>() {
+                base.press_delay_ms = parsed;
+            }
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "PressKeyBonusDelayChar")
+        {
+            value.clone_into(&mut base.bonus_delay_text);
+            if let Ok(parsed) = value.parse::<i32>() {
+                base.bonus_delay_ms = parsed;
+            }
+        }
+        if let Some(value) = crate::profile_adapter::section_flag(payload, "section_toggles", 5) {
+            base.enabled = value;
+        }
+        if let Some(value) =
+            crate::profile_adapter::section_flag(payload, "disable_outside_roblox", 5)
+        {
+            base.disable_outside_target = value;
+        }
+
+        let mut instances = vec![base];
+        if let Some(extras) =
+            payload.raw_value("extra_presskey_instances").and_then(Value::as_array)
+        {
+            for extra in extras {
+                let Some(object) = extra.as_object() else {
+                    continue;
+                };
+                let mut instance = PressKeyUiInstance::default();
+                if let Some(value) = crate::profile_adapter::object_u32(object, "vk_trigger") {
+                    instance.trigger = Hotkey::new(value);
+                }
+                if let Some(value) = crate::profile_adapter::object_u32(object, "vk_presskey") {
+                    instance.output = Hotkey::new(value);
+                }
+                if let Some(value) = crate::profile_adapter::object_i32(object, "PressKeyDelay") {
+                    instance.press_delay_ms = value;
+                }
+                if let Some(value) =
+                    crate::profile_adapter::object_i32(object, "PressKeyBonusDelay")
+                {
+                    instance.bonus_delay_ms = value;
+                }
+                if let Some(value) =
+                    crate::profile_adapter::object_string(object, "PressKeyDelayChar")
+                {
+                    value.clone_into(&mut instance.press_delay_text);
+                }
+                if let Some(value) =
+                    crate::profile_adapter::object_string(object, "PressKeyBonusDelayChar")
+                {
+                    value.clone_into(&mut instance.bonus_delay_text);
+                }
+                instance.disable_outside_target =
+                    crate::profile_adapter::object_bool(object, "disable_outside_roblox")
+                        .or_else(|| crate::profile_adapter::object_bool(object, "presskeyinroblox"))
+                        .unwrap_or(instances[0].disable_outside_target);
+                instance.enabled =
+                    crate::profile_adapter::object_bool(object, "section_enabled").unwrap_or(false);
+                instances.push(instance);
+            }
+        }
+        self.instances.replace_instances(instances, 0);
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        let Some(base) = self.instances().first() else {
+            return;
+        };
+        crate::profile_adapter::insert_u32(overlay, "vk_zkey", base.trigger.raw());
+        crate::profile_adapter::insert_u32(overlay, "vk_dkey", base.output.raw());
+        crate::profile_adapter::insert_string(
+            overlay,
+            "PressKeyDelayChar",
+            base.press_delay_text.clone(),
+        );
+        crate::profile_adapter::insert_string(
+            overlay,
+            "PressKeyBonusDelayChar",
+            base.bonus_delay_text.clone(),
+        );
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "presskeyinroblox",
+            base.disable_outside_target,
+        );
+        let extras: Vec<Value> = self
+            .instances()
+            .iter()
+            .skip(1)
+            .map(|instance| {
+                json!({
+                    "vk_trigger": instance.trigger.raw(),
+                    "vk_presskey": instance.output.raw(),
+                    "PressKeyDelay": instance.press_delay_ms,
+                    "PressKeyBonusDelay": instance.bonus_delay_ms,
+                    "PressKeyDelayChar": instance.press_delay_text,
+                    "PressKeyBonusDelayChar": instance.bonus_delay_text,
+                    "disable_outside_roblox": instance.disable_outside_target,
+                    "presskeyinroblox": instance.disable_outside_target,
+                    "section_enabled": instance.enabled
+                })
+            })
+            .collect();
+        if !extras.is_empty() {
+            overlay.insert("extra_presskey_instances".to_owned(), Value::Array(extras));
+        }
     }
 
     #[must_use]

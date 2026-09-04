@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::CString;
 
 const ACCENT_SECONDARY: [f32; 4] = [0.0, 0.44, 0.60, 1.0];
@@ -34,6 +36,35 @@ impl Default for SpeedglitchUiState {
 }
 
 impl SpeedglitchUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_xkey") {
+            self.hotkey = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "isspeedswitch") {
+            self.hold_mode = value;
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "RobloxPixelValueChar") {
+            value.clone_into(&mut self.pixel_text);
+            if let Ok(parsed) = value.parse::<i32>() {
+                self.strength_x = parsed;
+                self.strength_y = parsed.wrapping_neg();
+            }
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_xkey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "isspeedswitch", self.hold_mode);
+        crate::profile_adapter::insert_i32(overlay, "RobloxPixelValue", self.strength_x);
+        crate::profile_adapter::insert_i32(overlay, "speed_strengthx", self.strength_x);
+        crate::profile_adapter::insert_i32(overlay, "speed_strengthy", self.strength_y);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "RobloxPixelValueChar",
+            self.pixel_text.clone(),
+        );
+    }
+
     #[allow(clippy::cast_possible_truncation)] // Mirrors the C++ float-to-int calibration cast.
     pub fn sync_global_calibration(&mut self, sensitivity: &str, cam_fix: bool, revision: u64) {
         if self.applied_calibration_revision == revision {

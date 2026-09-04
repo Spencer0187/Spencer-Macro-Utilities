@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::CString;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
@@ -30,6 +32,28 @@ impl Default for BunnyhopUiState {
 }
 
 impl BunnyhopUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_bunnyhopkey") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "bunnyhopsmart") {
+            self.smart = v;
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "BunnyHopDelayChar") {
+            v.clone_into(&mut self.delay_text);
+            self.delay_ms = cpp_atof_to_i32(v);
+        }
+    }
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_bunnyhopkey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "bunnyhopsmart", self.smart);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "BunnyHopDelayChar",
+            self.delay_text.clone(),
+        );
+    }
+
     #[must_use]
     pub const fn controller_settings(
         &self,

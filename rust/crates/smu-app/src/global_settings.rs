@@ -1,4 +1,6 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
+use smu_profile::payload::PreservedProfilePayload;
 
 const DISCLAIMER_FROM_RIGHT: f32 = 795.0;
 const OFFICIAL_SOURCE_FROM_RIGHT: f32 = 790.0;
@@ -196,6 +198,112 @@ impl GlobalSettingsState {
     #[must_use]
     pub const fn zoom_reverse(&self) -> bool {
         self.zoom_reverse
+    }
+
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "macrotoggled") {
+            self.toggles.macro_enabled = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "camfixtoggle") {
+            self.toggles.cam_fix_enabled = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "antiafktoggle") {
+            self.toggles.anti_afk_enabled = value;
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "settingsBuffer") {
+            value.clone_into(&mut self.process.name);
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "RobloxSensValue") {
+            value.clone_into(&mut self.sensitivity);
+            self.speed_calibration_revision = self.speed_calibration_revision.wrapping_add(1);
+            self.wallhop_sensitivity_revision = self.wallhop_sensitivity_revision.wrapping_add(1);
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "RobloxFPSChar") {
+            value.clone_into(&mut self.fps);
+            if let Ok(parsed) = value.parse::<u32>() {
+                self.fps_runtime = parsed;
+            }
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_shiftkey") {
+            self.shift_key = value;
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_enterkey") {
+            self.enter_key = value;
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_chatkey") {
+            self.chat_key = value;
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_afkkey") {
+            self.afk_key = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "chatoverride") {
+            self.chat_override = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "useoldpaste") {
+            self.use_old_paste = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "doublepressafkkey") {
+            self.double_press_afk_key = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "globalzoomin") {
+            self.global_zoom = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "globalzoominreverse") {
+            self.zoom_reverse = value;
+        }
+        if let Some(value) = crate::profile_adapter::i32_value(payload, "display_scale") {
+            self.display_scale = value;
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "PasteDelayChar") {
+            value.clone_into(&mut self.paste_delay_text);
+            if let Ok(parsed) = value.parse::<i32>() {
+                self.paste_delay_ms = parsed;
+            }
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "AntiAFKTimeChar") {
+            value.clone_into(&mut self.anti_afk_minutes_text);
+            if let Ok(parsed) = value.parse::<i32>() {
+                self.anti_afk_minutes = parsed;
+            }
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_bool(overlay, "macrotoggled", self.toggles.macro_enabled);
+        crate::profile_adapter::insert_bool(overlay, "camfixtoggle", self.toggles.cam_fix_enabled);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "antiafktoggle",
+            self.toggles.anti_afk_enabled,
+        );
+        crate::profile_adapter::insert_string(overlay, "settingsBuffer", self.process.name.clone());
+        crate::profile_adapter::insert_string(overlay, "RobloxSensValue", self.sensitivity.clone());
+        crate::profile_adapter::insert_string(overlay, "RobloxFPSChar", self.fps.clone());
+        crate::profile_adapter::insert_u32(overlay, "vk_shiftkey", self.shift_key);
+        crate::profile_adapter::insert_u32(overlay, "vk_enterkey", self.enter_key);
+        crate::profile_adapter::insert_u32(overlay, "vk_chatkey", self.chat_key);
+        crate::profile_adapter::insert_u32(overlay, "vk_afkkey", self.afk_key);
+        crate::profile_adapter::insert_bool(overlay, "chatoverride", self.chat_override);
+        crate::profile_adapter::insert_bool(overlay, "useoldpaste", self.use_old_paste);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "doublepressafkkey",
+            self.double_press_afk_key,
+        );
+        crate::profile_adapter::insert_bool(overlay, "globalzoomin", self.global_zoom);
+        crate::profile_adapter::insert_bool(overlay, "globalzoominreverse", self.zoom_reverse);
+        crate::profile_adapter::insert_i32(overlay, "display_scale", self.display_scale);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "PasteDelayChar",
+            self.paste_delay_text.clone(),
+        );
+        crate::profile_adapter::insert_i32(overlay, "AntiAFKTime", self.anti_afk_minutes);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "AntiAFKTimeChar",
+            self.anti_afk_minutes_text.clone(),
+        );
     }
 
     pub fn apply_lag_switch_reference_globals(&mut self) {

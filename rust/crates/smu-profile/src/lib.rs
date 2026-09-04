@@ -144,6 +144,58 @@ pub struct ProfileCatalog {
     pub loaded_from_backup: bool,
 }
 
+/// Startup classification of the resolved settings path before the application performs any write.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StartupProfileSource {
+    /// Neither the primary path nor its `.bak` exists.
+    Missing,
+    /// A source exists but neither primary nor backup can be parsed as JSON.
+    Unreadable,
+    /// Legacy flat settings that must be applied, materialized, and migrated to `Profile 1`.
+    LegacyFlat { payload: payload::PreservedProfilePayload, loaded_from_backup: bool },
+    /// An object container. `preferred_name == None` means C++ would create `Profile 1` from defaults;
+    /// `preferred_payload == None` with a name means the chosen profile failed payload validation.
+    Structured {
+        preferred_name: Option<String>,
+        preferred_payload: Option<payload::PreservedProfilePayload>,
+        loaded_from_backup: bool,
+    },
+    /// Parseable JSON that is not an object (for example a scalar or array). C++ selects this source
+    /// during resolution but refuses to load or overwrite it during startup.
+    Unsupported { loaded_from_backup: bool },
+}
+
+/// Returns whether the primary settings path or its `.bak` exists.
+#[must_use]
+pub fn settings_source_exists(path: &Path) -> bool {
+    has_settings_source(path)
+}
+
+/// Classifies one already-resolved settings path without mutating it.
+#[must_use]
+pub fn startup_profile_source_from_file(path: &Path) -> StartupProfileSource {
+    if !has_settings_source(path) {
+        return StartupProfileSource::Missing;
+    }
+    let Some((root, loaded_from_backup)) = read_json_file_with_backup(path) else {
+        return StartupProfileSource::Unreadable;
+    };
+    if is_legacy_flat_format(&root) {
+        let Some(payload) = payload::PreservedProfilePayload::from_value(&root) else {
+            return StartupProfileSource::Unreadable;
+        };
+        return StartupProfileSource::LegacyFlat { payload, loaded_from_backup };
+    }
+    let Some(object) = root.as_object() else {
+        return StartupProfileSource::Unsupported { loaded_from_backup };
+    };
+    let preferred_name = find_best_profile(&root, "");
+    let preferred_payload = preferred_name
+        .as_deref()
+        .and_then(|name| object.get(name).and_then(payload::PreservedProfilePayload::from_value));
+    StartupProfileSource::Structured { preferred_name, preferred_payload, loaded_from_backup }
+}
+
 /// Reads a profile catalog without modifying either the primary file or its backup.
 #[must_use]
 pub fn profile_catalog_from_file(path: &Path) -> Option<ProfileCatalog> {
@@ -183,8 +235,10 @@ pub fn upsert_profile_payload_in_file(
     let Some(preserved) = payload::PreservedProfilePayload::from_value(profile_payload) else {
         return false;
     };
-    let Some((mut root, _)) = read_json_file_with_backup(path) else {
-        return false;
+    let mut root = match read_json_file_with_backup(path) {
+        Some((root, _)) => root,
+        None if !has_settings_source(path) => Value::Object(Map::new()),
+        None => return false,
     };
     let Some(root_object) = root.as_object_mut() else {
         return false;
@@ -197,6 +251,45 @@ pub fn upsert_profile_payload_in_file(
         metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
     }
     write_json_file(path, &root, false)
+}
+
+/// Replaces a legacy-flat settings document with one profile container, matching the C++
+/// `TryLoadLastActiveProfile` deserialize-then-`SaveSettings("Profile 1")` conversion shape.
+///
+/// The caller supplies the already materialized live serializer payload. Legacy root keys are not
+/// retained as siblings; only the named profile and active-profile metadata are written.
+#[must_use]
+pub fn replace_legacy_flat_with_profile_in_file(
+    path: &Path,
+    profile_name: &str,
+    profile_payload: &Value,
+) -> bool {
+    if profile_name.is_empty()
+        || profile_name == DEFAULT_PROFILE_NAME
+        || profile_name == METADATA_KEY
+    {
+        return false;
+    }
+    let Some((root, _)) = read_json_file_with_backup(path) else {
+        return false;
+    };
+    if !is_legacy_flat_format(&root) {
+        return false;
+    }
+    let Some(preserved) = payload::PreservedProfilePayload::from_value(profile_payload) else {
+        return false;
+    };
+    let converted = json_container_with_active_profile(profile_name, preserved.raw_snapshot());
+    write_json_file(path, &converted, false)
+}
+
+fn json_container_with_active_profile(profile_name: &str, profile_payload: Value) -> Value {
+    let mut metadata = Map::new();
+    metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
+    let mut root = Map::new();
+    root.insert(METADATA_KEY.to_owned(), Value::Object(metadata));
+    root.insert(profile_name.to_owned(), profile_payload);
+    Value::Object(root)
 }
 
 /// Produces the C++ profile UI's first available `Profile N` name.
@@ -596,16 +689,19 @@ fn write_json_file(path: &Path, data: &Value, allow_replace_unreadable_primary: 
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use super::{
         CURRENT_SETTINGS_FILENAME, ContainerFormat, DEFAULT_PROFILE_NAME, LAST_ACTIVE_PROFILE_KEY,
-        LEGACY_FORMAT_KEYS, LEGACY_SETTINGS_FILENAME, delete_profile_from_file, detect_format,
+        LEGACY_FORMAT_KEYS, LEGACY_SETTINGS_FILENAME, METADATA_KEY, StartupProfileSource,
+        delete_profile_from_file, detect_format,
         discover_settings_file_path_read_only_from_directories, duplicate_profile_in_file,
         find_best_profile, generate_new_profile_name, generate_unique_profile_name, metadata_mut,
         profile_catalog_from_file, profile_names, profile_payload_from_file,
         read_json_file_with_backup, rename_profile_in_file,
-        resolve_settings_file_path_from_directories, upsert_profile_payload_in_file,
+        replace_legacy_flat_with_profile_in_file, resolve_settings_file_path_from_directories,
+        settings_backup_path, settings_source_exists, startup_profile_source_from_file,
+        upsert_profile_payload_in_file,
     };
     use serde::Deserialize;
     use serde_json::{Value, json};
@@ -780,6 +876,111 @@ mod tests {
     }
 
     #[test]
+    fn legacy_replacement_writes_only_profile_and_metadata_and_keeps_backup_rules() {
+        let temporary = TestDirectory::new("legacy-replacement");
+        let path = temporary.path.join("settings.json");
+        write_source(
+            &path,
+            &json!({
+                "vk_f5": 0x71,
+                "future_legacy_junk": 123,
+                "imported_scripts": [{"path":"legacy.lua"}]
+            }),
+        );
+        let legacy = match startup_profile_source_from_file(&path) {
+            StartupProfileSource::LegacyFlat { payload, .. } => payload,
+            other => panic!("expected legacy payload, got {other:?}"),
+        };
+        let materialized = legacy.materialized_serializer_payload();
+        assert!(replace_legacy_flat_with_profile_in_file(
+            &path,
+            "Profile 1",
+            &materialized.raw_snapshot(),
+        ));
+        let written = read_json_file_with_backup(&path)
+            .map(|(value, _)| value)
+            .expect("converted profile should read");
+        assert_eq!(written[METADATA_KEY][LAST_ACTIVE_PROFILE_KEY], json!("Profile 1"));
+        assert!(written.get("vk_f5").is_none());
+        assert_eq!(written["Profile 1"]["vk_f5"], json!(0x71));
+        assert_eq!(written["Profile 1"]["imported_scripts"], json!([{"path":"legacy.lua"}]));
+        assert!(written["Profile 1"].get("future_legacy_junk").is_none());
+        assert!(settings_backup_path(&path).exists());
+    }
+
+    #[test]
+    fn startup_source_distinguishes_missing_unreadable_legacy_structured_and_scalar() {
+        let temporary = TestDirectory::new("startup-source");
+        let path = temporary.path.join("settings.json");
+        assert!(!settings_source_exists(&path));
+        assert_eq!(startup_profile_source_from_file(&path), StartupProfileSource::Missing);
+
+        fs::write(&path, b"{ broken").expect("corrupt fixture should write");
+        assert!(settings_source_exists(&path));
+        assert_eq!(startup_profile_source_from_file(&path), StartupProfileSource::Unreadable);
+
+        write_source(&path, &json!({"vk_f5": 0x72, "future": 1}));
+        match startup_profile_source_from_file(&path) {
+            StartupProfileSource::LegacyFlat { payload, loaded_from_backup } => {
+                assert!(!loaded_from_backup);
+                assert_eq!(payload.raw_value("vk_f5"), Some(&json!(0x72)));
+            }
+            other => panic!("expected legacy flat, got {other:?}"),
+        }
+
+        write_source(
+            &path,
+            &json!({
+                "_metadata": {"last_active_profile": "Profile 2"},
+                "Profile 2": {"vk_f5": 0x73, "future": {"keep": true}}
+            }),
+        );
+        match startup_profile_source_from_file(&path) {
+            StartupProfileSource::Structured {
+                preferred_name,
+                preferred_payload,
+                loaded_from_backup,
+            } => {
+                assert_eq!(preferred_name.as_deref(), Some("Profile 2"));
+                assert!(!loaded_from_backup);
+                assert_eq!(
+                    preferred_payload.as_ref().and_then(|payload| payload.raw_value("future")),
+                    Some(&json!({"keep": true}))
+                );
+            }
+            other => panic!("expected structured source, got {other:?}"),
+        }
+
+        write_source(&path, &json!([1, 2, 3]));
+        assert_eq!(
+            startup_profile_source_from_file(&path),
+            StartupProfileSource::Unsupported { loaded_from_backup: false }
+        );
+    }
+
+    #[test]
+    fn startup_source_uses_valid_backup_when_primary_is_corrupt() {
+        let temporary = TestDirectory::new("startup-backup");
+        let path = temporary.path.join("settings.json");
+        let backup = settings_backup_path(&path);
+        fs::write(&path, b"broken").expect("corrupt primary should write");
+        write_source(
+            &backup,
+            &json!({
+                "_metadata": {"last_active_profile": "Profile 1"},
+                "Profile 1": {"vk_f5": 0x74}
+            }),
+        );
+        match startup_profile_source_from_file(&path) {
+            StartupProfileSource::Structured { loaded_from_backup, preferred_name, .. } => {
+                assert!(loaded_from_backup);
+                assert_eq!(preferred_name.as_deref(), Some("Profile 1"));
+            }
+            other => panic!("expected structured backup source, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn read_only_discovery_preserves_cpp_source_priority_without_migration() {
         let temporary = TestDirectory::new("readonly-discovery");
         let canonical = temporary.path.join("canonical");
@@ -817,6 +1018,31 @@ mod tests {
             .expect("named preserved profile should load");
         assert_eq!(preserved.raw_value("future_key"), Some(&json!({"keep": true})));
         assert_eq!(preserved.raw_value("imported_scripts"), Some(&json!([{"path": "x.lua"}])));
+    }
+
+    #[test]
+    fn profile_payload_upsert_refuses_unreadable_existing_source() {
+        let temporary = TestDirectory::new("payload-upsert-unreadable");
+        let path = temporary.path.join("settings.json");
+        fs::write(&path, b"{ broken").expect("corrupt source should write");
+        let before = fs::read(&path).expect("corrupt source should be readable as bytes");
+        let payload = crate::payload::ProfilePayloadState::default().snapshot();
+        assert!(!upsert_profile_payload_in_file(&path, "Profile 1", &payload, true));
+        assert_eq!(
+            fs::read(&path).expect("corrupt source should remain readable as bytes"),
+            before
+        );
+    }
+
+    #[test]
+    fn profile_payload_upsert_creates_fresh_container_when_missing() {
+        let temporary = TestDirectory::new("payload-upsert-create");
+        let path = temporary.path.join("nested").join(CURRENT_SETTINGS_FILENAME);
+        let payload = crate::payload::ProfilePayloadState::default().snapshot();
+        assert!(upsert_profile_payload_in_file(&path, "Profile 1", &payload, true));
+        let (written, _) = read_json_file_with_backup(&path).expect("fresh container should load");
+        assert!(written["Profile 1"].is_object());
+        assert_eq!(written[METADATA_KEY][LAST_ACTIVE_PROFILE_KEY], json!("Profile 1"));
     }
 
     #[test]

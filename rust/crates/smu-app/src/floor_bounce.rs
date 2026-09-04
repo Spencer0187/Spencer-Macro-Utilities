@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -36,6 +38,37 @@ impl Default for FloorBounceUiState {
 }
 
 impl FloorBounceUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_floorbouncekey") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "floorbouncehhj") {
+            self.hhj_enabled = v;
+        }
+        apply_delay(payload, "FloorBounceDelay1Char", &mut self.delay1_text, &mut self.delay1_ms);
+        apply_delay(payload, "FloorBounceDelay2Char", &mut self.delay2_text, &mut self.delay2_ms);
+        apply_delay(payload, "FloorBounceDelay3Char", &mut self.delay3_text, &mut self.delay3_ms);
+    }
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_floorbouncekey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "floorbouncehhj", self.hhj_enabled);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "FloorBounceDelay1Char",
+            self.delay1_text.clone(),
+        );
+        crate::profile_adapter::insert_string(
+            overlay,
+            "FloorBounceDelay2Char",
+            self.delay2_text.clone(),
+        );
+        crate::profile_adapter::insert_string(
+            overlay,
+            "FloorBounceDelay3Char",
+            self.delay3_text.clone(),
+        );
+    }
+
     #[must_use]
     pub const fn controller_settings(
         &self,
@@ -56,6 +89,15 @@ impl FloorBounceUiState {
             shift_key,
             delay2_ms: self.delay2_ms,
             delay3_ms: self.delay3_ms,
+        }
+    }
+}
+
+fn apply_delay(payload: &PreservedProfilePayload, key: &str, text: &mut String, value: &mut i32) {
+    if let Some(v) = crate::profile_adapter::string_value(payload, key) {
+        v.clone_into(text);
+        if let Ok(n) = v.parse::<i32>() {
+            *value = n;
         }
     }
 }

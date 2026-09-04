@@ -1,5 +1,5 @@
 use dear_imgui_rs::{Condition, MouseButton, SelectableFlags, StyleColor, Ui, WindowFlags};
-use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog};
+use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog, generate_new_profile_name};
 
 const MENU_WIDTH: f32 = 260.0;
 const MENU_MAX_HEIGHT: f32 = 300.0;
@@ -7,6 +7,8 @@ const DELETE_CONFIRM_SECONDS: f32 = 0.7;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProfileAction {
+    SaveTo { name: String },
+    Load { name: String },
     Duplicate { source: String },
     Rename { old_name: String, new_name: String },
     Delete { name: String },
@@ -18,6 +20,7 @@ pub struct ProfileBrowserState {
     expanded: bool,
     names: Vec<String>,
     preferred_profile: Option<String>,
+    current_loaded_profile: Option<String>,
     loaded_from_backup: bool,
     source_available: bool,
     selected_index: Option<usize>,
@@ -26,13 +29,30 @@ pub struct ProfileBrowserState {
     rename_error: String,
     delete_target: Option<usize>,
     delete_timer: f32,
+    delete_loaded_name_at_confirm: Option<String>,
     refresh_requested: bool,
+    last_saved_selection_name: String,
 }
 
 impl ProfileBrowserState {
     #[must_use]
     pub const fn refresh_requested(&self) -> bool {
         self.refresh_requested
+    }
+
+    #[must_use]
+    pub fn take_selection_autosave_request(&mut self, current_loaded: Option<&str>) -> bool {
+        if !self.expanded {
+            return false;
+        }
+        let selected = self.selected_name().cloned().unwrap_or_default();
+        if selected == self.last_saved_selection_name {
+            return false;
+        }
+        let should_save = !self.last_saved_selection_name.is_empty()
+            && current_loaded.is_some_and(|name| !name.is_empty() && name != DEFAULT_PROFILE_NAME);
+        self.last_saved_selection_name = selected;
+        should_save
     }
 
     pub const fn clear_refresh_request(&mut self) {
@@ -57,6 +77,11 @@ impl ProfileBrowserState {
             .as_deref()
             .and_then(|name| self.names.iter().position(|candidate| candidate == name))
             .or_else(|| {
+                self.current_loaded_profile
+                    .as_deref()
+                    .and_then(|name| self.names.iter().position(|candidate| candidate == name))
+            })
+            .or_else(|| {
                 self.preferred_profile
                     .as_deref()
                     .and_then(|name| self.names.iter().position(|candidate| candidate == name))
@@ -70,13 +95,21 @@ impl ProfileBrowserState {
         self.selected_index.and_then(|index| self.names.get(index))
     }
 
+    pub fn set_current_loaded_profile(&mut self, name: Option<&str>) {
+        self.current_loaded_profile = name.map(str::to_owned);
+        if self.delete_loaded_name_at_confirm.as_deref() != self.current_loaded_profile.as_deref() {
+            self.reset_delete_confirmation();
+        }
+    }
+
     const fn request_refresh(&mut self) {
         self.refresh_requested = true;
     }
 
-    const fn reset_delete_confirmation(&mut self) {
+    fn reset_delete_confirmation(&mut self) {
         self.delete_target = None;
         self.delete_timer = 0.0;
+        self.delete_loaded_name_at_confirm = None;
     }
 
     fn tick_delete_confirmation(&mut self, delta_time: f32) {
@@ -84,7 +117,11 @@ impl ProfileBrowserState {
             return;
         }
         self.delete_timer -= delta_time;
-        if self.delete_timer <= 0.0 || self.delete_target != self.selected_index {
+        if self.delete_timer <= 0.0
+            || self.delete_target != self.selected_index
+            || self.delete_loaded_name_at_confirm.as_deref()
+                != self.current_loaded_profile.as_deref()
+        {
             self.reset_delete_confirmation();
         }
     }
@@ -141,20 +178,19 @@ fn render_menu_contents(ui: &Ui, state: &mut ProfileBrowserState) -> Option<Prof
     let action_width =
         ui.clone_style().item_spacing()[0].mul_add(-2.0, ui.content_region_avail()[0]) / 3.0;
 
-    let disabled_save = ui.begin_disabled();
-    let _ = ui.button_with_size("Save To", [action_width, 0.0]);
-    drop(disabled_save);
-    if ui.is_item_hovered() {
-        ui.tooltip_text("Save To is disabled until the full Rust profile serializer is attached.");
+    let save_target = selected_name
+        .as_deref()
+        .filter(|name| *name != DEFAULT_PROFILE_NAME)
+        .map_or_else(|| generate_new_profile_name(&state.names), str::to_owned);
+    if ui.button_with_size("Save To", [action_width, 0.0]) {
+        return Some(ProfileAction::SaveTo { name: save_target });
     }
     ui.same_line();
-    let disabled_load = ui.begin_disabled();
-    let _ = ui.button_with_size("Load", [action_width, 0.0]);
+    let disabled_load = selected_name.is_none().then(|| ui.begin_disabled());
+    let load_clicked = ui.button_with_size("Load", [action_width, 0.0]);
     drop(disabled_load);
-    if ui.is_item_hovered() {
-        ui.tooltip_text(
-            "Load is disabled until profile data can be applied to every live Rust setting.",
-        );
+    if load_clicked && let Some(name) = selected_name.clone() {
+        return Some(ProfileAction::Load { name });
     }
     ui.same_line();
 
@@ -177,6 +213,7 @@ fn render_menu_contents(ui: &Ui, state: &mut ProfileBrowserState) -> Option<Prof
         }
         state.delete_target = state.selected_index;
         state.delete_timer = DELETE_CONFIRM_SECONDS;
+        state.delete_loaded_name_at_confirm = state.current_loaded_profile.clone();
     }
 
     let duplicate_allowed =
@@ -222,11 +259,11 @@ fn render_profile_list(ui: &Ui, state: &mut ProfileBrowserState) -> Option<Profi
     for index in 0..state.names.len() {
         let name = state.names[index].clone();
         let selected = state.selected_index == Some(index);
-        let preferred = state.preferred_profile.as_deref() == Some(name.as_str());
+        let currently_loaded = state.current_loaded_profile.as_deref() == Some(name.as_str());
         let default_profile = name == DEFAULT_PROFILE_NAME;
 
-        let preferred_color =
-            preferred.then(|| ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]));
+        let loaded_color =
+            currently_loaded.then(|| ui.push_style_color(StyleColor::Text, [0.0, 1.0, 0.0, 1.0]));
         let default_color =
             default_profile.then(|| ui.push_style_color(StyleColor::Text, [1.0, 0.54, 0.0, 1.0]));
         let mut action = None;
@@ -257,7 +294,7 @@ fn render_profile_list(ui: &Ui, state: &mut ProfileBrowserState) -> Option<Profi
             }
         }
         drop(default_color);
-        drop(preferred_color);
+        drop(loaded_color);
         if action.is_some() {
             return action;
         }
@@ -293,7 +330,7 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::{ProfileBrowserState, finish_rename};
-    use smu_profile::ProfileCatalog;
+    use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog};
 
     #[test]
     fn rename_validation_rejects_default_empty_and_duplicates() {
@@ -310,6 +347,42 @@ mod tests {
         state.edit_buffer = "Profile 2".to_owned();
         assert!(finish_rename(&mut state, 0, "Profile 1").is_none());
         assert_eq!(state.rename_error, "Name already exists.");
+    }
+
+    #[test]
+    fn expanded_selection_change_autosaves_only_after_first_selection_is_recorded() {
+        let mut state = ProfileBrowserState {
+            expanded: true,
+            names: vec!["Profile 1".to_owned(), "Profile 2".to_owned()],
+            selected_index: Some(0),
+            ..ProfileBrowserState::default()
+        };
+        assert!(!state.take_selection_autosave_request(Some("Profile 1")));
+        state.selected_index = Some(1);
+        assert!(state.take_selection_autosave_request(Some("Profile 1")));
+        assert!(!state.take_selection_autosave_request(Some("Profile 1")));
+        state.selected_index = Some(0);
+        assert!(!state.take_selection_autosave_request(Some(DEFAULT_PROFILE_NAME)));
+    }
+
+    #[test]
+    fn current_loaded_profile_overrides_metadata_preference_for_selection_and_delete_guard() {
+        let mut state = ProfileBrowserState::default();
+        state.set_current_loaded_profile(Some("Profile 1"));
+        state.set_catalog(
+            Some(ProfileCatalog {
+                names: vec!["Profile 1".to_owned(), "Profile 2".to_owned()],
+                preferred_profile: Some("Profile 2".to_owned()),
+                loaded_from_backup: false,
+            }),
+            None,
+        );
+        assert_eq!(state.selected_name().map(String::as_str), Some("Profile 1"));
+        state.delete_target = Some(0);
+        state.delete_timer = 0.7;
+        state.delete_loaded_name_at_confirm = Some("Profile 1".to_owned());
+        state.set_current_loaded_profile(Some("Profile 2"));
+        assert!(state.delete_target.is_none());
     }
 
     #[test]

@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::CString;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
@@ -42,6 +44,50 @@ impl Default for WallWalkUiState {
 }
 
 impl WallWalkUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_wallkey") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "iswallwalkswitch") {
+            self.hold_mode = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "wallwalktoggleside") {
+            self.left_flick = v;
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "RobloxWallWalkValueChar") {
+            v.clone_into(&mut self.pixel_text);
+            if let Ok(n) = v.parse::<i32>() {
+                self.strength_x = n;
+                self.strength_y = n.wrapping_neg();
+            }
+        }
+        if let Some(v) =
+            crate::profile_adapter::string_value(payload, "RobloxWallWalkValueDelayChar")
+        {
+            v.clone_into(&mut self.tail_delay_text);
+            if let Ok(n) = v.parse::<i32>() {
+                self.tail_delay_us = n;
+            }
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_wallkey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "iswallwalkswitch", self.hold_mode);
+        crate::profile_adapter::insert_bool(overlay, "wallwalktoggleside", self.left_flick);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "RobloxWallWalkValueChar",
+            self.pixel_text.clone(),
+        );
+        crate::profile_adapter::insert_i32(overlay, "RobloxWallWalkValueDelay", self.tail_delay_us);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "RobloxWallWalkValueDelayChar",
+            self.tail_delay_text.clone(),
+        );
+    }
+
     #[allow(clippy::cast_possible_truncation)] // Mirrors C++ round()/int calibration behavior.
     pub fn sync_global_calibration(&mut self, sensitivity: &str, cam_fix: bool, revision: u64) {
         if self.applied_global_revision == revision {

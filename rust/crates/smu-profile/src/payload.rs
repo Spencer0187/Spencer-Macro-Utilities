@@ -105,6 +105,46 @@ impl PreservedProfilePayload {
         &self.normalized
     }
 
+    /// Apply a validated batch overlay while preserving every untouched raw key/value.
+    ///
+    /// Validation and normalization run once after the whole batch is merged so legacy char-buffer
+    /// precedence remains identical to C++ `ApplyProfileData`.
+    #[must_use]
+    pub fn with_overlay(&self, overlay: &Map<String, Value>) -> Option<Self> {
+        self.with_overlay_and_removals(overlay, &[])
+    }
+
+    /// Apply a validated batch overlay while deleting keys the C++ serializer would omit.
+    #[must_use]
+    pub fn with_overlay_and_removals(
+        &self,
+        overlay: &Map<String, Value>,
+        removals: &[&str],
+    ) -> Option<Self> {
+        let mut raw = self.raw.clone();
+        for key in removals {
+            raw.remove(*key);
+        }
+        for (key, value) in overlay {
+            raw.insert(key.clone(), value.clone());
+        }
+        Self::from_value(&Value::Object(raw))
+    }
+
+    /// Materialize the full C++ serializer surface after applying this payload's compatibility
+    /// semantics, while restoring the real imported-script array that the deterministic oracle stubs.
+    ///
+    /// This is used when converting a legacy flat document: C++ deserializes sparse legacy state into
+    /// process globals and then serializes the entire known settings surface into `Profile 1`.
+    #[must_use]
+    pub fn materialized_serializer_payload(&self) -> Self {
+        let mut raw = self.normalized.snapshot().as_object().cloned().unwrap_or_default();
+        if let Some(imported_scripts) = self.raw.get("imported_scripts") {
+            raw.insert("imported_scripts".to_owned(), imported_scripts.clone());
+        }
+        Self::from_value(&Value::Object(raw)).unwrap_or_else(Self::cpp_default)
+    }
+
     /// Clone the preservation baseline before app-owned live fields are overlaid.
     #[must_use]
     pub fn raw_snapshot(&self) -> Value {
@@ -885,7 +925,7 @@ mod tests {
 
     use super::{PreservedProfilePayload, ProfilePayloadState, validate};
     use serde::Deserialize;
-    use serde_json::Value;
+    use serde_json::{Value, json};
 
     #[derive(Debug, Deserialize)]
     struct Fixture {
@@ -930,6 +970,24 @@ mod tests {
     }
 
     #[test]
+    fn materialized_serializer_payload_expands_legacy_known_fields_and_drops_unknowns() {
+        let scripts = json!([{"path":"legacy.lua","enabled":true}]);
+        let sparse = PreservedProfilePayload::from_value(&json!({
+            "ItemClipDelay": "77",
+            "clip_delay": 5,
+            "future_legacy_junk": {"drop": true},
+            "imported_scripts": scripts
+        }))
+        .expect("legacy-like sparse payload should validate");
+        let materialized = sparse.materialized_serializer_payload();
+        assert_eq!(materialized.raw_value("ItemClipDelay"), Some(&json!("77")));
+        assert_eq!(materialized.raw_value("clip_delay"), Some(&json!(77)));
+        assert_eq!(materialized.raw_value("future_legacy_junk"), None);
+        assert_eq!(materialized.raw_value("imported_scripts"), Some(&scripts));
+        assert!(materialized.raw_value("macrotoggled").is_some());
+    }
+
+    #[test]
     fn preserved_payload_keeps_unknown_keys_and_real_script_array() {
         let mut payload = ProfilePayloadState::default().snapshot();
         let object = payload.as_object_mut().expect("default payload object");
@@ -949,6 +1007,25 @@ mod tests {
             Some(&serde_json::json!([{"path": "/tmp/example.lua", "hotkey": 65}]))
         );
         assert_eq!(preserved.normalized_value("imported_scripts"), Some(&serde_json::json!([])));
+    }
+
+    #[test]
+    fn preserved_payload_batch_overlay_keeps_unknowns_and_reapplies_char_precedence() {
+        let mut payload = ProfilePayloadState::default().snapshot();
+        payload
+            .as_object_mut()
+            .expect("default payload object")
+            .insert("future_key".to_owned(), serde_json::json!({"keep": 1}));
+        let preserved = PreservedProfilePayload::from_value(&payload)
+            .expect("valid payload should create preservation wrapper");
+        let overlay = serde_json::Map::from_iter([
+            ("desync_slot".to_owned(), serde_json::json!(2)),
+            ("ItemDesyncSlot".to_owned(), serde_json::json!("9")),
+        ]);
+        let updated = preserved.with_overlay(&overlay).expect("valid overlay should apply");
+        assert_eq!(updated.raw_value("future_key"), Some(&serde_json::json!({"keep": 1})));
+        assert_eq!(updated.raw_value("desync_slot"), Some(&serde_json::json!(2)));
+        assert_eq!(updated.normalized_value("desync_slot"), Some(&serde_json::json!(9)));
     }
 
     #[test]

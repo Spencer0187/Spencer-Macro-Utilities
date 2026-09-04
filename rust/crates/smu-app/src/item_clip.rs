@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -32,6 +34,41 @@ impl Default for ItemClipUiState {
 }
 
 impl ItemClipUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_clipkey") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "isitemclipswitch") {
+            self.hold_mode = v;
+        }
+        if let Some(v) = crate::profile_adapter::i32_value(payload, "clip_slot") {
+            self.slot = v;
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "ItemClipSlot") {
+            v.clone_into(&mut self.slot_text);
+            if let Ok(n) = v.parse::<i32>() {
+                self.slot = n;
+            }
+        }
+        if let Some(v) = crate::profile_adapter::i32_value(payload, "clip_delay") {
+            self.delay_ms = v;
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "ItemClipDelay") {
+            v.clone_into(&mut self.delay_text);
+            if let Ok(n) = v.parse::<i32>() {
+                self.delay_ms = n;
+            }
+        }
+    }
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_clipkey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "isitemclipswitch", self.hold_mode);
+        crate::profile_adapter::insert_i32(overlay, "clip_slot", self.slot);
+        crate::profile_adapter::insert_string(overlay, "ItemClipSlot", self.slot_text.clone());
+        crate::profile_adapter::insert_i32(overlay, "clip_delay", self.delay_ms);
+        crate::profile_adapter::insert_string(overlay, "ItemClipDelay", self.delay_text.clone());
+    }
+
     #[must_use]
     pub const fn controller_settings(
         &self,

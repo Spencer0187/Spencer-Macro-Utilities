@@ -1,6 +1,8 @@
 use crate::multi_instance::MultiInstanceState;
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value, json};
 use smu_core::{Hotkey, KeyCode};
+use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::{CStr, CString};
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
@@ -66,6 +68,13 @@ impl SpamKeyUiState {
         self.instances.tick_remove_confirmation(delta_seconds, section_selected);
     }
 
+    pub(crate) fn set_base_section_flags(&mut self, enabled: bool, disable_outside: bool) {
+        if let Some(instance) = self.instances.instances_mut().first_mut() {
+            instance.enabled = enabled;
+            instance.disable_outside_target = disable_outside;
+        }
+    }
+
     #[must_use]
     pub fn first_enabled(&self) -> bool {
         self.instances().first().is_some_and(|instance| instance.enabled)
@@ -74,6 +83,107 @@ impl SpamKeyUiState {
     #[must_use]
     pub fn enabled_flags(&self) -> Vec<bool> {
         self.instances().iter().map(|instance| instance.enabled).collect()
+    }
+
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        // C++ clears the instance deque but preserves flat globals before rebuilding instances[0].
+        // The current base instance is the Rust owner of those flat-global values, so omitted profile
+        // fields must retain it while extra instances are rebuilt from the selected snapshot.
+        let mut base = self.instances().first().cloned().unwrap_or_default();
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_leftbracket") {
+            base.trigger = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_spamkey") {
+            base.output = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "isspamswitch") {
+            base.hold_mode = value;
+        }
+        if let Some(value) = crate::profile_adapter::f32_value(payload, "spam_delay") {
+            base.spam_delay = value;
+        }
+        if let Some(value) = crate::profile_adapter::i32_value(payload, "real_delay") {
+            base.real_delay_ms = value;
+        }
+        if let Some(value) = crate::profile_adapter::string_value(payload, "SpamDelay") {
+            value.clone_into(&mut base.delay_text);
+        }
+        if let Some(value) = crate::profile_adapter::section_flag(payload, "section_toggles", 11) {
+            base.enabled = value;
+        }
+        if let Some(value) =
+            crate::profile_adapter::section_flag(payload, "disable_outside_roblox", 11)
+        {
+            base.disable_outside_target = value;
+        }
+
+        let mut instances = vec![base];
+        if let Some(extras) = payload.raw_value("extra_spamkey_instances").and_then(Value::as_array)
+        {
+            for extra in extras {
+                let Some(object) = extra.as_object() else {
+                    continue;
+                };
+                let mut instance = SpamKeyUiInstance::default();
+                if let Some(value) = crate::profile_adapter::object_u32(object, "vk_trigger") {
+                    instance.trigger = Hotkey::new(value);
+                }
+                if let Some(value) = crate::profile_adapter::object_u32(object, "vk_spamkey") {
+                    instance.output = Hotkey::new(value);
+                }
+                if let Some(value) = crate::profile_adapter::object_f32(object, "spam_delay") {
+                    instance.spam_delay = value;
+                }
+                if let Some(value) = crate::profile_adapter::object_i32(object, "real_delay") {
+                    instance.real_delay_ms = value;
+                }
+                if let Some(value) = crate::profile_adapter::object_string(object, "SpamDelay") {
+                    value.clone_into(&mut instance.delay_text);
+                }
+                if let Some(value) = crate::profile_adapter::object_bool(object, "isspamswitch") {
+                    instance.hold_mode = value;
+                }
+                instance.disable_outside_target =
+                    crate::profile_adapter::object_bool(object, "disable_outside_roblox")
+                        .unwrap_or(instances[0].disable_outside_target);
+                instance.enabled =
+                    crate::profile_adapter::object_bool(object, "section_enabled").unwrap_or(false);
+                instances.push(instance);
+            }
+        }
+        self.instances.replace_instances(instances, 0);
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        let Some(base) = self.instances().first() else {
+            return;
+        };
+        crate::profile_adapter::insert_u32(overlay, "vk_leftbracket", base.trigger.raw());
+        crate::profile_adapter::insert_u32(overlay, "vk_spamkey", base.output.raw());
+        crate::profile_adapter::insert_bool(overlay, "isspamswitch", base.hold_mode);
+        crate::profile_adapter::insert_f32(overlay, "spam_delay", base.spam_delay);
+        crate::profile_adapter::insert_i32(overlay, "real_delay", base.real_delay_ms);
+        crate::profile_adapter::insert_string(overlay, "SpamDelay", base.delay_text.clone());
+        let extras: Vec<Value> = self
+            .instances()
+            .iter()
+            .skip(1)
+            .map(|instance| {
+                json!({
+                    "vk_trigger": instance.trigger.raw(),
+                    "vk_spamkey": instance.output.raw(),
+                    "spam_delay": instance.spam_delay,
+                    "real_delay": instance.real_delay_ms,
+                    "SpamDelay": instance.delay_text,
+                    "isspamswitch": instance.hold_mode,
+                    "disable_outside_roblox": instance.disable_outside_target,
+                    "section_enabled": instance.enabled
+                })
+            })
+            .collect();
+        if !extras.is_empty() {
+            overlay.insert("extra_spamkey_instances".to_owned(), Value::Array(extras));
+        }
     }
 
     #[must_use]

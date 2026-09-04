@@ -95,6 +95,15 @@ impl<T> MultiInstanceState<T> {
 }
 
 impl<T: Default> MultiInstanceState<T> {
+    pub fn replace_instances(&mut self, mut instances: Vec<T>, selected: usize) {
+        if instances.is_empty() {
+            instances.push(T::default());
+        }
+        self.instances = instances;
+        self.selected = selected.min(self.instances.len() - 1);
+        self.remove_confirmation = None;
+    }
+
     pub fn add_default(&mut self) {
         self.instances.push(T::default());
         self.remove_confirmation = None;
@@ -146,6 +155,17 @@ mod tests {
         let _ = state.click_remove();
         state.tick_remove_confirmation(0.1, false);
         assert!(!state.removal_is_armed());
+    }
+
+    #[test]
+    fn profile_replacement_keeps_one_instance_and_clamps_selection() {
+        let mut state = MultiInstanceState::<i32>::default();
+        state.replace_instances(vec![10, 20], 99);
+        assert_eq!(state.instances(), [10, 20]);
+        assert_eq!(state.selected_index(), 1);
+        state.replace_instances(Vec::new(), 5);
+        assert_eq!(state.instances(), [0]);
+        assert_eq!(state.selected_index(), 0);
     }
 
     #[test]

@@ -14,7 +14,13 @@ use std::time::{Duration, Instant};
 
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
-use sdl3::{event::Event, keyboard::Keycode, video::GLProfile};
+use sdl3::{
+    event::Event,
+    keyboard::Keycode,
+    video::{GLProfile, Window, WindowPos},
+};
+use serde_json::{Map, Value};
+use smu_profile::payload::PreservedProfilePayload;
 
 #[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
@@ -76,6 +82,7 @@ mod parity;
 mod press_key;
 #[cfg(target_os = "linux")]
 mod press_key_runtime;
+mod profile_adapter;
 mod profile_browser;
 mod profile_service;
 #[cfg(target_os = "linux")]
@@ -122,11 +129,430 @@ const GLSL_VERSION: &str = "#version 150";
 #[cfg(not(target_os = "macos"))]
 const GLSL_VERSION: &str = "#version 130";
 
-fn capture_dimension(variable: &str, minimum: u32) -> u32 {
-    std::env::var(variable)
-        .ok()
-        .and_then(|value| value.parse::<u32>().ok())
-        .map_or(minimum, |value| value.max(minimum))
+fn initial_profile_dimension(
+    environment_variable: &str,
+    minimum: u32,
+    payload: Option<&PreservedProfilePayload>,
+    key: &str,
+) -> u32 {
+    if let Some(value) =
+        std::env::var(environment_variable).ok().and_then(|value| value.parse::<u32>().ok())
+    {
+        return value.max(minimum);
+    }
+    payload
+        .and_then(|payload| crate::profile_adapter::i32_value(payload, key))
+        .and_then(|value| u32::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(minimum)
+        .max(minimum)
+}
+
+fn apply_profile_window_position(window: &mut Window, payload: &PreservedProfilePayload) {
+    let current = window.position();
+    let x = crate::profile_adapter::i32_value(payload, "WindowPosX").unwrap_or(current.0);
+    let y = crate::profile_adapter::i32_value(payload, "WindowPosY").unwrap_or(current.1);
+    if x != 0 || y != 0 {
+        let _ = window.set_position(WindowPos::Positioned(x), WindowPos::Positioned(y));
+    }
+}
+
+fn set_window_always_on_top(window: &Window, enabled: bool) -> bool {
+    // SAFETY: `window.raw()` is the live SDL3 window owned by this main thread; SDL documents
+    // `SDL_SetWindowAlwaysOnTop` as a synchronous window-property operation on that handle.
+    unsafe { sdl3::sys::video::SDL_SetWindowAlwaysOnTop(window.raw(), enabled) }
+}
+
+fn apply_shell_window_style(window: &mut Window, shell_state: &shell::ShellState) {
+    let _ = window.set_opacity((shell_state.opacity_percent() / 100.0).clamp(0.0, 1.0));
+    let _ = set_window_always_on_top(window, shell_state.always_on_top());
+}
+
+fn live_profile_payload(
+    shell_state: &shell::ShellState,
+    baseline: &PreservedProfilePayload,
+    window: &Window,
+    imported_scripts: Option<Value>,
+) -> Option<PreservedProfilePayload> {
+    let shell_payload = shell_state.overlay_profile_payload(baseline)?;
+    let mut overlay = Map::new();
+    let (window_x, window_y) = window.position();
+    let (window_width, window_height) = window.size();
+    crate::profile_adapter::insert_i32(&mut overlay, "WindowPosX", window_x);
+    crate::profile_adapter::insert_i32(&mut overlay, "WindowPosY", window_y);
+    crate::profile_adapter::insert_u32(&mut overlay, "screen_width", window_width);
+    crate::profile_adapter::insert_u32(&mut overlay, "screen_height", window_height);
+    if let Some(imported_scripts) = imported_scripts {
+        overlay.insert("imported_scripts".to_owned(), imported_scripts);
+    }
+    shell_payload.with_overlay(&overlay)
+}
+
+fn baseline_for_profile_save(
+    service: &profile_service::ProfileBrowserService,
+    name: &str,
+) -> PreservedProfilePayload {
+    service
+        .current_payload()
+        .cloned()
+        .or_else(|| service.load_payload(name))
+        .unwrap_or_else(PreservedProfilePayload::cpp_default)
+}
+
+fn save_live_profile(
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+    name: &str,
+    imported_scripts: Option<Value>,
+) -> Option<PreservedProfilePayload> {
+    if name.is_empty() || name == smu_profile::DEFAULT_PROFILE_NAME {
+        return None;
+    }
+    let baseline = baseline_for_profile_save(service, name);
+    let payload = live_profile_payload(shell_state, &baseline, window, imported_scripts)?;
+    if !service.save_payload(name, &payload) {
+        return None;
+    }
+    service.mark_loaded(name.to_owned(), payload.clone());
+    Some(payload)
+}
+
+fn save_current_profile_before_replacement(
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+    imported_scripts: Option<Value>,
+) -> bool {
+    let Some(current_name) = service.current_name().map(str::to_owned) else {
+        return true;
+    };
+    let Some(current_payload) = service.current_payload().cloned() else {
+        return true;
+    };
+    if current_name != smu_profile::DEFAULT_PROFILE_NAME {
+        return save_live_profile(service, shell_state, window, &current_name, imported_scripts)
+            .is_some();
+    }
+
+    let Some(live_payload) =
+        live_profile_payload(shell_state, &current_payload, window, imported_scripts)
+    else {
+        return false;
+    };
+    let promoted_name = service.next_profile_name();
+    if !service.save_payload(&promoted_name, &live_payload) {
+        return false;
+    }
+    service.mark_loaded(promoted_name, live_payload);
+    true
+}
+
+fn save_profiles_now(
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+    imported_scripts: Option<Value>,
+) -> bool {
+    if service.current_name() == Some(smu_profile::DEFAULT_PROFILE_NAME) {
+        let Some(current_payload) = service.current_payload().cloned() else {
+            return false;
+        };
+        let Some(live_payload) =
+            live_profile_payload(shell_state, &current_payload, window, imported_scripts.clone())
+        else {
+            return false;
+        };
+        let promoted_name = service.next_profile_name();
+        if !service.save_payload(&promoted_name, &live_payload) {
+            return false;
+        }
+        service.mark_loaded(promoted_name, live_payload);
+    }
+    let Some(current_name) = service.current_name().map(str::to_owned) else {
+        return false;
+    };
+    if current_name == smu_profile::DEFAULT_PROFILE_NAME {
+        return false;
+    }
+    save_live_profile(service, shell_state, window, &current_name, imported_scripts).is_some()
+}
+
+#[derive(Clone, Debug)]
+enum ProfileActionOutcome {
+    None,
+    Saved(PreservedProfilePayload),
+    Loaded(PreservedProfilePayload),
+}
+
+fn handle_profile_action(
+    action: &profile_browser::ProfileAction,
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    window: &Window,
+    imported_scripts: Option<Value>,
+) -> ProfileActionOutcome {
+    match action {
+        profile_browser::ProfileAction::SaveTo { name } => {
+            let Some(payload) =
+                save_live_profile(service, shell_state, window, name, imported_scripts)
+            else {
+                return ProfileActionOutcome::None;
+            };
+            service.refresh_selected(shell_state.profile_browser_mut(), Some(name));
+            ProfileActionOutcome::Saved(payload)
+        }
+        profile_browser::ProfileAction::Load { name } => {
+            if !save_current_profile_before_replacement(
+                service,
+                shell_state,
+                window,
+                imported_scripts,
+            ) {
+                return ProfileActionOutcome::None;
+            }
+            let Some(payload) = service.load_payload(name) else {
+                return ProfileActionOutcome::None;
+            };
+            shell_state.apply_profile_payload(&payload);
+            service.mark_loaded(name.clone(), payload.clone());
+            service.refresh_selected(shell_state.profile_browser_mut(), Some(name));
+            ProfileActionOutcome::Loaded(payload)
+        }
+        profile_browser::ProfileAction::Duplicate { source }
+            if source == smu_profile::DEFAULT_PROFILE_NAME =>
+        {
+            let new_name = service.next_profile_name();
+            let Some(payload) =
+                save_live_profile(service, shell_state, window, &new_name, imported_scripts)
+            else {
+                return ProfileActionOutcome::None;
+            };
+            service.refresh_selected(shell_state.profile_browser_mut(), Some(&new_name));
+            ProfileActionOutcome::Saved(payload)
+        }
+        profile_browser::ProfileAction::Duplicate { source } => {
+            if !save_current_profile_before_replacement(
+                service,
+                shell_state,
+                window,
+                imported_scripts,
+            ) {
+                return ProfileActionOutcome::None;
+            }
+            let Some(new_name) = service.duplicate_profile(source) else {
+                return ProfileActionOutcome::None;
+            };
+            let Some(payload) = service.load_payload(&new_name) else {
+                return ProfileActionOutcome::None;
+            };
+            shell_state.apply_profile_payload(&payload);
+            service.mark_loaded(new_name.clone(), payload.clone());
+            service.refresh_selected(shell_state.profile_browser_mut(), Some(&new_name));
+            ProfileActionOutcome::Loaded(payload)
+        }
+        _ => {
+            service.handle_action(action, shell_state.profile_browser_mut());
+            ProfileActionOutcome::None
+        }
+    }
+}
+
+#[cfg(test)]
+mod profile_orchestration_tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+    use serde_json::json;
+
+    struct TestDirectory {
+        path: PathBuf,
+    }
+
+    impl TestDirectory {
+        fn new(label: &str) -> Self {
+            static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let counter = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let path = std::env::temp_dir()
+                .join(format!("smu-app-startup-{label}-{}-{counter}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).expect("startup test directory");
+            Self { path }
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn initialize_at(path: PathBuf) -> (shell::ShellState, profile_service::ProfileBrowserService) {
+        initialize_profile_state_with_service(
+            shell::ShellState::default(),
+            profile_service::ProfileBrowserService::from_path_for_testing(path),
+        )
+    }
+
+    #[test]
+    fn missing_startup_creates_profile1_and_read_only_default_from_cpp_snapshot() {
+        let temporary = TestDirectory::new("missing");
+        let path = temporary.path.join("settings.json");
+        let (_state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 1"));
+        assert_eq!(
+            service.current_payload().map(PreservedProfilePayload::raw_snapshot),
+            Some(PreservedProfilePayload::cpp_default().raw_snapshot())
+        );
+        let document: Value = serde_json::from_slice(
+            &std::fs::read(&path).expect("startup settings should be created"),
+        )
+        .expect("startup settings should be JSON");
+        assert_eq!(
+            document[smu_profile::METADATA_KEY][smu_profile::LAST_ACTIVE_PROFILE_KEY],
+            json!("Profile 1")
+        );
+        assert_eq!(document["Profile 1"], PreservedProfilePayload::cpp_default().raw_snapshot());
+        assert_eq!(
+            document[smu_profile::DEFAULT_PROFILE_NAME],
+            PreservedProfilePayload::cpp_default().raw_snapshot()
+        );
+    }
+
+    #[test]
+    fn legacy_startup_materializes_profile1_drops_unknown_legacy_root_and_preserves_scripts() {
+        let temporary = TestDirectory::new("legacy");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "ItemClipDelay": "77",
+                "clip_delay": 5,
+                "future_legacy_junk": {"drop": true},
+                "imported_scripts": [{"path": "legacy.lua", "enabled": true}]
+            }))
+            .expect("legacy fixture should serialize"),
+        )
+        .expect("legacy fixture should write");
+
+        let (_state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 1"));
+        let payload = service.current_payload().expect("legacy profile should be current");
+        assert_eq!(payload.raw_value("ItemClipDelay"), Some(&json!("77")));
+        assert_eq!(payload.raw_value("clip_delay"), Some(&json!(77)));
+        assert_eq!(payload.raw_value("future_legacy_junk"), None);
+        assert_eq!(
+            payload.raw_value("imported_scripts"),
+            Some(&json!([{"path":"legacy.lua","enabled":true}]))
+        );
+        let document: Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("converted settings should read"))
+                .expect("converted settings should be JSON");
+        assert!(document.get("ItemClipDelay").is_none());
+        assert!(document.get("future_legacy_junk").is_none());
+        assert!(document["Profile 1"].is_object());
+        assert!(document[smu_profile::DEFAULT_PROFILE_NAME].is_object());
+    }
+
+    #[test]
+    fn structured_startup_loads_preferred_profile_preserves_unknowns_and_refreshes_default() {
+        let temporary = TestDirectory::new("structured");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "_metadata": {"last_active_profile": "Profile 2", "future_meta": 8},
+                "root_future": {"keep": true},
+                "Profile 2": {"vk_f5": 0x70, "future_profile": [1,2,3]}
+            }))
+            .expect("structured fixture should serialize"),
+        )
+        .expect("structured fixture should write");
+
+        let (state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 2"));
+        assert_eq!(state.item_desync_controller_settings().hotkey.raw(), 0x70);
+        assert_eq!(
+            service.current_payload().and_then(|payload| payload.raw_value("future_profile")),
+            Some(&json!([1, 2, 3]))
+        );
+        let document: Value =
+            serde_json::from_slice(&std::fs::read(&path).expect("structured settings should read"))
+                .expect("structured settings should be JSON");
+        assert_eq!(document["root_future"], json!({"keep": true}));
+        assert_eq!(document["_metadata"]["future_meta"], json!(8));
+        assert_eq!(document["_metadata"]["last_active_profile"], json!("Profile 2"));
+        assert!(document[smu_profile::DEFAULT_PROFILE_NAME].is_object());
+    }
+
+    #[test]
+    fn structured_container_without_resume_profile_creates_profile1_from_defaults() {
+        let temporary = TestDirectory::new("empty-structured");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({"_metadata": {}, "root_future": 9}))
+                .expect("empty structured fixture should serialize"),
+        )
+        .expect("empty structured fixture should write");
+
+        let (_state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 1"));
+        let document: Value = serde_json::from_slice(
+            &std::fs::read(&path).expect("created structured settings should read"),
+        )
+        .expect("created structured settings should be JSON");
+        assert_eq!(document["root_future"], json!(9));
+        assert_eq!(document["_metadata"]["last_active_profile"], json!("Profile 1"));
+        assert!(document["Profile 1"].is_object());
+        assert!(document[smu_profile::DEFAULT_PROFILE_NAME].is_object());
+    }
+
+    #[test]
+    fn unreadable_startup_keeps_bytes_and_only_sets_in_memory_profile1_name() {
+        let temporary = TestDirectory::new("unreadable");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(&path, b"{ broken").expect("unreadable fixture should write");
+        let before = std::fs::read(&path).expect("unreadable fixture bytes");
+
+        let (_state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 1"));
+        assert!(service.current_payload().is_none());
+        assert_eq!(std::fs::read(&path).expect("unreadable fixture should remain"), before);
+    }
+
+    #[test]
+    fn parity_startup_is_pathless_and_uses_default_profile_identity() {
+        let (_state, service) = initial_profile_state(Some("lag-switch-linux-minimum"));
+        assert_eq!(service.current_name(), Some(smu_profile::DEFAULT_PROFILE_NAME));
+        assert!(service.current_payload().is_some());
+    }
+
+    #[test]
+    fn save_to_other_profile_uses_current_live_payload_as_preservation_baseline() {
+        let temporary =
+            std::env::temp_dir().join(format!("smu-app-profile-baseline-{}", std::process::id()));
+        let _ = std::fs::remove_file(&temporary);
+        std::fs::write(
+            &temporary,
+            serde_json::to_vec(&json!({
+                "_metadata": {"last_active_profile": "Profile A"},
+                "Profile A": {"future_only": "from-a"},
+                "Profile B": {"future_only": "from-b"}
+            }))
+            .expect("fixture should serialize"),
+        )
+        .expect("fixture should write");
+        let current = smu_profile::profile_payload_from_file(&temporary, "Profile A")
+            .expect("current payload");
+        let mut service =
+            profile_service::ProfileBrowserService::from_path_for_testing(temporary.clone());
+        service.mark_loaded("Profile A".to_owned(), current);
+        let baseline = baseline_for_profile_save(&service, "Profile B");
+        assert_eq!(baseline.raw_value("future_only"), Some(&json!("from-a")));
+        let _ = std::fs::remove_file(&temporary);
+        let _ = std::fs::remove_file(format!("{}.bak", temporary.display()));
+    }
 }
 
 fn configure_gl_attributes(video: &sdl3::VideoSubsystem) {
@@ -240,6 +666,7 @@ struct LinuxRuntimeServices {
     wayland_settings_busy: Arc<AtomicBool>,
     wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
     input_service: Arc<EvdevUinputInputDevice>,
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     script_manager: Arc<ScriptManager>,
     script_runtime_controller: Option<script_runtime::ScriptRuntimeController>,
     script_dialog_busy: Arc<AtomicBool>,
@@ -347,16 +774,14 @@ fn start_lag_switch_controller(
 
 #[cfg(target_os = "linux")]
 fn start_press_key_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
-    process_discovery: &Arc<ProcDiscovery>,
-    process_foreground: &Arc<ProcForegroundProcess>,
+    platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
 ) -> Option<press_key_runtime::PressKeyController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
         press_key_runtime::PressKeyController::start(
             input,
             discovery,
@@ -519,16 +944,14 @@ fn start_ledge_bounce_controller(
 
 #[cfg(target_os = "linux")]
 fn start_spam_key_controller(
-    input_ready: bool,
-    input_service: &Arc<EvdevUinputInputDevice>,
-    process_discovery: &Arc<ProcDiscovery>,
-    process_foreground: &Arc<ProcForegroundProcess>,
+    platform: &LinuxPlatformServices,
     shell_state: &shell::ShellState,
 ) -> Option<spam_key_runtime::SpamKeyController> {
-    input_ready.then(|| {
-        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+    platform.input_ready.then(|| {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> =
+            platform.process_foreground.clone();
         spam_key_runtime::SpamKeyController::start(
             input,
             discovery,
@@ -609,6 +1032,7 @@ fn start_script_services(
     platform: &LinuxPlatformServices,
     lag_switch_backend: &Arc<LinuxLagSwitchBackend>,
     roblox_log: Arc<dyn RobloxLogSource>,
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
 ) -> (Arc<ScriptManager>, Option<script_runtime::ScriptRuntimeController>) {
     let services = ScriptServices {
@@ -618,7 +1042,7 @@ fn start_script_services(
         process_control: Some(platform.process_control.clone()),
         network: Some(lag_switch_backend.clone()),
         roblox_log: Some(roblox_log),
-        saved_settings: None,
+        saved_settings: Some(saved_settings),
         logger: None,
     };
     let (selector, take_all_process_ids) = shell_state.script_process_target();
@@ -644,14 +1068,22 @@ fn start_script_services(
 
 #[cfg(target_os = "linux")]
 impl LinuxRuntimeServices {
-    fn new(shell_state: &shell::ShellState) -> Self {
+    fn new(
+        shell_state: &shell::ShellState,
+        saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    ) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend =
             Arc::new(LinuxLagSwitchBackend::new(Some(Arc::clone(&roblox_log))));
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let (freeze_authorization, platform) = create_linux_platform_services();
-        let (script_manager, script_runtime_controller) =
-            start_script_services(&platform, &lag_switch_backend, roblox_log, shell_state);
+        let (script_manager, script_runtime_controller) = start_script_services(
+            &platform,
+            &lag_switch_backend,
+            roblox_log,
+            Arc::clone(&saved_settings),
+            shell_state,
+        );
         let hhj_active = Arc::new(AtomicBool::new(false));
         let bunnyhop_controller = start_bunnyhop_controller(&platform, shell_state);
         let hhj_controller = start_hhj_controller(&platform, Arc::clone(&hhj_active), shell_state);
@@ -668,20 +1100,8 @@ impl LinuxRuntimeServices {
         let item_clip_controller = start_item_clip_controller(&platform, shell_state);
         let (item_unequip_controller, laugh_clip_controller) =
             start_chat_macro_controllers(&platform, shell_state);
-        let press_key_controller = start_press_key_controller(
-            platform.input_ready,
-            &platform.input_service,
-            &platform.process_discovery,
-            &platform.process_foreground,
-            shell_state,
-        );
-        let spam_key_controller = start_spam_key_controller(
-            platform.input_ready,
-            &platform.input_service,
-            &platform.process_discovery,
-            &platform.process_foreground,
-            shell_state,
-        );
+        let press_key_controller = start_press_key_controller(&platform, shell_state);
+        let spam_key_controller = start_spam_key_controller(&platform, shell_state);
         let ledge_bounce_controller = start_ledge_bounce_controller(&platform, shell_state);
         let speedglitch_controller = start_speedglitch_controller(
             platform.input_ready,
@@ -724,6 +1144,7 @@ impl LinuxRuntimeServices {
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
             wayland_settings_worker: Mutex::new(None),
             input_service: platform.input_service,
+            saved_settings,
             script_manager,
             script_runtime_controller,
             script_dialog_busy: Arc::new(AtomicBool::new(false)),
@@ -1113,6 +1534,23 @@ impl LinuxRuntimeServices {
         }
     }
 
+    fn profile_script_state(&self) -> serde_json::Value {
+        self.script_manager.serialize()
+    }
+
+    fn apply_profile_script_state(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
+        self.saved_settings.replace(payload);
+        let scripts = payload
+            .raw_value("imported_scripts")
+            .cloned()
+            .unwrap_or_else(|| serde_json::Value::Array(Vec::new()));
+        self.script_manager.deserialize(&scripts);
+    }
+
+    fn update_saved_settings(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
+        self.saved_settings.replace(payload);
+    }
+
     fn shutdown(&self) {
         if let Some(controller) = self.script_runtime_controller.as_ref() {
             controller.stop();
@@ -1178,19 +1616,310 @@ impl LinuxRuntimeServices {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn initial_profile_state(
+    parity_case: Option<&str>,
+) -> (shell::ShellState, profile_service::ProfileBrowserService) {
+    let shell_state = shell::ShellState::for_parity_case(parity_case);
+    let mut profile_service = profile_service::ProfileBrowserService::new(parity_case.is_some());
+    if parity_case.is_some() {
+        profile_service.mark_loaded(
+            smu_profile::DEFAULT_PROFILE_NAME.to_owned(),
+            PreservedProfilePayload::cpp_default(),
+        );
+        return (shell_state, profile_service);
+    }
+    initialize_profile_state_with_service(shell_state, profile_service)
+}
+
+fn initialize_profile_state_with_service(
+    mut shell_state: shell::ShellState,
+    mut profile_service: profile_service::ProfileBrowserService,
+) -> (shell::ShellState, profile_service::ProfileBrowserService) {
+    let default_payload = PreservedProfilePayload::cpp_default();
+    match profile_service.startup_source() {
+        smu_profile::StartupProfileSource::LegacyFlat { payload, .. } => {
+            shell_state.apply_profile_payload(&payload);
+            let materialized = payload.materialized_serializer_payload();
+            profile_service.mark_loaded("Profile 1".to_owned(), materialized.clone());
+            if profile_service.replace_legacy_with_profile("Profile 1", &materialized) {
+                let _ = profile_service.save_default_payload(&default_payload);
+            }
+        }
+        smu_profile::StartupProfileSource::Structured {
+            preferred_name: Some(name),
+            preferred_payload: Some(payload),
+            ..
+        } => {
+            shell_state.apply_profile_payload(&payload);
+            profile_service.mark_loaded(name, payload);
+            let _ = profile_service.save_default_payload(&default_payload);
+        }
+        smu_profile::StartupProfileSource::Missing
+        | smu_profile::StartupProfileSource::Structured { preferred_name: None, .. } => {
+            profile_service.mark_loaded("Profile 1".to_owned(), default_payload.clone());
+            if profile_service.save_payload("Profile 1", &default_payload) {
+                let _ = profile_service.save_default_payload(&default_payload);
+            }
+        }
+        smu_profile::StartupProfileSource::Structured {
+            preferred_name: Some(_),
+            preferred_payload: None,
+            ..
+        }
+        | smu_profile::StartupProfileSource::Unreadable
+        | smu_profile::StartupProfileSource::Unsupported { .. } => {
+            profile_service.mark_current_name_only("Profile 1".to_owned());
+        }
+    }
+    (shell_state, profile_service)
+}
+
+#[cfg(target_os = "linux")]
+fn initial_saved_settings(
+    profile_service: &profile_service::ProfileBrowserService,
+) -> Arc<profile_adapter::LiveSavedSettings> {
+    let settings = Arc::new(profile_adapter::LiveSavedSettings::default());
+    if let Some(payload) = profile_service.current_payload() {
+        settings.replace(payload);
+    }
+    settings
+}
+
+#[cfg(target_os = "linux")]
+fn maybe_autosave_profile_selection(
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    window: &Window,
+    linux_services: &LinuxRuntimeServices,
+) {
+    let should_save = shell_state
+        .profile_browser_mut()
+        .take_selection_autosave_request(profile_service.current_name());
+    if !should_save {
+        return;
+    }
+    let Some(current_name) = profile_service.current_name().map(str::to_owned) else {
+        return;
+    };
+    if let Some(payload) = save_live_profile(
+        profile_service,
+        shell_state,
+        window,
+        &current_name,
+        Some(linux_services.profile_script_state()),
+    ) {
+        linux_services.update_saved_settings(&payload);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn maybe_autosave_profile_selection(
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    window: &Window,
+) {
+    let should_save = shell_state
+        .profile_browser_mut()
+        .take_selection_autosave_request(profile_service.current_name());
+    if !should_save {
+        return;
+    }
+    let Some(current_name) = profile_service.current_name().map(str::to_owned) else {
+        return;
+    };
+    let _ = save_live_profile(profile_service, shell_state, window, &current_name, None);
+}
+
+#[cfg(target_os = "linux")]
+fn save_profiles_before_shutdown(
+    parity_case: Option<&str>,
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+    linux_services: &LinuxRuntimeServices,
+) {
+    if parity_case.is_none() {
+        let _ = save_profiles_now(
+            profile_service,
+            shell_state,
+            window,
+            Some(linux_services.profile_script_state()),
+        );
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn save_profiles_before_shutdown(
+    parity_case: Option<&str>,
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+) {
+    if parity_case.is_none() {
+        let _ = save_profiles_now(profile_service, shell_state, window, None);
+    }
+}
+
+fn initialize_sdl()
+-> Result<(sdl3::Sdl, sdl3::VideoSubsystem, sdl3::EventPump), Box<dyn std::error::Error>> {
     let sdl = sdl3::init()?;
     let video = sdl.video()?;
-    let mut events = sdl.event_pump()?;
-
+    let events = sdl.event_pump()?;
     enable_native_ime_ui();
     configure_gl_attributes(&video);
+    Ok((sdl, video, events))
+}
 
-    let window_width = capture_dimension("SMU_UI_CAPTURE_WIDTH", MINIMUM_WIDTH);
-    let window_height = capture_dimension("SMU_UI_CAPTURE_HEIGHT", MINIMUM_HEIGHT);
-    let mut window =
-        video.window(WINDOW_TITLE, window_width, window_height).opengl().resizable().build()?;
+fn create_initial_window(
+    video: &sdl3::VideoSubsystem,
+    parity_case: Option<&str>,
+    profile_service: &profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+) -> Result<Window, Box<dyn std::error::Error>> {
+    let startup_payload = profile_service.current_payload();
+    let width = initial_profile_dimension(
+        "SMU_UI_CAPTURE_WIDTH",
+        MINIMUM_WIDTH,
+        startup_payload,
+        "screen_width",
+    );
+    let height = initial_profile_dimension(
+        "SMU_UI_CAPTURE_HEIGHT",
+        MINIMUM_HEIGHT,
+        startup_payload,
+        "screen_height",
+    );
+    let mut window = video.window(WINDOW_TITLE, width, height).opengl().resizable().build()?;
     window.set_minimum_size(MINIMUM_WIDTH, MINIMUM_HEIGHT)?;
+    if parity_case.is_none()
+        && let Some(payload) = startup_payload
+    {
+        apply_profile_window_position(&mut window, payload);
+    }
+    apply_shell_window_style(&mut window, shell_state);
+    Ok(window)
+}
+
+struct UiLoopContext<'a> {
+    events: &'a mut sdl3::EventPump,
+    backend: &'a mut Sdl3OpenGl3Backend,
+    imgui: &'a mut Context,
+    window: &'a mut Window,
+    gl_context: &'a sdl3::video::GLContext,
+    capture_path: Option<&'a std::path::Path>,
+    shell_state: &'a mut shell::ShellState,
+    profile_service: &'a mut profile_service::ProfileBrowserService,
+    #[cfg(target_os = "linux")]
+    linux_services: &'a LinuxRuntimeServices,
+}
+
+fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
+    let UiLoopContext {
+        events,
+        backend,
+        imgui,
+        window,
+        gl_context,
+        capture_path,
+        shell_state,
+        profile_service,
+        #[cfg(target_os = "linux")]
+        linux_services,
+    } = context;
+
+    let mut rendered_frames = 0_u32;
+    'main: loop {
+        for event in events.poll_iter() {
+            backend.process_event(imgui, &event)?;
+            let should_quit = matches!(event, Event::Quit { .. })
+                || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
+                    && !shell_state.input_capture_active());
+            if should_quit {
+                break 'main;
+            }
+        }
+
+        backend.new_frame(imgui)?;
+        let frame = imgui.begin_frame();
+        let ui = frame.ui();
+        profile_service.prepare_shell(shell_state.profile_browser_mut());
+        #[cfg(target_os = "linux")]
+        linux_services.prepare_shell(shell_state);
+        #[cfg(target_os = "linux")]
+        maybe_autosave_profile_selection(profile_service, shell_state, window, linux_services);
+        #[cfg(not(target_os = "linux"))]
+        maybe_autosave_profile_selection(profile_service, shell_state, window);
+        let shell_action = shell::render(ui, shell_state);
+        if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
+            let imported_scripts = {
+                #[cfg(target_os = "linux")]
+                {
+                    Some(linux_services.profile_script_state())
+                }
+                #[cfg(not(target_os = "linux"))]
+                {
+                    None
+                }
+            };
+            let outcome = handle_profile_action(
+                profile_action,
+                profile_service,
+                shell_state,
+                window,
+                imported_scripts,
+            );
+            #[cfg(target_os = "linux")]
+            match outcome {
+                ProfileActionOutcome::Saved(payload) => {
+                    linux_services.update_saved_settings(&payload);
+                }
+                ProfileActionOutcome::Loaded(payload) => {
+                    linux_services.apply_profile_script_state(&payload);
+                }
+                ProfileActionOutcome::None => {}
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = outcome;
+        }
+        apply_shell_window_style(window, shell_state);
+        #[cfg(target_os = "linux")]
+        linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        #[cfg(not(target_os = "linux"))]
+        let _ = shell_action;
+
+        let prepared = backend.prepare(frame, || window.gl_make_current(gl_context))?;
+        // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
+        // come from that context's SDL video subsystem.
+        unsafe {
+            gl::ClearColor(0.08, 0.09, 0.10, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+        backend.render_main(prepared)?;
+        rendered_frames = rendered_frames.saturating_add(1);
+
+        if let Some(path) = capture_path
+            && rendered_frames >= 3
+        {
+            capture::save_back_buffer(window, path)?;
+            break 'main;
+        }
+        window.gl_swap_window();
+    }
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+    let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
+    let (mut shell_state, mut profile_service) = initial_profile_state(parity_case.as_deref());
+    #[cfg(target_os = "linux")]
+    let saved_settings = initial_saved_settings(&profile_service);
+
+    let (_sdl, video, mut events) = initialize_sdl()?;
+
+    let mut window =
+        create_initial_window(&video, parity_case.as_deref(), &profile_service, &shell_state)?;
+
     let gl_context = window.gl_create_context()?;
     window.gl_make_current(&gl_context)?;
     gl::load_with(|symbol| {
@@ -1207,63 +1936,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // the native Dear ImGui attachments that retain their pointers.
     let mut backend =
         unsafe { Sdl3OpenGl3Backend::init(&mut imgui, &window, &gl_context, GLSL_VERSION)? };
-    let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
-    let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
-    let mut shell_state = shell::ShellState::for_parity_case(parity_case.as_deref());
-    let profile_service = profile_service::ProfileBrowserService::new(parity_case.is_some());
     #[cfg(target_os = "linux")]
-    let linux_services = LinuxRuntimeServices::new(&shell_state);
-    let mut rendered_frames = 0_u32;
-
-    'main: loop {
-        for event in events.poll_iter() {
-            backend.process_event(&mut imgui, &event)?;
-            let should_quit = matches!(event, Event::Quit { .. })
-                || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
-                    && !shell_state.input_capture_active());
-            if should_quit {
-                break 'main;
-            }
-        }
-
-        backend.new_frame(&mut imgui)?;
-        let frame = imgui.begin_frame();
-        let ui = frame.ui();
-        profile_service.prepare_shell(shell_state.profile_browser_mut());
-        #[cfg(target_os = "linux")]
-        linux_services.prepare_shell(&mut shell_state);
-        let shell_action = shell::render(ui, &mut shell_state);
-        if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
-            profile_service.handle_action(profile_action, shell_state.profile_browser_mut());
-        }
-        #[cfg(target_os = "linux")]
-        linux_services.finish_shell(shell_action.as_ref(), &mut shell_state, &window);
-        #[cfg(not(target_os = "linux"))]
-        let _ = shell_action;
-
-        let prepared = backend.prepare(frame, || window.gl_make_current(&gl_context))?;
-
-        // Match the current C++ renderer's clear color. The root ImGui window normally covers the
-        // full client area, but keeping the same clear path avoids edge artifacts during parity
-        // captures and makes framebuffer state deterministic.
-        // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
-        // come from that context's SDL video subsystem.
-        unsafe {
-            gl::ClearColor(0.08, 0.09, 0.10, 1.0);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-        }
-        backend.render_main(prepared)?;
-        rendered_frames = rendered_frames.saturating_add(1);
-
-        if let Some(path) = capture_path.as_deref()
-            && rendered_frames >= 3
-        {
-            capture::save_back_buffer(&window, path)?;
-            break 'main;
-        }
-
-        window.gl_swap_window();
+    let linux_services = LinuxRuntimeServices::new(&shell_state, Arc::clone(&saved_settings));
+    #[cfg(target_os = "linux")]
+    if let Some(payload) = profile_service.current_payload() {
+        linux_services.apply_profile_script_state(payload);
     }
+    #[cfg(target_os = "linux")]
+    run_ui_loop(UiLoopContext {
+        events: &mut events,
+        backend: &mut backend,
+        imgui: &mut imgui,
+        window: &mut window,
+        gl_context: &gl_context,
+        capture_path: capture_path.as_deref(),
+        shell_state: &mut shell_state,
+        profile_service: &mut profile_service,
+        linux_services: &linux_services,
+    })?;
+    #[cfg(not(target_os = "linux"))]
+    run_ui_loop(UiLoopContext {
+        events: &mut events,
+        backend: &mut backend,
+        imgui: &mut imgui,
+        window: &mut window,
+        gl_context: &gl_context,
+        capture_path: capture_path.as_deref(),
+        shell_state: &mut shell_state,
+        profile_service: &mut profile_service,
+    })?;
+
+    #[cfg(target_os = "linux")]
+    save_profiles_before_shutdown(
+        parity_case.as_deref(),
+        &mut profile_service,
+        &shell_state,
+        &window,
+        &linux_services,
+    );
+    #[cfg(not(target_os = "linux"))]
+    save_profiles_before_shutdown(
+        parity_case.as_deref(),
+        &mut profile_service,
+        &shell_state,
+        &window,
+    );
 
     #[cfg(target_os = "linux")]
     linux_services.shutdown();

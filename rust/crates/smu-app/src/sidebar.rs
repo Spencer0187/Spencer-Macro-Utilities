@@ -4,7 +4,8 @@ const TEXT_PRIMARY: [f32; 4] = [0.90, 0.90, 1.0, 1.0];
 const ACCENT_PRIMARY: [f32; 4] = [0.0, 0.49, 0.62, 1.0];
 const BG_LIGHT: [f32; 4] = [0.15, 0.15, 0.20, 1.0];
 const DISABLED_COLOR: [f32; 4] = [0.41, 0.02, 0.79, 1.0];
-const DEFAULT_SECTION_ORDER: [usize; 16] = [0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14];
+pub const DEFAULT_SECTION_ORDER: [usize; 16] =
+    [0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14];
 
 #[derive(Clone, Copy)]
 struct SectionConfig {
@@ -67,7 +68,8 @@ pub enum SidebarAction {
 pub fn render(
     ui: &Ui,
     left_panel_width: f32,
-    selected_section: &mut usize,
+    selected_section: &mut i32,
+    section_order: &[usize; 16],
     section_enabled: &[bool; 16],
     multi_instances: &[MultiInstanceSummary],
     short_descriptions: bool,
@@ -76,10 +78,10 @@ pub fn render(
     let button_width = left_panel_width - style.frame_padding()[0] * 2.0;
     let mut action = None;
 
-    for section_index in DEFAULT_SECTION_ORDER {
+    for &section_index in section_order {
         let config = SECTION_CONFIGS[section_index];
         let section_active = section_enabled[section_index];
-        let selected = section_index == *selected_section;
+        let selected = usize::try_from(*selected_section).ok() == Some(section_index);
         let base = if section_active { ACCENT_PRIMARY } else { DISABLED_COLOR };
         let button =
             if selected { brighten(base, if section_active { 1.4 } else { 1.6 }) } else { base };
@@ -112,7 +114,7 @@ pub fn render(
             format!("##SectionButton{section_index}"),
             [button_width - scroll_adjustment, button_height],
         ) {
-            *selected_section = section_index;
+            *selected_section = i32::try_from(section_index).unwrap_or(-1);
             action = Some(SidebarAction::SelectSection { section_index });
             if multi_instances.iter().any(|summary| summary.section_index == section_index) {
                 action = Some(SidebarAction::SelectInstance { section_index, instance_index: 0 });
@@ -147,7 +149,7 @@ pub fn render(
                 render_multi_instance_rows(ui, button_width, config.title, summary)
             {
                 if let SidebarAction::SelectInstance { .. } = instance_action {
-                    *selected_section = section_index;
+                    *selected_section = i32::try_from(section_index).unwrap_or(-1);
                 }
                 action = Some(instance_action);
             }
@@ -241,9 +243,4 @@ fn brighten(color: [f32; 4], factor: f32) -> [f32; 4] {
         (color[2] * factor).min(1.0),
         color[3],
     ]
-}
-
-#[must_use]
-pub const fn section_title(index: usize) -> &'static str {
-    if index < SECTION_CONFIGS.len() { SECTION_CONFIGS[index].title } else { "Unknown" }
 }

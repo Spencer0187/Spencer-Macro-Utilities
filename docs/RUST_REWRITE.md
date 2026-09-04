@@ -95,21 +95,25 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   controls are disabled while text/separators remain visible and `dynamicTextbox` stays selectable and
   copyable. Imports use SDL3's native file dialog for `.smus/.hss/.lua/.txt`, suppress all macro
   hotkeys while the external modal owns input, and require an explicit trust modal with a read-only
-  source preview before manager import. Script imports are intentionally session-only today: profile
-  persistence is not attached, and `savedSetting`/`getSavedValue` has no production `SavedSettingSource`
-  until the complete live profile payload adapter exists. The default parity case remains script-free,
-  and its pixel gate is unchanged.
-- `smu-app` now owns a safety-scoped profile-browser slice backed by `smu-profile`. The existing
-  footer `Profiles ->` control opens the C++-style drop-up list and uses backup-aware, read-only
-  discovery with the same SMC-before-RMC and canonical/executable/parent/current priority, but does
-  not migrate, repair, create, or auto-save any file. The browser preserves default-first sorting,
-  preferred-resume selection, rename validation, duplicate naming, and the 0.7 s two-click delete
-  confirmation. Non-default duplicate/rename/delete operate on whole profile JSON objects through the
-  already differential-tested backup-safe mutations; `(default)` duplication is disabled because C++
-  captures live globals there. Save To and Load are intentionally disabled until Rust can round-trip
-  every live/unported profile field through a complete `ShellState`/payload adapter. All browser CRUD
-  tests use temporary settings files, and parity sessions instantiate a storage-isolated profile
-  service so UI capture cannot touch user configuration.
+  source preview before manager import. Imported-script persistence is now attached to the live profile
+  adapter: profile saves serialize the manager records, profile loads deserialize the selected record
+  set, and `savedSetting`/`getSavedValue` reads from a thread-safe normalized snapshot of the currently
+  loaded profile. The default parity case remains script-free and storage-isolated, and its pixel gate
+  is unchanged.
+- `smu-app` now owns preservation-safe live profile startup, Save To, Load, duplication, rename,
+  deletion, selection autosave, shutdown save, window geometry, imported-script persistence, and Lua
+  saved-setting integration over `smu-profile`. `PreservedProfilePayload` keeps unknown/future keys and
+  real script arrays while exposing C++-normalized values for live state; app saves batch-overlay the
+  Rust-owned settings onto that preservation baseline so untouched data survives round trips. Startup
+  mirrors C++ missing-file creation, legacy-flat conversion into `Profile 1`, preferred-profile load,
+  immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Legacy
+  conversion materializes the complete known serializer surface but intentionally drops unknown legacy
+  root keys, matching C++ deserialization/serialization. The live `ShellState` adapter is checked
+  against every generated C++ payload-oracle case: all 19 one-shot apply cases and all 6 stateful
+  sequences match the full serializer snapshot, including fixed-buffer truncation, numeric/buffer
+  precedence, prefix arrays, section-order upgrades, multi-instance rebuilds, and historical aliases.
+  Startup and filesystem tests use temporary files only; parity sessions are pathless. Real user
+  settings are never used as a test target.
 - `smu-app` now owns the first live Linux Settings-window slice and shared keybind editor. The
   floating window is opened by the existing global Settings button and is backed by real app/service
   state for process-found status, Shift/Chat keybinds, chat override, paste delay, global zoom/reverse,
@@ -122,8 +126,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
   fixing trait-object wheel capture. This is intentionally a partial Settings cutover: Anti-AFK is
   Windows-only in the legacy runtime and has no Linux execution path to port, updater HTTP/UI is not
-  composed, Theme Editor remains unported, and full profile Save/Load remains a separate entry-point
-  gate.
+  composed, and Theme Editor remains unported.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -133,9 +136,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   settings inside the worker, and preserves the custom-text early return plus three separate dropdown
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
-  asymmetries. This completes built-in macro execution cutover only; full profile Save/Load,
-  remaining Settings controls, imported-script persistence/saved-setting integration, updater UI, and
-  final C++ entry-point removal remain separate rewrite gates.
+  asymmetries. This completes built-in macro execution cutover only; remaining Settings controls,
+  updater UI/transport, Theme Editor, cross-platform app-service composition, and final C++ entry-point
+  removal remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

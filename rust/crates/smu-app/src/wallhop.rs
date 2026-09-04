@@ -1,6 +1,8 @@
 use crate::multi_instance::MultiInstanceState;
 use dear_imgui_rs::{StyleColor, TreeNodeFlags, Ui};
+use serde_json::{Map, Value, json};
 use smu_core::{Hotkey, KeyCode};
+use smu_profile::payload::PreservedProfilePayload;
 use std::ffi::CString;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
@@ -60,6 +62,112 @@ pub struct WallhopUiState {
     applied_sensitivity_revision: u64,
 }
 
+fn wallhop_base_from_profile(payload: &PreservedProfilePayload) -> WallhopUiInstance {
+    let mut instance = WallhopUiInstance::default();
+    if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_xbutton2") {
+        instance.trigger = Hotkey::new(value);
+    }
+    if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_wallhopjumpkey") {
+        instance.jump_key = Hotkey::new(value);
+    }
+    if let Some(value) = crate::profile_adapter::i32_value(payload, "wallhop_dx") {
+        instance.dx = value;
+    }
+    if let Some(value) = crate::profile_adapter::i32_value(payload, "wallhop_dy") {
+        instance.dy = value;
+    }
+    if let Some(value) = crate::profile_adapter::i32_value(payload, "wallhop_vertical") {
+        instance.vertical = value;
+    }
+    for (key, target) in [
+        ("WallhopPixels", &mut instance.pixels_text),
+        ("WallhopVerticalChar", &mut instance.vertical_text),
+        ("WallhopDelayChar", &mut instance.delay_text),
+        ("WallhopBonusDelayChar", &mut instance.bonus_delay_text),
+    ] {
+        if let Some(value) = crate::profile_adapter::string_value(payload, key) {
+            value.clone_into(target);
+        }
+    }
+    if let Ok(parsed) = instance.delay_text.parse::<i32>() {
+        instance.delay_ms = parsed;
+    }
+    if let Ok(parsed) = instance.bonus_delay_text.parse::<i32>() {
+        instance.bonus_delay_ms = parsed;
+    }
+    if let Some(value) = crate::profile_adapter::bool_value(payload, "wallhopswitch") {
+        instance.left_flick = value;
+    }
+    if let Some(value) = crate::profile_adapter::bool_value(payload, "toggle_jump") {
+        instance.jump = value;
+    }
+    if let Some(value) = crate::profile_adapter::bool_value(payload, "toggle_flick") {
+        instance.flick_back = value;
+    }
+    if let Some(value) = crate::profile_adapter::section_flag(payload, "section_toggles", 6) {
+        instance.enabled = value;
+    }
+    if let Some(value) = crate::profile_adapter::section_flag(payload, "disable_outside_roblox", 6)
+    {
+        instance.disable_outside_target = value;
+    }
+    instance
+}
+
+fn wallhop_extra_from_profile(
+    object: &Map<String, Value>,
+    base_disable_outside: bool,
+) -> WallhopUiInstance {
+    let mut instance = WallhopUiInstance::default();
+    if let Some(value) = crate::profile_adapter::object_u32(object, "vk_trigger") {
+        instance.trigger = Hotkey::new(value);
+    }
+    if let Some(value) = crate::profile_adapter::object_u32(object, "vk_jumpkey") {
+        instance.jump_key = Hotkey::new(value);
+    }
+    if let Some(value) = crate::profile_adapter::object_i32(object, "wallhop_dx") {
+        instance.dx = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_i32(object, "wallhop_dy") {
+        instance.dy = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_i32(object, "wallhop_vertical") {
+        instance.vertical = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_i32(object, "WallhopDelay") {
+        instance.delay_ms = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_i32(object, "WallhopBonusDelay") {
+        instance.bonus_delay_ms = value;
+    }
+    for (key, target) in [
+        ("WallhopPixels", &mut instance.pixels_text),
+        ("WallhopVerticalChar", &mut instance.vertical_text),
+        ("WallhopDelayChar", &mut instance.delay_text),
+        ("WallhopBonusDelayChar", &mut instance.bonus_delay_text),
+        ("WallhopDegrees", &mut instance.degrees_text),
+    ] {
+        if let Some(value) = crate::profile_adapter::object_string(object, key) {
+            value.clone_into(target);
+        }
+    }
+    if let Some(value) = crate::profile_adapter::object_bool(object, "wallhopswitch") {
+        instance.left_flick = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_bool(object, "toggle_jump") {
+        instance.jump = value;
+    }
+    if let Some(value) = crate::profile_adapter::object_bool(object, "toggle_flick") {
+        instance.flick_back = value;
+    }
+    instance.disable_outside_target =
+        crate::profile_adapter::object_bool(object, "disable_outside_roblox")
+            .unwrap_or(base_disable_outside);
+    instance.enabled =
+        crate::profile_adapter::object_bool(object, "section_enabled").unwrap_or(false);
+    instance
+}
+
 impl WallhopUiState {
     #[must_use]
     pub fn instances(&self) -> &[WallhopUiInstance] {
@@ -83,6 +191,13 @@ impl WallhopUiState {
         self.instances.tick_remove_confirmation(delta_seconds, section_selected);
     }
 
+    pub(crate) fn set_base_section_flags(&mut self, enabled: bool, disable_outside: bool) {
+        if let Some(instance) = self.instances.instances_mut().first_mut() {
+            instance.enabled = enabled;
+            instance.disable_outside_target = disable_outside;
+        }
+    }
+
     #[must_use]
     pub fn first_enabled(&self) -> bool {
         self.instances().first().is_some_and(|instance| instance.enabled)
@@ -91,6 +206,86 @@ impl WallhopUiState {
     #[must_use]
     pub fn enabled_flags(&self) -> Vec<bool> {
         self.instances().iter().map(|instance| instance.enabled).collect()
+    }
+
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        let base = wallhop_base_from_profile(payload);
+        let base_disable_outside = base.disable_outside_target;
+        let mut instances = vec![base];
+        if let Some(extras) = payload.raw_value("extra_wallhop_instances").and_then(Value::as_array)
+        {
+            instances.extend(
+                extras
+                    .iter()
+                    .filter_map(Value::as_object)
+                    .map(|object| wallhop_extra_from_profile(object, base_disable_outside)),
+            );
+        }
+        let selected = crate::profile_adapter::i32_value(payload, "selected_wallhop_instance")
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or(0);
+        self.instances.replace_instances(instances, selected);
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        let Some(base) = self.instances().first() else {
+            return;
+        };
+        crate::profile_adapter::insert_u32(overlay, "vk_xbutton2", base.trigger.raw());
+        crate::profile_adapter::insert_u32(overlay, "vk_wallhopjumpkey", base.jump_key.raw());
+        crate::profile_adapter::insert_i32(overlay, "wallhop_dx", base.dx);
+        crate::profile_adapter::insert_i32(overlay, "wallhop_dy", base.dy);
+        crate::profile_adapter::insert_i32(overlay, "wallhop_vertical", base.vertical);
+        crate::profile_adapter::insert_string(overlay, "WallhopPixels", base.pixels_text.clone());
+        crate::profile_adapter::insert_string(
+            overlay,
+            "WallhopVerticalChar",
+            base.vertical_text.clone(),
+        );
+        crate::profile_adapter::insert_string(overlay, "WallhopDelayChar", base.delay_text.clone());
+        crate::profile_adapter::insert_string(
+            overlay,
+            "WallhopBonusDelayChar",
+            base.bonus_delay_text.clone(),
+        );
+        crate::profile_adapter::insert_bool(overlay, "wallhopswitch", base.left_flick);
+        crate::profile_adapter::insert_bool(overlay, "toggle_jump", base.jump);
+        crate::profile_adapter::insert_bool(overlay, "toggle_flick", base.flick_back);
+        crate::profile_adapter::insert_i32(
+            overlay,
+            "selected_wallhop_instance",
+            i32::try_from(self.selected_index()).unwrap_or_default(),
+        );
+        let extras: Vec<Value> = self
+            .instances()
+            .iter()
+            .skip(1)
+            .map(|instance| {
+                json!({
+                    "vk_trigger": instance.trigger.raw(),
+                    "vk_jumpkey": instance.jump_key.raw(),
+                    "wallhop_dx": instance.dx,
+                    "wallhop_dy": instance.dy,
+                    "wallhop_vertical": instance.vertical,
+                    "WallhopDelay": instance.delay_ms,
+                    "WallhopBonusDelay": instance.bonus_delay_ms,
+                    "WallhopPixels": instance.pixels_text,
+                    "WallhopVerticalChar": instance.vertical_text,
+                    "WallhopDelayChar": instance.delay_text,
+                    "WallhopBonusDelayChar": instance.bonus_delay_text,
+                    "WallhopDegrees": instance.degrees_text,
+                    "wallhopswitch": instance.left_flick,
+                    "toggle_jump": instance.jump,
+                    "toggle_flick": instance.flick_back,
+                    "wallhopcamfix": false,
+                    "disable_outside_roblox": instance.disable_outside_target,
+                    "section_enabled": instance.enabled
+                })
+            })
+            .collect();
+        if !extras.is_empty() {
+            overlay.insert("extra_wallhop_instances".to_owned(), Value::Array(extras));
+        }
     }
 
     #[allow(clippy::cast_possible_truncation)] // Mirrors C++ sensitivity-edit recalibration.

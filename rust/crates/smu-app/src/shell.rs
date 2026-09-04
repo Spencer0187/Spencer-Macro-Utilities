@@ -1,4 +1,6 @@
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
+use serde_json::{Map, Value};
+use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
 
 #[cfg(target_os = "linux")]
 use crate::script_ui::{self, ScriptAction, ScriptUiState};
@@ -97,7 +99,8 @@ pub struct ShellState {
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
-    selected_section: usize,
+    section_order: [usize; 16],
+    selected_section: i32,
     freeze: FreezeUiState,
     floor_bounce: FloorBounceUiState,
     bunnyhop: BunnyhopUiState,
@@ -130,7 +133,8 @@ impl Default for ShellState {
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
-            selected_section: 15,
+            section_order: sidebar::DEFAULT_SECTION_ORDER,
+            selected_section: -1,
             freeze: FreezeUiState::default(),
             floor_bounce: FloorBounceUiState::default(),
             bunnyhop: BunnyhopUiState::default(),
@@ -164,6 +168,204 @@ impl ShellState {
             state.lag_switch = LagSwitchUiState::user_reference();
         }
         state
+    }
+
+    pub(crate) fn apply_profile_payload(&mut self, payload: &PreservedProfilePayload) {
+        let enabled_before = self.section_enabled();
+        let disable_before = self.section_disable_outside();
+
+        self.global.apply_profile(payload);
+        self.freeze.apply_profile(payload);
+        self.item_desync.apply_profile(payload);
+        self.hhj.apply_profile(payload);
+        self.speedglitch.apply_profile(payload);
+        self.item_unequip.apply_profile(payload);
+        self.press_key.apply_profile(payload);
+        self.wallhop.apply_profile(payload);
+        self.walless_lhj.apply_profile(payload);
+        self.item_clip.apply_profile(payload);
+        self.laugh_clip.apply_profile(payload);
+        self.wall_walk.apply_profile(payload);
+        self.spam_key.apply_profile(payload);
+        self.ledge_bounce.apply_profile(payload);
+        self.bunnyhop.apply_profile(payload);
+        self.floor_bounce.apply_profile(payload);
+        self.lag_switch.apply_profile(payload);
+
+        let mut enabled_after = enabled_before;
+        let mut disable_after = disable_before;
+        for index in 0..16 {
+            if let Some(value) =
+                crate::profile_adapter::section_flag(payload, "section_toggles", index)
+            {
+                enabled_after[index] = value;
+            }
+            if let Some(value) =
+                crate::profile_adapter::section_flag(payload, "disable_outside_roblox", index)
+            {
+                disable_after[index] = value;
+            }
+        }
+        if payload.raw_value("disable_outside_roblox").is_none() {
+            if let Some(value) = crate::profile_adapter::bool_value(payload, "freezeoutsideroblox")
+            {
+                disable_after[0] = !value;
+            }
+            if let Some(value) = crate::profile_adapter::bool_value(payload, "unequipinroblox") {
+                disable_after[4] = value;
+            }
+            if let Some(value) = crate::profile_adapter::bool_value(payload, "presskeyinroblox") {
+                disable_after[5] = value;
+            }
+        }
+        self.set_section_flags(enabled_after, disable_after);
+
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "ontoptoggle") {
+            self.always_on_top = value;
+        }
+        if let Some(order) = payload.raw_value("section_order_vector").and_then(Value::as_array) {
+            self.section_order = normalize_section_order(order, self.section_order);
+        }
+
+        if let Some(value) = crate::profile_adapter::i32_value(payload, "selected_section") {
+            self.selected_section = value;
+        }
+        if let Some(value) = crate::profile_adapter::f32_value(payload, "windowOpacityPercent") {
+            self.opacity_percent = value;
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn overlay_profile_payload(
+        &self,
+        baseline: &PreservedProfilePayload,
+    ) -> Option<PreservedProfilePayload> {
+        let mut overlay = Map::<String, Value>::new();
+        self.global.overlay_profile(&mut overlay);
+        self.freeze.overlay_profile(&mut overlay);
+        self.item_desync.overlay_profile(&mut overlay);
+        self.hhj.overlay_profile(&mut overlay);
+        self.speedglitch.overlay_profile(&mut overlay);
+        self.item_unequip.overlay_profile(&mut overlay);
+        self.press_key.overlay_profile(&mut overlay);
+        self.wallhop.overlay_profile(&mut overlay);
+        self.walless_lhj.overlay_profile(&mut overlay);
+        self.item_clip.overlay_profile(&mut overlay);
+        self.laugh_clip.overlay_profile(&mut overlay);
+        self.wall_walk.overlay_profile(&mut overlay);
+        self.spam_key.overlay_profile(&mut overlay);
+        self.ledge_bounce.overlay_profile(&mut overlay);
+        self.bunnyhop.overlay_profile(&mut overlay);
+        self.floor_bounce.overlay_profile(&mut overlay);
+        self.lag_switch.overlay_profile(&mut overlay);
+
+        crate::profile_adapter::insert_i32(&mut overlay, "selected_section", self.selected_section);
+        crate::profile_adapter::insert_f32(
+            &mut overlay,
+            "windowOpacityPercent",
+            self.opacity_percent,
+        );
+        crate::profile_adapter::insert_bool(&mut overlay, "ontoptoggle", self.always_on_top);
+        overlay.insert(
+            "section_order_vector".to_owned(),
+            Value::Array(
+                self.section_order
+                    .iter()
+                    .map(|value| Value::from(i64::try_from(*value).unwrap_or_default()))
+                    .collect(),
+            ),
+        );
+
+        let enabled = self.section_enabled();
+        let disable = self.section_disable_outside();
+        for index in 0..16 {
+            overlay_section_state(
+                baseline.normalized(),
+                &mut overlay,
+                index,
+                enabled[index],
+                disable[index],
+            );
+        }
+        crate::profile_adapter::insert_bool(&mut overlay, "freezeoutsideroblox", !disable[0]);
+        crate::profile_adapter::insert_bool(&mut overlay, "unequipinroblox", disable[4]);
+        crate::profile_adapter::insert_bool(&mut overlay, "presskeyinroblox", disable[5]);
+        let mut removals = Vec::new();
+        if self.wallhop.instances().len() <= 1 {
+            removals.push("extra_wallhop_instances");
+        }
+        if self.press_key.instances().len() <= 1 {
+            removals.push("extra_presskey_instances");
+        }
+        if self.spam_key.instances().len() <= 1 {
+            removals.push("extra_spamkey_instances");
+        }
+        baseline.with_overlay_and_removals(&overlay, &removals)
+    }
+
+    fn section_disable_outside(&self) -> [bool; 16] {
+        let mut values = [false; 16];
+        values[0] = self.freeze.disable_outside_target;
+        values[1] = self.item_desync.disable_outside_target;
+        values[2] = self.hhj.disable_outside_target;
+        values[3] = self.speedglitch.disable_outside_target;
+        values[4] = self.item_unequip.disable_outside_target;
+        values[5] =
+            self.press_key.instances().first().is_some_and(|value| value.disable_outside_target);
+        values[6] =
+            self.wallhop.instances().first().is_some_and(|value| value.disable_outside_target);
+        values[7] = self.walless_lhj.disable_outside_target;
+        values[8] = self.item_clip.disable_outside_target;
+        values[9] = self.laugh_clip.disable_outside_target;
+        values[10] = self.wall_walk.disable_outside_target;
+        values[11] =
+            self.spam_key.instances().first().is_some_and(|value| value.disable_outside_target);
+        values[12] = self.ledge_bounce.disable_outside_target;
+        values[13] = self.bunnyhop.disable_outside_target;
+        values[14] = self.floor_bounce.disable_outside_target;
+        values[15] = false;
+        values
+    }
+
+    fn set_section_flags(&mut self, enabled: [bool; 16], disable: [bool; 16]) {
+        self.freeze.enabled = enabled[0];
+        self.freeze.disable_outside_target = disable[0];
+        self.item_desync.enabled = enabled[1];
+        self.item_desync.disable_outside_target = disable[1];
+        self.hhj.enabled = enabled[2];
+        self.hhj.disable_outside_target = disable[2];
+        self.speedglitch.enabled = enabled[3];
+        self.speedglitch.disable_outside_target = disable[3];
+        self.item_unequip.enabled = enabled[4];
+        self.item_unequip.disable_outside_target = disable[4];
+        self.press_key.set_base_section_flags(enabled[5], disable[5]);
+        self.wallhop.set_base_section_flags(enabled[6], disable[6]);
+        self.walless_lhj.enabled = enabled[7];
+        self.walless_lhj.disable_outside_target = disable[7];
+        self.item_clip.enabled = enabled[8];
+        self.item_clip.disable_outside_target = disable[8];
+        self.laugh_clip.enabled = enabled[9];
+        self.laugh_clip.disable_outside_target = disable[9];
+        self.wall_walk.enabled = enabled[10];
+        self.wall_walk.disable_outside_target = disable[10];
+        self.spam_key.set_base_section_flags(enabled[11], disable[11]);
+        self.ledge_bounce.enabled = enabled[12];
+        self.ledge_bounce.disable_outside_target = disable[12];
+        self.bunnyhop.enabled = enabled[13];
+        self.bunnyhop.disable_outside_target = disable[13];
+        self.floor_bounce.enabled = enabled[14];
+        self.floor_bounce.disable_outside_target = disable[14];
+        self.lag_switch.enabled = enabled[15];
+    }
+
+    #[must_use]
+    pub const fn always_on_top(&self) -> bool {
+        self.always_on_top
+    }
+
+    #[must_use]
+    pub const fn opacity_percent(&self) -> f32 {
+        self.opacity_percent
     }
 
     #[must_use]
@@ -478,6 +680,55 @@ impl ShellState {
     }
 }
 
+fn normalize_section_order(values: &[Value], fallback: [usize; 16]) -> [usize; 16] {
+    let mut order = values
+        .iter()
+        .filter_map(Value::as_i64)
+        .filter_map(|value| usize::try_from(value).ok())
+        .collect::<Vec<_>>();
+    if !order.contains(&13) && order.len() >= 7 {
+        order.insert(7, 13);
+    }
+    if !order.contains(&15) && order.len() >= 5 {
+        order.insert(4, 15);
+    }
+    let mut final_order = Vec::with_capacity(16);
+    for section in order {
+        if section < 16 && !final_order.contains(&section) {
+            final_order.push(section);
+        }
+    }
+    for section in 0..16 {
+        if !final_order.contains(&section) {
+            final_order.push(section);
+        }
+    }
+    <[usize; 16]>::try_from(final_order).unwrap_or(fallback)
+}
+
+fn overlay_section_state(
+    baseline: &ProfilePayloadState,
+    overlay: &mut Map<String, Value>,
+    index: usize,
+    enabled: bool,
+    disable_outside: bool,
+) {
+    crate::profile_adapter::overlay_section_flag(
+        baseline,
+        overlay,
+        "section_toggles",
+        index,
+        enabled,
+    );
+    crate::profile_adapter::overlay_section_flag(
+        baseline,
+        overlay,
+        "disable_outside_roblox",
+        index,
+        disable_outside,
+    );
+}
+
 pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     let display_size = ui.io().display_size();
     let flags = WindowFlags::NO_RESIZE
@@ -701,6 +952,7 @@ fn render_macro_sidebar(
                 ui,
                 left_panel_width,
                 &mut state.selected_section,
+                &state.section_order,
                 &section_enabled,
                 &multi_instances,
                 state.global.short_descriptions(),
@@ -852,12 +1104,7 @@ fn render_right_section(
             13 => bunnyhop::render(ui, &mut state.bunnyhop),
             14 => floor_bounce::render(ui, &mut state.floor_bounce),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
-            section => {
-                ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));
-                crate::parity::separator(ui);
-                ui.new_line();
-                ui.text_wrapped("This section has not been cut over to the Rust application yet.");
-            }
+            _ => {}
         }
     });
     (lag_action, script_action)
@@ -899,4 +1146,149 @@ fn render_footer(ui: &Ui, right_child_width: f32, state: &mut ShellState) -> Opt
 
 fn nudge_footer_y(ui: &Ui) {
     ui.set_cursor_pos_y(ui.cursor_pos_y() + FOOTER_CONTROL_Y_OFFSET);
+}
+
+#[cfg(test)]
+mod profile_adapter_tests {
+    #![allow(clippy::expect_used)]
+
+    use super::ShellState;
+    use serde_json::json;
+    use smu_profile::payload::PreservedProfilePayload;
+
+    const CPP_PAYLOAD_FIXTURE: &str =
+        include_str!("../../../../compat/profiles/payload_cases.json");
+
+    fn cpp_payload_fixture() -> serde_json::Value {
+        serde_json::from_str(CPP_PAYLOAD_FIXTURE).expect("C++ payload fixture should parse")
+    }
+
+    #[test]
+    fn cpp_generated_apply_cases_match_live_shell_adapter() {
+        let fixture = cpp_payload_fixture();
+        for case in fixture["apply_cases"].as_array().expect("apply cases should be an array") {
+            if !case["success"].as_bool().unwrap_or(false) {
+                continue;
+            }
+            let name = case["name"].as_str().unwrap_or("unnamed");
+            let payload = PreservedProfilePayload::from_value(&case["payload"])
+                .expect("successful C++ apply payload should validate in Rust");
+            let baseline = PreservedProfilePayload::cpp_default();
+            let mut state = ShellState::default();
+            state.apply_profile_payload(&baseline);
+            state.apply_profile_payload(&payload);
+            let actual = state
+                .overlay_profile_payload(&baseline)
+                .expect("live adapter overlay should validate")
+                .raw_snapshot();
+            assert_eq!(actual, case["result"], "C++ apply case {name}");
+        }
+    }
+
+    #[test]
+    fn cpp_generated_stateful_sequences_match_live_shell_adapter() {
+        let fixture = cpp_payload_fixture();
+        for case in fixture["sequence_cases"].as_array().expect("sequence cases should be an array")
+        {
+            let name = case["name"].as_str().unwrap_or("unnamed");
+            let payloads = case["payloads"].as_array().expect("sequence payloads array");
+            let steps = case["steps"].as_array().expect("sequence steps array");
+            assert_eq!(payloads.len(), steps.len(), "fixture shape {name}");
+            let baseline = PreservedProfilePayload::cpp_default();
+            let mut state = ShellState::default();
+            state.apply_profile_payload(&baseline);
+            for (index, (payload, step)) in payloads.iter().zip(steps).enumerate() {
+                if !step["success"].as_bool().unwrap_or(false) {
+                    continue;
+                }
+                let payload = PreservedProfilePayload::from_value(payload)
+                    .expect("successful C++ sequence payload should validate in Rust");
+                state.apply_profile_payload(&payload);
+                let actual = state
+                    .overlay_profile_payload(&baseline)
+                    .expect("live sequence overlay should validate")
+                    .raw_snapshot();
+                assert_eq!(actual, step["payload"], "C++ sequence {name} step {index}");
+            }
+        }
+    }
+
+    #[test]
+    fn cpp_default_profile_apply_overlay_is_raw_stable() {
+        let baseline = PreservedProfilePayload::cpp_default();
+        let mut state = ShellState::default();
+        state.apply_profile_payload(&baseline);
+        let round_trip =
+            state.overlay_profile_payload(&baseline).expect("C++ default overlay should validate");
+        assert_eq!(round_trip.raw_snapshot(), baseline.raw_snapshot());
+    }
+
+    #[test]
+    fn overlay_removes_empty_optional_extra_instance_arrays() {
+        let baseline = PreservedProfilePayload::from_value(&json!({
+            "extra_wallhop_instances": [],
+            "extra_presskey_instances": [],
+            "extra_spamkey_instances": []
+        }))
+        .expect("optional empty arrays should validate");
+        let state = ShellState::default();
+        let round_trip =
+            state.overlay_profile_payload(&baseline).expect("overlay should remain valid");
+        for key in
+            ["extra_wallhop_instances", "extra_presskey_instances", "extra_spamkey_instances"]
+        {
+            assert_eq!(round_trip.raw_value(key), None, "{key}");
+        }
+    }
+
+    #[test]
+    fn sparse_profile_changes_only_present_keys_and_prefix_section_flags() {
+        let mut state = ShellState::default();
+        let item_clip_hotkey_before = state.item_clip.hotkey;
+        let process_before = state.global.process_selector();
+        let payload = PreservedProfilePayload::from_value(&json!({
+            "vk_f5": 0x70,
+            "section_toggles": [true],
+            "unknown_sparse_marker": {"keep": 1}
+        }))
+        .expect("sparse payload should validate");
+
+        state.apply_profile_payload(&payload);
+
+        assert_eq!(state.item_desync.hotkey.raw(), 0x70);
+        assert!(state.freeze.enabled);
+        assert!(!state.item_desync.enabled);
+        assert_eq!(state.item_clip.hotkey, item_clip_hotkey_before);
+        assert_eq!(state.global.process_selector(), process_before);
+    }
+
+    #[test]
+    fn apply_then_overlay_preserves_unknowns_scripts_and_char_buffer_precedence() {
+        let imported_scripts = json!([{"path":"example.lua","enabled":true}]);
+        let unknown = json!({"nested":[1,2,3],"text":"preserve me"});
+        let baseline = PreservedProfilePayload::from_value(&json!({
+            "ItemClipDelay": "77",
+            "clip_delay": 5,
+            "unknown_profile_marker": unknown,
+            "imported_scripts": imported_scripts
+        }))
+        .expect("baseline should validate");
+        let mut state = ShellState::default();
+        state.apply_profile_payload(&baseline);
+
+        let round_trip =
+            state.overlay_profile_payload(&baseline).expect("live overlay should remain valid");
+
+        assert_eq!(
+            round_trip.raw_value("unknown_profile_marker"),
+            baseline.raw_value("unknown_profile_marker")
+        );
+        assert_eq!(
+            round_trip.raw_value("imported_scripts"),
+            baseline.raw_value("imported_scripts")
+        );
+        assert_eq!(round_trip.raw_value("ItemClipDelay"), Some(&json!("77")));
+        assert_eq!(round_trip.raw_value("clip_delay"), Some(&json!(77)));
+        assert_eq!(round_trip.normalized_value("clip_delay"), Some(&json!(77)));
+    }
 }

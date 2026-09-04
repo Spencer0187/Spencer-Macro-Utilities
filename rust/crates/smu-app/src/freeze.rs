@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -34,6 +36,37 @@ impl Default for FreezeUiState {
 }
 
 impl FreezeUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_mbutton") {
+            self.hotkey = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::f32_value(payload, "maxfreezetime") {
+            self.max_seconds = value;
+        }
+        if let Some(value) = crate::profile_adapter::i32_value(payload, "maxfreezeoverride") {
+            self.override_ms_text = value.to_string();
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "isfreezeswitch") {
+            self.toggle_mode = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "takeallprocessids") {
+            self.take_all_process_ids = value;
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_mbutton", self.hotkey.raw());
+        crate::profile_adapter::insert_f32(overlay, "maxfreezetime", self.max_seconds);
+        let override_ms = self.override_ms_text.parse::<i32>().unwrap_or(0);
+        crate::profile_adapter::insert_i32(overlay, "maxfreezeoverride", override_ms);
+        crate::profile_adapter::insert_bool(overlay, "isfreezeswitch", self.toggle_mode);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "takeallprocessids",
+            self.take_all_process_ids,
+        );
+    }
+
     #[must_use]
     pub fn controller_settings(
         &self,

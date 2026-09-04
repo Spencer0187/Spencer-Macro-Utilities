@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -44,6 +46,43 @@ pub struct ItemUnequipGlobals {
 }
 
 impl ItemUnequipUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_f8") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "ItemSpeedSlot") {
+            v.clone_into(&mut self.slot_text);
+            if let Ok(n) = v.parse::<i32>() {
+                self.slot = n;
+            }
+        }
+        if let Some(v) = crate::profile_adapter::string_value(payload, "CustomTextChar") {
+            v.clone_into(&mut self.custom_text);
+        }
+        if let Some(v) = crate::profile_adapter::i32_value(payload, "selected_dropdown")
+            .and_then(|v| usize::try_from(v).ok())
+        {
+            self.selected_emote = v.min(EMOTES.len() - 1);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "unequiptoggle") {
+            self.keep_equipped = v;
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_f8", self.hotkey.raw());
+        crate::profile_adapter::insert_i32(overlay, "speed_slot", self.slot);
+        crate::profile_adapter::insert_string(overlay, "ItemSpeedSlot", self.slot_text.clone());
+        crate::profile_adapter::insert_string(overlay, "CustomTextChar", self.custom_text.clone());
+        crate::profile_adapter::insert_i32(
+            overlay,
+            "selected_dropdown",
+            i32::try_from(self.selected_emote).unwrap_or_default(),
+        );
+        crate::profile_adapter::insert_string(overlay, "text", EMOTES[self.selected_emote]);
+        crate::profile_adapter::insert_bool(overlay, "unequiptoggle", self.keep_equipped);
+    }
+
     #[must_use]
     pub fn controller_settings(
         &self,

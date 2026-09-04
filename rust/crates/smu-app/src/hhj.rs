@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::{Hotkey, KeyCode};
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -75,6 +77,83 @@ pub struct HhjGlobals {
 }
 
 impl HhjUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_xbutton1") {
+            self.hotkey = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "autotoggle") {
+            self.auto_toggle = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "fasthhj") {
+            self.fast_hhj = value;
+        }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "HHJFreezeDelayApply") {
+            self.freeze_delay_apply = value;
+        }
+        apply_i32_buffer(payload, "HHJLengthChar", &mut self.length_text, &mut self.length_ms);
+        apply_i32_buffer(
+            payload,
+            "HHJFreezeDelayOverrideChar",
+            &mut self.freeze_delay_text,
+            &mut self.freeze_delay_override_ms,
+        );
+        apply_i32_buffer(payload, "HHJDelay1Char", &mut self.delay1_text, &mut self.delay1_ms);
+        apply_i32_buffer(payload, "HHJDelay2Char", &mut self.delay2_text, &mut self.delay2_ms);
+        apply_i32_buffer(payload, "HHJDelay3Char", &mut self.delay3_text, &mut self.delay3_ms);
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_autohhjkey1") {
+            self.auto_key1 = Hotkey::new(value);
+        }
+        if let Some(value) = crate::profile_adapter::u32_value(payload, "vk_autohhjkey2") {
+            self.auto_key2 = Hotkey::new(value);
+        }
+        apply_i32_buffer(
+            payload,
+            "AutoHHJKey1TimeChar",
+            &mut self.auto_key1_time_text,
+            &mut self.auto_key1_time_ms,
+        );
+        apply_i32_buffer(
+            payload,
+            "AutoHHJKey2TimeChar",
+            &mut self.auto_key2_time_text,
+            &mut self.auto_key2_time_ms,
+        );
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_xbutton1", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "autotoggle", self.auto_toggle);
+        crate::profile_adapter::insert_bool(overlay, "fasthhj", self.fast_hhj);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "HHJFreezeDelayApply",
+            self.freeze_delay_apply,
+        );
+        crate::profile_adapter::insert_string(overlay, "HHJLengthChar", self.length_text.clone());
+        crate::profile_adapter::insert_string(
+            overlay,
+            "HHJFreezeDelayOverrideChar",
+            self.freeze_delay_text.clone(),
+        );
+        crate::profile_adapter::insert_string(overlay, "HHJDelay1Char", self.delay1_text.clone());
+        crate::profile_adapter::insert_string(overlay, "HHJDelay2Char", self.delay2_text.clone());
+        crate::profile_adapter::insert_string(overlay, "HHJDelay3Char", self.delay3_text.clone());
+        crate::profile_adapter::insert_u32(overlay, "vk_autohhjkey1", self.auto_key1.raw());
+        crate::profile_adapter::insert_u32(overlay, "vk_autohhjkey2", self.auto_key2.raw());
+        crate::profile_adapter::insert_i32(overlay, "AutoHHJKey1Time", self.auto_key1_time_ms);
+        crate::profile_adapter::insert_i32(overlay, "AutoHHJKey2Time", self.auto_key2_time_ms);
+        crate::profile_adapter::insert_string(
+            overlay,
+            "AutoHHJKey1TimeChar",
+            self.auto_key1_time_text.clone(),
+        );
+        crate::profile_adapter::insert_string(
+            overlay,
+            "AutoHHJKey2TimeChar",
+            self.auto_key2_time_text.clone(),
+        );
+    }
+
     #[must_use]
     pub fn controller_settings(
         &self,
@@ -106,6 +185,21 @@ impl HhjUiState {
             strength_x: globals.strength_x,
             strength_y: globals.strength_y,
         }
+    }
+}
+
+fn apply_i32_buffer(
+    payload: &PreservedProfilePayload,
+    key: &str,
+    text: &mut String,
+    value: &mut i32,
+) {
+    let Some(raw) = crate::profile_adapter::string_value(payload, key) else {
+        return;
+    };
+    raw.clone_into(text);
+    if let Ok(parsed) = raw.parse::<i32>() {
+        *value = parsed;
     }
 }
 

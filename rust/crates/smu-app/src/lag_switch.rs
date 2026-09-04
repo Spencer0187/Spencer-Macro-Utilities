@@ -1,4 +1,7 @@
 use dear_imgui_rs::Ui;
+use serde_json::{Map, Value};
+use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchConfig, LagSwitchTargetMode};
@@ -79,6 +82,7 @@ pub struct BackendState {
 #[derive(Debug)]
 pub struct LagSwitchUiState {
     pub enabled: bool,
+    pub hotkey: Hotkey,
     pub toggle_key_mode: bool,
     #[cfg(target_os = "windows")]
     pub prevent_disconnect: bool,
@@ -94,6 +98,7 @@ impl Default for LagSwitchUiState {
     fn default() -> Self {
         Self {
             enabled: false,
+            hotkey: crate::lag_switch_runtime::DEFAULT_LAG_SWITCH_HOTKEY,
             toggle_key_mode: true,
             #[cfg(target_os = "windows")]
             prevent_disconnect: true,
@@ -139,6 +144,152 @@ const fn default_overlay() -> OverlayState {
 }
 
 impl LagSwitchUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_lagswitchkey") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "islagswitchswitch") {
+            self.toggle_key_mode = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchoutbound") {
+            self.hard_block.outbound = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchinbound") {
+            self.hard_block.inbound = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchtargetroblox") {
+            self.filter.roblox_only = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchusetcp") {
+            self.filter.use_tcp = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitch_autounblock") {
+            self.auto_unlag.enabled = v;
+        }
+        if let Some(v) = crate::profile_adapter::f32_value(payload, "lagswitch_max_duration") {
+            self.auto_unlag.max_duration_seconds = v;
+        }
+        if let Some(v) = crate::profile_adapter::i32_value(payload, "lagswitch_unblock_ms") {
+            self.auto_unlag.unblock_ms_text = v.to_string();
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchlag") {
+            self.fake_lag.enabled = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchlaginbound") {
+            self.fake_lag.directions.inbound = v;
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "lagswitchlagoutbound") {
+            self.fake_lag.directions.outbound = v;
+        }
+        if let Some(v) = crate::profile_adapter::i32_value(payload, "lagswitchlagdelay") {
+            self.fake_lag.delay_ms = v;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            if let Some(v) = crate::profile_adapter::bool_value(payload, "prevent_disconnect") {
+                self.prevent_disconnect = v;
+            }
+            if let Some(v) = crate::profile_adapter::bool_value(payload, "show_lag_overlay") {
+                self.overlay.shown = v;
+            }
+            if let Some(v) = crate::profile_adapter::bool_value(payload, "overlay_hide_inactive") {
+                self.overlay.hide_inactive = v;
+            }
+            if let Some(v) = crate::profile_adapter::bool_value(payload, "overlay_use_bg") {
+                self.overlay.use_background = v;
+            }
+            if let Some(v) = crate::profile_adapter::i32_value(payload, "overlay_x") {
+                self.overlay.x = v;
+            }
+            if let Some(v) = crate::profile_adapter::i32_value(payload, "overlay_y") {
+                self.overlay.y = v;
+            }
+            if let Some(v) = crate::profile_adapter::i32_value(payload, "overlay_size") {
+                self.overlay.text_size = v;
+            }
+            if let Some(v) = crate::profile_adapter::f32_value(payload, "overlay_bg_r") {
+                self.overlay.background[0] = v;
+            }
+            if let Some(v) = crate::profile_adapter::f32_value(payload, "overlay_bg_g") {
+                self.overlay.background[1] = v;
+            }
+            if let Some(v) = crate::profile_adapter::f32_value(payload, "overlay_bg_b") {
+                self.overlay.background[2] = v;
+            }
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "show_lag_overlay") {
+            self.overlay.shown = v;
+        }
+    }
+
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_lagswitchkey", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "islagswitchswitch", self.toggle_key_mode);
+        crate::profile_adapter::insert_bool(overlay, "lagswitchoutbound", self.hard_block.outbound);
+        crate::profile_adapter::insert_bool(overlay, "lagswitchinbound", self.hard_block.inbound);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "lagswitchtargetroblox",
+            self.filter.roblox_only,
+        );
+        crate::profile_adapter::insert_bool(overlay, "lagswitchusetcp", self.filter.use_tcp);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "lagswitch_autounblock",
+            self.auto_unlag.enabled,
+        );
+        crate::profile_adapter::insert_f32(
+            overlay,
+            "lagswitch_max_duration",
+            self.auto_unlag.max_duration_seconds,
+        );
+        crate::profile_adapter::insert_i32(
+            overlay,
+            "lagswitch_unblock_ms",
+            self.auto_unlag.unblock_ms_text.parse::<i32>().unwrap_or(0),
+        );
+        crate::profile_adapter::insert_bool(overlay, "lagswitchlag", self.fake_lag.enabled);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "lagswitchlaginbound",
+            self.fake_lag.directions.inbound,
+        );
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "lagswitchlagoutbound",
+            self.fake_lag.directions.outbound,
+        );
+        crate::profile_adapter::insert_i32(overlay, "lagswitchlagdelay", self.fake_lag.delay_ms);
+        #[cfg(target_os = "windows")]
+        {
+            crate::profile_adapter::insert_bool(
+                overlay,
+                "prevent_disconnect",
+                self.prevent_disconnect,
+            );
+            crate::profile_adapter::insert_bool(overlay, "show_lag_overlay", self.overlay.shown);
+            crate::profile_adapter::insert_bool(
+                overlay,
+                "overlay_hide_inactive",
+                self.overlay.hide_inactive,
+            );
+            crate::profile_adapter::insert_bool(
+                overlay,
+                "overlay_use_bg",
+                self.overlay.use_background,
+            );
+            crate::profile_adapter::insert_i32(overlay, "overlay_x", self.overlay.x);
+            crate::profile_adapter::insert_i32(overlay, "overlay_y", self.overlay.y);
+            crate::profile_adapter::insert_i32(overlay, "overlay_size", self.overlay.text_size);
+            crate::profile_adapter::insert_f32(overlay, "overlay_bg_r", self.overlay.background[0]);
+            crate::profile_adapter::insert_f32(overlay, "overlay_bg_g", self.overlay.background[1]);
+            crate::profile_adapter::insert_f32(overlay, "overlay_bg_b", self.overlay.background[2]);
+        }
+        #[cfg(target_os = "linux")]
+        crate::profile_adapter::insert_bool(overlay, "show_lag_overlay", self.overlay.shown);
+    }
+
     #[cfg(target_os = "linux")]
     #[must_use]
     pub fn controller_settings(
@@ -149,7 +300,7 @@ impl LagSwitchUiState {
         crate::lag_switch_runtime::LagSwitchControllerSettings {
             macro_enabled,
             section_enabled: self.enabled,
-            hotkey: crate::lag_switch_runtime::DEFAULT_LAG_SWITCH_HOTKEY,
+            hotkey: self.hotkey,
             toggle_mode: self.toggle_key_mode,
             config: LagSwitchConfig {
                 enabled: false,

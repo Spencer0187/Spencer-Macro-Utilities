@@ -1,5 +1,7 @@
 use dear_imgui_rs::{StyleColor, Ui};
+use serde_json::{Map, Value};
 use smu_core::Hotkey;
+use smu_profile::payload::PreservedProfilePayload;
 
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -35,6 +37,19 @@ impl Default for WallessLhjUiState {
 }
 
 impl WallessLhjUiState {
+    pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
+        if let Some(v) = crate::profile_adapter::u32_value(payload, "vk_f6") {
+            self.hotkey = Hotkey::new(v);
+        }
+        if let Some(v) = crate::profile_adapter::bool_value(payload, "wallesslhjswitch") {
+            self.left_side = v;
+        }
+    }
+    pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
+        crate::profile_adapter::insert_u32(overlay, "vk_f6", self.hotkey.raw());
+        crate::profile_adapter::insert_bool(overlay, "wallesslhjswitch", self.left_side);
+    }
+
     #[must_use]
     pub fn controller_settings(
         &self,
