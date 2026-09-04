@@ -155,6 +155,50 @@ pub fn profile_catalog_from_file(path: &Path) -> Option<ProfileCatalog> {
     })
 }
 
+/// Reads one named profile payload through primary/backup recovery without modifying the file.
+#[must_use]
+pub fn profile_payload_from_file(
+    path: &Path,
+    profile_name: &str,
+) -> Option<payload::PreservedProfilePayload> {
+    let (root, _) = read_json_file_with_backup(path)?;
+    let profile = root.as_object()?.get(profile_name)?;
+    payload::PreservedProfilePayload::from_value(profile)
+}
+
+/// Replaces or creates one named profile payload while preserving every sibling profile and unknown
+/// root field. The supplied payload must pass the C++ compatibility validator.
+///
+/// When `make_active` is true, `_metadata.last_active_profile` is updated in the same write.
+#[must_use]
+pub fn upsert_profile_payload_in_file(
+    path: &Path,
+    profile_name: &str,
+    profile_payload: &Value,
+    make_active: bool,
+) -> bool {
+    if profile_name.is_empty() || profile_name == METADATA_KEY {
+        return false;
+    }
+    let Some(preserved) = payload::PreservedProfilePayload::from_value(profile_payload) else {
+        return false;
+    };
+    let Some((mut root, _)) = read_json_file_with_backup(path) else {
+        return false;
+    };
+    let Some(root_object) = root.as_object_mut() else {
+        return false;
+    };
+    root_object.insert(profile_name.to_owned(), preserved.raw_snapshot());
+    if make_active {
+        let Ok(metadata) = metadata_mut(&mut root) else {
+            return false;
+        };
+        metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
+    }
+    write_json_file(path, &root, false)
+}
+
 /// Produces the C++ profile UI's first available `Profile N` name.
 #[must_use]
 pub fn generate_new_profile_name(existing_names: &[String]) -> String {
@@ -555,12 +599,13 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::{
-        CURRENT_SETTINGS_FILENAME, ContainerFormat, DEFAULT_PROFILE_NAME, LEGACY_FORMAT_KEYS,
-        LEGACY_SETTINGS_FILENAME, delete_profile_from_file, detect_format,
+        CURRENT_SETTINGS_FILENAME, ContainerFormat, DEFAULT_PROFILE_NAME, LAST_ACTIVE_PROFILE_KEY,
+        LEGACY_FORMAT_KEYS, LEGACY_SETTINGS_FILENAME, delete_profile_from_file, detect_format,
         discover_settings_file_path_read_only_from_directories, duplicate_profile_in_file,
         find_best_profile, generate_new_profile_name, generate_unique_profile_name, metadata_mut,
-        profile_catalog_from_file, profile_names, rename_profile_in_file,
-        resolve_settings_file_path_from_directories,
+        profile_catalog_from_file, profile_names, profile_payload_from_file,
+        read_json_file_with_backup, rename_profile_in_file,
+        resolve_settings_file_path_from_directories, upsert_profile_payload_in_file,
     };
     use serde::Deserialize;
     use serde_json::{Value, json};
@@ -757,6 +802,45 @@ mod tests {
         assert_eq!(resolved.as_deref(), Some(current_primary.as_path()));
         assert!(legacy.exists());
         assert!(!canonical.join(CURRENT_SETTINGS_FILENAME).exists());
+    }
+
+    #[test]
+    fn named_profile_payload_read_preserves_unknown_and_script_fields() {
+        let temporary = TestDirectory::new("named-payload-read");
+        let path = temporary.path.join("settings.json");
+        let mut profile = crate::payload::ProfilePayloadState::default().snapshot();
+        let object = profile.as_object_mut().expect("default profile object");
+        object.insert("future_key".to_owned(), json!({"keep": true}));
+        object.insert("imported_scripts".to_owned(), json!([{"path": "x.lua"}]));
+        write_source(&path, &json!({"_metadata": {}, "Profile A": profile}));
+        let preserved = profile_payload_from_file(&path, "Profile A")
+            .expect("named preserved profile should load");
+        assert_eq!(preserved.raw_value("future_key"), Some(&json!({"keep": true})));
+        assert_eq!(preserved.raw_value("imported_scripts"), Some(&json!([{"path": "x.lua"}])));
+    }
+
+    #[test]
+    fn profile_payload_upsert_preserves_siblings_unknown_root_fields_and_marks_active() {
+        let temporary = TestDirectory::new("payload-upsert");
+        let path = temporary.path.join("settings.json");
+        let original = json!({
+            "_metadata": {"last_active_profile": "Other", "future_meta": 7},
+            "root_future": {"x": 1},
+            "Other": {"sentinel": true}
+        });
+        write_source(&path, &original);
+        let mut payload = crate::payload::ProfilePayloadState::default().snapshot();
+        payload
+            .as_object_mut()
+            .expect("default payload object")
+            .insert("future_profile_key".to_owned(), json!([1, 2, 3]));
+        assert!(upsert_profile_payload_in_file(&path, "New Profile", &payload, true));
+        let (written, _) = read_json_file_with_backup(&path).expect("written root should load");
+        assert_eq!(written["root_future"], json!({"x": 1}));
+        assert_eq!(written["Other"], json!({"sentinel": true}));
+        assert_eq!(written["_metadata"]["future_meta"], json!(7));
+        assert_eq!(written["_metadata"][LAST_ACTIVE_PROFILE_KEY], json!("New Profile"));
+        assert_eq!(written["New Profile"]["future_profile_key"], json!([1, 2, 3]));
     }
 
     #[test]

@@ -58,6 +58,66 @@ impl Default for ProfilePayloadState {
     }
 }
 
+/// Preservation-safe profile payload used by production profile composition.
+///
+/// The compatibility [`ProfilePayloadState`] intentionally models only the C++ serializer surface and
+/// stubs `imported_scripts` for deterministic oracle tests. Production profile editing must also keep
+/// unknown keys and the real script array untouched. This wrapper therefore retains the original raw
+/// object beside a normalized compatibility view.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreservedProfilePayload {
+    raw: Map<String, Value>,
+    normalized: ProfilePayloadState,
+}
+
+impl PreservedProfilePayload {
+    /// Validates and normalizes one profile object while retaining every original key/value.
+    #[must_use]
+    pub fn from_value(payload: &Value) -> Option<Self> {
+        let raw = payload.as_object()?.clone();
+        let mut normalized = ProfilePayloadState::default();
+        normalized.apply(payload).then_some(Self { raw, normalized })
+    }
+
+    /// Starts a new preservation baseline from the exact C++ default serializer payload.
+    #[must_use]
+    pub fn cpp_default() -> Self {
+        let normalized = ProfilePayloadState::default();
+        let raw = normalized.snapshot().as_object().cloned().unwrap_or_default();
+        Self { raw, normalized }
+    }
+
+    /// Raw value exactly as retained for future whole-profile writes.
+    #[must_use]
+    pub fn raw_value(&self, key: &str) -> Option<&Value> {
+        self.raw.get(key)
+    }
+
+    /// C++-normalized value used for live-state application and `savedSetting`.
+    #[must_use]
+    pub fn normalized_value(&self, key: &str) -> Option<&Value> {
+        self.normalized.value(key)
+    }
+
+    /// Read-only normalized state suitable for the scripting `SavedSettingSource`.
+    #[must_use]
+    pub const fn normalized(&self) -> &ProfilePayloadState {
+        &self.normalized
+    }
+
+    /// Clone the preservation baseline before app-owned live fields are overlaid.
+    #[must_use]
+    pub fn raw_snapshot(&self) -> Value {
+        Value::Object(self.raw.clone())
+    }
+}
+
+impl Default for PreservedProfilePayload {
+    fn default() -> Self {
+        Self::cpp_default()
+    }
+}
+
 impl ProfilePayloadState {
     /// Returns a normalized snapshot equivalent to `SerializeProfileData()` in the payload oracle.
     #[must_use]
@@ -823,7 +883,7 @@ fn parse_cpp_f32(value: &str) -> Option<f32> {
 mod tests {
     #![allow(clippy::expect_used)]
 
-    use super::{ProfilePayloadState, validate};
+    use super::{PreservedProfilePayload, ProfilePayloadState, validate};
     use serde::Deserialize;
     use serde_json::Value;
 
@@ -867,6 +927,40 @@ mod tests {
     fn fixture() -> Fixture {
         serde_json::from_str(super::PAYLOAD_FIXTURE)
             .expect("C++ generated payload compatibility fixture should parse")
+    }
+
+    #[test]
+    fn preserved_payload_keeps_unknown_keys_and_real_script_array() {
+        let mut payload = ProfilePayloadState::default().snapshot();
+        let object = payload.as_object_mut().expect("default payload object");
+        object.insert("future_setting".to_owned(), serde_json::json!({"nested": [1, 2, 3]}));
+        object.insert(
+            "imported_scripts".to_owned(),
+            serde_json::json!([{"path": "/tmp/example.lua", "hotkey": 65}]),
+        );
+        let preserved = PreservedProfilePayload::from_value(&payload)
+            .expect("valid payload should create preservation wrapper");
+        assert_eq!(
+            preserved.raw_value("future_setting"),
+            Some(&serde_json::json!({"nested": [1, 2, 3]}))
+        );
+        assert_eq!(
+            preserved.raw_value("imported_scripts"),
+            Some(&serde_json::json!([{"path": "/tmp/example.lua", "hotkey": 65}]))
+        );
+        assert_eq!(preserved.normalized_value("imported_scripts"), Some(&serde_json::json!([])));
+    }
+
+    #[test]
+    fn preserved_payload_normalizes_live_buffer_precedence_without_mutating_raw() {
+        let mut payload = ProfilePayloadState::default().snapshot();
+        let object = payload.as_object_mut().expect("default payload object");
+        object.insert("ItemDesyncSlot".to_owned(), Value::String("9".to_owned()));
+        object.insert("desync_slot".to_owned(), serde_json::json!(2));
+        let preserved = PreservedProfilePayload::from_value(&payload)
+            .expect("valid payload should create preservation wrapper");
+        assert_eq!(preserved.raw_value("desync_slot"), Some(&serde_json::json!(2)));
+        assert_eq!(preserved.normalized_value("desync_slot"), Some(&serde_json::json!(9)));
     }
 
     #[test]
