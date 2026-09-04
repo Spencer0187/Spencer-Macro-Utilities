@@ -13,6 +13,11 @@ const FAKE_LAG_DELAY_WIDTH: f32 = 150.0;
 #[cfg(target_os = "windows")]
 const OVERLAY_ITEM_WIDTH: f32 = 500.0;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LagSwitchAction {
+    ToggleBackend,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct DirectionPair {
     pub inbound: bool,
@@ -156,14 +161,19 @@ impl LagSwitchUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut LagSwitchUiState) {
+pub fn render(ui: &Ui, state: &mut LagSwitchUiState) -> Option<LagSwitchAction> {
     render_shared_header(ui, state);
 
     #[cfg(target_os = "macos")]
-    render_macos_unavailable(ui, state);
+    {
+        render_macos_unavailable(ui, state);
+        None
+    }
 
     #[cfg(not(target_os = "macos"))]
-    render_supported_platform(ui, state);
+    {
+        render_supported_platform(ui, state)
+    }
 }
 
 fn render_shared_header(ui: &Ui, state: &mut LagSwitchUiState) {
@@ -210,7 +220,7 @@ fn render_macos_unavailable(ui: &Ui, state: &mut LagSwitchUiState) {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) {
+fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) -> Option<LagSwitchAction> {
     ui.checkbox("Switch from Hold Key to Toggle Key", &mut state.toggle_key_mode);
     crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
@@ -249,7 +259,7 @@ fn render_supported_platform(ui: &Ui, state: &mut LagSwitchUiState) {
 
     render_fake_lag(ui, &mut state.fake_lag, state.hard_block);
     render_overlay(ui, &mut state.overlay);
-    render_backend_status(ui, state.backend);
+    render_backend_status(ui, state.backend).then_some(LagSwitchAction::ToggleBackend)
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -352,7 +362,7 @@ fn render_overlay(ui: &Ui, state: &mut OverlayState) {
 fn render_overlay(_ui: &Ui, _state: &mut OverlayState) {}
 
 #[cfg(not(target_os = "macos"))]
-fn render_backend_status(ui: &Ui, state: BackendState) {
+fn render_backend_status(ui: &Ui, state: BackendState) -> bool {
     ui.new_line();
     crate::parity::separator(ui);
 
@@ -367,7 +377,7 @@ fn render_backend_status(ui: &Ui, state: BackendState) {
     #[cfg(not(target_os = "linux"))]
     let button_label = if state.enabled { "Disable WinDivert" } else { "Enable WinDivert" };
 
-    let _ = ui.button(button_label);
+    let clicked = ui.button(button_label);
     ui.same_line();
 
     #[cfg(target_os = "linux")]
@@ -394,6 +404,8 @@ fn render_backend_status(ui: &Ui, state: BackendState) {
             ui.text_colored(SUCCESS, "Clear");
         }
     }
+
+    clicked
 }
 
 #[cfg(test)]

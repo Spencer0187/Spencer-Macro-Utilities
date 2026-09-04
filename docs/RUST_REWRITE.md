@@ -69,7 +69,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   and the one-second dynamic Roblox-target refresh worker; endpoint metadata comes from `smu-roblox`
   instead of duplicating log parsing. `smu-scripting` wires `lagSwitch` / `lagswitch`, config
   get/set/clear, and status through that service with the legacy field/range, owner-token, settings,
-  and cleanup semantics. The graphical `pkexec` helper-launch UX remains app-owned.
+  and cleanup semantics. `smu-app` now owns the Linux lagswitch helper-launch boundary: it resolves
+  the bundled helper with the same AppImage/current-directory precedence, stages a private 0700 copy,
+  binds it to the GUI PID/start-time identity, launches it through graphical `pkexec`, verifies the
+  root helper socket, and exposes the default C++ Administrator Required modal. Notification
+  suppression/profile persistence for that modal remains part of the broader app-settings cutover.
 - `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop

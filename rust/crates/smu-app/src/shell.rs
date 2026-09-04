@@ -2,9 +2,16 @@ use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 
 use crate::{
     global_settings::{self, GlobalSettingsState},
-    lag_switch::{self, LagSwitchUiState},
+    lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
 };
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ShellAction {
+    ToggleLagSwitchBackend,
+    #[cfg(target_os = "linux")]
+    StartLagSwitchHelper,
+}
 
 const ROOT_WINDOW: &str = "Main SMU Window";
 const GLOBAL_SETTINGS_CHILD: &str = "GlobalSettings";
@@ -32,6 +39,10 @@ pub struct ShellState {
     opacity_percent: f32,
     global: GlobalSettingsState,
     lag_switch: LagSwitchUiState,
+    #[cfg(target_os = "linux")]
+    open_admin_popup: bool,
+    #[cfg(target_os = "linux")]
+    admin_error: String,
 }
 
 impl Default for ShellState {
@@ -41,6 +52,10 @@ impl Default for ShellState {
             opacity_percent: 100.0,
             global: GlobalSettingsState::default(),
             lag_switch: LagSwitchUiState::default(),
+            #[cfg(target_os = "linux")]
+            open_admin_popup: false,
+            #[cfg(target_os = "linux")]
+            admin_error: String::new(),
         }
     }
 }
@@ -54,9 +69,24 @@ impl ShellState {
         }
         state
     }
+
+    #[cfg(target_os = "linux")]
+    pub const fn set_lag_switch_backend(&mut self, backend: crate::lag_switch::BackendState) {
+        self.lag_switch.backend = backend;
+    }
+
+    #[cfg(target_os = "linux")]
+    pub const fn request_lag_switch_helper_popup(&mut self) {
+        self.open_admin_popup = true;
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn set_lag_switch_helper_error(&mut self, error: impl Into<String>) {
+        self.admin_error = error.into();
+    }
 }
 
-pub fn render(ui: &Ui, state: &mut ShellState) {
+pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     let display_size = ui.io().display_size();
     let flags = WindowFlags::NO_RESIZE
         | WindowFlags::NO_MOVE
@@ -65,16 +95,47 @@ pub fn render(ui: &Ui, state: &mut ShellState) {
         | WindowFlags::NO_SCROLL_WITH_MOUSE
         | WindowFlags::NO_BRING_TO_FRONT_ON_FOCUS;
 
+    let mut action = None;
     let _window_rounding = ui.push_style_var(StyleVar::WindowRounding(0.0));
     ui.window(ROOT_WINDOW)
         .size(display_size, Condition::Always)
         .position([0.0, 0.0], Condition::Always)
         .flags(flags)
-        .build(|| render_contents(ui, state, display_size));
+        .build(|| {
+            action = render_contents(ui, state, display_size);
+        });
+
+    #[cfg(target_os = "linux")]
+    {
+        if state.open_admin_popup {
+            let _ = ui.open_popup("Administrator Required");
+            state.open_admin_popup = false;
+        }
+        if let Some(_popup) = ui.begin_modal_popup("Administrator Required") {
+            ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
+            ui.text_wrapped("This process involves:");
+            ui.bullet_text("Starting the bundled nethelper with pkexec.");
+            ui.bullet_text("Keeping the SMU GUI running as your normal desktop user.");
+            if !state.admin_error.is_empty() {
+                ui.text_colored([1.0, 0.20, 0.40, 1.0], &state.admin_error);
+            }
+            crate::parity::separator(ui);
+            if ui.button_with_size("Start Helper", [180.0, 0.0]) {
+                action = Some(ShellAction::StartLagSwitchHelper);
+                ui.close_current_popup();
+            }
+            ui.same_line();
+            if ui.button_with_size("Cancel", [120.0, 0.0]) {
+                ui.close_current_popup();
+            }
+        }
+    }
+
+    action
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.
-fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) {
+fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> Option<ShellAction> {
     let style = ui.clone_style();
     let settings_panel_height = ui.text_line_height_with_spacing() * SETTINGS_TEXT_ROWS
         + style.window_padding()[1] * SETTINGS_PADDING_ROWS
@@ -97,10 +158,10 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) {
         display_size[0] - MAIN_HORIZONTAL_ADJUSTMENT - left_panel_width,
         display_size[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT - FOOTER_HEIGHT,
     ];
-    ui.child_window(RIGHT_SECTION_CHILD)
-        .size(right_section_size)
-        .border(true)
-        .build(ui, || lag_switch::render(ui, &mut state.lag_switch));
+    let mut lag_action = None;
+    ui.child_window(RIGHT_SECTION_CHILD).size(right_section_size).border(true).build(ui, || {
+        lag_action = lag_switch::render(ui, &mut state.lag_switch);
+    });
 
     let right_child_min = ui.item_rect_min();
     let right_child_size = ui.item_rect_size();
@@ -113,6 +174,8 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) {
         .size([right_child_size[0] - FOOTER_BORDER_COMPENSATION, FOOTER_HEIGHT])
         .flags(WindowFlags::NO_SCROLLBAR | WindowFlags::NO_SCROLL_WITH_MOUSE)
         .build(ui, || render_footer(ui, right_child_size[0], state));
+
+    lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's expression order for pixel parity.

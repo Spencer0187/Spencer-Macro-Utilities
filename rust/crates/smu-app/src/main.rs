@@ -2,13 +2,23 @@
 
 use std::{ffi::c_void, path::PathBuf, ptr};
 
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
+
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
 use sdl3::{event::Event, keyboard::Keycode, video::GLProfile};
 
+#[cfg(target_os = "linux")]
+use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
+#[cfg(target_os = "linux")]
+use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
+
 mod capture;
 mod global_settings;
 mod lag_switch;
+#[cfg(target_os = "linux")]
+mod linux_privileged_helper;
 mod parity;
 mod shell;
 mod sidebar;
@@ -30,6 +40,53 @@ fn capture_dimension(variable: &str, minimum: u32) -> u32 {
         .ok()
         .and_then(|value| value.parse::<u32>().ok())
         .map_or(minimum, |value| value.max(minimum))
+}
+
+#[cfg(target_os = "linux")]
+fn sync_linux_lag_switch_status(
+    backend: &LinuxLagSwitchBackend,
+    shell_state: &mut shell::ShellState,
+) {
+    let available = backend.is_available();
+    shell_state.set_lag_switch_backend(lag_switch::BackendState {
+        enabled: available,
+        available,
+        actively_lagging: backend.is_blocking_active(),
+    });
+}
+
+#[cfg(target_os = "linux")]
+fn handle_linux_shell_action(
+    action: Option<shell::ShellAction>,
+    backend: &LinuxLagSwitchBackend,
+    shell_state: &mut shell::ShellState,
+) {
+    match action {
+        Some(shell::ShellAction::ToggleLagSwitchBackend) => {
+            if backend.is_available() {
+                backend.shutdown();
+            } else if !backend.init() {
+                shell_state.set_lag_switch_helper_error(String::new());
+                shell_state.request_lag_switch_helper_popup();
+            }
+        }
+        Some(shell::ShellAction::StartLagSwitchHelper) => {
+            match linux_privileged_helper::start_linux_network_helper_with_graphical_pkexec() {
+                Ok(()) if backend.init() => {
+                    shell_state.set_lag_switch_helper_error(String::new());
+                }
+                Ok(()) => {
+                    shell_state.set_lag_switch_helper_error(backend.unsupported_reason());
+                    shell_state.request_lag_switch_helper_popup();
+                }
+                Err(error) => {
+                    shell_state.set_lag_switch_helper_error(error);
+                    shell_state.request_lag_switch_helper_popup();
+                }
+            }
+        }
+        None => {}
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -79,6 +136,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let mut shell_state = shell::ShellState::for_parity_case(parity_case.as_deref());
+    #[cfg(target_os = "linux")]
+    let lag_switch_backend = {
+        let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
+        LinuxLagSwitchBackend::new(Some(roblox_log))
+    };
     let mut rendered_frames = 0_u32;
 
     'main: loop {
@@ -95,7 +157,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backend.new_frame(&mut imgui)?;
         let frame = imgui.begin_frame();
         let ui = frame.ui();
-        shell::render(ui, &mut shell_state);
+        #[cfg(target_os = "linux")]
+        sync_linux_lag_switch_status(&lag_switch_backend, &mut shell_state);
+        let shell_action = shell::render(ui, &mut shell_state);
+        #[cfg(target_os = "linux")]
+        handle_linux_shell_action(shell_action, &lag_switch_backend, &mut shell_state);
+        #[cfg(not(target_os = "linux"))]
+        let _ = shell_action;
 
         let prepared = backend.prepare(frame, || window.gl_make_current(&gl_context))?;
 

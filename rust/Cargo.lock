@@ -659,7 +659,10 @@ dependencies = [
  "dear-imgui-sdl3",
  "gl",
  "image",
+ "libc",
  "sdl3",
+ "smu-network",
+ "smu-roblox",
 ]
 
 [[package]]
