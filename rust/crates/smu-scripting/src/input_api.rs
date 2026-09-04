@@ -75,6 +75,7 @@ struct ScriptInputState {
     strict_hotkey_matching: AtomicBool,
     script_hotkey: AtomicU32,
     mouse_motion_mode: AtomicU32,
+    lag_switch_touched: AtomicBool,
     managed: Mutex<ManagedHotkeys>,
 }
 
@@ -86,6 +87,7 @@ impl Default for ScriptInputState {
             strict_hotkey_matching: AtomicBool::new(false),
             script_hotkey: AtomicU32::new(0),
             mouse_motion_mode: AtomicU32::new(ScriptMouseMotionMode::Raw as u32),
+            lag_switch_touched: AtomicBool::new(false),
             managed: Mutex::new(ManagedHotkeys::default()),
         }
     }
@@ -151,6 +153,23 @@ impl ScriptInputContext {
         down: bool,
     ) -> ManagedHotkeyResult {
         self.managed().set_held(hotkey, down)
+    }
+
+    pub(crate) fn release_all_managed_hotkeys(&self, device: Option<&Arc<dyn InputDevice>>) {
+        let keys = self.managed().release_all();
+        if let Some(device) = device {
+            for key in keys {
+                device.release_key(key, false);
+            }
+        }
+    }
+
+    pub(crate) fn mark_lag_switch_touched(&self) {
+        self.state.lag_switch_touched.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn take_lag_switch_touched(&self) -> bool {
+        self.state.lag_switch_touched.swap(false, Ordering::AcqRel)
     }
 }
 

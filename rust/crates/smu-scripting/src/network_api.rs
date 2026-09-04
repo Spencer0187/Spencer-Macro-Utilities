@@ -369,6 +369,7 @@ fn install_toggle_api(
             }
         }
         if let Some(backend) = &toggle_backend {
+            toggle_context.mark_lag_switch_touched();
             backend.set_script_blocking_active(toggle_context.owner_token(), enabled);
         }
         Ok(())
@@ -404,6 +405,7 @@ fn install_config_api(
             };
             let parsed = parse_config(lua, &table, effective_config(set_backend.as_ref()))?;
             if let Some(backend) = &set_backend {
+                set_context.mark_lag_switch_touched();
                 backend.set_script_config_override(set_context.owner_token(), parsed);
             }
             Ok(())

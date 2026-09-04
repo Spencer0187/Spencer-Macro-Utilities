@@ -68,9 +68,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `getPlatform`, `getSMUVersion`, and `getSavedValue`. The full legacy `ui` table is also modeled
   without ImGui in the scripting crate: persistent `settings` synchronization, control/ID budgets,
   capture commit/rollback, render-time edits, dynamic text, keybind aliases, and button callbacks
-  are exposed through app-facing state/interaction queues. Saved app-setting scalars are exposed by
-  `smu-profile`; transient active-monitor values stay in `smu-display`. Settings render/callback mode
-  is treated as one restricted scripting phase, matching the C++ `IsSettingsCallbackActive` helper.
+  are exposed through app-facing state/interaction queues. `LuaScriptInstance` now composes those
+  adapters into one per-script VM, enforces text-only chunks and the `onExecute` gate, runs initial
+  `onSettings`, maps completed/error/timeout/cancelled cleanup reasons, releases managed input and
+  callbacks before `onCleanup`, clears lag-switch ownership afterward, and intentionally leaves a
+  script freeze in place until instance shutdown just like C++. The caller still owns the execution
+  worker thread. Saved app-setting scalars are exposed by `smu-profile`; transient active-monitor
+  values stay in `smu-display`. Settings render/callback mode is treated as one restricted scripting
+  phase, matching the C++ `IsSettingsCallbackActive` helper.
 
 ## Architecture rules
 

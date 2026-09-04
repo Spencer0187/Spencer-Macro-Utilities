@@ -4,6 +4,7 @@
 //! service adapters so the Lua state itself never reaches application globals.
 
 use crate::memory_limit_bytes;
+use mlua::chunk::ChunkMode;
 use mlua::{Error as LuaError, HookTriggers, Lua, LuaOptions, StdLib, Value, VmState};
 use std::fmt;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -567,6 +568,22 @@ impl LuaScriptVm {
             }
             Err(error) => Err(map_lua_error(error, reason)),
         }
+    }
+
+    /// Execute raw source bytes while explicitly rejecting Lua bytecode chunks.
+    ///
+    /// # Errors
+    ///
+    /// Returns syntax, runtime, memory, cancellation, or timeout failures.
+    pub fn execute_text_bytes_with_limit(
+        &self,
+        source: &[u8],
+        chunk_name: &str,
+        limit: Duration,
+    ) -> Result<(), LuaExecutionError> {
+        self.run_budgeted(limit, |lua| {
+            lua.load(source).set_name(chunk_name).set_mode(ChunkMode::Text).exec()
+        })
     }
 
     /// Execute a plain-text Lua chunk under the normal 30-second script budget.

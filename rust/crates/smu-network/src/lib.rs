@@ -142,6 +142,11 @@ pub trait LagSwitchControl: Send + Sync {
     fn set_script_blocking_active(&self, owner_token: usize, active: bool);
     fn set_script_config_override(&self, owner_token: usize, config: LagSwitchConfig);
     fn clear_script_config_override(&self, owner_token: usize);
+
+    fn clear_script_state(&self, owner_token: usize) {
+        self.set_script_blocking_active(owner_token, false);
+        self.clear_script_config_override(owner_token);
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

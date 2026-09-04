@@ -111,7 +111,7 @@ fn discover_targets(
     discovery.find_main_process(&selector).ok().flatten().into_iter().collect()
 }
 
-fn set_freeze(
+pub(crate) fn set_freeze(
     enabled: bool,
     process_context: &ScriptProcessContext,
     discovery: Option<&Arc<dyn ProcessDiscovery>>,
