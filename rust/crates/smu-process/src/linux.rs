@@ -5,6 +5,11 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+mod control;
+pub use control::{
+    FreezeHelperAuthorization, FreezeHelperClient, ProcCgroupProcessControl, UnixFreezeHelper,
+};
+
 /// Linux process discovery backed by a procfs tree.
 #[derive(Clone, Debug)]
 pub struct ProcDiscovery {
