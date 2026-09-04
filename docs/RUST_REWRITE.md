@@ -62,9 +62,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
   wrappers, and foundational timing/cancellation functions. Its first service-backed Lua slice now
-  covers direct key press/hold/release/state, strict/loose hotkey reads, managed hotkey holds, script
-  hotkey lookup, and wheel input through `smu-input`, including settings/cleanup restrictions and
-  cancellation-safe release behavior. Remaining platform-sensitive Lua APIs follow the same adapter
+  covers direct key press/hold/release/state, compatibility `typeText`, strict/loose hotkey reads,
+  managed hotkey holds, script hotkey lookup, and wheel input through `smu-input`, including
+  settings/cleanup restrictions and cancellation-safe release behavior. Remaining platform-sensitive Lua APIs follow the same adapter
   pattern instead of reaching application globals.
 
 ## Architecture rules

@@ -4,13 +4,14 @@ use crate::lua_runtime::{ExecutionState, LuaScriptVm};
 use crate::{ManagedHotkeys, ManagedKeyAction, parse_script_hotkey, parse_script_key_name};
 use mlua::{Error as LuaError, Lua, Table, Value};
 use smu_core::{Hotkey, KeyCode};
-use smu_input::{HotkeyMatch, InputDevice, is_hotkey_pressed};
+use smu_input::{HotkeyMatch, InputDevice, compatibility_key_action, is_hotkey_pressed};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 const MAX_INPUT_DELAY_MS: i64 = 300_000;
+const MAX_TYPE_TEXT_BYTES: usize = 4096;
 const SCRIPT_HOTKEY_INTEGER_MAX: i64 = 2_147_483_647;
 const HOTKEY_KEY_MASK: u32 = 0xFFFF;
 static NEXT_SCRIPT_OWNER_TOKEN: AtomicUsize = AtomicUsize::new(1);
@@ -310,6 +311,76 @@ fn check_cleanup_start(context: &ScriptInputContext, function_name: &str) -> mlu
         )));
     }
     Ok(())
+}
+
+fn install_type_text_api(
+    lua: &Lua,
+    state: &Arc<ExecutionState>,
+    context: &ScriptInputContext,
+    device: Option<&Arc<dyn InputDevice>>,
+) -> mlua::Result<()> {
+    let state = Arc::clone(state);
+    let context = context.clone();
+    let device = device.cloned();
+    lua.globals().set(
+        "typeText",
+        lua.create_function(move |lua, (text_value, delay_value): (Value, Option<Value>)| {
+            if matches!(
+                context.mode(),
+                ScriptExecutionMode::SettingsRender | ScriptExecutionMode::SettingsCallback
+            ) {
+                return Err(LuaError::RuntimeError(
+                    "typeText is not available inside script settings".to_owned(),
+                ));
+            }
+            check_cleanup_start(&context, "typeText")?;
+            state.check_deadline()?;
+
+            let Some(text) = lua.coerce_string(text_value)? else {
+                return Err(LuaError::RuntimeError(
+                    "bad argument #1 to 'typeText' (string expected)".to_owned(),
+                ));
+            };
+            let bytes = text.as_bytes();
+            if bytes.len() > MAX_TYPE_TEXT_BYTES {
+                return Err(LuaError::RuntimeError(format!(
+                    "typeText text is too long (max {MAX_TYPE_TEXT_BYTES} bytes)"
+                )));
+            }
+            let delay = match delay_value {
+                None | Some(Value::Nil) => 30,
+                Some(value) => {
+                    let Some(integer) = lua.coerce_integer(value)? else {
+                        return Err(LuaError::RuntimeError("delay must be an integer".to_owned()));
+                    };
+                    integer.clamp(0, MAX_INPUT_DELAY_MS)
+                }
+            };
+            let Some(device) = device.as_ref() else {
+                return Ok(());
+            };
+
+            for &byte in &bytes {
+                state.check_deadline()?;
+                let action = compatibility_key_action(byte);
+                if !action.valid {
+                    continue;
+                }
+                if action.needs_shift {
+                    device.hold_key(KeyCode::SHIFT, false);
+                }
+                device.hold_key(action.key, false);
+                let waited = state
+                    .wait_coarse(Duration::from_millis(u64::try_from(delay).unwrap_or_default()));
+                device.release_key(action.key, false);
+                if action.needs_shift {
+                    device.release_key(KeyCode::SHIFT, false);
+                }
+                waited?;
+            }
+            Ok(())
+        })?,
+    )
 }
 
 fn install_press_function(
@@ -617,6 +688,7 @@ pub fn install_input_api(
     let lua = &vm.lua;
     install_press_function(lua, &vm.state, context, device, "pressKey", false)?;
     install_press_function(lua, &vm.state, context, device, "clickMouse", true)?;
+    install_type_text_api(lua, &vm.state, context, device)?;
     install_direct_action_api(lua, context, device)?;
     install_direct_state_api(lua, context, device)?;
     install_managed_input_table(lua, context, device)?;
@@ -796,6 +868,69 @@ mod tests {
         thread.join().expect("cancel thread should finish");
         assert_eq!(error.kind, LuaExecutionErrorKind::Cancelled);
         assert_eq!(input.events(), [Event::Hold(KeyCode::A), Event::Release(KeyCode::A)]);
+    }
+
+    #[test]
+    fn type_text_matches_cpp_us_layout_fallback_and_shift_order() {
+        let (vm, _, input) = vm_with_input();
+        vm.execute_source("typeText('aA?', 0)", "type.lua").expect("typeText should execute");
+        assert_eq!(
+            input.events(),
+            [
+                Event::Hold(KeyCode::A),
+                Event::Release(KeyCode::A),
+                Event::Hold(KeyCode::SHIFT),
+                Event::Hold(KeyCode::A),
+                Event::Release(KeyCode::A),
+                Event::Release(KeyCode::SHIFT),
+                Event::Hold(KeyCode::SHIFT),
+                Event::Hold(KeyCode::OEM_2),
+                Event::Release(KeyCode::OEM_2),
+                Event::Release(KeyCode::SHIFT),
+            ]
+        );
+    }
+
+    #[test]
+    fn type_text_skips_unmapped_bytes_and_caps_input_length() {
+        let (vm, _, input) = vm_with_input();
+        vm.execute_source("typeText(string.char(255) .. '1', 0)", "bytes.lua")
+            .expect("unmapped byte should be skipped");
+        assert_eq!(
+            input.events(),
+            [
+                Event::Hold(KeyCode::new(u32::from(b'1'))),
+                Event::Release(KeyCode::new(u32::from(b'1'))),
+            ]
+        );
+        let error = vm
+            .execute_source("typeText(string.rep('x', 4097), 0)", "too-long.lua")
+            .expect_err("overlong text should fail");
+        assert!(error.message.contains("typeText text is too long (max 4096 bytes)"));
+    }
+
+    #[test]
+    fn type_text_cancellation_releases_current_key_and_shift() {
+        let (vm, _, input) = vm_with_input();
+        let stop = vm.stop_handle();
+        let thread = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(5));
+            stop.request_cancel();
+        });
+        let error = vm
+            .execute_source("typeText('A', 5000)", "cancel-type.lua")
+            .expect_err("cancel should interrupt typeText wait");
+        thread.join().expect("cancel thread should finish");
+        assert_eq!(error.kind, LuaExecutionErrorKind::Cancelled);
+        assert_eq!(
+            input.events(),
+            [
+                Event::Hold(KeyCode::SHIFT),
+                Event::Hold(KeyCode::A),
+                Event::Release(KeyCode::A),
+                Event::Release(KeyCode::SHIFT),
+            ]
+        );
     }
 
     #[test]
