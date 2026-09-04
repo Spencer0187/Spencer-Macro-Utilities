@@ -6,6 +6,7 @@ use crate::{
     item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
+    speedglitch::{self, SpeedglitchUiState},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -71,6 +72,7 @@ pub struct ShellState {
     selected_section: usize,
     freeze: FreezeUiState,
     item_desync: ItemDesyncUiState,
+    speedglitch: SpeedglitchUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -85,6 +87,7 @@ impl Default for ShellState {
             selected_section: 15,
             freeze: FreezeUiState::default(),
             item_desync: ItemDesyncUiState::default(),
+            speedglitch: SpeedglitchUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -97,6 +100,7 @@ impl ShellState {
     pub fn for_parity_case(case: Option<&str>) -> Self {
         let mut state = Self::default();
         if case == Some("lag-switch-user-reference") {
+            state.global.apply_lag_switch_reference_globals();
             state.selected_section = 15;
             state.freeze.enabled = false;
             state.lag_switch = LagSwitchUiState::user_reference();
@@ -115,6 +119,7 @@ impl ShellState {
         let mut enabled = [false; 16];
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
+        enabled[3] = self.speedglitch.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -126,6 +131,18 @@ impl ShellState {
     ) -> crate::item_desync_runtime::ItemDesyncControllerSettings {
         self.item_desync
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn speedglitch_controller_settings(
+        &self,
+    ) -> crate::speedglitch_runtime::SpeedglitchControllerSettings {
+        self.speedglitch.controller_settings(
+            self.global.macro_enabled(),
+            self.global.fps_runtime(),
+            self.global.process_selector(),
+        )
     }
 
     #[cfg(target_os = "linux")]
@@ -338,6 +355,11 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         .size([display_size[0] - SETTINGS_HORIZONTAL_MARGIN, settings_panel_height])
         .border(true)
         .build(ui, || global_settings::render(ui, &mut state.global));
+    state.speedglitch.sync_global_calibration(
+        state.global.sensitivity(),
+        state.global.cam_fix_enabled(),
+        state.global.speed_calibration_revision(),
+    );
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
@@ -359,6 +381,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         match state.selected_section {
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
+            3 => speedglitch::render(ui, &mut state.speedglitch),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));

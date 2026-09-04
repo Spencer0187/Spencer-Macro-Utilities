@@ -45,6 +45,9 @@ mod parity;
 mod runtime_input;
 mod shell;
 mod sidebar;
+mod speedglitch;
+#[cfg(target_os = "linux")]
+mod speedglitch_runtime;
 #[cfg(target_os = "linux")]
 mod target_runtime;
 mod theme;
@@ -96,6 +99,7 @@ struct LinuxRuntimeServices {
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     freeze_controller: Option<freeze_runtime::FreezeController>,
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
+    speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
 }
 
 #[cfg(target_os = "linux")]
@@ -150,6 +154,17 @@ impl LinuxRuntimeServices {
                 shell_state.item_desync_controller_settings(),
             )
         });
+        let speedglitch_controller = input_ready.then(|| {
+            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+            speedglitch_runtime::SpeedglitchController::start(
+                input,
+                discovery,
+                foreground,
+                shell_state.speedglitch_controller_settings(),
+            )
+        });
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -161,6 +176,7 @@ impl LinuxRuntimeServices {
             lag_switch_controller,
             freeze_controller,
             item_desync_controller,
+            speedglitch_controller,
         }
     }
 
@@ -200,6 +216,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.item_desync_controller.as_ref() {
             controller.update_settings(shell_state.item_desync_controller_settings());
+        }
+        if let Some(controller) = self.speedglitch_controller.as_ref() {
+            controller.update_settings(shell_state.speedglitch_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -271,6 +290,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.speedglitch_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.item_desync_controller.as_ref() {
             controller.stop();
         }

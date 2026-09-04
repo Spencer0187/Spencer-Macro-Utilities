@@ -36,6 +36,8 @@ pub struct GlobalSettingsState {
     process: ProcessUiState,
     sensitivity: String,
     fps: String,
+    fps_runtime: u32,
+    speed_calibration_revision: u64,
 }
 
 impl GlobalSettingsState {
@@ -47,6 +49,35 @@ impl GlobalSettingsState {
     #[must_use]
     pub fn process_selector(&self) -> String {
         self.process.name.clone()
+    }
+
+    #[must_use]
+    pub const fn fps_runtime(&self) -> u32 {
+        self.fps_runtime
+    }
+
+    #[must_use]
+    pub fn sensitivity(&self) -> &str {
+        &self.sensitivity
+    }
+
+    #[must_use]
+    pub const fn cam_fix_enabled(&self) -> bool {
+        self.toggles.cam_fix_enabled
+    }
+
+    #[must_use]
+    pub const fn speed_calibration_revision(&self) -> u64 {
+        self.speed_calibration_revision
+    }
+
+    pub fn apply_lag_switch_reference_globals(&mut self) {
+        "0.6".clone_into(&mut self.sensitivity);
+        "200".clone_into(&mut self.fps);
+        self.toggles.cam_fix_enabled = false;
+        // The C++ parity hook writes the display buffer directly and intentionally does not call
+        // SyncRobloxFPSFromBuffer(), so the runtime atomic remains at its production initial 120.
+        self.fps_runtime = 120;
     }
 }
 
@@ -66,8 +97,10 @@ impl Default for GlobalSettingsState {
                 },
                 found: false,
             },
-            sensitivity: "0.6".to_owned(),
-            fps: "200".to_owned(),
+            sensitivity: "0.5".to_owned(),
+            fps: "60".to_owned(),
+            fps_runtime: 120,
+            speed_calibration_revision: 1,
         }
     }
 }
@@ -146,22 +179,75 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) {
     ui.text_wrapped("Roblox Sensitivity (0-4):");
     ui.same_line();
     ui.set_next_item_width(SENSITIVITY_INPUT_WIDTH);
-    ui.input_text("##Sens", &mut state.sensitivity)
+    if ui
+        .input_text("##Sens", &mut state.sensitivity)
         .chars_decimal(true)
         .chars_no_blank(true)
-        .build();
+        .build()
+    {
+        state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
+    }
     ui.same_line();
     ui.text_wrapped("Your Roblox FPS:");
     ui.same_line();
     ui.set_next_item_width(FPS_INPUT_WIDTH);
-    ui.input_text("##FPS", &mut state.fps).chars_decimal(true).chars_no_blank(true).build();
+    if ui.input_text("##FPS", &mut state.fps).chars_decimal(true).chars_no_blank(true).build()
+        && let Some(parsed) = parse_cpp_fps_buffer(&state.fps)
+    {
+        state.fps_runtime = parsed;
+    }
     ui.same_line();
     ui.text("Game Uses Cam-Fix:");
     ui.same_line();
-    ui.checkbox("##CamfixToggle", &mut state.toggles.cam_fix_enabled);
+    if ui.checkbox("##CamfixToggle", &mut state.toggles.cam_fix_enabled) {
+        state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
+    }
 
     ui.same_line_with_pos(window_width - SETTINGS_FROM_RIGHT);
     let _ = ui.button("Settings ->");
     ui.same_line_with_pos(window_width - THEME_FROM_RIGHT);
     let _ = ui.button("Theme Editor ->");
+}
+
+fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let mut parsed = 0_u32;
+    for digit in value.bytes().map(|byte| u32::from(byte - b'0')) {
+        parsed = parsed.checked_mul(10)?.checked_add(digit)?;
+    }
+    Some(parsed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GlobalSettingsState, parse_cpp_fps_buffer};
+
+    #[test]
+    fn production_defaults_keep_cpp_display_and_runtime_fps_split() {
+        let state = GlobalSettingsState::default();
+        assert_eq!(state.sensitivity(), "0.5");
+        assert_eq!(state.fps, "60");
+        assert_eq!(state.fps_runtime(), 120);
+        assert!(!state.cam_fix_enabled());
+    }
+
+    #[test]
+    fn cpp_fps_buffer_parser_rejects_empty_nondigit_and_overflow() {
+        assert_eq!(parse_cpp_fps_buffer("0"), Some(0));
+        assert_eq!(parse_cpp_fps_buffer("200"), Some(200));
+        assert_eq!(parse_cpp_fps_buffer(""), None);
+        assert_eq!(parse_cpp_fps_buffer("20x"), None);
+        assert_eq!(parse_cpp_fps_buffer("4294967296"), None);
+    }
+
+    #[test]
+    fn parity_globals_change_text_without_syncing_runtime_fps() {
+        let mut state = GlobalSettingsState::default();
+        state.apply_lag_switch_reference_globals();
+        assert_eq!(state.sensitivity(), "0.6");
+        assert_eq!(state.fps, "200");
+        assert_eq!(state.fps_runtime(), 120);
+    }
 }

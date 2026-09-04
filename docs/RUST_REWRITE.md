@@ -79,6 +79,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Speedglitch slice as two long-lived lanes: a 2 ms controller
+  retains foreground/hotkey/hold-vs-toggle state while a dedicated motion worker owns the frame waits.
+  Each worker cycle snapshots runtime FPS exactly once, reads X immediately before the first move,
+  then re-reads Y only after the first wait, preserving the characterized C++ live-read point. The
+  Rust global settings state also preserves C++'s unusual startup split: production displays FPS `60`
+  while the runtime value starts at `120` until the FPS text buffer is successfully synchronized; the
+  Lag Switch parity hook displays `200` without changing that runtime value.
 - `smu-app` now also owns the live Linux Item Desync slice. Its Rust pane preserves the F5/slot-5
   defaults and foreground gate, while a dedicated 2 ms controller lane emits the characterized
   down/up/down/up inventory-slot pulse for every active poll. The original C++ controller behavior
@@ -157,7 +164,8 @@ workers until measurements prove which preserves current behavior best. After a 
 been differentially characterized, it may be intentionally migrated to a named worker when doing so
 removes unrelated macro interference; preserve its internal action/wait order and add a lane-topology
 regression test. HHJ motion, Speedglitch, ItemClip, WallWalk, Windows Anti-AFK, Linux Freeze, and
-Linux Item Desync are approved migrations of this kind. Freeze's 50 ms auto-unfreeze override is now modeled on a
+Linux Item Desync are approved migrations of this kind. The live Linux Speedglitch cutover now uses
+that approved controller/worker split directly. Freeze's 50 ms auto-unfreeze override is modeled on a
 separate dedicated lane: its worker clock advances exactly 50 ms while the controller clock remains
 at zero, preserving the internal unfreeze/wait/resuspend order without stalling Lag Switch.
 
