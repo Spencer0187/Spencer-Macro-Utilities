@@ -95,6 +95,14 @@ impl ShellState {
     }
 
     #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn lag_switch_controller_settings(
+        &self,
+    ) -> crate::lag_switch_runtime::LagSwitchControllerSettings {
+        self.lag_switch.controller_settings(self.global.macro_enabled())
+    }
+
+    #[cfg(target_os = "linux")]
     pub const fn set_lag_switch_backend(&mut self, backend: crate::lag_switch::BackendState) {
         self.lag_switch.backend = backend;
     }

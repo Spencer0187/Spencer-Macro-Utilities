@@ -38,6 +38,13 @@ pub struct GlobalSettingsState {
     fps: String,
 }
 
+impl GlobalSettingsState {
+    #[must_use]
+    pub const fn macro_enabled(&self) -> bool {
+        self.toggles.macro_enabled
+    }
+}
+
 impl Default for GlobalSettingsState {
     fn default() -> Self {
         Self {

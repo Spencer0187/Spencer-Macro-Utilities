@@ -1,5 +1,8 @@
 use dear_imgui_rs::Ui;
 
+#[cfg(target_os = "linux")]
+use smu_network::{LagSwitchConfig, LagSwitchTargetMode};
+
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const WARNING: [f32; 4] = [1.0, 0.50, 0.00, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
@@ -136,6 +139,46 @@ const fn default_overlay() -> OverlayState {
 }
 
 impl LagSwitchUiState {
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn controller_settings(
+        &self,
+        macro_enabled: bool,
+    ) -> crate::lag_switch_runtime::LagSwitchControllerSettings {
+        let unblock_duration_ms = self.auto_unlag.unblock_ms_text.parse::<i32>().unwrap_or(0);
+        crate::lag_switch_runtime::LagSwitchControllerSettings {
+            macro_enabled,
+            section_enabled: self.enabled,
+            hotkey: crate::lag_switch_runtime::DEFAULT_LAG_SWITCH_HOTKEY,
+            toggle_mode: self.toggle_key_mode,
+            config: LagSwitchConfig {
+                enabled: false,
+                currently_blocking: false,
+                inbound_hard_block: self.hard_block.inbound,
+                outbound_hard_block: self.hard_block.outbound,
+                fake_lag_enabled: self.fake_lag.enabled,
+                inbound_fake_lag: self.fake_lag.directions.inbound,
+                outbound_fake_lag: self.fake_lag.directions.outbound,
+                fake_lag_delay_ms: self.fake_lag.delay_ms,
+                target_roblox_only: self.filter.roblox_only,
+                use_udp: true,
+                use_tcp: self.filter.use_tcp,
+                prevent_disconnect: false,
+                auto_unblock: self.auto_unlag.enabled,
+                max_duration_seconds: self.auto_unlag.max_duration_seconds,
+                unblock_duration_ms,
+                target_mode: if self.filter.roblox_only {
+                    LagSwitchTargetMode::Roblox
+                } else {
+                    LagSwitchTargetMode::All
+                },
+                remote_ips: Vec::new(),
+                remote_ports: Vec::new(),
+                include_roblox_dynamic_ips: false,
+            },
+        }
+    }
+
     /// State visible in the user-provided parity reference crop.
     #[must_use]
     pub fn user_reference() -> Self {
@@ -428,6 +471,35 @@ mod tests {
         assert_eq!(state.fake_lag.delay_ms, 0);
         assert!(state.fake_lag.directions.inbound);
         assert!(state.fake_lag.directions.outbound);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_controller_config_matches_cpp_ui_mapping() {
+        use smu_network::LagSwitchTargetMode;
+
+        let state = LagSwitchUiState::default();
+        let settings = state.controller_settings(true);
+        assert!(settings.macro_enabled);
+        assert!(!settings.section_enabled);
+        assert!(settings.toggle_mode);
+        assert_eq!(settings.hotkey, crate::lag_switch_runtime::DEFAULT_LAG_SWITCH_HOTKEY);
+        assert!(!settings.config.enabled);
+        assert!(!settings.config.currently_blocking);
+        assert!(settings.config.inbound_hard_block);
+        assert!(settings.config.outbound_hard_block);
+        assert!(!settings.config.fake_lag_enabled);
+        assert!(settings.config.inbound_fake_lag);
+        assert!(settings.config.outbound_fake_lag);
+        assert_eq!(settings.config.fake_lag_delay_ms, 0);
+        assert!(settings.config.target_roblox_only);
+        assert_eq!(settings.config.target_mode, LagSwitchTargetMode::Roblox);
+        assert!(settings.config.use_udp);
+        assert!(!settings.config.use_tcp);
+        assert!(!settings.config.prevent_disconnect);
+        assert!(!settings.config.auto_unblock);
+        assert!((settings.config.max_duration_seconds - 9.0).abs() < f32::EPSILON);
+        assert_eq!(settings.config.unblock_duration_ms, 50);
     }
 
     #[test]

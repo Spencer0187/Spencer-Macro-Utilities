@@ -1231,11 +1231,13 @@ dependencies = [
  "image",
  "libc",
  "sdl3",
+ "smu-core",
  "smu-display",
  "smu-input",
  "smu-network",
  "smu-process",
  "smu-roblox",
+ "smu-runtime",
 ]
 
 [[package]]

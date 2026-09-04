@@ -3,7 +3,10 @@
 use std::{ffi::c_void, path::PathBuf, ptr};
 
 #[cfg(target_os = "linux")]
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
@@ -23,6 +26,8 @@ use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 mod capture;
 mod global_settings;
 mod lag_switch;
+#[cfg(target_os = "linux")]
+mod lag_switch_runtime;
 #[cfg(target_os = "linux")]
 mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
@@ -68,69 +73,161 @@ fn configure_gl_attributes(video: &sdl3::VideoSubsystem) {
 }
 
 #[cfg(target_os = "linux")]
-fn sync_linux_lag_switch_status(
-    backend: &LinuxLagSwitchBackend,
-    shell_state: &mut shell::ShellState,
-) {
-    let available = backend.is_available();
-    shell_state.set_lag_switch_backend(lag_switch::BackendState {
-        enabled: available,
-        available,
-        actively_lagging: backend.is_blocking_active(),
-    });
+struct LinuxRuntimeServices {
+    lag_switch_backend: Arc<LinuxLagSwitchBackend>,
+    lag_switch_enabled: Arc<AtomicBool>,
+    freeze_authorization: Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>,
+    _process_control: ProcCgroupProcessControl,
+    _display_service: Arc<LinuxDisplayCapture>,
+    wayland_portal: Arc<WaylandPortalCapture>,
+    input_service: Arc<EvdevUinputInputDevice>,
+    lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
 }
 
 #[cfg(target_os = "linux")]
-fn handle_linux_shell_action(
-    action: Option<shell::ShellAction>,
-    backend: &LinuxLagSwitchBackend,
-    freeze_authorization: &linux_freeze_authorization::FreezeHelperAuthorizationGate,
-    wayland_portal: &WaylandPortalCapture,
-    shell_state: &mut shell::ShellState,
-) {
-    match action {
-        Some(shell::ShellAction::ToggleLagSwitchBackend) => {
-            if backend.is_available() {
-                backend.shutdown();
-            } else if !backend.init() {
-                shell_state.set_lag_switch_helper_error(String::new());
+impl LinuxRuntimeServices {
+    fn new(shell_state: &shell::ShellState) -> Self {
+        let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
+        let lag_switch_backend = Arc::new(LinuxLagSwitchBackend::new(Some(roblox_log)));
+        let lag_switch_enabled = Arc::new(AtomicBool::new(false));
+        let freeze_authorization =
+            Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
+        let process_control = ProcCgroupProcessControl::default()
+            .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone());
+        let display_service = Arc::new(LinuxDisplayCapture::new());
+        let wayland_portal = display_service.wayland_portal();
+        let input_service =
+            Arc::new(EvdevUinputInputDevice::new().with_wayland_portal(wayland_portal.clone()));
+        let lag_switch_controller = if input_service.init().is_ok() {
+            let input: Arc<dyn smu_input::KeyState> = input_service.clone();
+            Some(lag_switch_runtime::LagSwitchController::start(
+                input,
+                lag_switch_backend.clone(),
+                lag_switch_enabled.clone(),
+                shell_state.lag_switch_controller_settings(),
+            ))
+        } else {
+            None
+        };
+        Self {
+            lag_switch_backend,
+            lag_switch_enabled,
+            freeze_authorization,
+            _process_control: process_control,
+            _display_service: display_service,
+            wayland_portal,
+            input_service,
+            lag_switch_controller,
+        }
+    }
+
+    fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        let available = self.lag_switch_backend.is_available();
+        shell_state.set_lag_switch_backend(lag_switch::BackendState {
+            enabled: self.lag_switch_enabled.load(Ordering::Acquire),
+            available,
+            actively_lagging: self.lag_switch_backend.is_blocking_active(),
+        });
+        if self.freeze_authorization.is_pending() {
+            shell_state.request_freeze_helper_popup();
+        }
+        if self.wayland_portal.has_pending_activation_request() {
+            shell_state.request_wayland_screen_capture_popup();
+        }
+        if self.wayland_portal.has_pending_remote_desktop_activation_request() {
+            shell_state.request_wayland_remote_desktop_popup();
+        }
+    }
+
+    fn finish_shell(
+        &self,
+        action: Option<shell::ShellAction>,
+        shell_state: &mut shell::ShellState,
+    ) {
+        if let Some(controller) = self.lag_switch_controller.as_ref() {
+            controller.update_settings(shell_state.lag_switch_controller_settings());
+            if controller.take_helper_prompt_request() {
+                shell_state
+                    .set_lag_switch_helper_error(self.lag_switch_backend.unsupported_reason());
                 shell_state.request_lag_switch_helper_popup();
             }
         }
-        Some(shell::ShellAction::StartLagSwitchHelper) => {
-            match linux_privileged_helper::start_linux_network_helper_with_graphical_pkexec() {
-                Ok(()) if backend.init() => {
-                    shell_state.set_lag_switch_helper_error(String::new());
-                }
-                Ok(()) => {
-                    shell_state.set_lag_switch_helper_error(backend.unsupported_reason());
-                    shell_state.request_lag_switch_helper_popup();
-                }
-                Err(error) => {
-                    shell_state.set_lag_switch_helper_error(error);
-                    shell_state.request_lag_switch_helper_popup();
+        self.handle_action(action, shell_state);
+    }
+
+    fn handle_action(
+        &self,
+        action: Option<shell::ShellAction>,
+        shell_state: &mut shell::ShellState,
+    ) {
+        match action {
+            Some(shell::ShellAction::ToggleLagSwitchBackend) => {
+                if self.lag_switch_enabled.load(Ordering::Acquire) {
+                    self.lag_switch_backend.shutdown();
+                    self.lag_switch_enabled.store(false, Ordering::Release);
+                } else {
+                    let config = shell_state.lag_switch_controller_settings().config;
+                    self.lag_switch_backend.set_base_config(config);
+                    if self.lag_switch_backend.init() {
+                        self.lag_switch_enabled.store(true, Ordering::Release);
+                    } else {
+                        shell_state.set_lag_switch_helper_error(String::new());
+                        shell_state.request_lag_switch_helper_popup();
+                    }
                 }
             }
+            Some(shell::ShellAction::StartLagSwitchHelper) => {
+                let config = shell_state.lag_switch_controller_settings().config;
+                self.lag_switch_backend.set_base_config(config);
+                match linux_privileged_helper::start_linux_network_helper_with_graphical_pkexec() {
+                    Ok(()) if self.lag_switch_backend.init() => {
+                        self.lag_switch_enabled.store(true, Ordering::Release);
+                        shell_state.set_lag_switch_helper_error(String::new());
+                    }
+                    Ok(()) => {
+                        shell_state.set_lag_switch_helper_error(
+                            self.lag_switch_backend.unsupported_reason(),
+                        );
+                        shell_state.request_lag_switch_helper_popup();
+                    }
+                    Err(error) => {
+                        shell_state.set_lag_switch_helper_error(error);
+                        shell_state.request_lag_switch_helper_popup();
+                    }
+                }
+            }
+            Some(shell::ShellAction::StartFreezeHelper) => {
+                let approved =
+                    linux_privileged_helper::start_linux_process_helper_with_graphical_pkexec()
+                        .is_ok();
+                self.freeze_authorization.resolve(approved);
+            }
+            Some(shell::ShellAction::CancelFreezeHelper) => {
+                self.freeze_authorization.resolve(false);
+            }
+            Some(shell::ShellAction::ApproveWaylandScreenCapture) => {
+                self.wayland_portal.approve_activation_request();
+            }
+            Some(shell::ShellAction::DeclineWaylandScreenCapture) => {
+                self.wayland_portal.decline_activation_request();
+            }
+            Some(shell::ShellAction::ApproveWaylandRemoteDesktop) => {
+                self.wayland_portal.approve_remote_desktop_activation_request();
+            }
+            Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
+                self.wayland_portal.decline_remote_desktop_activation_request();
+            }
+            None => {}
         }
-        Some(shell::ShellAction::StartFreezeHelper) => {
-            let approved =
-                linux_privileged_helper::start_linux_process_helper_with_graphical_pkexec().is_ok();
-            freeze_authorization.resolve(approved);
+    }
+
+    fn shutdown(&self) {
+        if let Some(controller) = self.lag_switch_controller.as_ref() {
+            controller.stop();
         }
-        Some(shell::ShellAction::CancelFreezeHelper) => freeze_authorization.resolve(false),
-        Some(shell::ShellAction::ApproveWaylandScreenCapture) => {
-            wayland_portal.approve_activation_request();
-        }
-        Some(shell::ShellAction::DeclineWaylandScreenCapture) => {
-            wayland_portal.decline_activation_request();
-        }
-        Some(shell::ShellAction::ApproveWaylandRemoteDesktop) => {
-            wayland_portal.approve_remote_desktop_activation_request();
-        }
-        Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
-            wayland_portal.decline_remote_desktop_activation_request();
-        }
-        None => {}
+        self.lag_switch_backend.shutdown();
+        self.lag_switch_enabled.store(false, Ordering::Release);
+        self.input_service.shutdown();
     }
 }
 
@@ -167,22 +264,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let mut shell_state = shell::ShellState::for_parity_case(parity_case.as_deref());
     #[cfg(target_os = "linux")]
-    let lag_switch_backend = {
-        let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
-        LinuxLagSwitchBackend::new(Some(roblox_log))
-    };
-    #[cfg(target_os = "linux")]
-    let freeze_authorization =
-        Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
-    #[cfg(target_os = "linux")]
-    let _process_control = ProcCgroupProcessControl::default()
-        .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone());
-    #[cfg(target_os = "linux")]
-    let display_service = Arc::new(LinuxDisplayCapture::new());
-    #[cfg(target_os = "linux")]
-    let wayland_portal = display_service.wayland_portal();
-    #[cfg(target_os = "linux")]
-    let _input_service = EvdevUinputInputDevice::new().with_wayland_portal(wayland_portal.clone());
+    let linux_services = LinuxRuntimeServices::new(&shell_state);
     let mut rendered_frames = 0_u32;
 
     'main: loop {
@@ -200,27 +282,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         #[cfg(target_os = "linux")]
-        {
-            sync_linux_lag_switch_status(&lag_switch_backend, &mut shell_state);
-            if freeze_authorization.is_pending() {
-                shell_state.request_freeze_helper_popup();
-            }
-            if wayland_portal.has_pending_activation_request() {
-                shell_state.request_wayland_screen_capture_popup();
-            }
-            if wayland_portal.has_pending_remote_desktop_activation_request() {
-                shell_state.request_wayland_remote_desktop_popup();
-            }
-        }
+        linux_services.prepare_shell(&mut shell_state);
         let shell_action = shell::render(ui, &mut shell_state);
         #[cfg(target_os = "linux")]
-        handle_linux_shell_action(
-            shell_action,
-            &lag_switch_backend,
-            freeze_authorization.as_ref(),
-            wayland_portal.as_ref(),
-            &mut shell_state,
-        );
+        linux_services.finish_shell(shell_action, &mut shell_state);
         #[cfg(not(target_os = "linux"))]
         let _ = shell_action;
 
@@ -247,6 +312,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         window.gl_swap_window();
     }
+
+    #[cfg(target_os = "linux")]
+    linux_services.shutdown();
 
     Ok(())
 }
