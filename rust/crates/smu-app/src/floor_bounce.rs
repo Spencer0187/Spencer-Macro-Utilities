@@ -100,13 +100,26 @@ fn apply_delay(payload: &PreservedProfilePayload, key: &str, text: &mut String, 
     }
 }
 
-pub fn render(ui: &Ui, state: &mut FloorBounceUiState, theme: &ThemeDefinition) {
+pub fn render(
+    ui: &Ui,
+    state: &mut FloorBounceUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Settings for Floor Bounce");
     crate::parity::separator(ui);
     ui.new_line();
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.hotkey.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "SectionKey14",
+        &mut state.hotkey,
+        170.0,
+        130.0,
+        false,
+    );
 
     let color = ui.push_style_color(
         StyleColor::Text,

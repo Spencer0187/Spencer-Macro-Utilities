@@ -225,18 +225,23 @@ impl PressKeyUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut PressKeyUiState, theme: &ThemeDefinition) {
+pub fn render(
+    ui: &Ui,
+    state: &mut PressKeyUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
     let sid = format!("_pk{selected}");
-    render_header(ui, state, count, selected);
+    render_header(ui, state, count, selected, capture);
     {
         let instance = state.instances.selected_mut();
         render_enablement(ui, instance, &sid, theme);
     }
     render_instance_controls(ui, state, count, selected, &sid);
     let instance = state.instances.selected_mut();
-    render_settings(ui, instance, &sid);
+    render_settings(ui, instance, &sid, capture);
 
     crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
@@ -244,7 +249,13 @@ pub fn render(ui: &Ui, state: &mut PressKeyUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("This macro allows you to press another key for a short moment whenever you trigger the macro. It is useful for micro-adjustments while moving, especially while jumping.");
 }
 
-fn render_header(ui: &Ui, state: &mut PressKeyUiState, count: usize, selected: usize) {
+fn render_header(
+    ui: &Ui,
+    state: &mut PressKeyUiState,
+    count: usize,
+    selected: usize,
+    capture: &mut crate::keybind::CaptureState,
+) {
     if count > 1 {
         ui.text_wrapped(format!("Settings for Press a Button {}", selected + 1));
     } else {
@@ -254,7 +265,15 @@ fn render_header(ui: &Ui, state: &mut PressKeyUiState, count: usize, selected: u
     ui.new_line();
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.instances.selected_mut().trigger.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        &format!("SectionKey5_pk{selected}"),
+        &mut state.instances.selected_mut().trigger,
+        170.0,
+        130.0,
+        false,
+    );
 }
 
 fn render_instance_controls(
@@ -295,10 +314,23 @@ fn render_enablement(
     ui.checkbox(format!("##PressKeyOutside{sid}"), &mut instance.disable_outside_target);
 }
 
-fn render_settings(ui: &Ui, instance: &mut PressKeyUiInstance, sid: &str) {
+fn render_settings(
+    ui: &Ui,
+    instance: &mut PressKeyUiInstance,
+    sid: &str,
+    capture: &mut crate::keybind::CaptureState,
+) {
     ui.text_wrapped("Key to Press:");
     ui.same_line();
-    ui.text(instance.output.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        &format!("PressKey{sid}"),
+        &mut instance.output,
+        170.0,
+        130.0,
+        true,
+    );
     ui.text("Length of Second Button Press (ms):");
     ui.same_line();
     ui.set_next_item_width(80.0);

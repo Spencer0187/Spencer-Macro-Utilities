@@ -201,13 +201,26 @@ fn apply_i32_buffer(
     }
 }
 
-pub fn render(ui: &Ui, state: &mut HhjUiState, theme: &ThemeDefinition) {
+pub fn render(
+    ui: &Ui,
+    state: &mut HhjUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Settings for Wall Helicopter High Jump");
     crate::parity::separator(ui);
     ui.new_line();
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.hotkey.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "SectionKey2",
+        &mut state.hotkey,
+        170.0,
+        130.0,
+        false,
+    );
 
     let color = ui.push_style_color(
         StyleColor::Text,
@@ -275,25 +288,7 @@ pub fn render(ui: &Ui, state: &mut HhjUiState, theme: &ThemeDefinition) {
     );
 
     crate::parity::separator(ui);
-    ui.text_wrapped("Customize Automatic HHJ");
-    ui.text_wrapped(format!("First Key Press: {}", state.auto_key1.key().legacy_label()));
-    render_reset_i32(
-        ui,
-        "R##AutoHHJKey1Time",
-        "Hold time (ms):",
-        &mut state.auto_key1_time_ms,
-        &mut state.auto_key1_time_text,
-        550,
-    );
-    ui.text_wrapped(format!("Second Key Press: {}", state.auto_key2.key().legacy_label()));
-    render_reset_i32(
-        ui,
-        "R##AutoHHJKey2Time",
-        "Hold time (ms):",
-        &mut state.auto_key2_time_ms,
-        &mut state.auto_key2_time_text,
-        68,
-    );
+    render_auto_hhj_controls(ui, state, capture);
 
     crate::parity::separator(ui);
     ui.text_wrapped("This macro allows you to jump very high when used properly. It uses COM offset, angular velocity, and Roblox's center-of-mass behavior to launch you upward.");
@@ -304,6 +299,62 @@ pub fn render(ui: &Ui, state: &mut HhjUiState, theme: &ThemeDefinition) {
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("First create COM offset, usually with Item Unequip COM Offset. Then align your back near the wall, rotate slightly left, turn your camera toward the wall, hold W, and trigger the macro.");
+}
+
+fn render_auto_hhj_controls(
+    ui: &Ui,
+    state: &mut HhjUiState,
+    capture: &mut crate::keybind::CaptureState,
+) {
+    ui.text_wrapped("Customize Automatic HHJ");
+    ui.text_wrapped("First Key Press:");
+    ui.indent();
+    if ui.button_with_size("R##AutoHHJKey1Reset", [25.0, 0.0]) {
+        state.auto_key1 = Hotkey::new(KeyCode::SPACE.raw());
+    }
+    ui.same_line();
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "AutoHHJKey1",
+        &mut state.auto_key1,
+        150.0,
+        50.0,
+        false,
+    );
+    render_reset_i32(
+        ui,
+        "R##AutoHHJKey1Time",
+        "Hold time (ms):",
+        &mut state.auto_key1_time_ms,
+        &mut state.auto_key1_time_text,
+        550,
+    );
+    ui.unindent();
+    ui.text_wrapped("Second Key Press:");
+    ui.indent();
+    if ui.button_with_size("R##AutoHHJKey2Reset", [25.0, 0.0]) {
+        state.auto_key2 = Hotkey::new(0x57);
+    }
+    ui.same_line();
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "AutoHHJKey2",
+        &mut state.auto_key2,
+        150.0,
+        50.0,
+        false,
+    );
+    render_reset_i32(
+        ui,
+        "R##AutoHHJKey2Time",
+        "Hold time (ms):",
+        &mut state.auto_key2_time_ms,
+        &mut state.auto_key2_time_text,
+        68,
+    );
+    ui.unindent();
 }
 
 fn render_reset_i32(

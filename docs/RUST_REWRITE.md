@@ -136,7 +136,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   The keybind editor preserves the C++ release-before-capture flow, modifier packing/normalization,
   wheel transient capture, modifier-only release binding, and post-bind hotkey suppression; all live
   macro controllers receive the resulting effective-macro gate, and Escape remains bindable while
-  capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
+  capture is active. Every built-in pane now uses that same live binder for its main trigger, and the
+  additional C++-editable bindings are cut over too: HHJ auto keys 1/2, Item Unequip's shared Enter
+  key, Press a Button output keys, Wallhop jump keys, and Spam a Key output keys. Multi-instance
+  binders keep per-instance IDs so capture state follows the stored key rather than the visible pane.
+  Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
   fixing trait-object wheel capture. The Settings window also now composes the live Linux updater
   check and AppImage auto-install path: opening Settings starts one background check, explicit
   retry/check is available, release metadata/manifest validation runs through `smu-updater`, and SDL

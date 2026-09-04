@@ -106,14 +106,27 @@ impl SpeedglitchUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut SpeedglitchUiState, theme: &ThemeDefinition) {
+pub fn render(
+    ui: &Ui,
+    state: &mut SpeedglitchUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Settings for Speedglitch");
     crate::parity::separator(ui);
     ui.new_line();
 
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.hotkey.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "SectionKey3",
+        &mut state.hotkey,
+        170.0,
+        130.0,
+        false,
+    );
 
     let color = ui.push_style_color(
         StyleColor::Text,

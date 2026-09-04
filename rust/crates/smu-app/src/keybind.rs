@@ -226,6 +226,20 @@ impl CaptureState {
     }
 }
 
+pub fn render_hotkey_control(
+    ui: &Ui,
+    state: &mut CaptureState,
+    id: &str,
+    value: &mut Hotkey,
+    human_width: f32,
+    hex_width: f32,
+    wrap_label: bool,
+) {
+    let mut raw = value.raw();
+    render_control(ui, state, id, &mut raw, human_width, hex_width, wrap_label);
+    *value = Hotkey::new(raw);
+}
+
 pub fn render_control(
     ui: &Ui,
     state: &mut CaptureState,

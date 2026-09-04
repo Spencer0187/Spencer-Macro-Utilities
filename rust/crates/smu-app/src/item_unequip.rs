@@ -106,18 +106,37 @@ impl ItemUnequipUiState {
     }
 }
 
-pub fn render(ui: &Ui, state: &mut ItemUnequipUiState, theme: &ThemeDefinition) {
+pub fn render(
+    ui: &Ui,
+    state: &mut ItemUnequipUiState,
+    enter_key: &mut u32,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Settings for Item Unequip COM Offset");
     crate::parity::separator(ui);
     ui.new_line();
-    render_enablement(ui, state, theme);
-    render_content(ui, state);
+    render_enablement(ui, state, capture, theme);
+    render_content(ui, state, enter_key, capture);
 }
 
-fn render_enablement(ui: &Ui, state: &mut ItemUnequipUiState, theme: &ThemeDefinition) {
+fn render_enablement(
+    ui: &Ui,
+    state: &mut ItemUnequipUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.hotkey.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "SectionKey4",
+        &mut state.hotkey,
+        170.0,
+        130.0,
+        false,
+    );
 
     let color = ui.push_style_color(
         StyleColor::Text,
@@ -133,7 +152,12 @@ fn render_enablement(ui: &Ui, state: &mut ItemUnequipUiState, theme: &ThemeDefin
     ui.checkbox("##DisableOutsideRoblox_4", &mut state.disable_outside_target);
 }
 
-fn render_content(ui: &Ui, state: &mut ItemUnequipUiState) {
+fn render_content(
+    ui: &Ui,
+    state: &mut ItemUnequipUiState,
+    enter_key: &mut u32,
+    capture: &mut crate::keybind::CaptureState,
+) {
     ui.text_wrapped("Gear Slot:");
     ui.same_line();
     ui.set_next_item_width(30.0);
@@ -158,7 +182,9 @@ fn render_content(ui: &Ui, state: &mut ItemUnequipUiState) {
     ui.set_next_item_width(150.0);
     let _ = ui.combo_simple_string("Select Emote", &mut state.selected_emote, &EMOTES);
     ui.align_text_to_frame_padding();
-    ui.text_wrapped("Key to Press After Message/Emote paste: Return");
+    ui.text_wrapped("Key to Press After Message/Emote paste:");
+    ui.same_line();
+    crate::keybind::render_control(ui, capture, "EnterKey", enter_key, 170.0, 130.0, true);
     ui.checkbox("Let the macro Keep the item equipped", &mut state.keep_equipped);
     crate::parity::separator(ui);
     ui.text_wrapped("IMPORTANT: This automatic emote unequip setup has been patched by Roblox in many places. You may still get a small COM offset manually by equipping an item without animation.");

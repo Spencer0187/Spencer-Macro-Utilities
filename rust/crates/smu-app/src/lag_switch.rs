@@ -353,9 +353,10 @@ impl LagSwitchUiState {
 pub fn render(
     ui: &Ui,
     state: &mut LagSwitchUiState,
+    capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
 ) -> Option<LagSwitchAction> {
-    render_shared_header(ui, state, theme);
+    render_shared_header(ui, state, capture, theme);
 
     #[cfg(target_os = "macos")]
     {
@@ -369,34 +370,31 @@ pub fn render(
     }
 }
 
-fn render_shared_header(ui: &Ui, state: &mut LagSwitchUiState, theme: &ThemeDefinition) {
+fn render_shared_header(
+    ui: &Ui,
+    state: &mut LagSwitchUiState,
+    capture: &mut crate::keybind::CaptureState,
+    theme: &ThemeDefinition,
+) {
     ui.text_wrapped("Settings for Lag Switch");
     crate::parity::separator(ui);
     ui.new_line();
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    render_keybind_placeholder(ui);
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        "SectionKey15",
+        &mut state.hotkey,
+        170.0,
+        130.0,
+        false,
+    );
 
     let color = if state.enabled { theme.success_color } else { theme.error_color };
     ui.text_colored(color, "Enable This Macro:");
     ui.same_line();
     ui.checkbox("##SectionEnabled", &mut state.enabled);
-}
-
-fn render_keybind_placeholder(ui: &Ui) {
-    let _ = ui.button("Click to Bind Key");
-    ui.same_line();
-    ui.set_next_item_width(170.0);
-    let mut human = "=".to_owned();
-    ui.input_text("##KeyHuman", &mut human).read_only(true).build();
-    ui.same_line();
-    ui.text("Key Binding");
-    ui.same_line();
-    ui.set_next_item_width(130.0);
-    let mut hex = "0xBB".to_owned();
-    ui.input_text("##KeyHex", &mut hex).read_only(true).build();
-    ui.same_line();
-    ui.text("(Hex)");
 }
 
 #[cfg(target_os = "macos")]

@@ -1190,34 +1190,63 @@ fn render_right_section(
             return;
         }
         match state.selected_section {
-            0 => freeze::render(ui, &mut state.freeze, theme),
-            1 => item_desync::render(ui, &mut state.item_desync, theme),
-            2 => hhj::render(ui, &mut state.hhj, theme),
-            3 => speedglitch::render(ui, &mut state.speedglitch, theme),
-            4 => item_unequip::render(ui, &mut state.item_unequip, theme),
-            5 => press_key::render(ui, &mut state.press_key, theme),
+            0 => freeze::render(ui, &mut state.freeze, &mut state.keybind_capture, theme),
+            1 => item_desync::render(ui, &mut state.item_desync, &mut state.keybind_capture, theme),
+            2 => hhj::render(ui, &mut state.hhj, &mut state.keybind_capture, theme),
+            3 => speedglitch::render(ui, &mut state.speedglitch, &mut state.keybind_capture, theme),
+            4 => item_unequip::render(
+                ui,
+                &mut state.item_unequip,
+                state.global.enter_key_mut(),
+                &mut state.keybind_capture,
+                theme,
+            ),
+            5 => press_key::render(ui, &mut state.press_key, &mut state.keybind_capture, theme),
             6 => wallhop::render(
                 ui,
                 &mut state.wallhop,
                 state.global.sensitivity(),
                 state.global.cam_fix_enabled(),
+                &mut state.keybind_capture,
                 theme,
             ),
-            7 => walless_lhj::render(ui, &mut state.walless_lhj, theme),
-            8 => item_clip::render(ui, &mut state.item_clip, theme),
-            9 => laugh_clip::render(ui, &mut state.laugh_clip, theme),
+            7 => walless_lhj::render(ui, &mut state.walless_lhj, &mut state.keybind_capture, theme),
+            8 => item_clip::render(ui, &mut state.item_clip, &mut state.keybind_capture, theme),
+            9 => laugh_clip::render(ui, &mut state.laugh_clip, &mut state.keybind_capture, theme),
             10 => wall_walk::render(
                 ui,
                 &mut state.wall_walk,
                 state.global.sensitivity(),
                 state.global.cam_fix_enabled(),
+                &mut state.keybind_capture,
                 theme,
             ),
-            11 => spam_key::render(ui, &mut state.spam_key, theme),
-            12 => ledge_bounce::render(ui, &mut state.ledge_bounce, theme),
-            13 => bunnyhop::render(ui, &mut state.bunnyhop, theme),
-            14 => floor_bounce::render(ui, &mut state.floor_bounce, theme),
-            15 => lag_action = lag_switch::render(ui, &mut state.lag_switch, theme),
+            11 => spam_key::render(ui, &mut state.spam_key, &mut state.keybind_capture, theme),
+            12 => {
+                ledge_bounce::render(
+                    ui,
+                    &mut state.ledge_bounce,
+                    &mut state.keybind_capture,
+                    theme,
+                );
+            }
+            13 => bunnyhop::render(ui, &mut state.bunnyhop, &mut state.keybind_capture, theme),
+            14 => {
+                floor_bounce::render(
+                    ui,
+                    &mut state.floor_bounce,
+                    &mut state.keybind_capture,
+                    theme,
+                );
+            }
+            15 => {
+                lag_action = lag_switch::render(
+                    ui,
+                    &mut state.lag_switch,
+                    &mut state.keybind_capture,
+                    theme,
+                );
+            }
             _ => {}
         }
     });

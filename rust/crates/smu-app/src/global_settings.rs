@@ -112,6 +112,10 @@ impl GlobalSettingsState {
         self.enter_key
     }
 
+    pub const fn enter_key_mut(&mut self) -> &mut u32 {
+        &mut self.enter_key
+    }
+
     #[must_use]
     pub const fn chat_override(&self) -> bool {
         self.chat_override

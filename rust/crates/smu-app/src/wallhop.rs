@@ -344,12 +344,13 @@ pub fn render(
     state: &mut WallhopUiState,
     sensitivity: &str,
     cam_fix: bool,
+    capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
 ) {
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
     let sid = format!("_wh{selected}");
-    render_instance_header(ui, state, count, selected);
+    render_instance_header(ui, state, count, selected, capture);
     {
         let instance = state.instances.selected_mut();
         render_instance_enablement(ui, instance, &sid, theme);
@@ -357,7 +358,7 @@ pub fn render(
     render_instance_controls(ui, state, count, selected, &sid);
     let instance = state.instances.selected_mut();
     render_instance_motion(ui, instance, sensitivity, cam_fix, &sid);
-    render_instance_options(ui, instance, &sid);
+    render_instance_options(ui, instance, &sid, capture);
 
     crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
@@ -365,7 +366,13 @@ pub fn render(
     ui.text_wrapped("This macro automates the camera flick, optional jump, and flick-back timing used for wallhops. Each instance has independent settings and a trigger key.");
 }
 
-fn render_instance_header(ui: &Ui, state: &mut WallhopUiState, count: usize, selected: usize) {
+fn render_instance_header(
+    ui: &Ui,
+    state: &mut WallhopUiState,
+    count: usize,
+    selected: usize,
+    capture: &mut crate::keybind::CaptureState,
+) {
     if count > 1 {
         ui.text_wrapped(format!("Settings for Wallhop/Rotation {}", selected + 1));
     } else {
@@ -375,7 +382,15 @@ fn render_instance_header(ui: &Ui, state: &mut WallhopUiState, count: usize, sel
     ui.new_line();
     ui.text_wrapped("Keybind:");
     ui.same_line();
-    ui.text(state.instances.selected_mut().trigger.key().legacy_label());
+    crate::keybind::render_hotkey_control(
+        ui,
+        capture,
+        &format!("SectionKey6_wh{selected}"),
+        &mut state.instances.selected_mut().trigger,
+        170.0,
+        130.0,
+        false,
+    );
 }
 
 fn render_instance_controls(
@@ -477,7 +492,12 @@ fn render_instance_motion(
     }
 }
 
-fn render_instance_options(ui: &Ui, instance: &mut WallhopUiInstance, sid: &str) {
+fn render_instance_options(
+    ui: &Ui,
+    instance: &mut WallhopUiInstance,
+    sid: &str,
+    capture: &mut crate::keybind::CaptureState,
+) {
     ui.text_wrapped("Wallhop Length (ms):");
     ui.same_line();
     ui.set_next_item_width(70.0);
@@ -512,7 +532,15 @@ fn render_instance_options(ui: &Ui, instance: &mut WallhopUiInstance, sid: &str)
         ui.same_line();
         ui.text_wrapped("Jump Key:");
         ui.same_line();
-        ui.text(instance.jump_key.key().legacy_label());
+        crate::keybind::render_hotkey_control(
+            ui,
+            capture,
+            &format!("WallhopJumpKey{sid}"),
+            &mut instance.jump_key,
+            150.0,
+            50.0,
+            false,
+        );
     }
 }
 
