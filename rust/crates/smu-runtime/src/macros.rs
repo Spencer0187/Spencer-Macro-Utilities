@@ -2043,6 +2043,40 @@ mod tests {
     }
 
     #[test]
+    fn freeze_override_wait_runs_on_dedicated_lane_without_controller_stall() {
+        let mut trace = TraceRecorder::default();
+        let worker =
+            trace.spawn_dedicated_worker(LaneId::CONTROLLER).expect("controller lane should exist");
+        let observed = execute_freeze_step(
+            &mut trace,
+            worker,
+            FreezeStepInput {
+                section_enabled: true,
+                foreground_allowed: true,
+                pressed: true,
+                was_pressed: true,
+                configured_toggle: false,
+                freeze_key: 0x04,
+                suspended: true,
+                elapsed_ms: 9_000,
+                max_seconds: 9.0,
+                override_ms: 50,
+                running_after_override: true,
+                pressed_after_override: true,
+                suspend_success: true,
+                resume_success: true,
+            },
+        );
+
+        assert!(observed.final_suspended);
+        assert_eq!(
+            trace.lane_now(LaneId::CONTROLLER).map(crate::MonotonicMicros::as_micros),
+            Some(0)
+        );
+        assert_eq!(trace.lane_now(worker).map(crate::MonotonicMicros::as_micros), Some(50_000));
+    }
+
+    #[test]
     fn cpp_item_desync_cases_match() {
         for case in fixture().item_desync_cases {
             let mut trace = TraceRecorder::default();

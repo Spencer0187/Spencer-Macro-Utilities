@@ -4,8 +4,8 @@
 //! It performs no blocking packet work; the native network service owns packet interception and its
 //! dynamic-target refresh worker.
 
-use smu_core::{Hotkey, KeyCode};
-use smu_input::{HotkeyMatch, KeyState, is_hotkey_pressed};
+use smu_core::Hotkey;
+use smu_input::KeyState;
 use smu_network::{LagSwitchConfig, linux::LinuxLagSwitchBackend};
 use smu_runtime::lag_switch::{LagSwitchStepContext, LagSwitchStepInput, execute_lag_switch_step};
 use std::fmt;
@@ -246,7 +246,7 @@ fn process_step(
     helper_prompt_requested: &AtomicBool,
     state: &mut ControllerState,
 ) {
-    let pressed = hotkey_pressed(input, settings.hotkey);
+    let pressed = crate::runtime_input::hotkey_pressed(input, settings.hotkey);
     let mut current_config = settings.config.clone();
     current_config.enabled = backend_enabled.load(Ordering::Acquire);
     current_config.currently_blocking = false;
@@ -288,19 +288,12 @@ fn process_step(
     }
 }
 
-fn hotkey_pressed(input: &dyn KeyState, hotkey: Hotkey) -> bool {
-    let key = hotkey.key();
-    if matches!(key, KeyCode::MOUSE_WHEEL_UP | KeyCode::MOUSE_WHEEL_DOWN) {
-        return input.consume_next_transient_input() == Some(key);
-    }
-    is_hotkey_pressed(input, hotkey, HotkeyMatch::Loose)
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+    use smu_core::KeyCode;
     use std::collections::BTreeSet;
     use std::sync::atomic::AtomicUsize;
 
@@ -436,7 +429,13 @@ mod tests {
     fn wheel_hotkey_consumes_transient_input_once() {
         let input = FakeInput::default();
         *lock(&input.transient) = Some(KeyCode::MOUSE_WHEEL_UP);
-        assert!(hotkey_pressed(&input, Hotkey::new(KeyCode::MOUSE_WHEEL_UP.raw())));
-        assert!(!hotkey_pressed(&input, Hotkey::new(KeyCode::MOUSE_WHEEL_UP.raw())));
+        assert!(crate::runtime_input::hotkey_pressed(
+            &input,
+            Hotkey::new(KeyCode::MOUSE_WHEEL_UP.raw())
+        ));
+        assert!(!crate::runtime_input::hotkey_pressed(
+            &input,
+            Hotkey::new(KeyCode::MOUSE_WHEEL_UP.raw())
+        ));
     }
 }

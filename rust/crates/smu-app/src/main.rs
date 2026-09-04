@@ -19,11 +19,16 @@ use smu_input::linux::EvdevUinputInputDevice;
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
 #[cfg(target_os = "linux")]
-use smu_process::linux::{ProcCgroupProcessControl, UnixFreezeHelper};
+use smu_process::linux::{
+    ProcCgroupProcessControl, ProcDiscovery, ProcForegroundProcess, UnixFreezeHelper,
+};
 #[cfg(target_os = "linux")]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 
 mod capture;
+mod freeze;
+#[cfg(target_os = "linux")]
+mod freeze_runtime;
 mod global_settings;
 mod lag_switch;
 #[cfg(target_os = "linux")]
@@ -33,6 +38,8 @@ mod linux_freeze_authorization;
 #[cfg(target_os = "linux")]
 mod linux_privileged_helper;
 mod parity;
+#[cfg(target_os = "linux")]
+mod runtime_input;
 mod shell;
 mod sidebar;
 mod theme;
@@ -77,11 +84,12 @@ struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
     freeze_authorization: Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>,
-    _process_control: ProcCgroupProcessControl,
+    _process_control: Arc<ProcCgroupProcessControl>,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
     input_service: Arc<EvdevUinputInputDevice>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
+    freeze_controller: Option<freeze_runtime::FreezeController>,
 }
 
 #[cfg(target_os = "linux")]
@@ -92,23 +100,39 @@ impl LinuxRuntimeServices {
         let lag_switch_enabled = Arc::new(AtomicBool::new(false));
         let freeze_authorization =
             Arc::new(linux_freeze_authorization::FreezeHelperAuthorizationGate::default());
-        let process_control = ProcCgroupProcessControl::default()
-            .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone());
+        let process_control = Arc::new(
+            ProcCgroupProcessControl::default()
+                .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization.clone()),
+        );
+        let process_discovery = Arc::new(ProcDiscovery::default());
+        let process_foreground = Arc::new(ProcForegroundProcess::default());
         let display_service = Arc::new(LinuxDisplayCapture::new());
         let wayland_portal = display_service.wayland_portal();
         let input_service =
             Arc::new(EvdevUinputInputDevice::new().with_wayland_portal(wayland_portal.clone()));
-        let lag_switch_controller = if input_service.init().is_ok() {
+        let input_ready = input_service.init().is_ok();
+        let lag_switch_controller = input_ready.then(|| {
             let input: Arc<dyn smu_input::KeyState> = input_service.clone();
-            Some(lag_switch_runtime::LagSwitchController::start(
+            lag_switch_runtime::LagSwitchController::start(
                 input,
                 lag_switch_backend.clone(),
                 lag_switch_enabled.clone(),
                 shell_state.lag_switch_controller_settings(),
-            ))
-        } else {
-            None
-        };
+            )
+        });
+        let freeze_controller = input_ready.then(|| {
+            let input: Arc<dyn smu_input::KeyState> = input_service.clone();
+            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+            let control: Arc<dyn smu_process::ProcessControl> = process_control.clone();
+            freeze_runtime::FreezeController::start(
+                input,
+                discovery,
+                foreground,
+                control,
+                shell_state.freeze_controller_settings(),
+            )
+        });
         Self {
             lag_switch_backend,
             lag_switch_enabled,
@@ -118,6 +142,7 @@ impl LinuxRuntimeServices {
             wayland_portal,
             input_service,
             lag_switch_controller,
+            freeze_controller,
         }
     }
 
@@ -151,6 +176,9 @@ impl LinuxRuntimeServices {
                     .set_lag_switch_helper_error(self.lag_switch_backend.unsupported_reason());
                 shell_state.request_lag_switch_helper_popup();
             }
+        }
+        if let Some(controller) = self.freeze_controller.as_ref() {
+            controller.update_settings(shell_state.freeze_controller_settings());
         }
         self.handle_action(action, shell_state);
     }
@@ -222,6 +250,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.freeze_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.lag_switch_controller.as_ref() {
             controller.stop();
         }

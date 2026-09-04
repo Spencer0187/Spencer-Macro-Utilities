@@ -43,6 +43,11 @@ impl GlobalSettingsState {
     pub const fn macro_enabled(&self) -> bool {
         self.toggles.macro_enabled
     }
+
+    #[must_use]
+    pub fn process_selector(&self) -> String {
+        self.process.name.clone()
+    }
 }
 
 impl Default for GlobalSettingsState {

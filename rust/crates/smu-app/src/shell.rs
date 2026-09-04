@@ -1,6 +1,7 @@
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 
 use crate::{
+    freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
@@ -66,6 +67,8 @@ pub struct ShellState {
     always_on_top: bool,
     opacity_percent: f32,
     global: GlobalSettingsState,
+    selected_section: usize,
+    freeze: FreezeUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
@@ -77,6 +80,8 @@ impl Default for ShellState {
             always_on_top: false,
             opacity_percent: 100.0,
             global: GlobalSettingsState::default(),
+            selected_section: 15,
+            freeze: FreezeUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
@@ -89,9 +94,25 @@ impl ShellState {
     pub fn for_parity_case(case: Option<&str>) -> Self {
         let mut state = Self::default();
         if case == Some("lag-switch-user-reference") {
+            state.selected_section = 15;
+            state.freeze.enabled = false;
             state.lag_switch = LagSwitchUiState::user_reference();
         }
         state
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn freeze_controller_settings(&self) -> crate::freeze_runtime::FreezeControllerSettings {
+        self.freeze.controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[must_use]
+    const fn section_enabled(&self) -> [bool; 16] {
+        let mut enabled = [false; 16];
+        enabled[0] = self.freeze.enabled;
+        enabled[15] = self.lag_switch.enabled;
+        enabled
     }
 
     #[cfg(target_os = "linux")]
@@ -307,10 +328,13 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
 
     let left_panel_width = ui.window_size()[0] * LEFT_WIDTH_FRACTION - MAIN_HORIZONTAL_ADJUSTMENT;
     let left_panel_height = ui.window_size()[1] - settings_panel_height - MAIN_VERTICAL_ADJUSTMENT;
+    let section_enabled = state.section_enabled();
     ui.child_window(LEFT_SCROLL_CHILD)
         .size([left_panel_width, left_panel_height])
         .border(true)
-        .build(ui, || sidebar::render(ui, left_panel_width));
+        .build(ui, || {
+            sidebar::render(ui, left_panel_width, &mut state.selected_section, &section_enabled);
+        });
 
     ui.same_line();
     let right_section_size = [
@@ -319,7 +343,16 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
     ];
     let mut lag_action = None;
     ui.child_window(RIGHT_SECTION_CHILD).size(right_section_size).border(true).build(ui, || {
-        lag_action = lag_switch::render(ui, &mut state.lag_switch);
+        match state.selected_section {
+            0 => freeze::render(ui, &mut state.freeze),
+            15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
+            section => {
+                ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));
+                crate::parity::separator(ui);
+                ui.new_line();
+                ui.text_wrapped("This section has not been cut over to the Rust application yet.");
+            }
+        }
     });
 
     let right_child_min = ui.item_rect_min();

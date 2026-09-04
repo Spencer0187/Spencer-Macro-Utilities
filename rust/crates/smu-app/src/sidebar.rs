@@ -50,14 +50,19 @@ const SECTION_CONFIGS: [SectionConfig; 16] = [
 ];
 
 #[allow(clippy::suboptimal_flops)] // Preserve C++ sidebar layout arithmetic for pixel parity.
-pub fn render(ui: &Ui, left_panel_width: f32) {
+pub fn render(
+    ui: &Ui,
+    left_panel_width: f32,
+    selected_section: &mut usize,
+    section_enabled: &[bool; 16],
+) {
     let style = ui.clone_style();
     let button_width = left_panel_width - style.frame_padding()[0] * 2.0;
 
     for section_index in DEFAULT_SECTION_ORDER {
         let config = SECTION_CONFIGS[section_index];
-        let section_active = section_index == 15;
-        let selected = section_index == 15;
+        let section_active = section_enabled[section_index];
+        let selected = section_index == *selected_section;
         let base = if section_active { ACCENT_PRIMARY } else { DISABLED_COLOR };
         let button =
             if selected { brighten(base, if section_active { 1.4 } else { 1.6 }) } else { base };
@@ -83,10 +88,12 @@ pub fn render(ui: &Ui, left_panel_width: f32) {
             ui.calc_text_size_with_opts(config.description, true, button_width - 20.0);
         let button_height = title_size[1] + description_size[1] + style.frame_padding()[1] * 2.0;
         let scroll_adjustment = if ui.scroll_max_y() == 0.0 { 7.0 } else { 18.0 };
-        let _ = ui.button_with_size(
+        if ui.button_with_size(
             format!("##SectionButton{section_index}"),
             [button_width - scroll_adjustment, button_height],
-        );
+        ) {
+            *selected_section = section_index;
+        }
 
         let button_position = ui.item_rect_min();
         let mut text_position = [
@@ -155,4 +162,9 @@ fn brighten(color: [f32; 4], factor: f32) -> [f32; 4] {
         (color[2] * factor).min(1.0),
         color[3],
     ]
+}
+
+#[must_use]
+pub const fn section_title(index: usize) -> &'static str {
+    if index < SECTION_CONFIGS.len() { SECTION_CONFIGS[index].title } else { "Unknown" }
 }

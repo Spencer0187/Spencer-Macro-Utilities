@@ -27,17 +27,89 @@ pub fn execute_target_suspend_request<RefreshFn, SetPidSuspendedFn>(
     lane: LaneId,
     state: &mut TargetSuspendState,
     suspended: bool,
-    mut refresh: RefreshFn,
-    mut set_pid_suspended: SetPidSuspendedFn,
+    refresh: RefreshFn,
+    set_pid_suspended: SetPidSuspendedFn,
 ) -> TargetSuspendOutcome
 where
     RefreshFn: FnMut() -> Vec<u32>,
     SetPidSuspendedFn: FnMut(u32, bool) -> bool,
 {
+    let mut observer = TraceSuspendObserver { trace, lane };
+    execute_target_suspend_request_with_observer(
+        state,
+        suspended,
+        refresh,
+        set_pid_suspended,
+        &mut observer,
+    )
+}
+
+/// Production form of [`execute_target_suspend_request`] that keeps the characterized state machine
+/// without requiring a trace recorder in the live controller.
+#[must_use]
+pub fn execute_target_suspend_request_untraced<RefreshFn, SetPidSuspendedFn>(
+    state: &mut TargetSuspendState,
+    suspended: bool,
+    refresh: RefreshFn,
+    set_pid_suspended: SetPidSuspendedFn,
+) -> TargetSuspendOutcome
+where
+    RefreshFn: FnMut() -> Vec<u32>,
+    SetPidSuspendedFn: FnMut(u32, bool) -> bool,
+{
+    let mut observer = NoopSuspendObserver;
+    execute_target_suspend_request_with_observer(
+        state,
+        suspended,
+        refresh,
+        set_pid_suspended,
+        &mut observer,
+    )
+}
+
+trait TargetSuspendObserver {
+    fn refreshed(&mut self, pids: &[u32]);
+    fn attempted(&mut self, pid: u32, suspended: bool, success: bool);
+}
+
+struct TraceSuspendObserver<'a> {
+    trace: &'a mut TraceRecorder,
+    lane: LaneId,
+}
+
+impl TargetSuspendObserver for TraceSuspendObserver<'_> {
+    fn refreshed(&mut self, pids: &[u32]) {
+        self.trace.process_target_refresh(self.lane, pids.to_vec());
+    }
+
+    fn attempted(&mut self, pid: u32, suspended: bool, success: bool) {
+        self.trace.process_suspend_attempt(self.lane, pid, suspended, success);
+    }
+}
+
+struct NoopSuspendObserver;
+
+impl TargetSuspendObserver for NoopSuspendObserver {
+    fn refreshed(&mut self, _pids: &[u32]) {}
+    fn attempted(&mut self, _pid: u32, _suspended: bool, _success: bool) {}
+}
+
+fn execute_target_suspend_request_with_observer<RefreshFn, SetPidSuspendedFn, Observer>(
+    state: &mut TargetSuspendState,
+    suspended: bool,
+    mut refresh: RefreshFn,
+    mut set_pid_suspended: SetPidSuspendedFn,
+    observer: &mut Observer,
+) -> TargetSuspendOutcome
+where
+    RefreshFn: FnMut() -> Vec<u32>,
+    SetPidSuspendedFn: FnMut(u32, bool) -> bool,
+    Observer: TargetSuspendObserver,
+{
     if suspended {
         if state.target_pids.is_empty() {
             state.target_pids = refresh();
-            trace.process_target_refresh(lane, state.target_pids.clone());
+            observer.refreshed(&state.target_pids);
         }
         if state.target_pids.is_empty() {
             return TargetSuspendOutcome::default();
@@ -48,19 +120,19 @@ where
     let mut any_success = false;
     for &pid in &state.frozen_pids {
         let success = set_pid_suspended(pid, suspended);
-        trace.process_suspend_attempt(lane, pid, suspended, success);
+        observer.attempted(pid, suspended, success);
         any_success = success || any_success;
     }
 
     if !any_success && suspended {
         let previous_pids = state.frozen_pids.clone();
         state.target_pids = refresh();
-        trace.process_target_refresh(lane, state.target_pids.clone());
+        observer.refreshed(&state.target_pids);
         if !state.target_pids.is_empty() && state.target_pids != previous_pids {
             state.frozen_pids.clone_from(&state.target_pids);
             for &pid in &state.frozen_pids {
                 let success = set_pid_suspended(pid, true);
-                trace.process_suspend_attempt(lane, pid, true, success);
+                observer.attempted(pid, true, success);
                 any_success = success || any_success;
             }
         }
