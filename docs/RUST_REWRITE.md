@@ -51,6 +51,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-network` owns lag-switch config arbitration and the deterministic Linux helper command
   grammar. Privileged packet interception remains a transport implementation; Roblox endpoint
   discovery is supplied by `smu-roblox` instead of duplicating log parsing inside networking.
+- `smu-scripting` now owns imported-script hotkey and metadata-header parsing, with generated C++
+  oracle fixtures for key grammar, metadata precedence, byte limits, memory-limit conversion, and
+  extension support. Lua execution remains a later vertical slice rather than living in the app UI.
 
 ## Architecture rules
 

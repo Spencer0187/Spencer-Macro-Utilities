@@ -1,0 +1,197 @@
+{
+  "cases": [
+    {
+      "content": "",
+      "filename": "Fallback.lua",
+      "name": "empty-fallback",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "Fallback",
+        "operation": "script-metadata",
+        "path": "Fallback.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @name: Custom Name\n-- @description: Long description\n-- @author: Spencer\n-- @version: 3.4.0\n-- @memoryLimitMB: 512\n-- @keybind: Ctrl+Shift+F12\n",
+      "filename": "original.smus",
+      "name": "full-header",
+      "observed": {
+        "author": "Spencer",
+        "description": "Long description",
+        "hotkey": 196731,
+        "memory_limit_mb": 512,
+        "name": "Custom Name",
+        "operation": "script-metadata",
+        "path": "original.smus",
+        "supported_extension": true,
+        "version": "3.4.0"
+      }
+    },
+    {
+      "content": "\n-- @d_e-s c: first desc\n-- @description: canonical desc\n-- @desc: ignored desc\n-- @memory_limit-mb: +42\n-- @key_bind: Alt+F2\n",
+      "filename": "normalized.HSS",
+      "name": "normalized-keys-and-desc-precedence",
+      "observed": {
+        "author": "",
+        "description": "canonical desc",
+        "hotkey": 262257,
+        "memory_limit_mb": 42,
+        "name": "normalized",
+        "operation": "script-metadata",
+        "path": "normalized.HSS",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @name: Before Code\n-- ordinary comment\nprint('stop')\n-- @author: ignored\n-- @keybind: F5\n",
+      "filename": "stop.lua",
+      "name": "code-stops-scan",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "Before Code",
+        "operation": "script-metadata",
+        "path": "stop.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @name\n-- @author:   \n-- @unknown: value\n-- @version: 1.2.3\n",
+      "filename": "malformed.txt",
+      "name": "malformed-and-empty-values",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "malformed",
+        "operation": "script-metadata",
+        "path": "malformed.txt",
+        "supported_extension": true,
+        "version": "1.2.3"
+      }
+    },
+    {
+      "content": "-- @memoryLimitMB: -1\n",
+      "filename": "negative.lua",
+      "name": "signed-memory-limit",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": 18446744073709551615,
+        "name": "negative",
+        "operation": "script-metadata",
+        "path": "negative.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @memoryLimitMB: 18446744073709551616\n",
+      "filename": "overflow.lua",
+      "name": "overflow-memory-limit",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "overflow",
+        "operation": "script-metadata",
+        "path": "overflow.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @memoryLimitMB: 42x\n",
+      "filename": "junk.lua",
+      "name": "junk-memory-limit",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "junk",
+        "operation": "script-metadata",
+        "path": "junk.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @keybind: Ctrl+NoSuchKey\n",
+      "filename": "invalid.lua",
+      "name": "invalid-hotkey",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "invalid",
+        "operation": "script-metadata",
+        "path": "invalid.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @name:     \n",
+      "filename": "fallback-name.lua",
+      "name": "empty-name-falls-back",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "fallback-name",
+        "operation": "script-metadata",
+        "path": "fallback-name.lua",
+        "supported_extension": true,
+        "version": ""
+      }
+    },
+    {
+      "content": "-- @name: NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\n-- @author: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n-- @version: VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV\n-- @description: DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\n",
+      "filename": "clamp.lua",
+      "name": "byte-clamps",
+      "observed": {
+        "author": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "description": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+        "operation": "script-metadata",
+        "path": "clamp.lua",
+        "supported_extension": true,
+        "version": "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
+      }
+    },
+    {
+      "content": "-- @name: JSON script\n",
+      "filename": "script.json",
+      "name": "unsupported-extension",
+      "observed": {
+        "author": "",
+        "description": "",
+        "hotkey": null,
+        "memory_limit_mb": null,
+        "name": "JSON script",
+        "operation": "script-metadata",
+        "path": "script.json",
+        "supported_extension": false,
+        "version": ""
+      }
+    }
+  ],
+  "oracle": "smu_compat_oracle script-metadata"
+}

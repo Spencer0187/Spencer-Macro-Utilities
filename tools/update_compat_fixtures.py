@@ -79,6 +79,81 @@ def write_hotkeys() -> None:
     write_json(ROOT / "compat" / "hotkeys" / "cases.json", output)
 
 
+def script_metadata_inputs() -> list[tuple[str, str, str]]:
+    return [
+        ("empty-fallback", "Fallback.lua", ""),
+        (
+            "full-header",
+            "original.smus",
+            "-- @name: Custom Name\n"
+            "-- @description: Long description\n"
+            "-- @author: Spencer\n"
+            "-- @version: 3.4.0\n"
+            "-- @memoryLimitMB: 512\n"
+            "-- @keybind: Ctrl+Shift+F12\n",
+        ),
+        (
+            "normalized-keys-and-desc-precedence",
+            "normalized.HSS",
+            "\n-- @d_e-s c: first desc\n"
+            "-- @description: canonical desc\n"
+            "-- @desc: ignored desc\n"
+            "-- @memory_limit-mb: +42\n"
+            "-- @key_bind: Alt+F2\n",
+        ),
+        (
+            "code-stops-scan",
+            "stop.lua",
+            "-- @name: Before Code\n"
+            "-- ordinary comment\n"
+            "print('stop')\n"
+            "-- @author: ignored\n"
+            "-- @keybind: F5\n",
+        ),
+        (
+            "malformed-and-empty-values",
+            "malformed.txt",
+            "-- @name\n"
+            "-- @author:   \n"
+            "-- @unknown: value\n"
+            "-- @version: 1.2.3\n",
+        ),
+        ("signed-memory-limit", "negative.lua", "-- @memoryLimitMB: -1\n"),
+        ("overflow-memory-limit", "overflow.lua", "-- @memoryLimitMB: 18446744073709551616\n"),
+        ("junk-memory-limit", "junk.lua", "-- @memoryLimitMB: 42x\n"),
+        ("invalid-hotkey", "invalid.lua", "-- @keybind: Ctrl+NoSuchKey\n"),
+        ("empty-name-falls-back", "fallback-name.lua", "-- @name:     \n"),
+        (
+            "byte-clamps",
+            "clamp.lua",
+            "-- @name: " + "N" * 140 + "\n"
+            "-- @author: " + "A" * 140 + "\n"
+            "-- @version: " + "V" * 80 + "\n"
+            "-- @description: " + "D" * 1100 + "\n",
+        ),
+        ("unsupported-extension", "script.json", "-- @name: JSON script\n"),
+    ]
+
+
+def write_script_metadata() -> None:
+    cases: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="smu-script-metadata-fixtures-") as temporary:
+        root = Path(temporary)
+        for index, (name, filename, content) in enumerate(script_metadata_inputs()):
+            directory = root / f"case-{index}"
+            directory.mkdir()
+            script_path = directory / filename
+            script_path.write_text(content, encoding="utf-8", newline="")
+            observed = run_json(ORACLE, "script-metadata", str(script_path))
+            observed["path"] = script_path.name
+            cases.append({"name": name, "filename": filename, "content": content, "observed": observed})
+
+    write_json(
+        ROOT / "compat" / "scripting" / "metadata_cases.json",
+        {"oracle": "smu_compat_oracle script-metadata", "cases": cases},
+    )
+
+
 def roblox_log_inputs() -> list[tuple[str, str]]:
     return [
         (
@@ -2322,12 +2397,15 @@ def ensure_oracle(path: Path, target: str, parser: argparse.ArgumentParser) -> N
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("fixture", choices=["hotkeys", "profiles", "roblox", "runtime", "all"])
+    parser.add_argument("fixture", choices=["hotkeys", "profiles", "roblox", "runtime", "script-metadata", "all"])
     args = parser.parse_args()
 
     if args.fixture in {"hotkeys", "all"}:
         ensure_oracle(ORACLE, "smu_compat_oracle", parser)
         write_hotkeys()
+    if args.fixture in {"script-metadata", "all"}:
+        ensure_oracle(ORACLE, "smu_compat_oracle", parser)
+        write_script_metadata()
     if args.fixture in {"profiles", "all"}:
         ensure_oracle(PROFILE_ORACLE, "smu_profile_compat_oracle", parser)
         write_profiles()
