@@ -37,6 +37,7 @@ dear-imgui-rs = "0.17"
 dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
 gl = "0.14"
 image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
+mlua = { version = "=0.12.1", features = ["lua54", "send", "vendored"] }
 sdl3 = { version = "0.18", features = ["build-from-source"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

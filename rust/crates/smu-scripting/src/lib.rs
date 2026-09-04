@@ -4,6 +4,7 @@
 //! because it can be differential-tested against the C++ compatibility oracle.
 
 pub mod hotkey;
+pub mod lua_runtime;
 pub mod managed_hotkeys;
 pub mod memory;
 pub mod metadata;
@@ -11,6 +12,11 @@ pub mod persistence;
 pub mod settings_ui;
 
 pub use hotkey::{parse_script_hotkey, parse_script_key_name};
+pub use lua_runtime::{
+    DEFAULT_SHOULD_YIELD_MICROS, LUA_HOOK_INSTRUCTION_COUNT, LuaExecutionError,
+    LuaExecutionErrorKind, LuaScriptVm, LuaStopHandle, MAX_CLEANUP_RUNTIME, MAX_SCRIPT_RUNTIME,
+    MAX_SETTINGS_RUNTIME, MAX_SINGLE_SLEEP_MICROS, ScriptStopReason,
+};
 pub use managed_hotkeys::{ManagedHotkeyResult, ManagedHotkeys, ManagedKeyAction};
 pub use memory::{
     DEFAULT_SCRIPT_MEMORY_LIMIT_MB, LuaMemoryBudget, MAX_SCRIPT_MEMORY_LIMIT_MB,

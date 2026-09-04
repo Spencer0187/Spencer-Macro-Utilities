@@ -52,9 +52,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-network` owns lag-switch config arbitration and the deterministic Linux helper command
   grammar. Privileged packet interception remains a transport implementation; Roblox endpoint
   discovery is supplied by `smu-roblox` instead of duplicating log parsing inside networking.
-- `smu-scripting` owns imported-script hotkey/metadata parsing plus script-owned hotkey state, Lua
-  memory-limit accounting, persisted UI-state sanitization, and settings-control capture/cache state.
-  Metadata/key grammar is C++-oracle-driven; the Lua VM/API integration is the next vertical slice.
+- `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
+  UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
+  surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
+  wrappers, and foundational timing/cancellation functions. Platform-sensitive Lua APIs continue to
+  be added through service adapters instead of application globals.
 
 ## Architecture rules
 
