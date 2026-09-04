@@ -3,6 +3,7 @@ use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use crate::{
     freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsState},
+    item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     sidebar,
@@ -72,6 +73,7 @@ pub struct ShellState {
     selected_section: usize,
     freeze: FreezeUiState,
     item_desync: ItemDesyncUiState,
+    item_clip: ItemClipUiState,
     speedglitch: SpeedglitchUiState,
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
@@ -87,6 +89,7 @@ impl Default for ShellState {
             selected_section: 15,
             freeze: FreezeUiState::default(),
             item_desync: ItemDesyncUiState::default(),
+            item_clip: ItemClipUiState::default(),
             speedglitch: SpeedglitchUiState::default(),
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
@@ -120,6 +123,7 @@ impl ShellState {
         enabled[0] = self.freeze.enabled;
         enabled[1] = self.item_desync.enabled;
         enabled[3] = self.speedglitch.enabled;
+        enabled[8] = self.item_clip.enabled;
         enabled[15] = self.lag_switch.enabled;
         enabled
     }
@@ -130,6 +134,15 @@ impl ShellState {
         &self,
     ) -> crate::item_desync_runtime::ItemDesyncControllerSettings {
         self.item_desync
+            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn item_clip_controller_settings(
+        &self,
+    ) -> crate::item_clip_runtime::ItemClipControllerSettings {
+        self.item_clip
             .controller_settings(self.global.macro_enabled(), self.global.process_selector())
     }
 
@@ -382,6 +395,7 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
             0 => freeze::render(ui, &mut state.freeze),
             1 => item_desync::render(ui, &mut state.item_desync),
             3 => speedglitch::render(ui, &mut state.speedglitch),
+            8 => item_clip::render(ui, &mut state.item_clip),
             15 => lag_action = lag_switch::render(ui, &mut state.lag_switch),
             section => {
                 ui.text_wrapped(format!("Settings for {}", sidebar::section_title(section)));

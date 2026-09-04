@@ -79,6 +79,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the live Linux Item Clip slice. The F3/slot-7/34-ms defaults feed a 2 ms
+  foreground-gated controller and a dedicated worker. Every worker iteration snapshots delay and slot
+  before key-down, clamps the half-delay exactly like C++, and always completes down/wait/up/wait before
+  checking cancellation again. This is the characterized ItemClip controller/worker migration applied
+  to the real native input service.
 - `smu-app` now owns the live Linux Speedglitch slice as two long-lived lanes: a 2 ms controller
   retains foreground/hotkey/hold-vs-toggle state while a dedicated motion worker owns the frame waits.
   Each worker cycle snapshots runtime FPS exactly once, reads X immediately before the first move,

@@ -30,6 +30,9 @@ mod freeze;
 #[cfg(target_os = "linux")]
 mod freeze_runtime;
 mod global_settings;
+mod item_clip;
+#[cfg(target_os = "linux")]
+mod item_clip_runtime;
 mod item_desync;
 #[cfg(target_os = "linux")]
 mod item_desync_runtime;
@@ -99,6 +102,7 @@ struct LinuxRuntimeServices {
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     freeze_controller: Option<freeze_runtime::FreezeController>,
     item_desync_controller: Option<item_desync_runtime::ItemDesyncController>,
+    item_clip_controller: Option<item_clip_runtime::ItemClipController>,
     speedglitch_controller: Option<speedglitch_runtime::SpeedglitchController>,
 }
 
@@ -154,6 +158,17 @@ impl LinuxRuntimeServices {
                 shell_state.item_desync_controller_settings(),
             )
         });
+        let item_clip_controller = input_ready.then(|| {
+            let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+            let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
+            let foreground: Arc<dyn smu_process::ProcessForeground> = process_foreground.clone();
+            item_clip_runtime::ItemClipController::start(
+                input,
+                discovery,
+                foreground,
+                shell_state.item_clip_controller_settings(),
+            )
+        });
         let speedglitch_controller = input_ready.then(|| {
             let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
             let discovery: Arc<dyn smu_process::ProcessDiscovery> = process_discovery.clone();
@@ -176,6 +191,7 @@ impl LinuxRuntimeServices {
             lag_switch_controller,
             freeze_controller,
             item_desync_controller,
+            item_clip_controller,
             speedglitch_controller,
         }
     }
@@ -216,6 +232,9 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.item_desync_controller.as_ref() {
             controller.update_settings(shell_state.item_desync_controller_settings());
+        }
+        if let Some(controller) = self.item_clip_controller.as_ref() {
+            controller.update_settings(shell_state.item_clip_controller_settings());
         }
         if let Some(controller) = self.speedglitch_controller.as_ref() {
             controller.update_settings(shell_state.speedglitch_controller_settings());
@@ -290,6 +309,9 @@ impl LinuxRuntimeServices {
     }
 
     fn shutdown(&self) {
+        if let Some(controller) = self.item_clip_controller.as_ref() {
+            controller.stop();
+        }
         if let Some(controller) = self.speedglitch_controller.as_ref() {
             controller.stop();
         }
