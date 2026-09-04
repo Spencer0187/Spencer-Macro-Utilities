@@ -24,6 +24,13 @@ impl ProcessRecord {
 }
 
 /// Source of process snapshots.
+/// Process suspension/resume capability, kept separate from discovery so tests and platform
+/// implementations can vary independently.
+pub trait ProcessControl: Send + Sync {
+    fn suspend(&self, pid: u32) -> bool;
+    fn resume(&self, pid: u32) -> bool;
+}
+
 pub trait ProcessDiscovery: Send + Sync {
     /// Capture the currently visible process table.
     ///

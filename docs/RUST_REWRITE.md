@@ -34,6 +34,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 
 ## Current Rust service slices
 
+- `smu-process` owns process discovery/selection and suspension/resume capability boundaries;
+  `smu-scripting` wires the three legacy freeze globals through them with frozen-PID snapshots.
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and the historical text-entry fallback mapping.
   Cursor/screen/pixel APIs are intentionally excluded; those belong to `smu-display`.

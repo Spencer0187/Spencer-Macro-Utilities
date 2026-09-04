@@ -12,6 +12,7 @@ pub mod memory;
 pub mod metadata;
 pub mod network_api;
 pub mod persistence;
+pub mod process_api;
 pub mod settings_ui;
 
 pub use display_api::{ScriptDisplayApiError, install_display_api};
@@ -40,6 +41,7 @@ pub use persistence::{
     SavedScriptRecord, deserialize_saved_scripts, is_safe_ui_state_key, normalize_script_hotkey,
     sanitize_ui_state, serialize_saved_scripts,
 };
+pub use process_api::{ScriptProcessApiError, ScriptProcessContext, install_process_api};
 
 pub use settings_ui::{
     MAX_UI_CONTROLS_PER_SETTINGS_CALL, MAX_UI_DROPDOWN_ITEMS, ScriptUiCache, SettingsUiCapture,
