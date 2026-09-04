@@ -687,6 +687,7 @@ dependencies = [
  "smu-input",
  "smu-network",
  "smu-process",
+ "smu-roblox",
 ]
 
 [[package]]

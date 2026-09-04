@@ -13,6 +13,7 @@ pub mod metadata;
 pub mod network_api;
 pub mod persistence;
 pub mod process_api;
+pub mod roblox_log_api;
 pub mod settings_ui;
 
 pub use display_api::{ScriptDisplayApiError, install_display_api};
@@ -42,6 +43,7 @@ pub use persistence::{
     sanitize_ui_state, serialize_saved_scripts,
 };
 pub use process_api::{ScriptProcessApiError, ScriptProcessContext, install_process_api};
+pub use roblox_log_api::{ScriptRobloxLogApiError, install_roblox_log_api};
 
 pub use settings_ui::{
     MAX_UI_CONTROLS_PER_SETTINGS_CALL, MAX_UI_DROPDOWN_ITEMS, ScriptUiCache, SettingsUiCapture,
