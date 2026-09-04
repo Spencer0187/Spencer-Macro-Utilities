@@ -84,6 +84,19 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. HTTP remains an injected transport and platform replacement
   remains separate, so untrusted metadata is validated before install-side effects are possible.
+- `smu-app` now owns the first live Linux Settings-window slice and shared keybind editor. The
+  floating window is opened by the existing global Settings button and is backed by real app/service
+  state for process-found status, Shift/Chat keybinds, chat override, paste delay, global zoom/reverse,
+  display-scale/profile values, sidebar-description suppression, and native Wayland ScreenCast /
+  RemoteDesktop status and actions. Wayland starts/stops run on one owned Settings worker so portal
+  prompts and first-frame waits never block the UI thread; process status is cached for one second.
+  The keybind editor preserves the C++ release-before-capture flow, modifier packing/normalization,
+  wheel transient capture, modifier-only release binding, and post-bind hotkey suppression; all live
+  macro controllers receive the resulting effective-macro gate, and Escape remains bindable while
+  capture is active. Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
+  fixing trait-object wheel capture. This is intentionally a partial Settings cutover: Anti-AFK still
+  lacks a live Rust app controller, updater HTTP/UI is not composed, Theme Editor remains unported,
+  and profile/imported-script UI remain separate entry-point gates.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -93,8 +106,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   settings inside the worker, and preserves the custom-text early return plus three separate dropdown
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
-  asymmetries. This completes built-in macro execution cutover only; profile/settings UI, scripting UI,
-  updater UI, and final C++ entry-point removal remain separate rewrite gates.
+  asymmetries. This completes built-in macro execution cutover only; profile UI, remaining Settings
+  controls, scripting UI, updater UI, and final C++ entry-point removal remain separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

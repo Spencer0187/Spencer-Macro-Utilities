@@ -4,16 +4,17 @@ use crate::{
     bunnyhop::{self, BunnyhopUiState},
     floor_bounce::{self, FloorBounceUiState},
     freeze::{self, FreezeUiState},
-    global_settings::{self, GlobalSettingsState},
+    global_settings::{self, GlobalSettingsAction, GlobalSettingsState},
     hhj::{self, HhjGlobals, HhjUiState},
     item_clip::{self, ItemClipUiState},
     item_desync::{self, ItemDesyncUiState},
     item_unequip::{self, ItemUnequipGlobals, ItemUnequipUiState},
+    keybind,
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     laugh_clip::{self, LaughClipGlobals, LaughClipUiState},
     ledge_bounce::{self, LedgeBounceUiState},
     press_key::{self, PressKeyUiState},
-    sidebar,
+    settings_menu, sidebar,
     spam_key::{self, SpamKeyUiState},
     speedglitch::{self, SpeedglitchUiState},
     wall_walk::{self, WallWalkUiState},
@@ -24,6 +25,9 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ShellAction {
     ToggleLagSwitchBackend,
+    StartWaylandScreenCaptureFromSettings,
+    StopWaylandScreenCaptureFromSettings,
+    StartWaylandRemoteDesktopFromSettings,
     #[cfg(target_os = "linux")]
     StartLagSwitchHelper,
     #[cfg(target_os = "linux")]
@@ -81,6 +85,9 @@ pub struct ShellState {
     always_on_top: bool,
     opacity_percent: f32,
     global: GlobalSettingsState,
+    settings_open: bool,
+    keybind_capture: keybind::CaptureState,
+    settings_platform: settings_menu::PlatformStatus,
     selected_section: usize,
     freeze: FreezeUiState,
     floor_bounce: FloorBounceUiState,
@@ -108,6 +115,9 @@ impl Default for ShellState {
             always_on_top: false,
             opacity_percent: 100.0,
             global: GlobalSettingsState::default(),
+            settings_open: false,
+            keybind_capture: keybind::CaptureState::default(),
+            settings_platform: settings_menu::PlatformStatus::default(),
             selected_section: 15,
             freeze: FreezeUiState::default(),
             floor_bounce: FloorBounceUiState::default(),
@@ -144,10 +154,46 @@ impl ShellState {
         state
     }
 
+    #[must_use]
+    const fn macro_runtime_enabled(&self) -> bool {
+        self.global.macro_enabled() && self.keybind_capture.runtime_allowed()
+    }
+
+    #[must_use]
+    pub const fn keybind_input_poll_needed(&self) -> bool {
+        self.keybind_capture.capture_active() || self.keybind_capture.suppressing_hotkeys()
+    }
+
+    #[must_use]
+    pub const fn keybind_capture_active(&self) -> bool {
+        self.keybind_capture.capture_active()
+    }
+
+    pub const fn set_keybind_input(&mut self, input: keybind::InputSnapshot) {
+        self.keybind_capture.set_input(input);
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn set_settings_platform_status(&mut self, status: settings_menu::PlatformStatus) {
+        self.settings_platform = status;
+    }
+
+    #[cfg(target_os = "linux")]
+    #[must_use]
+    pub fn process_selector(&self) -> String {
+        self.global.process_selector()
+    }
+
+    #[cfg(target_os = "linux")]
+    pub const fn set_process_found(&mut self, found: bool) {
+        self.global.set_process_found(found);
+    }
+
     #[cfg(target_os = "linux")]
     #[must_use]
     pub fn freeze_controller_settings(&self) -> crate::freeze_runtime::FreezeControllerSettings {
-        self.freeze.controller_settings(self.global.macro_enabled(), self.global.process_selector())
+        self.freeze
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[must_use]
@@ -178,7 +224,7 @@ impl ShellState {
         &self,
     ) -> crate::floor_bounce_runtime::FloorBounceControllerSettings {
         self.floor_bounce.controller_settings(
-            self.global.macro_enabled(),
+            self.macro_runtime_enabled(),
             self.global.process_selector(),
             self.freeze.take_all_process_ids,
             self.global.shift_key(),
@@ -190,7 +236,7 @@ impl ShellState {
     pub fn hhj_controller_settings(&self) -> crate::hhj_runtime::HhjControllerSettings {
         let (strength_x, strength_y) = self.speedglitch.motion_strengths();
         self.hhj.controller_settings(HhjGlobals {
-            macro_enabled: self.global.macro_enabled(),
+            macro_enabled: self.macro_runtime_enabled(),
             process_selector: self.global.process_selector(),
             take_all_process_ids: self.freeze.take_all_process_ids,
             global_zoom: self.global.global_zoom(),
@@ -208,7 +254,7 @@ impl ShellState {
         &self,
     ) -> crate::item_unequip_runtime::ItemUnequipControllerSettings {
         self.item_unequip.controller_settings(ItemUnequipGlobals {
-            macro_enabled: self.global.macro_enabled(),
+            macro_enabled: self.macro_runtime_enabled(),
             process_selector: self.global.process_selector(),
             chat_override: self.global.chat_override(),
             chat_key: self.global.chat_key(),
@@ -223,7 +269,7 @@ impl ShellState {
         &self,
     ) -> crate::item_desync_runtime::ItemDesyncControllerSettings {
         self.item_desync
-            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -232,7 +278,7 @@ impl ShellState {
         &self,
     ) -> crate::item_clip_runtime::ItemClipControllerSettings {
         self.item_clip
-            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -241,7 +287,7 @@ impl ShellState {
         &self,
     ) -> crate::laugh_clip_runtime::LaughClipControllerSettings {
         self.laugh_clip.controller_settings(LaughClipGlobals {
-            macro_enabled: self.global.macro_enabled(),
+            macro_enabled: self.macro_runtime_enabled(),
             process_selector: self.global.process_selector(),
             chat_override: self.global.chat_override(),
             chat_key: self.global.chat_key(),
@@ -259,7 +305,7 @@ impl ShellState {
         &self,
     ) -> crate::spam_key_runtime::SpamKeyControllerSettings {
         self.spam_key
-            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -268,7 +314,7 @@ impl ShellState {
         &self,
     ) -> crate::bunnyhop_runtime::BunnyhopControllerSettings {
         self.bunnyhop.controller_settings(
-            self.global.macro_enabled(),
+            self.macro_runtime_enabled(),
             self.global.chat_key(),
             self.global.process_selector(),
         )
@@ -280,7 +326,7 @@ impl ShellState {
         &self,
     ) -> crate::ledge_bounce_runtime::LedgeBounceControllerSettings {
         self.ledge_bounce.controller_settings(
-            self.global.macro_enabled(),
+            self.macro_runtime_enabled(),
             self.global.sensitivity().to_owned(),
             self.global.cam_fix_enabled(),
             self.global.process_selector(),
@@ -293,7 +339,7 @@ impl ShellState {
         &self,
     ) -> crate::speedglitch_runtime::SpeedglitchControllerSettings {
         self.speedglitch.controller_settings(
-            self.global.macro_enabled(),
+            self.macro_runtime_enabled(),
             self.global.fps_runtime(),
             self.global.process_selector(),
         )
@@ -305,14 +351,14 @@ impl ShellState {
         &self,
     ) -> crate::press_key_runtime::PressKeyControllerSettings {
         self.press_key
-            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
     #[must_use]
     pub fn wallhop_controller_settings(&self) -> crate::wallhop_runtime::WallhopControllerSettings {
         self.wallhop
-            .controller_settings(self.global.macro_enabled(), self.global.process_selector())
+            .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
     #[cfg(target_os = "linux")]
@@ -321,7 +367,7 @@ impl ShellState {
         &self,
     ) -> crate::walless_lhj_runtime::WallessLhjControllerSettings {
         self.walless_lhj.controller_settings(WallessLhjGlobals {
-            macro_enabled: self.global.macro_enabled(),
+            macro_enabled: self.macro_runtime_enabled(),
             process_selector: self.global.process_selector(),
             global_zoom: self.global.global_zoom(),
             shift_key: self.global.shift_key(),
@@ -336,7 +382,7 @@ impl ShellState {
         &self,
     ) -> crate::wall_walk_runtime::WallWalkControllerSettings {
         self.wall_walk.controller_settings(
-            self.global.macro_enabled(),
+            self.macro_runtime_enabled(),
             self.global.fps_runtime(),
             self.global.process_selector(),
         )
@@ -347,7 +393,7 @@ impl ShellState {
     pub fn lag_switch_controller_settings(
         &self,
     ) -> crate::lag_switch_runtime::LagSwitchControllerSettings {
-        self.lag_switch.controller_settings(self.global.macro_enabled())
+        self.lag_switch.controller_settings(self.macro_runtime_enabled())
     }
 
     #[cfg(target_os = "linux")]
@@ -403,6 +449,26 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     #[cfg(target_os = "linux")]
     if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals) {
         action = Some(modal_action);
+    }
+
+    if let Some(settings_action) = settings_menu::render(
+        ui,
+        &mut state.settings_open,
+        &mut state.global,
+        &mut state.keybind_capture,
+        &state.settings_platform,
+    ) {
+        action = Some(match settings_action {
+            settings_menu::SettingsAction::StartWaylandScreenCapture => {
+                ShellAction::StartWaylandScreenCaptureFromSettings
+            }
+            settings_menu::SettingsAction::StopWaylandScreenCapture => {
+                ShellAction::StopWaylandScreenCaptureFromSettings
+            }
+            settings_menu::SettingsAction::StartWaylandRemoteDesktop => {
+                ShellAction::StartWaylandRemoteDesktopFromSettings
+            }
+        });
     }
 
     action
@@ -580,6 +646,7 @@ fn render_macro_sidebar(
                 &mut state.selected_section,
                 &section_enabled,
                 &multi_instances,
+                state.global.short_descriptions(),
             );
         });
     match sidebar_action {
@@ -612,10 +679,16 @@ fn render_contents(ui: &Ui, state: &mut ShellState, display_size: [f32; 2]) -> O
         + style.window_padding()[1] * SETTINGS_PADDING_ROWS
         + SETTINGS_EXTRA_HEIGHT;
 
+    let mut global_action = None;
     ui.child_window(GLOBAL_SETTINGS_CHILD)
         .size([display_size[0] - SETTINGS_HORIZONTAL_MARGIN, settings_panel_height])
         .border(true)
-        .build(ui, || global_settings::render(ui, &mut state.global));
+        .build(ui, || {
+            global_action = global_settings::render(ui, &mut state.global);
+        });
+    if global_action == Some(GlobalSettingsAction::ToggleSettings) {
+        state.settings_open = !state.settings_open;
+    }
     state.speedglitch.sync_global_calibration(
         state.global.sensitivity(),
         state.global.cam_fix_enabled(),

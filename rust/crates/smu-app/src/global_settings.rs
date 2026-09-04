@@ -17,6 +17,11 @@ const ACCENT_SECONDARY: [f32; 4] = [0.0, 0.44, 0.60, 1.0];
 const SUCCESS: [f32; 4] = [0.0, 1.0, 0.50, 1.0];
 const ERROR: [f32; 4] = [1.0, 0.20, 0.40, 1.0];
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GlobalSettingsAction {
+    ToggleSettings,
+}
+
 #[derive(Debug)]
 struct GlobalToggles {
     macro_enabled: bool,
@@ -30,6 +35,7 @@ struct ProcessUiState {
     found: bool,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct GlobalSettingsState {
     toggles: GlobalToggles,
@@ -44,6 +50,14 @@ pub struct GlobalSettingsState {
     enter_key: u32,
     chat_override: bool,
     paste_delay_ms: i32,
+    paste_delay_text: String,
+    display_scale: i32,
+    use_old_paste: bool,
+    afk_key: u32,
+    anti_afk_minutes: i32,
+    anti_afk_minutes_text: String,
+    double_press_afk_key: bool,
+    short_descriptions: bool,
     global_zoom: bool,
     zoom_reverse: bool,
 }
@@ -109,6 +123,71 @@ impl GlobalSettingsState {
         self.paste_delay_ms
     }
 
+    pub const fn set_process_found(&mut self, found: bool) {
+        self.process.found = found;
+    }
+
+    pub fn reset_process_selector(&mut self) {
+        self.process.name = if cfg!(target_os = "linux") {
+            "sober".to_owned()
+        } else {
+            "RobloxPlayerBeta.exe".to_owned()
+        };
+    }
+
+    pub const fn shift_key_mut(&mut self) -> &mut u32 {
+        &mut self.shift_key
+    }
+
+    pub const fn chat_key_mut(&mut self) -> &mut u32 {
+        &mut self.chat_key
+    }
+
+    pub const fn afk_key_mut(&mut self) -> &mut u32 {
+        &mut self.afk_key
+    }
+
+    pub const fn chat_override_mut(&mut self) -> &mut bool {
+        &mut self.chat_override
+    }
+
+    pub const fn use_old_paste_mut(&mut self) -> &mut bool {
+        &mut self.use_old_paste
+    }
+
+    pub const fn global_zoom_mut(&mut self) -> &mut bool {
+        &mut self.global_zoom
+    }
+
+    pub const fn zoom_reverse_mut(&mut self) -> &mut bool {
+        &mut self.zoom_reverse
+    }
+
+    pub const fn double_press_afk_key_mut(&mut self) -> &mut bool {
+        &mut self.double_press_afk_key
+    }
+
+    pub const fn short_descriptions_mut(&mut self) -> &mut bool {
+        &mut self.short_descriptions
+    }
+
+    #[must_use]
+    pub const fn short_descriptions(&self) -> bool {
+        self.short_descriptions
+    }
+
+    pub const fn display_scale_mut(&mut self) -> &mut i32 {
+        &mut self.display_scale
+    }
+
+    pub const fn paste_delay_parts(&mut self) -> (&mut String, &mut i32) {
+        (&mut self.paste_delay_text, &mut self.paste_delay_ms)
+    }
+
+    pub const fn anti_afk_minutes_parts(&mut self) -> (&mut String, &mut i32) {
+        (&mut self.anti_afk_minutes_text, &mut self.anti_afk_minutes)
+    }
+
     #[must_use]
     pub const fn global_zoom(&self) -> bool {
         self.global_zoom
@@ -155,6 +234,14 @@ impl Default for GlobalSettingsState {
             enter_key: 0x0D,
             chat_override: true,
             paste_delay_ms: 1,
+            paste_delay_text: "1".to_owned(),
+            display_scale: 100,
+            use_old_paste: true,
+            afk_key: 0xDC,
+            anti_afk_minutes: 15,
+            anti_afk_minutes_text: "15".to_owned(),
+            double_press_afk_key: true,
+            short_descriptions: false,
             global_zoom: false,
             zoom_reverse: false,
         }
@@ -162,8 +249,9 @@ impl Default for GlobalSettingsState {
 }
 
 #[allow(clippy::suboptimal_flops)] // Preserve the C++ oracle's absolute-placement arithmetic.
-pub fn render(ui: &Ui, state: &mut GlobalSettingsState) {
+pub fn render(ui: &Ui, state: &mut GlobalSettingsState) -> Option<GlobalSettingsAction> {
     let window_width = ui.window_size()[0];
+    let mut action = None;
 
     ui.align_text_to_frame_padding();
     ui.text_wrapped("Global Settings");
@@ -194,9 +282,13 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) {
     ui.text_wrapped("Roblox Executable Name:");
     ui.same_line();
     ui.set_next_item_width(PROCESS_INPUT_WIDTH);
-    ui.input_text("##SettingsTextbox", &mut state.process.name).build();
+    if ui.input_text("##SettingsTextbox", &mut state.process.name).build() {
+        state.process.name = state.process.name.trim().to_owned();
+    }
     ui.same_line();
-    let _ = ui.button_with_size("R", [PROCESS_RESET_WIDTH, 0.0]);
+    if ui.button_with_size("R", [PROCESS_RESET_WIDTH, 0.0]) {
+        state.reset_process_selector();
+    }
     ui.same_line();
 
     let position = ui.cursor_screen_pos();
@@ -261,9 +353,12 @@ pub fn render(ui: &Ui, state: &mut GlobalSettingsState) {
     }
 
     ui.same_line_with_pos(window_width - SETTINGS_FROM_RIGHT);
-    let _ = ui.button("Settings ->");
+    if ui.button("Settings ->") {
+        action = Some(GlobalSettingsAction::ToggleSettings);
+    }
     ui.same_line_with_pos(window_width - THEME_FROM_RIGHT);
     let _ = ui.button("Theme Editor ->");
+    action
 }
 
 fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
@@ -293,6 +388,12 @@ mod tests {
         assert_eq!(state.enter_key(), 0x0D);
         assert!(state.chat_override());
         assert_eq!(state.paste_delay_ms(), 1);
+        assert_eq!(state.display_scale, 100);
+        assert!(state.use_old_paste);
+        assert_eq!(state.afk_key, 0xDC);
+        assert_eq!(state.anti_afk_minutes, 15);
+        assert!(state.double_press_afk_key);
+        assert!(!state.short_descriptions);
         assert!(!state.global_zoom());
         assert!(!state.zoom_reverse());
     }

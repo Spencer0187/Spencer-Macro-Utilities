@@ -69,6 +69,7 @@ pub fn render(
     selected_section: &mut usize,
     section_enabled: &[bool; 16],
     multi_instances: &[MultiInstanceSummary],
+    short_descriptions: bool,
 ) -> Option<SidebarAction> {
     let style = ui.clone_style();
     let button_width = left_panel_width - style.frame_padding()[0] * 2.0;
@@ -99,8 +100,11 @@ pub fn render(
         let active_color = ui.push_style_color(StyleColor::ButtonActive, active);
 
         let title_size = ui.calc_text_size_with_opts(config.title, true, -1.0);
-        let description_size =
-            ui.calc_text_size_with_opts(config.description, true, button_width - 20.0);
+        let description_size = if short_descriptions {
+            [0.0, 0.0]
+        } else {
+            ui.calc_text_size_with_opts(config.description, true, button_width - 20.0)
+        };
         let button_height = title_size[1] + description_size[1] + style.frame_padding()[1] * 2.0;
         let scroll_adjustment = if ui.scroll_max_y() == 0.0 { 7.0 } else { 18.0 };
         if ui.button_with_size(
@@ -122,10 +126,12 @@ pub fn render(
         draw_list.add_text(text_position, TEXT_PRIMARY, config.title);
         text_position[1] += title_size[1];
 
-        let wrap_width = button_width - if ui.scroll_max_y() == 0.0 { 11.0 } else { 22.0 };
-        for line in wrap_words(ui, config.description, wrap_width) {
-            draw_list.add_text(text_position, TEXT_PRIMARY, line);
-            text_position[1] += ui.text_line_height();
+        if !short_descriptions {
+            let wrap_width = button_width - if ui.scroll_max_y() == 0.0 { 11.0 } else { 22.0 };
+            for line in wrap_words(ui, config.description, wrap_width) {
+                draw_list.add_text(text_position, TEXT_PRIMARY, line);
+                text_position[1] += ui.text_line_height();
+            }
         }
 
         drop(active_color);

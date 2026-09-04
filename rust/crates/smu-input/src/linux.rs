@@ -226,6 +226,14 @@ impl KeyState for EvdevUinputInputDevice {
             .and_then(|index| self.shared.key_states.get(index))
             .is_some_and(|state| state.load(Ordering::Acquire))
     }
+
+    fn current_pressed_key(&self) -> Option<KeyCode> {
+        Self::current_pressed_key(self)
+    }
+
+    fn consume_next_transient_input(&self) -> Option<KeyCode> {
+        Self::consume_next_transient_input(self)
+    }
 }
 
 impl InputInjector for EvdevUinputInputDevice {
@@ -1059,6 +1067,17 @@ mod tests {
             resolve_character_from_x11_maps(b'#', minimum, maximum, 4, &symbols, &modifiers,),
             Some(X11CharacterKey { evdev_key: 16, modifier_evdev_keys: vec![42, 84] })
         );
+    }
+
+    #[test]
+    fn key_state_trait_forwards_pressed_and_transient_binding_inputs() {
+        let device = EvdevUinputInputDevice::new();
+        set_key_state_from_evdev(&device.shared, EvKeyCode::KEY_A.0, true);
+        device.shared.pending_binding_input.store(KeyCode::MOUSE_WHEEL_UP.raw(), Ordering::Release);
+        let state: &dyn KeyState = &device;
+        assert_eq!(state.current_pressed_key(), Some(KeyCode::A));
+        assert_eq!(state.consume_next_transient_input(), Some(KeyCode::MOUSE_WHEEL_UP));
+        assert_eq!(state.consume_next_transient_input(), None);
     }
 
     #[test]

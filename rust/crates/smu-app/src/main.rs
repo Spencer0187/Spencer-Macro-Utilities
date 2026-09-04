@@ -4,9 +4,13 @@ use std::{ffi::c_void, path::PathBuf, ptr};
 
 #[cfg(target_os = "linux")]
 use std::sync::{
-    Arc,
+    Arc, Mutex, MutexGuard,
     atomic::{AtomicBool, Ordering},
 };
+#[cfg(target_os = "linux")]
+use std::thread::JoinHandle;
+#[cfg(target_os = "linux")]
+use std::time::{Duration, Instant};
 
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
@@ -18,6 +22,8 @@ use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
 use smu_input::linux::EvdevUinputInputDevice;
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
+#[cfg(target_os = "linux")]
+use smu_process::ProcessDiscovery as _;
 #[cfg(target_os = "linux")]
 use smu_process::linux::{
     ProcCgroupProcessControl, ProcDiscovery, ProcForegroundProcess, UnixFreezeHelper,
@@ -48,6 +54,7 @@ mod item_desync_runtime;
 mod item_unequip;
 #[cfg(target_os = "linux")]
 mod item_unequip_runtime;
+mod keybind;
 mod lag_switch;
 #[cfg(target_os = "linux")]
 mod lag_switch_runtime;
@@ -69,6 +76,7 @@ mod press_key;
 mod press_key_runtime;
 #[cfg(target_os = "linux")]
 mod runtime_input;
+mod settings_menu;
 mod shell;
 mod sidebar;
 mod spam_key;
@@ -175,13 +183,41 @@ fn create_linux_platform_services()
 }
 
 #[cfg(target_os = "linux")]
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Default)]
+struct ProcessStatusCache {
+    selector: String,
+    found: bool,
+    last_checked: Option<Instant>,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WaylandSettingsTask {
+    StartScreenCapture,
+    StopScreenCapture,
+    StartRemoteDesktop,
+}
+
+#[cfg(target_os = "linux")]
 struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
     freeze_authorization: Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>,
     _process_control: Arc<ProcCgroupProcessControl>,
+    process_discovery: Arc<ProcDiscovery>,
+    process_status: Mutex<ProcessStatusCache>,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
+    wayland_settings_busy: Arc<AtomicBool>,
+    wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
     input_service: Arc<EvdevUinputInputDevice>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     bunnyhop_controller: Option<bunnyhop_runtime::BunnyhopController>,
@@ -615,8 +651,12 @@ impl LinuxRuntimeServices {
             lag_switch_enabled,
             freeze_authorization,
             _process_control: platform.process_control,
+            process_discovery: platform.process_discovery,
+            process_status: Mutex::new(ProcessStatusCache::default()),
             _display_service: platform.display_service,
             wayland_portal: platform.wayland_portal,
+            wayland_settings_busy: Arc::new(AtomicBool::new(false)),
+            wayland_settings_worker: Mutex::new(None),
             input_service: platform.input_service,
             lag_switch_controller,
             bunnyhop_controller,
@@ -637,7 +677,81 @@ impl LinuxRuntimeServices {
         }
     }
 
+    fn process_found(&self, selector: &str) -> bool {
+        let mut cache = lock(&self.process_status);
+        let due = cache.selector != selector
+            || cache.last_checked.is_none_or(|checked| checked.elapsed() >= Duration::from_secs(1));
+        if due {
+            selector.clone_into(&mut cache.selector);
+            cache.found =
+                self.process_discovery.find_main_process(selector).ok().flatten().is_some();
+            cache.last_checked = Some(Instant::now());
+        }
+        cache.found
+    }
+
+    fn reap_wayland_settings_worker(&self) {
+        let mut worker = lock(&self.wayland_settings_worker);
+        if worker.as_ref().is_some_and(JoinHandle::is_finished)
+            && let Some(worker) = worker.take()
+        {
+            let _ = worker.join();
+        }
+    }
+
+    fn start_wayland_settings_task(&self, task: WaylandSettingsTask) {
+        self.reap_wayland_settings_worker();
+        if self
+            .wayland_settings_busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let portal = Arc::clone(&self.wayland_portal);
+        let busy = Arc::clone(&self.wayland_settings_busy);
+        let worker = std::thread::spawn(move || {
+            match task {
+                WaylandSettingsTask::StartScreenCapture => {
+                    let _ = portal.start();
+                }
+                WaylandSettingsTask::StopScreenCapture => portal.stop(),
+                WaylandSettingsTask::StartRemoteDesktop => {
+                    let _ = portal.start_remote_desktop();
+                }
+            }
+            busy.store(false, Ordering::Release);
+        });
+        *lock(&self.wayland_settings_worker) = Some(worker);
+    }
+
+    fn settings_platform_status(&self) -> settings_menu::PlatformStatus {
+        let show_wayland = std::env::var("XDG_SESSION_TYPE")
+            .is_ok_and(|value| value.eq_ignore_ascii_case("wayland"))
+            || std::env::var_os("WAYLAND_DISPLAY").is_some();
+        settings_menu::PlatformStatus {
+            show_wayland,
+            wayland_supported: self.wayland_portal.is_supported(),
+            wayland_active: self.wayland_portal.is_active(),
+            remote_desktop_active: self.wayland_portal.has_remote_desktop_control(),
+            wayland_busy: self.wayland_settings_busy.load(Ordering::Acquire),
+            wayland_status: self.wayland_portal.status(),
+        }
+    }
+
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        self.reap_wayland_settings_worker();
+        if shell_state.keybind_input_poll_needed() {
+            let input = keybind::InputSnapshot::capture(
+                self.input_service.as_ref(),
+                shell_state.keybind_capture_active(),
+            );
+            shell_state.set_keybind_input(input);
+        }
+        let selector = shell_state.process_selector();
+        shell_state.set_process_found(self.process_found(&selector));
+        shell_state.set_settings_platform_status(self.settings_platform_status());
+
         let available = self.lag_switch_backend.is_available();
         shell_state.set_lag_switch_backend(lag_switch::BackendState {
             enabled: self.lag_switch_enabled.load(Ordering::Acquire),
@@ -737,6 +851,15 @@ impl LinuxRuntimeServices {
                     }
                 }
             }
+            Some(shell::ShellAction::StartWaylandScreenCaptureFromSettings) => {
+                self.start_wayland_settings_task(WaylandSettingsTask::StartScreenCapture);
+            }
+            Some(shell::ShellAction::StopWaylandScreenCaptureFromSettings) => {
+                self.start_wayland_settings_task(WaylandSettingsTask::StopScreenCapture);
+            }
+            Some(shell::ShellAction::StartWaylandRemoteDesktopFromSettings) => {
+                self.start_wayland_settings_task(WaylandSettingsTask::StartRemoteDesktop);
+            }
             Some(shell::ShellAction::StartLagSwitchHelper) => {
                 let config = shell_state.lag_switch_controller_settings().config;
                 self.lag_switch_backend.set_base_config(config);
@@ -833,6 +956,12 @@ impl LinuxRuntimeServices {
         }
         self.lag_switch_backend.shutdown();
         self.lag_switch_enabled.store(false, Ordering::Release);
+        self.wayland_portal.stop();
+        let worker = lock(&self.wayland_settings_worker).take();
+        if let Some(worker) = worker {
+            let _ = worker.join();
+        }
+        self.wayland_settings_busy.store(false, Ordering::Release);
         self.input_service.shutdown();
     }
 }
@@ -876,10 +1005,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     'main: loop {
         for event in events.poll_iter() {
             backend.process_event(&mut imgui, &event)?;
-            if matches!(
-                event,
-                Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. }
-            ) {
+            let should_quit = matches!(event, Event::Quit { .. })
+                || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
+                    && !shell_state.keybind_capture_active());
+            if should_quit {
                 break 'main;
             }
         }
