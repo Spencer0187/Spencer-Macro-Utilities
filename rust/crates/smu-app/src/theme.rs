@@ -139,8 +139,13 @@ impl ThemeState {
         let display = ui.io().display_size();
         let size = [display[0] * 0.5, display[1] * 0.7];
         let fallback_position = [display[0] * 0.3, display[1] - size[1] - 90.0];
-        let requested =
-            clamp_window_position(self.editor_position.unwrap_or(fallback_position), size, display);
+        let viewport = ui.main_viewport();
+        let requested = clamp_window_position(
+            self.editor_position.unwrap_or(fallback_position),
+            size,
+            viewport.pos(),
+            viewport.size(),
+        );
         let mut open = self.editor_open;
         ui.window("Theme Editor")
             .opened(&mut open)
@@ -157,7 +162,9 @@ impl ThemeState {
     fn render_editor_contents(&mut self, ui: &Ui) {
         let current_position = ui.window_pos();
         let current_size = ui.window_size();
-        let clamped = clamp_window_position(current_position, current_size, ui.io().display_size());
+        let viewport = ui.main_viewport();
+        let clamped =
+            clamp_window_position(current_position, current_size, viewport.pos(), viewport.size());
         if clamped[0].to_bits() != current_position[0].to_bits()
             || clamped[1].to_bits() != current_position[1].to_bits()
         {
@@ -467,10 +474,19 @@ fn cpp_theme_index(value: &Value) -> Option<usize> {
     Some(index.trunc() as usize)
 }
 
-fn clamp_window_position(position: [f32; 2], size: [f32; 2], display: [f32; 2]) -> [f32; 2] {
+fn clamp_window_position(
+    position: [f32; 2],
+    size: [f32; 2],
+    viewport_position: [f32; 2],
+    viewport_size: [f32; 2],
+) -> [f32; 2] {
+    let max_position = [
+        viewport_position[0] + (viewport_size[0] - size[0]).max(0.0),
+        viewport_position[1] + (viewport_size[1] - size[1]).max(0.0),
+    ];
     [
-        position[0].clamp(0.0, (display[0] - size[0]).max(0.0)),
-        position[1].clamp(0.0, (display[1] - size[1]).max(0.0)),
+        position[0].clamp(viewport_position[0], max_position[0]),
+        position[1].clamp(viewport_position[1], max_position[1]),
     ]
 }
 
@@ -628,6 +644,11 @@ mod tests {
         }
     }
 
+    fn assert_position_eq(actual: [f32; 2], expected: [f32; 2]) {
+        assert_eq!(actual[0].to_bits(), expected[0].to_bits());
+        assert_eq!(actual[1].to_bits(), expected[1].to_bits());
+    }
+
     #[test]
     fn source_font_fixture_exists() {
         assert!(source_root().join("assets/LSANS.TTF").is_file());
@@ -757,6 +778,18 @@ mod tests {
         CUSTOM_THEME_NAME.clone_into(&mut state.custom_theme.name);
         assert_eq!(state.custom_theme.name, CUSTOM_THEME_NAME);
         assert_color_close(state.custom_theme.bg_dark, state.defaults[0].bg_dark);
+    }
+
+    #[test]
+    fn theme_editor_clamp_matches_cpp_main_viewport_bounds() {
+        assert_position_eq(
+            clamp_window_position([80.0, 900.0], [400.0, 300.0], [100.0, 200.0], [1180.0, 700.0]),
+            [100.0, 600.0],
+        );
+        assert_position_eq(
+            clamp_window_position([500.0, 500.0], [1400.0, 900.0], [100.0, 200.0], [1180.0, 700.0]),
+            [100.0, 200.0],
+        );
     }
 
     #[test]
