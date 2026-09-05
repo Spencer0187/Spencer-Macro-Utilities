@@ -41,6 +41,10 @@ disabled and deterministically force only the Roblox/Sober status state; their R
 only inside the 10x10 status dot. `builtin-footer-linux-minimum` selects Freeze and gates the
 built-in pane plus `Revert Module` footer; under bare Xvfb it also exercises C++'s foreground-
 detection fallback because the required EWMH active-window properties are unavailable.
+`imported-script-footer-linux-minimum` injects the same loaded, idle, unbound in-memory script on
+both sides and gates its sidebar entry, selected-script controls/details/custom-settings state, and
+footer reset without importing or executing a real Lua file; it needs no masks beyond the standard
+minimum-size footer seam.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

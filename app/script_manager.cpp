@@ -427,6 +427,26 @@ void ScriptManager::clear()
     }
 }
 
+void ScriptManager::applyUiParityReference()
+{
+    auto record = std::make_shared<ImportedScriptRecord>();
+    record->path = "/tmp/smu-parity-script.lua";
+    record->metadata.name = "Parity Script";
+    record->metadata.description = "Deterministic imported-script parity fixture.";
+    record->metadata.author = "SMU";
+    record->metadata.version = "1.0";
+    record->hotkey.store(kScriptUnboundHotkey, std::memory_order_release);
+    record->enabled.store(false, std::memory_order_release);
+    record->disableOutsideRoblox.store(true, std::memory_order_release);
+    record->loaded.store(true, std::memory_order_release);
+    record->missing.store(false, std::memory_order_release);
+    record->running.store(false, std::memory_order_release);
+
+    std::lock_guard<std::mutex> lock(scriptsMutex_);
+    scripts_.clear();
+    scripts_.push_back(std::move(record));
+}
+
 std::size_t ScriptManager::count() const
 {
     std::lock_guard<std::mutex> lock(scriptsMutex_);

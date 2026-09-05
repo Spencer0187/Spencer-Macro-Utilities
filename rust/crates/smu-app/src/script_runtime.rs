@@ -207,6 +207,7 @@ mod tests {
             loaded: true,
             missing: false,
             running: false,
+            has_settings_callback: false,
             last_error: String::new(),
             last_warning: String::new(),
             ui_state: Value::Object(serde_json::Map::new()),

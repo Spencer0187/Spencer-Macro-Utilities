@@ -67,6 +67,7 @@ pub struct ScriptRecordSnapshot {
     pub loaded: bool,
     pub missing: bool,
     pub running: bool,
+    pub has_settings_callback: bool,
     pub last_error: String,
     pub last_warning: String,
     pub ui_state: JsonValue,
@@ -226,6 +227,9 @@ impl ScriptRecord {
             loaded: self.is_loaded(),
             missing: self.is_missing(),
             running: self.is_running(),
+            has_settings_callback: lock(&self.instance)
+                .as_ref()
+                .is_some_and(LuaScriptInstance::has_settings_callback),
             last_error: self.last_error(),
             last_warning: self.last_warning(),
             ui_state: self.ui_state(),

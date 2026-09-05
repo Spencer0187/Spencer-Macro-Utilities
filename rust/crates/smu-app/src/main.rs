@@ -437,10 +437,12 @@ mod profile_orchestration_tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn process_found_parity_state_is_explicit_and_isolated() {
-        assert!(parity_process_found(Some("process-found-user-reference")));
-        assert!(!parity_process_found(Some("process-not-found-user-reference")));
-        assert!(!parity_process_found(Some("lag-switch-user-reference")));
-        assert!(!parity_process_found(None));
+        assert!(LinuxParityOptions::from_case(Some("process-found-user-reference")).process_found);
+        assert!(
+            !LinuxParityOptions::from_case(Some("process-not-found-user-reference")).process_found
+        );
+        assert!(!LinuxParityOptions::from_case(Some("lag-switch-user-reference")).process_found);
+        assert!(!LinuxParityOptions::from_case(None).process_found);
     }
 
     #[cfg(target_os = "linux")]
@@ -708,6 +710,26 @@ enum ScriptDialogResult {
 }
 
 #[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, Default)]
+struct LinuxParityOptions {
+    capture: bool,
+    process_found: bool,
+    imported_script: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxParityOptions {
+    #[must_use]
+    fn from_case(case: Option<&str>) -> Self {
+        Self {
+            capture: case.is_some(),
+            process_found: case == Some("process-found-user-reference"),
+            imported_script: case == Some("imported-script-footer-user-reference"),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 struct LinuxRuntimeServices {
     lag_switch_backend: Arc<LinuxLagSwitchBackend>,
     lag_switch_enabled: Arc<AtomicBool>,
@@ -715,8 +737,7 @@ struct LinuxRuntimeServices {
     _process_control: Arc<ProcCgroupProcessControl>,
     process_discovery: Arc<ProcDiscovery>,
     process_status: Mutex<ProcessStatusCache>,
-    parity_capture: bool,
-    parity_process_found: bool,
+    parity: LinuxParityOptions,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
     wayland_settings_busy: Arc<AtomicBool>,
@@ -1073,8 +1094,7 @@ impl LinuxRuntimeServices {
         shell_state: &shell::ShellState,
         saved_settings: Arc<profile_adapter::LiveSavedSettings>,
         updates_enabled: bool,
-        parity_capture: bool,
-        parity_process_found: bool,
+        parity: LinuxParityOptions,
     ) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend =
@@ -1145,8 +1165,7 @@ impl LinuxRuntimeServices {
             _process_control: platform.process_control,
             process_discovery: platform.process_discovery,
             process_status: Mutex::new(ProcessStatusCache::default()),
-            parity_capture,
-            parity_process_found,
+            parity,
             _display_service: platform.display_service,
             wayland_portal: platform.wayland_portal,
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
@@ -1179,6 +1198,10 @@ impl LinuxRuntimeServices {
     }
 
     fn prepare_script_ui(&self, shell_state: &mut shell::ShellState) {
+        if self.parity.imported_script {
+            shell_state.script_ui_mut().apply_parity_reference();
+            return;
+        }
         shell_state.script_ui_mut().set_snapshots(self.script_manager.snapshot());
         if let Some(index) = shell_state.selected_script() {
             let running = self.script_manager.get(index).is_some_and(|record| record.is_running());
@@ -1379,15 +1402,15 @@ impl LinuxRuntimeServices {
             shell_state.set_keybind_input(input);
         }
         let selector = shell_state.process_selector();
-        let process_found = if self.parity_capture {
-            self.parity_process_found
+        let process_found = if self.parity.capture {
+            self.parity.process_found
         } else {
             self.process_found(&selector)
         };
         shell_state.set_process_found(process_found);
         shell_state.set_settings_platform_status(self.settings_platform_status());
         let mut updater_status = self.update_service.prepare();
-        if self.parity_capture {
+        if self.parity.capture {
             // C++ parity mode suppresses update work in StartUpdateCheck(), but the Settings panel
             // still looks like an enabled, not-yet-checked updater. Keep the Rust oracle state
             // visually identical without permitting network work.
@@ -1867,12 +1890,6 @@ Running a desktop GUI as root can break access to your Wayland/X11 session and e
 
 #[cfg(target_os = "linux")]
 #[must_use]
-fn parity_process_found(case: Option<&str>) -> bool {
-    matches!(case, Some("process-found-user-reference"))
-}
-
-#[cfg(target_os = "linux")]
-#[must_use]
 const fn root_launch_refused(effective_uid: u32, parity_capture: bool) -> bool {
     effective_uid == 0 && !parity_capture
 }
@@ -2096,8 +2113,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &shell_state,
         Arc::clone(&saved_settings),
         parity_case.is_none(),
-        parity_case.is_some(),
-        parity_process_found(parity_case.as_deref()),
+        LinuxParityOptions::from_case(parity_case.as_deref()),
     );
     #[cfg(target_os = "linux")]
     if let Some(payload) = profile_service.current_payload() {

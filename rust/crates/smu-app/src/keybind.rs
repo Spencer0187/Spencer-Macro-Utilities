@@ -325,6 +325,9 @@ const fn normalize_bound_hotkey(combined: Hotkey) -> Hotkey {
 
 #[must_use]
 fn format_hotkey_human(hotkey: Hotkey) -> String {
+    if hotkey.raw() == smu_scripting::SCRIPT_UNBOUND_HOTKEY {
+        return "UNBOUND".to_owned();
+    }
     let mut output = String::new();
     if hotkey.has_win() {
         output.push_str("Win + ");
@@ -344,6 +347,9 @@ fn format_hotkey_human(hotkey: Hotkey) -> String {
 
 #[must_use]
 fn format_hotkey_hex(hotkey: Hotkey) -> String {
+    if hotkey.raw() == smu_scripting::SCRIPT_UNBOUND_HOTKEY {
+        return "UNBOUND".to_owned();
+    }
     let mut parts = Vec::new();
     if hotkey.has_win() {
         parts.push("0x5B".to_owned());
@@ -494,6 +500,13 @@ mod tests {
         state.set_input(snapshot(&[], None));
         assert!(!state.suppress_hotkeys_until_release);
         assert!(state.runtime_allowed());
+    }
+
+    #[test]
+    fn script_unbound_sentinel_matches_cpp_display() {
+        let hotkey = Hotkey::new(smu_scripting::SCRIPT_UNBOUND_HOTKEY);
+        assert_eq!(format_hotkey_human(hotkey), "UNBOUND");
+        assert_eq!(format_hotkey_hex(hotkey), "UNBOUND");
     }
 
     #[test]

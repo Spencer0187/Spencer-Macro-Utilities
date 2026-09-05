@@ -40,6 +40,38 @@ pub struct ScriptUiState {
 }
 
 impl ScriptUiState {
+    #[cfg(target_os = "linux")]
+    pub fn apply_parity_reference(&mut self) {
+        self.snapshots = vec![ScriptRecordSnapshot {
+            path: PathBuf::from("/tmp/smu-parity-script.lua"),
+            metadata: smu_scripting::ImportedScriptMetadata {
+                name: "Parity Script".to_owned(),
+                description: "Deterministic imported-script parity fixture.".to_owned(),
+                author: "SMU".to_owned(),
+                version: "1.0".to_owned(),
+                memory_limit_mb: None,
+            },
+            hotkey: smu_core::Hotkey::new(smu_scripting::SCRIPT_UNBOUND_HOTKEY),
+            enabled: false,
+            disable_outside_roblox: true,
+            loaded: true,
+            missing: false,
+            running: false,
+            has_settings_callback: false,
+            last_error: String::new(),
+            last_warning: String::new(),
+            ui_state: json!({}),
+        }];
+        self.selected = Some(0);
+        self.controls.clear();
+        self.import_error.clear();
+        self.import_notice.clear();
+        self.pending_import = None;
+        self.preview.clear();
+        self.preview_error.clear();
+        self.open_trust_modal = false;
+    }
+
     pub fn set_snapshots(&mut self, snapshots: Vec<ScriptRecordSnapshot>) {
         self.snapshots = snapshots;
         if self.selected.is_some_and(|index| index >= self.snapshots.len()) {
@@ -196,17 +228,20 @@ pub fn render_selected(
     if let Some(action) = render_script_controls(ui, index, &script, capture, theme) {
         return Some(action);
     }
-    render_script_details(ui, &script, state.import_notice.is_empty(), theme);
+    render_script_details(ui, &script, theme);
     crate::parity::separator(ui);
     ui.text_wrapped("Custom Settings");
-    if state.controls.is_empty() {
-        ui.text_wrapped("This script does not define onSettings(), or no controls were captured.");
+    if !script.has_settings_callback {
+        ui.text_wrapped("This script does not define onSettings().");
         return None;
     }
     if script.running {
         ui.text_wrapped(
             "Settings are read-only while the script is running. Dynamic text stays live and copyable.",
         );
+    }
+    if state.controls.is_empty() {
+        return None;
     }
     render_custom_controls(ui, index, &script, &state.controls, capture)
 }
@@ -226,9 +261,9 @@ fn render_script_controls(
         capture,
         &format!("ImportedScriptKey{index}"),
         &mut hotkey,
-        150.0,
-        50.0,
-        true,
+        170.0,
+        130.0,
+        false,
     );
     if hotkey != script.hotkey.raw() {
         return Some(ScriptAction::SetHotkey { index, hotkey });
@@ -295,12 +330,7 @@ fn render_script_controls(
     reset.then_some(ScriptAction::Reset { index })
 }
 
-fn render_script_details(
-    ui: &Ui,
-    script: &ScriptRecordSnapshot,
-    show_persistence_note: bool,
-    theme: &ThemeDefinition,
-) {
+fn render_script_details(ui: &Ui, script: &ScriptRecordSnapshot, theme: &ThemeDefinition) {
     crate::parity::separator(ui);
     let (status, status_color) = if script.running {
         ("Running", theme.accent_primary)
@@ -329,9 +359,6 @@ fn render_script_details(
         ui.text_wrapped(format!("Version: {}", script.metadata.version));
     }
     ui.text_wrapped(format!("File: {}", sanitize_path(&script.path)));
-    if show_persistence_note {
-        ui.text_disabled("Script persistence through Rust profiles is not attached yet.");
-    }
 }
 
 fn render_custom_controls(
@@ -576,10 +603,26 @@ mod tests {
             loaded: true,
             missing: false,
             running: false,
+            has_settings_callback: false,
             last_error: String::new(),
             last_warning: String::new(),
             ui_state: json!({}),
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parity_reference_is_loaded_idle_selected_script() {
+        let mut state = ScriptUiState::default();
+        state.apply_parity_reference();
+        assert_eq!(state.selected(), Some(0));
+        let script = &state.snapshots[0];
+        assert_eq!(script.metadata.name, "Parity Script");
+        assert_eq!(script.path, PathBuf::from("/tmp/smu-parity-script.lua"));
+        assert!(script.loaded);
+        assert!(!script.running);
+        assert!(!script.has_settings_callback);
+        assert!(state.controls.is_empty());
     }
 
     #[test]

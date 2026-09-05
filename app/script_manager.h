@@ -100,6 +100,7 @@ public:
     bool executeScript(std::size_t index);
     bool forceStopScript(std::size_t index);
     void clear();
+    void applyUiParityReference();
     std::size_t count() const;
     RecordPtr get(std::size_t index);
     ConstRecordPtr get(std::size_t index) const;

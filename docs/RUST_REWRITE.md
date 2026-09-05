@@ -417,7 +417,12 @@ width error from missing frame-padding subtraction, and a one-pixel built-in/imp
 offset. A Freeze-selected built-in-footer capture then exposed Rust treating every X11 session as
 foreground-capable; the shared process/UI capability now matches C++'s EWMH probe and forces the
 foreground-dependent checkbox into the disabled/unchecked fallback when those properties are absent.
-Exact RGBA equality is the default. Masks are
+An in-memory imported-script footer capture then caught Rust using the Settings-menu keybind geometry
+instead of C++'s default 170/130 unwrapped layout, formatting the script-unbound sentinel as an
+ordinary zero key instead of `UNBOUND`, and collapsing the distinction between no `onSettings()`
+callback and a callback that returns no controls; it also removed the stale Rust-only profile-
+persistence warning from a path whose persistence is already attached. Exact RGBA equality is the
+default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

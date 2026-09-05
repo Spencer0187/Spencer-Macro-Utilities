@@ -126,7 +126,8 @@ void ApplyUiParityCaseIfRequested()
     const bool processFoundReference = parityCase && std::strcmp(parityCase, "process-found-user-reference") == 0;
     const bool processNotFoundReference = parityCase && std::strcmp(parityCase, "process-not-found-user-reference") == 0;
     const bool builtinFooterReference = parityCase && std::strcmp(parityCase, "builtin-footer-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference) {
+    const bool importedScriptFooterReference = parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference) {
         return;
     }
 
@@ -152,7 +153,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference) {
         selected_section = builtinFooterReference ? 0 : -1;
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
@@ -172,6 +173,9 @@ void ApplyUiParityCaseIfRequested()
         globalzoominreverse = false;
         doublepressafkkey = true;
         show_theme_menu = themeEditorReference;
+        if (importedScriptFooterReference) {
+            ScriptManager::Get().applyUiParityReference();
+        }
         return;
     }
 
@@ -245,7 +249,10 @@ struct BindingState {
 std::unordered_map<unsigned int*, BindingState> g_bindingStates;
 bool g_hasStoredSettingsWindowPos = false;
 ImVec2 g_storedSettingsWindowPos{};
-int g_selected_imported_script = -1;
+int g_selected_imported_script = [] {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    return parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0 ? 0 : -1;
+}();
 std::optional<std::filesystem::path> g_pending_import_path;
 
 struct ImportPreviewState {
