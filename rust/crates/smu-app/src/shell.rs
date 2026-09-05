@@ -17,6 +17,7 @@ use crate::{
     lag_switch::{self, LagSwitchAction, LagSwitchUiState},
     laugh_clip::{self, LaughClipGlobals, LaughClipUiState},
     ledge_bounce::{self, LedgeBounceUiState},
+    notification_suppression::{ADMIN_ELEVATION_WARNING_ID, NotificationSuppressionState},
     press_key::{self, PressKeyUiState},
     profile_browser::{self, ProfileAction, ProfileBrowserState},
     settings_menu, sidebar,
@@ -56,6 +57,7 @@ pub enum ShellAction {
     StartWaylandRemoteDesktopFromSettings,
     #[cfg(target_os = "linux")]
     StartLagSwitchHelper,
+    PersistNotificationSuppression,
     #[cfg(target_os = "linux")]
     StartFreezeHelper,
     #[cfg(target_os = "linux")]
@@ -103,6 +105,7 @@ enum LinuxModal {
 #[derive(Debug, Default)]
 struct LinuxModalState {
     pending_open: std::collections::BTreeSet<LinuxModal>,
+    pending_lag_switch_helper_start: bool,
     admin_error: String,
 }
 
@@ -115,6 +118,7 @@ pub struct ShellState {
     keybind_capture: keybind::CaptureState,
     settings_platform: settings_menu::PlatformStatus,
     settings_updater: settings_menu::UpdaterPanelStatus,
+    notifications: NotificationSuppressionState,
     theme: theme::ThemeState,
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
@@ -154,6 +158,7 @@ impl Default for ShellState {
             keybind_capture: keybind::CaptureState::default(),
             settings_platform: settings_menu::PlatformStatus::default(),
             settings_updater: settings_menu::UpdaterPanelStatus::default(),
+            notifications: NotificationSuppressionState::default(),
             theme: theme::ThemeState::default(),
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
@@ -512,14 +517,25 @@ impl ShellState {
 
     pub fn apply_profile_metadata(&mut self, metadata: &Map<String, Value>) {
         self.global.apply_metadata(metadata);
+        self.notifications.apply_metadata(metadata);
         self.theme.apply_metadata(metadata);
     }
 
     #[must_use]
     pub fn profile_metadata_overlay(&self) -> Map<String, Value> {
         let mut metadata = self.global.metadata_overlay();
+        metadata.extend(self.notifications.metadata_overlay());
         metadata.extend(self.theme.metadata_overlay());
         metadata
+    }
+
+    #[must_use]
+    pub fn admin_warning_suppressed(&self) -> bool {
+        self.notifications.is_suppressed(ADMIN_ELEVATION_WARNING_ID)
+    }
+
+    pub fn set_admin_warning_suppressed(&mut self, suppressed: bool) -> bool {
+        self.notifications.set_suppressed(ADMIN_ELEVATION_WARNING_ID, suppressed)
     }
 
     pub fn apply_theme_to_context(&self, context: &mut dear_imgui_rs::Context) {
@@ -777,7 +793,11 @@ impl ShellState {
 
     #[cfg(target_os = "linux")]
     pub fn request_lag_switch_helper_popup(&mut self) {
-        self.linux_modals.pending_open.insert(LinuxModal::LagSwitchHelper);
+        if self.admin_warning_suppressed() {
+            self.linux_modals.pending_lag_switch_helper_start = true;
+        } else {
+            self.linux_modals.pending_open.insert(LinuxModal::LagSwitchHelper);
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -851,8 +871,7 @@ fn overlay_section_state(
 }
 
 pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
-    let display_size = ui.io().display_size();
-    let active_theme = state.theme.active().clone();
+    let (display_size, active_theme) = (ui.io().display_size(), state.theme.active().clone());
     let flags = WindowFlags::NO_RESIZE
         | WindowFlags::NO_MOVE
         | WindowFlags::NO_TITLE_BAR
@@ -871,7 +890,7 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         });
 
     #[cfg(target_os = "linux")]
-    if let Some(modal_action) = render_linux_modals(ui, &mut state.linux_modals, &active_theme) {
+    if let Some(modal_action) = render_linux_modals(ui, state, &active_theme) {
         action = Some(modal_action);
     }
     #[cfg(target_os = "linux")]
@@ -954,8 +973,18 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         });
     }
 
+    #[cfg(target_os = "linux")]
+    take_pending_lag_switch_helper_start(state, &mut action);
     state.theme.render_editor(ui);
     action
+}
+
+#[cfg(target_os = "linux")]
+fn take_pending_lag_switch_helper_start(state: &mut ShellState, action: &mut Option<ShellAction>) {
+    if state.linux_modals.pending_lag_switch_helper_start {
+        state.linux_modals.pending_lag_switch_helper_start = false;
+        *action = Some(ShellAction::StartLagSwitchHelper);
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -994,35 +1023,47 @@ fn open_linux_modal(ui: &Ui, state: &mut LinuxModalState, modal: LinuxModal, nam
 #[cfg(target_os = "linux")]
 fn render_linux_modals(
     ui: &Ui,
-    state: &mut LinuxModalState,
+    state: &mut ShellState,
     theme: &theme::ThemeDefinition,
 ) -> Option<ShellAction> {
     if let Some(action) = render_lag_switch_helper_modal(ui, state, theme) {
         return Some(action);
     }
-    if let Some(action) = render_freeze_helper_modal(ui, state) {
+    if let Some(action) = render_freeze_helper_modal(ui, &mut state.linux_modals) {
         return Some(action);
     }
-    if let Some(action) = render_wayland_screen_capture_modal(ui, state) {
+    if let Some(action) = render_wayland_screen_capture_modal(ui, &mut state.linux_modals) {
         return Some(action);
     }
-    render_wayland_remote_desktop_modal(ui, state)
+    render_wayland_remote_desktop_modal(ui, &mut state.linux_modals)
 }
 
 #[cfg(target_os = "linux")]
 fn render_lag_switch_helper_modal(
     ui: &Ui,
-    state: &mut LinuxModalState,
+    state: &mut ShellState,
     theme: &theme::ThemeDefinition,
 ) -> Option<ShellAction> {
-    open_linux_modal(ui, state, LinuxModal::LagSwitchHelper, "Administrator Required");
+    open_linux_modal(
+        ui,
+        &mut state.linux_modals,
+        LinuxModal::LagSwitchHelper,
+        "Administrator Required",
+    );
     let _popup = ui.begin_modal_popup("Administrator Required")?;
     ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
     ui.text_wrapped("This process involves:");
     ui.bullet_text("Starting the bundled nethelper with pkexec.");
     ui.bullet_text("Keeping the SMU GUI running as your normal desktop user.");
-    if !state.admin_error.is_empty() {
-        ui.text_colored(theme.error_color, &state.admin_error);
+    if !state.linux_modals.admin_error.is_empty() {
+        ui.text_colored(theme.error_color, &state.linux_modals.admin_error);
+    }
+    crate::parity::separator(ui);
+    let mut action = None;
+    let mut suppress_admin_warning = state.admin_warning_suppressed();
+    if ui.checkbox("Do not show this again", &mut suppress_admin_warning) {
+        let _ = state.set_admin_warning_suppressed(suppress_admin_warning);
+        action = Some(ShellAction::PersistNotificationSuppression);
     }
     crate::parity::separator(ui);
     if ui.button_with_size("Start Helper", [180.0, 0.0]) {
@@ -1033,7 +1074,7 @@ fn render_lag_switch_helper_modal(
     if ui.button_with_size("Cancel", [120.0, 0.0]) {
         ui.close_current_popup();
     }
-    None
+    action
 }
 
 #[cfg(target_os = "linux")]
@@ -1587,17 +1628,43 @@ mod profile_adapter_tests {
     }
 
     #[test]
-    fn profile_metadata_combines_theme_and_short_description_state() {
+    fn profile_metadata_combines_theme_global_and_notification_state() {
         let mut state = ShellState::default();
         state.apply_profile_metadata(&Map::from_iter([
             ("shortdescriptions".to_owned(), json!(true)),
             ("current_theme_index".to_owned(), json!(1)),
+            (
+                "suppressed_notifications".to_owned(),
+                json!(["future_warning", "admin_elevation_warning"]),
+            ),
         ]));
         let metadata = state.profile_metadata_overlay();
         assert_eq!(metadata["shortdescriptions"], json!(true));
         assert_eq!(metadata["current_theme_index"], json!(1));
+        assert_eq!(
+            metadata["suppressed_notifications"],
+            json!(["admin_elevation_warning", "future_warning"])
+        );
+        assert_eq!(metadata["DontShowAdminWarning"], json!(true));
         assert!(metadata["custom_theme"].is_object());
         assert!(metadata["themes"].is_object());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn lag_switch_helper_request_uses_modal_until_admin_warning_is_suppressed() {
+        use super::LinuxModal;
+
+        let mut state = ShellState::default();
+        state.request_lag_switch_helper_popup();
+        assert!(state.linux_modals.pending_open.contains(&LinuxModal::LagSwitchHelper));
+        assert!(!state.linux_modals.pending_lag_switch_helper_start);
+
+        state.linux_modals.pending_open.clear();
+        assert!(state.set_admin_warning_suppressed(true));
+        state.request_lag_switch_helper_popup();
+        assert!(!state.linux_modals.pending_open.contains(&LinuxModal::LagSwitchHelper));
+        assert!(state.linux_modals.pending_lag_switch_helper_start);
     }
 
     #[test]

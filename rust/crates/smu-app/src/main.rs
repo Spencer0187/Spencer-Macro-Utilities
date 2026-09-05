@@ -82,6 +82,7 @@ mod linux_input_setup_service;
 mod linux_privileged_helper;
 mod macro_text;
 mod multi_instance;
+mod notification_suppression;
 mod parity;
 mod press_key;
 #[cfg(target_os = "linux")]
@@ -283,6 +284,31 @@ fn save_profiles_now(
         return false;
     }
     save_live_profile(service, shell_state, window, &current_name, imported_scripts).is_some()
+}
+
+#[cfg(target_os = "linux")]
+fn save_before_privileged_shell_action(
+    action: Option<&shell::ShellAction>,
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    window: &Window,
+    linux_services: &LinuxRuntimeServices,
+) {
+    if !matches!(
+        action,
+        Some(
+            shell::ShellAction::PersistNotificationSuppression
+                | shell::ShellAction::StartLagSwitchHelper
+        )
+    ) {
+        return;
+    }
+    let _ = save_profiles_now(
+        service,
+        shell_state,
+        window,
+        Some(linux_services.profile_script_state()),
+    );
 }
 
 #[derive(Clone, Debug)]
@@ -1348,6 +1374,12 @@ impl LinuxRuntimeServices {
             available,
             actively_lagging: self.lag_switch_backend.is_blocking_active(),
         });
+        if let Some(controller) = self.lag_switch_controller.as_ref()
+            && controller.take_helper_prompt_request()
+        {
+            shell_state.set_lag_switch_helper_error(self.lag_switch_backend.unsupported_reason());
+            shell_state.request_lag_switch_helper_popup();
+        }
         if self.freeze_authorization.is_pending() {
             shell_state.request_freeze_helper_popup();
         }
@@ -1381,11 +1413,6 @@ impl LinuxRuntimeServices {
         }
         if let Some(controller) = self.lag_switch_controller.as_ref() {
             controller.update_settings(shell_state.lag_switch_controller_settings());
-            if controller.take_helper_prompt_request() {
-                shell_state
-                    .set_lag_switch_helper_error(self.lag_switch_backend.unsupported_reason());
-                shell_state.request_lag_switch_helper_popup();
-            }
         }
         if let Some(controller) = self.freeze_controller.as_ref() {
             controller.update_settings(shell_state.freeze_controller_settings());
@@ -1528,11 +1555,9 @@ impl LinuxRuntimeServices {
                         shell_state.set_lag_switch_helper_error(
                             self.lag_switch_backend.unsupported_reason(),
                         );
-                        shell_state.request_lag_switch_helper_popup();
                     }
                     Err(error) => {
                         shell_state.set_lag_switch_helper_error(error);
-                        shell_state.request_lag_switch_helper_popup();
                     }
                 }
             }
@@ -1560,7 +1585,10 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::Script(action)) => {
                 self.handle_script_action(action, shell_state, window);
             }
-            Some(shell::ShellAction::Profile(_)) | None => {}
+            Some(
+                shell::ShellAction::PersistNotificationSuppression | shell::ShellAction::Profile(_),
+            )
+            | None => {}
         }
     }
 
@@ -1947,6 +1975,14 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             #[cfg(not(target_os = "linux"))]
             let _ = outcome;
         }
+        #[cfg(target_os = "linux")]
+        save_before_privileged_shell_action(
+            shell_action.as_ref(),
+            profile_service,
+            shell_state,
+            window,
+            linux_services,
+        );
         apply_shell_window_style(window, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);

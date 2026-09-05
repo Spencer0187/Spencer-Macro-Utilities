@@ -312,8 +312,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   and cleanup semantics. `smu-app` now owns the Linux lagswitch helper-launch boundary: it resolves
   the bundled helper with the same AppImage/current-directory precedence, stages a private 0700 copy,
   binds it to the GUI PID/start-time identity, launches it through graphical `pkexec`, verifies the
-  root helper socket, and exposes the default C++ Administrator Required modal. Notification
-  suppression/profile persistence for that modal remains part of the broader app-settings cutover.
+  root helper socket, and exposes the default C++ Administrator Required modal. The modal now also
+  preserves C++ notification suppression: `suppressed_notifications` keeps arbitrary string IDs,
+  legacy `DontShowAdminWarning=true` merges the administrator-warning ID, and saves emit both the
+  sorted ID array and compatibility boolean. Changing `Do not show this again` persists immediately;
+  future UI/controller helper requests bypass the modal when suppressed, save the active profile
+  before elevation, and then reuse the same graphical helper-launch action. Failed helper starts do
+  not recursively reopen/relaunch the suppressed prompt.
 - `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
