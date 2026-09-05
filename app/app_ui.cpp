@@ -123,7 +123,9 @@ void ApplyUiParityCaseIfRequested()
     const bool themeEditorReference = parityCase && std::strcmp(parityCase, "theme-editor-user-reference") == 0;
     const bool profileMenuReference = parityCase && std::strcmp(parityCase, "profile-menu-user-reference") == 0;
     const bool sidebarNoScrollReference = parityCase && std::strcmp(parityCase, "sidebar-no-scroll-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference) {
+    const bool processFoundReference = parityCase && std::strcmp(parityCase, "process-found-user-reference") == 0;
+    const bool processNotFoundReference = parityCase && std::strcmp(parityCase, "process-not-found-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference) {
         return;
     }
 
@@ -149,7 +151,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference) {
         selected_section = -1;
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
@@ -2273,8 +2275,10 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
         RefreshProcessStatus(context);
     } else {
         UserOutdated = false;
-        processFound = false;
-        context.detectedProcessCount = 0;
+        const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+        const bool processFoundReference = parityCase && std::strcmp(parityCase, "process-found-user-reference") == 0;
+        processFound = processFoundReference;
+        context.detectedProcessCount = processFoundReference ? 1 : 0;
     }
 
     ImGui::AlignTextToFramePadding();

@@ -35,7 +35,10 @@ halos for their respective floating surfaces. Settings/Theme/Profile contents, t
 and all non-corner floating-window geometry remain gated. `sidebar-no-scroll-linux-1280x1200`
 keeps only the translated footer-seam exclusions and leaves the complete sidebar body gated; 1200px
 is the measured 1x height where C++'s short-description fixture actually reaches
-`GetScrollMaxY()==0` and switches the button-width adjustment from 18px to 7px.
+`GetScrollMaxY()==0` and switches the button-width adjustment from 18px to 7px. The paired
+`process-not-found-linux-minimum` / `process-found-linux-minimum` cases keep live process discovery
+disabled and deterministically force only the Roblox/Sober status state; their Rust captures differ
+only inside the 10x10 status dot.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

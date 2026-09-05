@@ -435,6 +435,15 @@ mod profile_orchestration_tests {
 
     #[cfg(target_os = "linux")]
     #[test]
+    fn process_found_parity_state_is_explicit_and_isolated() {
+        assert!(parity_process_found(Some("process-found-user-reference")));
+        assert!(!parity_process_found(Some("process-not-found-user-reference")));
+        assert!(!parity_process_found(Some("lag-switch-user-reference")));
+        assert!(!parity_process_found(None));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
     fn root_launch_guard_matches_product_policy_and_parity_exception() {
         assert!(root_launch_refused(0, false));
         assert!(!root_launch_refused(0, true));
@@ -706,6 +715,7 @@ struct LinuxRuntimeServices {
     process_discovery: Arc<ProcDiscovery>,
     process_status: Mutex<ProcessStatusCache>,
     parity_capture: bool,
+    parity_process_found: bool,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
     wayland_settings_busy: Arc<AtomicBool>,
@@ -1063,6 +1073,7 @@ impl LinuxRuntimeServices {
         saved_settings: Arc<profile_adapter::LiveSavedSettings>,
         updates_enabled: bool,
         parity_capture: bool,
+        parity_process_found: bool,
     ) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend =
@@ -1134,6 +1145,7 @@ impl LinuxRuntimeServices {
             process_discovery: platform.process_discovery,
             process_status: Mutex::new(ProcessStatusCache::default()),
             parity_capture,
+            parity_process_found,
             _display_service: platform.display_service,
             wayland_portal: platform.wayland_portal,
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
@@ -1366,7 +1378,12 @@ impl LinuxRuntimeServices {
             shell_state.set_keybind_input(input);
         }
         let selector = shell_state.process_selector();
-        shell_state.set_process_found(!self.parity_capture && self.process_found(&selector));
+        let process_found = if self.parity_capture {
+            self.parity_process_found
+        } else {
+            self.process_found(&selector)
+        };
+        shell_state.set_process_found(process_found);
         shell_state.set_settings_platform_status(self.settings_platform_status());
         let mut updater_status = self.update_service.prepare();
         if self.parity_capture {
@@ -1849,6 +1866,12 @@ Running a desktop GUI as root can break access to your Wayland/X11 session and e
 
 #[cfg(target_os = "linux")]
 #[must_use]
+fn parity_process_found(case: Option<&str>) -> bool {
+    matches!(case, Some("process-found-user-reference"))
+}
+
+#[cfg(target_os = "linux")]
+#[must_use]
 const fn root_launch_refused(effective_uid: u32, parity_capture: bool) -> bool {
     effective_uid == 0 && !parity_capture
 }
@@ -2073,6 +2096,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::clone(&saved_settings),
         parity_case.is_none(),
         parity_case.is_some(),
+        parity_process_found(parity_case.as_deref()),
     );
     #[cfg(target_os = "linux")]
     if let Some(payload) = profile_service.current_payload() {

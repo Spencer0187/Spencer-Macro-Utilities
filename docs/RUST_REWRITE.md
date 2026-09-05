@@ -395,9 +395,11 @@ extension in `app/app_ui.cpp`. Those pixels are part of the current visual contr
 implementation can produce the same appearance more cleanly.
 
 Parity tests compare fixed-state C++ and Rust captures at a matrix of window sizes and display
-scales. Live process discovery is disabled during parity capture, matching the C++ oracle's forced
-`processFound = false`, so running Sober/Roblox instances cannot change the status indicator. Linux
-now has automated minimum-size captures for the Lag Switch pane, an open Settings window, the Theme
+scales. Live process discovery is disabled during parity capture, so running Sober/Roblox instances
+cannot change the status indicator. Ordinary fixtures keep the C++ oracle's `processFound = false`;
+a paired deterministic process-status fixture forces found/not-found on both sides without touching
+live discovery and differs only in the 10x10 header status dot. Linux now has automated minimum-size
+captures for the Lag Switch pane, an open Settings window, the Theme
 Editor, and the profile drop-up menu. The Settings case keeps updater work suppressed while preserving
 C++'s enabled/not-yet-checked visual state, and it caught the missing `Select a section to see its
 settings.` empty-pane message plus the legacy 4 px Old Unicode Chat-Typing label offset. The Theme
