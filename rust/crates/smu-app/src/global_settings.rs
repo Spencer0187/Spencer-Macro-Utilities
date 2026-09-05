@@ -378,6 +378,8 @@ pub fn render(
     ui: &Ui,
     state: &mut GlobalSettingsState,
     user_outdated: bool,
+    settings_open: bool,
+    theme_editor_open: bool,
     theme: &ThemeDefinition,
 ) -> Option<GlobalSettingsAction> {
     let window_width = ui.window_size()[0];
@@ -473,7 +475,7 @@ pub fn render(
         state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
     }
 
-    render_global_window_buttons(ui, window_width).or(action)
+    render_global_window_buttons(ui, window_width, settings_open, theme_editor_open).or(action)
 }
 
 fn render_official_source_link(
@@ -519,13 +521,27 @@ fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme:
     drop(disabled);
 }
 
-fn render_global_window_buttons(ui: &Ui, window_width: f32) -> Option<GlobalSettingsAction> {
+fn render_global_window_buttons(
+    ui: &Ui,
+    window_width: f32,
+    settings_open: bool,
+    theme_editor_open: bool,
+) -> Option<GlobalSettingsAction> {
     ui.same_line_with_pos(window_width - SETTINGS_FROM_RIGHT);
-    if ui.button("Settings ->") {
+    if ui.button(settings_button_label(settings_open)) {
         return Some(GlobalSettingsAction::ToggleSettings);
     }
     ui.same_line_with_pos(window_width - THEME_FROM_RIGHT);
-    ui.button("Theme Editor ->").then_some(GlobalSettingsAction::ToggleThemeEditor)
+    ui.button(theme_editor_button_label(theme_editor_open))
+        .then_some(GlobalSettingsAction::ToggleThemeEditor)
+}
+
+const fn settings_button_label(open: bool) -> &'static str {
+    if open { "Settings <-" } else { "Settings ->" }
+}
+
+const fn theme_editor_button_label(open: bool) -> &'static str {
+    if open { "Theme Editor <-" } else { "Theme Editor ->" }
 }
 
 fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
@@ -541,7 +557,10 @@ fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL, parse_cpp_fps_buffer};
+    use super::{
+        ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL, parse_cpp_fps_buffer,
+        settings_button_label, theme_editor_button_label,
+    };
     use serde_json::{Map, json};
 
     #[test]
@@ -608,5 +627,12 @@ mod tests {
             ANTI_AFK_TOOLTIP,
             "Anti-AFK is currently available on Windows only.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first."
         );
+    }
+    #[test]
+    fn global_window_button_arrows_match_cpp_open_state() {
+        assert_eq!(settings_button_label(false), "Settings ->");
+        assert_eq!(settings_button_label(true), "Settings <-");
+        assert_eq!(theme_editor_button_label(false), "Theme Editor ->");
+        assert_eq!(theme_editor_button_label(true), "Theme Editor <-");
     }
 }

@@ -68,6 +68,11 @@ impl ThemeState {
         self.themes.get(self.current_index).unwrap_or(&self.custom_theme)
     }
 
+    #[must_use]
+    pub const fn editor_open(&self) -> bool {
+        self.editor_open
+    }
+
     pub const fn toggle_editor(&mut self) {
         self.editor_open = !self.editor_open;
         if !self.editor_open {

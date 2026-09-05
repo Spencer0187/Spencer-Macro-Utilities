@@ -1240,6 +1240,8 @@ fn render_contents(
         + SETTINGS_EXTRA_HEIGHT;
 
     let mut global_action = None;
+    let settings_open = state.settings_open;
+    let theme_editor_open = state.theme.editor_open();
     ui.child_window(GLOBAL_SETTINGS_CHILD)
         .size([display_size[0] - SETTINGS_HORIZONTAL_MARGIN, settings_panel_height])
         .border(true)
@@ -1248,6 +1250,8 @@ fn render_contents(
                 ui,
                 &mut state.global,
                 state.settings_updater.user_outdated(),
+                settings_open,
+                theme_editor_open,
                 theme,
             );
         });

@@ -160,8 +160,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   windows larger than the viewport. The RemoteDesktop enable button is hidden once control is active,
   matching C++, and the sponsor text uses the hand cursor/click interaction to open the Spencer0187
   GitHub Sponsors page through SDL. The always-visible global header now also matches the C++ link/
-  help interactions: the official GitHub source uses the hand cursor and SDL URL opening, and hovering
-  the Anti-AFK label exposes the same Windows-only behavior tooltip without changing header geometry.
+  help interactions: the official GitHub source uses the hand cursor and SDL URL opening, hovering
+  the Anti-AFK label exposes the same Windows-only behavior tooltip without changing header geometry,
+  and the Settings/Theme Editor buttons flip from `->` to `<-` while their windows are open.
   Wayland starts/stops run on one owned Settings worker so portal
   prompts and first-frame waits never block the UI thread; process status is cached for one second.
   The keybind editor preserves the C++ release-before-capture flow, modifier packing/normalization,
