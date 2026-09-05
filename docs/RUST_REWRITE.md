@@ -387,8 +387,10 @@ extension in `app/app_ui.cpp`. Those pixels are part of the current visual contr
 implementation can produce the same appearance more cleanly.
 
 Parity tests compare fixed-state C++ and Rust captures at a matrix of window sizes and display
-scales. Exact RGBA equality is the default. Masks are permitted only for explicitly documented
-regions where the oracle itself is intentionally excluded; a mask must be narrow and reviewed.
+scales. Live process discovery is disabled during parity capture, matching the C++ oracle's forced
+`processFound = false`, so running Sober/Roblox instances cannot change the status indicator. Exact
+RGBA equality is the default. Masks are permitted only for explicitly documented regions where the
+oracle itself is intentionally excluded; a mask must be narrow and reviewed.
 
 Named layout constants are preferred in Rust even when their numeric values must match existing
 magic constants. Pixel parity is the requirement, not preservation of the old implementation style.

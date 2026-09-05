@@ -705,6 +705,7 @@ struct LinuxRuntimeServices {
     _process_control: Arc<ProcCgroupProcessControl>,
     process_discovery: Arc<ProcDiscovery>,
     process_status: Mutex<ProcessStatusCache>,
+    parity_capture: bool,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
     wayland_settings_busy: Arc<AtomicBool>,
@@ -1061,6 +1062,7 @@ impl LinuxRuntimeServices {
         shell_state: &shell::ShellState,
         saved_settings: Arc<profile_adapter::LiveSavedSettings>,
         updates_enabled: bool,
+        parity_capture: bool,
     ) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
         let lag_switch_backend =
@@ -1131,6 +1133,7 @@ impl LinuxRuntimeServices {
             _process_control: platform.process_control,
             process_discovery: platform.process_discovery,
             process_status: Mutex::new(ProcessStatusCache::default()),
+            parity_capture,
             _display_service: platform.display_service,
             wayland_portal: platform.wayland_portal,
             wayland_settings_busy: Arc::new(AtomicBool::new(false)),
@@ -1363,7 +1366,7 @@ impl LinuxRuntimeServices {
             shell_state.set_keybind_input(input);
         }
         let selector = shell_state.process_selector();
-        shell_state.set_process_found(self.process_found(&selector));
+        shell_state.set_process_found(!self.parity_capture && self.process_found(&selector));
         shell_state.set_settings_platform_status(self.settings_platform_status());
         shell_state
             .set_settings_updater_status(self.update_service.prepare(shell_state.settings_open()));
@@ -2056,8 +2059,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut backend =
         unsafe { Sdl3OpenGl3Backend::init(&mut imgui, &window, &gl_context, GLSL_VERSION)? };
     #[cfg(target_os = "linux")]
-    let linux_services =
-        LinuxRuntimeServices::new(&shell_state, Arc::clone(&saved_settings), parity_case.is_none());
+    let linux_services = LinuxRuntimeServices::new(
+        &shell_state,
+        Arc::clone(&saved_settings),
+        parity_case.is_none(),
+        parity_case.is_some(),
+    );
     #[cfg(target_os = "linux")]
     if let Some(payload) = profile_service.current_payload() {
         linux_services.apply_profile_script_state(payload);
