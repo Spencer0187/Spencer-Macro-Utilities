@@ -1,6 +1,10 @@
 //! Minimal `SDL3` + Dear `ImGui` + `OpenGL3` compatibility spike.
 
-use std::{ffi::c_void, path::PathBuf, ptr};
+use std::{
+    ffi::c_void,
+    path::{Path, PathBuf},
+    ptr,
+};
 
 #[cfg(target_os = "linux")]
 use std::sync::{
@@ -1962,6 +1966,14 @@ struct UiLoopContext<'a> {
     linux_services: &'a LinuxRuntimeServices,
 }
 
+fn stabilize_parity_delta_time(imgui: &mut Context, capture_path: Option<&Path>) {
+    if capture_path.is_some() {
+        // The C++ parity oracle paces active frames at 60 FPS. Rust capture frames otherwise run
+        // back-to-back, which leaves time-based Dear ImGui animations at a different third frame.
+        imgui.io_mut().set_delta_time(1.0 / 60.0);
+    }
+}
+
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
         events,
@@ -1990,6 +2002,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
 
         shell_state.apply_theme_to_context(imgui);
         backend.new_frame(imgui)?;
+        stabilize_parity_delta_time(imgui, capture_path);
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         profile_service.prepare_shell(shell_state.profile_browser_mut());

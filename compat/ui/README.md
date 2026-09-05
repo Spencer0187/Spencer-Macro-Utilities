@@ -44,7 +44,11 @@ detection fallback because the required EWMH active-window properties are unavai
 `imported-script-footer-linux-minimum` injects the same loaded, idle, unbound in-memory script on
 both sides and gates its sidebar entry, selected-script controls/details/custom-settings state, and
 footer reset without importing or executing a real Lua file; it needs no masks beyond the standard
-minimum-size footer seam.
+minimum-size footer seam. `import-preview-linux-minimum` similarly injects an in-memory Lua source
+preview and gates the centered trust modal, syntax-highlighted read-only preview child, disclaimer,
+and dimmed shell underneath. Rust parity captures pin Dear ImGui `DeltaTime` to 1/60s after backend
+frame setup, matching the C++ oracle's active-frame cadence so time-based modal dimming reaches the
+same third-frame state. Only the four reviewed rounded modal-corner halos are additionally masked.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

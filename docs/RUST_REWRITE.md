@@ -421,8 +421,12 @@ An in-memory imported-script footer capture then caught Rust using the Settings-
 instead of C++'s default 170/130 unwrapped layout, formatting the script-unbound sentinel as an
 ordinary zero key instead of `UNBOUND`, and collapsing the distinction between no `onSettings()`
 callback and a callback that returns no controls; it also removed the stale Rust-only profile-
-persistence warning from a path whose persistence is already attached. Exact RGBA equality is the
-default. Masks are
+persistence warning from a path whose persistence is already attached. The import-trust preview is
+now gated with an in-memory Lua source fixture as well: Rust ports C++'s centered 760x560 constrained
+modal, exact disclaimer/section heading, bordered horizontal-scroll syntax preview, visible-line
+clipping, metadata/comment/string/keyword/function/risky-function coloring, and parity-capture
+`DeltaTime` stabilization at 1/60s so Dear ImGui modal dimming reaches the same third-frame state as
+the C++ 60 FPS oracle. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

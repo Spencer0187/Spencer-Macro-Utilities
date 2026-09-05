@@ -4,7 +4,7 @@
 //! snapshots, queues typed actions, and owns transient selection/import-preview state.
 
 use crate::{keybind, theme::ThemeDefinition};
-use dear_imgui_rs::{StyleColor, Ui};
+use dear_imgui_rs::{Condition, ListClipper, StyleColor, StyleVar, Ui, WindowFlags, sys};
 use serde_json::{Value, json};
 use smu_scripting::{ScriptRecordSnapshot, SettingsUiControl, SettingsUiControlKind};
 use std::fs;
@@ -40,6 +40,23 @@ pub struct ScriptUiState {
 }
 
 impl ScriptUiState {
+    #[cfg(target_os = "linux")]
+    pub fn apply_import_preview_parity_reference(&mut self) {
+        self.pending_import = Some(PathBuf::from("/tmp/smu-parity-preview.lua"));
+        concat!(
+            "-- @name: Preview Fixture\n",
+            "local message = \"hello\"\n",
+            "print(message)\n",
+            "pressKey(0x41)\n",
+            "-- review before import\n"
+        )
+        .clone_into(&mut self.preview);
+        self.preview_error.clear();
+        self.open_trust_modal = true;
+        self.import_error.clear();
+        self.import_notice.clear();
+    }
+
     #[cfg(target_os = "linux")]
     pub fn apply_parity_reference(&mut self) {
         self.snapshots = vec![ScriptRecordSnapshot {
@@ -503,6 +520,245 @@ fn setting_value(index: usize, control: &SettingsUiControl, value: Value) -> Scr
     ScriptAction::SettingValue { index, id: control.id.clone(), value }
 }
 
+const LUA_KEYWORDS: [&str; 22] = [
+    "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto", "if", "in",
+    "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while",
+];
+
+const RISKY_LUA_FUNCTIONS: [&str; 16] = [
+    "pressKey",
+    "clickMouse",
+    "holdKey",
+    "releaseKey",
+    "typeText",
+    "moveMouse",
+    "moveMouseAbs",
+    "moveDegrees",
+    "mouseWheel",
+    "freeze",
+    "lagSwitch",
+    "setLagSwitchConfig",
+    "clearLagSwitchConfig",
+    "robloxFreeze",
+    "roblox_freeze",
+    "lagswitch",
+];
+
+#[derive(Clone, Copy)]
+struct ImportPreviewPalette {
+    normal: [f32; 4],
+    keyword: [f32; 4],
+    string_literal: [f32; 4],
+    comment: [f32; 4],
+    function_call: [f32; 4],
+    risky_function_call: [f32; 4],
+    metadata_tag: [f32; 4],
+}
+
+fn import_preview_palette(theme: &ThemeDefinition) -> ImportPreviewPalette {
+    ImportPreviewPalette {
+        normal: theme.text_primary,
+        keyword: brighten(theme.accent_primary, 1.15),
+        string_literal: theme.success_color,
+        comment: theme.disabled_color,
+        function_call: brighten(theme.accent_secondary, 1.15),
+        risky_function_call: brighten(theme.warning_color, 1.1),
+        metadata_tag: brighten(theme.accent_primary, 1.35),
+    }
+}
+
+const fn is_lua_identifier_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'_'
+}
+
+const fn is_lua_identifier_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn advance_char_boundary(text: &str, index: usize) -> usize {
+    index + text[index..].chars().next().map_or(1, char::len_utf8)
+}
+
+fn draw_import_preview_segment(ui: &Ui, x: f32, y: f32, color: [f32; 4], text: &str) -> f32 {
+    if text.is_empty() {
+        return x;
+    }
+    let width = ui.calc_text_size(text)[0];
+    ui.get_window_draw_list().add_text([x, y], color, text);
+    x + width
+}
+
+fn finish_import_preview_line(ui: &Ui, cursor_x: f32, x: f32) {
+    ui.dummy([(x - cursor_x).max(1.0), ui.text_line_height_with_spacing()]);
+}
+
+fn render_import_preview_comment(
+    ui: &Ui,
+    line: &str,
+    current: usize,
+    palette: ImportPreviewPalette,
+    mut x: f32,
+    y: f32,
+    cursor_x: f32,
+) {
+    let bytes = line.as_bytes();
+    let mut after_prefix = current + 2;
+    while after_prefix < bytes.len() && matches!(bytes[after_prefix], b' ' | b'\t') {
+        after_prefix += 1;
+    }
+    if after_prefix < bytes.len() && bytes[after_prefix] == b'@' {
+        let mut tag_end = after_prefix + 1;
+        while tag_end < bytes.len()
+            && (is_lua_identifier_char(bytes[tag_end]) || bytes[tag_end] == b'-')
+        {
+            tag_end += 1;
+        }
+        if tag_end < bytes.len() && bytes[tag_end] == b':' {
+            x = draw_import_preview_segment(
+                ui,
+                x,
+                y,
+                palette.comment,
+                &line[current..after_prefix],
+            );
+            x = draw_import_preview_segment(
+                ui,
+                x,
+                y,
+                palette.metadata_tag,
+                &line[after_prefix..=tag_end],
+            );
+            x = draw_import_preview_segment(ui, x, y, palette.comment, &line[tag_end + 1..]);
+            finish_import_preview_line(ui, cursor_x, x);
+            return;
+        }
+    }
+    x = draw_import_preview_segment(ui, x, y, palette.comment, &line[current..]);
+    finish_import_preview_line(ui, cursor_x, x);
+}
+
+fn render_import_preview_line(ui: &Ui, line: &str, palette: ImportPreviewPalette) {
+    let cursor = ui.cursor_screen_pos();
+    let mut x = cursor[0];
+    let y = cursor[1];
+    let bytes = line.as_bytes();
+    let mut current = 0_usize;
+
+    while current < bytes.len() {
+        if current + 1 < bytes.len() && bytes[current] == b'-' && bytes[current + 1] == b'-' {
+            render_import_preview_comment(ui, line, current, palette, x, y, cursor[0]);
+            return;
+        }
+
+        if matches!(bytes[current], b'"' | b'\'') {
+            let quote = bytes[current];
+            let token_start = current;
+            current += 1;
+            let mut escaped = false;
+            while current < bytes.len() {
+                if escaped {
+                    escaped = false;
+                    current = advance_char_boundary(line, current);
+                    continue;
+                }
+                if bytes[current] == b'\\' {
+                    escaped = true;
+                    current += 1;
+                    continue;
+                }
+                if bytes[current] == quote {
+                    current += 1;
+                    break;
+                }
+                current = advance_char_boundary(line, current);
+            }
+            x = draw_import_preview_segment(
+                ui,
+                x,
+                y,
+                palette.string_literal,
+                &line[token_start..current],
+            );
+            continue;
+        }
+
+        if is_lua_identifier_start(bytes[current]) {
+            let token_start = current;
+            current += 1;
+            while current < bytes.len() && is_lua_identifier_char(bytes[current]) {
+                current += 1;
+            }
+            let token = &line[token_start..current];
+            let mut lookahead = current;
+            while lookahead < bytes.len() && matches!(bytes[lookahead], b' ' | b'\t') {
+                lookahead += 1;
+            }
+            let color = if LUA_KEYWORDS.contains(&token) {
+                palette.keyword
+            } else if lookahead < bytes.len() && bytes[lookahead] == b'(' {
+                if RISKY_LUA_FUNCTIONS.contains(&token) {
+                    palette.risky_function_call
+                } else {
+                    palette.function_call
+                }
+            } else {
+                palette.normal
+            };
+            x = draw_import_preview_segment(ui, x, y, color, token);
+            continue;
+        }
+
+        let token_start = current;
+        current = advance_char_boundary(line, current);
+        while current < bytes.len() {
+            if current + 1 < bytes.len() && bytes[current] == b'-' && bytes[current + 1] == b'-'
+                || matches!(bytes[current], b'"' | b'\'')
+                || is_lua_identifier_start(bytes[current])
+            {
+                break;
+            }
+            current = advance_char_boundary(line, current);
+        }
+        x = draw_import_preview_segment(ui, x, y, palette.normal, &line[token_start..current]);
+    }
+
+    finish_import_preview_line(ui, cursor[0], x);
+}
+
+fn render_import_preview(ui: &Ui, state: &ScriptUiState, theme: &ThemeDefinition) {
+    if !state.preview_error.is_empty() {
+        ui.text_colored(theme.error_color, &state.preview_error);
+        return;
+    }
+    if state.preview.is_empty() {
+        ui.text_disabled("The selected file is empty.");
+    }
+
+    let palette = import_preview_palette(theme);
+    let lines = state
+        .preview
+        .split('\n')
+        .map(|line| line.strip_suffix('\r').unwrap_or(line))
+        .collect::<Vec<_>>();
+    let preview_height = ui.content_region_avail()[1].max(0.0);
+    ui.child_window("ImportScriptPreview")
+        .size([0.0, preview_height])
+        .border(true)
+        .flags(WindowFlags::HORIZONTAL_SCROLLBAR)
+        .build(ui, || {
+            let item_spacing = ui.push_style_var(StyleVar::ItemSpacing([0.0, 0.0]));
+            let mut clipper = ListClipper::new(lines.len())
+                .items_height(ui.text_line_height_with_spacing())
+                .begin(ui);
+            while clipper.step() {
+                for line_index in clipper.display_range() {
+                    render_import_preview_line(ui, lines[line_index], palette);
+                }
+            }
+            drop(item_spacing);
+        });
+}
+
 pub fn render_trust_modal(
     ui: &Ui,
     state: &mut ScriptUiState,
@@ -512,6 +768,37 @@ pub fn render_trust_modal(
         let _ = ui.open_popup("Import Script?");
         state.open_trust_modal = false;
     }
+
+    let viewport = ui.main_viewport();
+    let viewport_pos = viewport.pos();
+    let viewport_size = viewport.size();
+    let center = [
+        viewport_size[0].mul_add(0.5, viewport_pos[0]),
+        viewport_size[1].mul_add(0.5, viewport_pos[1]),
+    ];
+    let initial_size =
+        [760.0_f32.min(viewport_size[0] * 0.92), 560.0_f32.min(viewport_size[1] * 0.88)];
+    let max_size = [viewport_size[0] * 0.96, viewport_size[1] * 0.94];
+    // SAFETY: these are the Dear ImGui SetNextWindow* calls corresponding to the immediately
+    // following modal Begin, while `ui` owns an active context for this frame.
+    unsafe {
+        sys::igSetNextWindowPos(
+            sys::ImVec2_c { x: center[0], y: center[1] },
+            Condition::Appearing as i32,
+            sys::ImVec2_c { x: 0.5, y: 0.5 },
+        );
+        sys::igSetNextWindowSizeConstraints(
+            sys::ImVec2_c { x: 560.0, y: 420.0 },
+            sys::ImVec2_c { x: max_size[0], y: max_size[1] },
+            None,
+            std::ptr::null_mut(),
+        );
+        sys::igSetNextWindowSize(
+            sys::ImVec2_c { x: initial_size[0], y: initial_size[1] },
+            Condition::Appearing as i32,
+        );
+    }
+
     let _popup = ui.begin_modal_popup("Import Script?")?;
     ui.text_wrapped(
         "Imported scripts can control keyboard and mouse input and interact with Roblox-related SMU features. Only import scripts from people you trust.",
@@ -534,26 +821,11 @@ pub fn render_trust_modal(
         return None;
     }
     ui.spacing();
-    crate::parity::separator(ui);
-    ui.text_wrapped("Preview");
-    ui.text_disabled("Read-only source preview. Review scripts before importing them.");
-    if state.preview_error.is_empty() {
-        if state.preview.is_empty() {
-            ui.text_disabled("The selected file is empty.");
-        }
-        let mut preview = state.preview.clone();
-        let height = ui.content_region_avail()[1].max(120.0);
-        let _ = ui
-            .input_text_multiline(
-                "##ImportScriptPreview",
-                &mut preview,
-                [-f32::MIN_POSITIVE, height],
-            )
-            .read_only(true)
-            .build();
-    } else {
-        ui.text_colored(theme.error_color, &state.preview_error);
-    }
+    // SAFETY: `c"Preview"` is a valid NUL-terminated static string and `ui` owns the active ImGui
+    // context for this frame.
+    unsafe { sys::igSeparatorText(c"Preview".as_ptr()) };
+    ui.text_disabled("Read-only source preview. If the script is malicious, it's your fault.");
+    render_import_preview(ui, state, theme);
     None
 }
 
@@ -608,6 +880,17 @@ mod tests {
             last_warning: String::new(),
             ui_state: json!({}),
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn import_preview_parity_reference_is_in_memory_and_pending() {
+        let mut state = ScriptUiState::default();
+        state.apply_import_preview_parity_reference();
+        assert_eq!(state.pending_import.as_deref(), Some(Path::new("/tmp/smu-parity-preview.lua")));
+        assert!(state.preview.contains("pressKey(0x41)"));
+        assert!(state.preview_error.is_empty());
+        assert!(state.open_trust_modal);
     }
 
     #[cfg(target_os = "linux")]

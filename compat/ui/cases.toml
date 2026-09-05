@@ -53,6 +53,29 @@ ignore = [
 ]
 
 [[case]]
+name = "import-preview-linux-minimum"
+logical_width = 1180
+logical_height = 700
+scale = 1.0
+platform = "linux"
+parity_state = "import-preview-user-reference"
+automated = true
+# The four rounded modal-corner halos plus the standard minimum-size footer reconstruction seam.
+gate_tolerance = 13
+ignore = [
+    { x = 210, y = 70, width = 6, height = 6 },
+    { x = 964, y = 70, width = 6, height = 6 },
+    { x = 210, y = 624, width = 6, height = 6 },
+    { x = 963, y = 623, width = 7, height = 7 },
+    { x = 347, y = 657, width = 5, height = 5 },
+    { x = 1168, y = 657, width = 5, height = 5 },
+    { x = 347, y = 661, width = 1, height = 31 },
+    { x = 1172, y = 661, width = 1, height = 31 },
+    { x = 349, y = 661, width = 822, height = 1 },
+    { x = 347, y = 691, width = 826, height = 1 },
+]
+
+[[case]]
 name = "imported-script-footer-linux-minimum"
 logical_width = 1180
 logical_height = 700

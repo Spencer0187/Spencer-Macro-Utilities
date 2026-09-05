@@ -127,7 +127,8 @@ void ApplyUiParityCaseIfRequested()
     const bool processNotFoundReference = parityCase && std::strcmp(parityCase, "process-not-found-user-reference") == 0;
     const bool builtinFooterReference = parityCase && std::strcmp(parityCase, "builtin-footer-user-reference") == 0;
     const bool importedScriptFooterReference = parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference) {
+    const bool importPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference) {
         return;
     }
 
@@ -153,7 +154,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference) {
         selected_section = builtinFooterReference ? 0 : -1;
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
@@ -1440,6 +1441,22 @@ void RenderScriptFileDialogFallback()
 
 void RenderImportTrustModal()
 {
+    static bool parityReferenceApplied = false;
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    if (!parityReferenceApplied && parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0) {
+        parityReferenceApplied = true;
+        g_pending_import_path = "/tmp/smu-parity-preview.lua";
+        g_import_preview.content =
+            "-- @name: Preview Fixture\n"
+            "local message = \"hello\"\n"
+            "print(message)\n"
+            "pressKey(0x41)\n"
+            "-- review before import\n";
+        g_import_preview.error.clear();
+        BuildImportPreviewLineOffsets(g_import_preview);
+        g_open_import_trust_modal = true;
+    }
+
     if (g_open_import_trust_modal) {
         ImGui::OpenPopup("Import Script?");
         g_open_import_trust_modal = false;
@@ -3883,6 +3900,11 @@ void RenderAppUi(AppContext& context)
         RenderPrivilegedFreezeHelperPopup();
         RenderScriptFileDialogFallback();
         RenderImportTrustModal();
+    } else {
+        const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+        if (parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0) {
+            RenderImportTrustModal();
+        }
     }
 
     float settingsPanelHeight = ImGui::GetTextLineHeightWithSpacing() * 4.0f + ImGui::GetStyle().WindowPadding.y * 3.0f + 12.0f;

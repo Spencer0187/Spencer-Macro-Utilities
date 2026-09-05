@@ -211,6 +211,8 @@ impl ShellState {
             *state.global.short_descriptions_mut() = true;
         } else if case == Some("builtin-footer-user-reference") {
             state.selected_section = 0;
+        } else if case == Some("import-preview-user-reference") {
+            state.script_ui.apply_import_preview_parity_reference();
         }
         state
     }
