@@ -514,11 +514,21 @@ fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme:
         ui.set_tooltip(ANTI_AFK_TOOLTIP);
     }
     ui.same_line();
+    normalize_anti_afk_for_platform(enabled);
     #[cfg(not(target_os = "windows"))]
     let disabled = ui.begin_disabled();
     ui.checkbox("##AntiAFKToggle", enabled);
     #[cfg(not(target_os = "windows"))]
     drop(disabled);
+}
+
+const fn normalize_anti_afk_for_platform(enabled: &mut bool) {
+    #[cfg(not(target_os = "windows"))]
+    {
+        *enabled = false;
+    }
+    #[cfg(target_os = "windows")]
+    let _ = enabled;
 }
 
 fn render_global_window_buttons(
@@ -558,8 +568,9 @@ fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL, parse_cpp_fps_buffer,
-        settings_button_label, theme_editor_button_label,
+        ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL,
+        normalize_anti_afk_for_platform, parse_cpp_fps_buffer, settings_button_label,
+        theme_editor_button_label,
     };
     use serde_json::{Map, json};
 
@@ -634,5 +645,12 @@ mod tests {
         assert_eq!(settings_button_label(true), "Settings <-");
         assert_eq!(theme_editor_button_label(false), "Theme Editor ->");
         assert_eq!(theme_editor_button_label(true), "Theme Editor <-");
+    }
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn non_windows_global_header_forces_anti_afk_off_like_cpp() {
+        let mut enabled = true;
+        normalize_anti_afk_for_platform(&mut enabled);
+        assert!(!enabled);
     }
 }

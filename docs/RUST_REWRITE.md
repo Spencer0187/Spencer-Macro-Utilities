@@ -189,7 +189,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   while a successful Rust staging worker requests clean app shutdown instead of exiting from that
   worker. Installer tests use temporary files/ZIPs only and never invoke the live helper or current
   APPIMAGE. Debian/RPM/portable/Nix installs remain manual. Update work is disabled during parity
-  capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port.
+  capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port;
+  the non-Windows global header therefore forces its persisted toggle false each frame like C++.
 - Linux AppImage, Debian/RPM, and portable-folder packaging now ship the Rust `smu-app` entry point
   instead of the C++ compatibility executable. A dedicated staging helper performs a locked release
   Cargo build, copies the exact SDL3 shared library produced by that Cargo build, and links the app with
