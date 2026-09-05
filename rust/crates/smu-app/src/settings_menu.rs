@@ -1,5 +1,7 @@
 use crate::{global_settings::GlobalSettingsState, keybind, theme::ThemeDefinition};
-use dear_imgui_rs::{Condition, TreeNodeFlags, Ui, WindowFlags};
+use dear_imgui_rs::{Condition, MouseCursor, TreeNodeFlags, Ui, WindowFlags};
+
+pub const SPONSOR_URL: &str = "https://github.com/sponsors/Spencer0187";
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -40,6 +42,7 @@ pub enum SettingsAction {
     CancelUpdate,
     OpenLatestRelease,
     OpenLatestReleaseAndDismiss,
+    OpenSponsor,
     StartWaylandScreenCapture,
     StopWaylandScreenCapture,
     StartWaylandRemoteDesktop,
@@ -70,7 +73,7 @@ pub fn render(
             ui.child_window("SettingsList").border(true).build(ui, || {
                 render_updater(ui, updater, &mut action, theme);
                 render_wayland(ui, platform, &mut action, theme);
-                render_scalar_settings(ui, globals, capture, theme);
+                render_scalar_settings(ui, globals, capture, &mut action, theme);
             });
         });
     action
@@ -262,12 +265,13 @@ fn render_wayland(
     } else {
         ui.text_wrapped(format!("Status: {}", platform.wayland_status));
     }
-    let disabled =
-        (platform.wayland_busy || platform.remote_desktop_active).then(|| ui.begin_disabled());
-    if ui.button("Enable Wayland Absolute Mouse Control") {
-        *action = Some(SettingsAction::StartWaylandRemoteDesktop);
+    if !platform.remote_desktop_active {
+        let disabled = platform.wayland_busy.then(|| ui.begin_disabled());
+        if ui.button("Enable Wayland Absolute Mouse Control") {
+            *action = Some(SettingsAction::StartWaylandRemoteDesktop);
+        }
+        drop(disabled);
     }
-    drop(disabled);
     crate::parity::separator(ui);
 }
 
@@ -275,6 +279,7 @@ fn render_scalar_settings(
     ui: &Ui,
     globals: &mut GlobalSettingsState,
     capture: &mut keybind::CaptureState,
+    action: &mut Option<SettingsAction>,
     theme: &ThemeDefinition,
 ) {
     ui.text("Your Current Windows Display Scale Value (10-500%):");
@@ -347,12 +352,18 @@ fn render_scalar_settings(
 
     ui.new_line();
     ui.text_colored(theme.accent_primary, "Want to Donate directly to my Github?");
+    if ui.is_item_hovered() {
+        ui.set_mouse_cursor(Some(MouseCursor::Hand));
+        if ui.is_item_clicked() {
+            *action = Some(SettingsAction::OpenSponsor);
+        }
+    }
     ui.text("Github Doesn't take any of the profits.");
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{PlatformStatus, UpdaterPanelStatus};
+    use super::{PlatformStatus, SPONSOR_URL, UpdaterPanelStatus};
 
     #[test]
     fn updater_status_defaults_are_inert() {
@@ -370,5 +381,10 @@ mod tests {
         assert!(!status.wayland_active);
         assert!(!status.remote_desktop_active);
         assert!(!status.wayland_busy);
+    }
+
+    #[test]
+    fn sponsor_url_matches_cpp_settings_link() {
+        assert_eq!(SPONSOR_URL, "https://github.com/sponsors/Spencer0187");
     }
 }

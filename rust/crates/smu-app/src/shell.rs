@@ -39,6 +39,7 @@ pub enum ShellAction {
     CancelUpdate,
     OpenLatestReleaseFromSettings,
     OpenLatestReleaseAndDismiss,
+    OpenSponsorFromSettings,
     Profile(ProfileAction),
     #[cfg(target_os = "linux")]
     Script(ScriptAction),
@@ -914,69 +915,47 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         &state.settings_updater,
         &active_theme,
     ) {
-        action = Some(match settings_action {
-            settings_menu::SettingsAction::CheckUpdates => ShellAction::CheckUpdatesFromSettings,
-            settings_menu::SettingsAction::RequestInstallUpdate => {
-                ShellAction::RequestInstallUpdateFromSettings
-            }
-            settings_menu::SettingsAction::ConfirmInstallUpdate => {
-                ShellAction::ConfirmInstallUpdate
-            }
-            settings_menu::SettingsAction::SkipUpdate => ShellAction::SkipUpdate,
-            settings_menu::SettingsAction::CancelUpdate => ShellAction::CancelUpdate,
-            settings_menu::SettingsAction::OpenLatestRelease => {
-                ShellAction::OpenLatestReleaseFromSettings
-            }
-            settings_menu::SettingsAction::OpenLatestReleaseAndDismiss => {
-                ShellAction::OpenLatestReleaseAndDismiss
-            }
-            settings_menu::SettingsAction::StartWaylandScreenCapture => {
-                ShellAction::StartWaylandScreenCaptureFromSettings
-            }
-            settings_menu::SettingsAction::StopWaylandScreenCapture => {
-                ShellAction::StopWaylandScreenCaptureFromSettings
-            }
-            settings_menu::SettingsAction::StartWaylandRemoteDesktop => {
-                ShellAction::StartWaylandRemoteDesktopFromSettings
-            }
-        });
+        action = Some(map_settings_action(settings_action));
     }
 
     if let Some(update_action) =
         settings_menu::render_update_confirmation(ui, &state.settings_updater)
     {
-        action = Some(match update_action {
-            settings_menu::SettingsAction::ConfirmInstallUpdate => {
-                ShellAction::ConfirmInstallUpdate
-            }
-            settings_menu::SettingsAction::SkipUpdate => ShellAction::SkipUpdate,
-            settings_menu::SettingsAction::CancelUpdate => ShellAction::CancelUpdate,
-            settings_menu::SettingsAction::OpenLatestReleaseAndDismiss => {
-                ShellAction::OpenLatestReleaseAndDismiss
-            }
-            settings_menu::SettingsAction::CheckUpdates => ShellAction::CheckUpdatesFromSettings,
-            settings_menu::SettingsAction::RequestInstallUpdate => {
-                ShellAction::RequestInstallUpdateFromSettings
-            }
-            settings_menu::SettingsAction::OpenLatestRelease => {
-                ShellAction::OpenLatestReleaseFromSettings
-            }
-            settings_menu::SettingsAction::StartWaylandScreenCapture => {
-                ShellAction::StartWaylandScreenCaptureFromSettings
-            }
-            settings_menu::SettingsAction::StopWaylandScreenCapture => {
-                ShellAction::StopWaylandScreenCaptureFromSettings
-            }
-            settings_menu::SettingsAction::StartWaylandRemoteDesktop => {
-                ShellAction::StartWaylandRemoteDesktopFromSettings
-            }
-        });
+        action = Some(map_settings_action(update_action));
     }
 
     #[cfg(target_os = "linux")]
     take_pending_lag_switch_helper_start(state, &mut action);
     state.theme.render_editor(ui);
     action
+}
+
+const fn map_settings_action(action: settings_menu::SettingsAction) -> ShellAction {
+    match action {
+        settings_menu::SettingsAction::CheckUpdates => ShellAction::CheckUpdatesFromSettings,
+        settings_menu::SettingsAction::RequestInstallUpdate => {
+            ShellAction::RequestInstallUpdateFromSettings
+        }
+        settings_menu::SettingsAction::ConfirmInstallUpdate => ShellAction::ConfirmInstallUpdate,
+        settings_menu::SettingsAction::SkipUpdate => ShellAction::SkipUpdate,
+        settings_menu::SettingsAction::CancelUpdate => ShellAction::CancelUpdate,
+        settings_menu::SettingsAction::OpenLatestRelease => {
+            ShellAction::OpenLatestReleaseFromSettings
+        }
+        settings_menu::SettingsAction::OpenLatestReleaseAndDismiss => {
+            ShellAction::OpenLatestReleaseAndDismiss
+        }
+        settings_menu::SettingsAction::OpenSponsor => ShellAction::OpenSponsorFromSettings,
+        settings_menu::SettingsAction::StartWaylandScreenCapture => {
+            ShellAction::StartWaylandScreenCaptureFromSettings
+        }
+        settings_menu::SettingsAction::StopWaylandScreenCapture => {
+            ShellAction::StopWaylandScreenCaptureFromSettings
+        }
+        settings_menu::SettingsAction::StartWaylandRemoteDesktop => {
+            ShellAction::StartWaylandRemoteDesktopFromSettings
+        }
+    }
 }
 
 #[cfg(target_os = "linux")]

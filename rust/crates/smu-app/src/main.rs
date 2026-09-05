@@ -1534,6 +1534,9 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::OpenLatestReleaseAndDismiss) => {
                 self.update_service.open_latest_release_and_dismiss();
             }
+            Some(shell::ShellAction::OpenSponsorFromSettings) => {
+                let _ = sdl3::url::open_url(settings_menu::SPONSOR_URL);
+            }
             Some(shell::ShellAction::StartWaylandScreenCaptureFromSettings) => {
                 self.start_wayland_settings_task(WaylandSettingsTask::StartScreenCapture);
             }
