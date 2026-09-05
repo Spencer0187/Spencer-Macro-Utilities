@@ -1540,6 +1540,9 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::OpenSponsorFromSettings) => {
                 let _ = sdl3::url::open_url(settings_menu::SPONSOR_URL);
             }
+            Some(shell::ShellAction::OpenOfficialSource) => {
+                let _ = sdl3::url::open_url(global_settings::OFFICIAL_SOURCE_URL);
+            }
             Some(shell::ShellAction::StartWaylandScreenCaptureFromSettings) => {
                 self.start_wayland_settings_task(WaylandSettingsTask::StartScreenCapture);
             }

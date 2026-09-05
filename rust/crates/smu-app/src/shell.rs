@@ -40,6 +40,7 @@ pub enum ShellAction {
     OpenLatestReleaseFromSettings,
     OpenLatestReleaseAndDismiss,
     OpenSponsorFromSettings,
+    OpenOfficialSource,
     Profile(ProfileAction),
     #[cfg(target_os = "linux")]
     Script(ScriptAction),
@@ -1250,11 +1251,18 @@ fn render_contents(
         .build(ui, || {
             global_action = global_settings::render(ui, &mut state.global, theme);
         });
-    match global_action {
-        Some(GlobalSettingsAction::ToggleSettings) => state.settings_open = !state.settings_open,
-        Some(GlobalSettingsAction::ToggleThemeEditor) => state.theme.toggle_editor(),
-        None => {}
-    }
+    let global_shell_action = match global_action {
+        Some(GlobalSettingsAction::ToggleSettings) => {
+            state.settings_open = !state.settings_open;
+            None
+        }
+        Some(GlobalSettingsAction::ToggleThemeEditor) => {
+            state.theme.toggle_editor();
+            None
+        }
+        Some(GlobalSettingsAction::OpenOfficialSource) => Some(ShellAction::OpenOfficialSource),
+        None => None,
+    };
     state.speedglitch.sync_global_calibration(
         state.global.sensitivity(),
         state.global.cam_fix_enabled(),
@@ -1299,7 +1307,8 @@ fn render_contents(
             footer_action = render_footer(ui, right_child_size[0], state, theme);
         });
 
-    sidebar_shell_action
+    global_shell_action
+        .or(sidebar_shell_action)
         .or(script_pane_action)
         .or_else(|| {
             lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)

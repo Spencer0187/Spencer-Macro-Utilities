@@ -1,5 +1,5 @@
 use crate::theme::ThemeDefinition;
-use dear_imgui_rs::{StyleColor, Ui};
+use dear_imgui_rs::{MouseCursor, StyleColor, Ui};
 use serde_json::{Map, Value, json};
 use smu_profile::payload::PreservedProfilePayload;
 
@@ -10,6 +10,9 @@ const ANTI_AFK_FROM_RIGHT: f32 = 360.0;
 const VERSION_FROM_RIGHT: f32 = 130.0;
 const SETTINGS_FROM_RIGHT: f32 = 107.0;
 const THEME_FROM_RIGHT: f32 = 257.0;
+pub const OFFICIAL_SOURCE_URL: &str = "https://github.com/Spencer0187/Spencer-Macro-Utilities";
+const ANTI_AFK_TOOLTIP: &str = "Anti-AFK is currently available on Windows only.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first.";
+
 const PROCESS_INPUT_WIDTH: f32 = 250.0;
 const PROCESS_RESET_WIDTH: f32 = 25.0;
 const SENSITIVITY_INPUT_WIDTH: f32 = 70.0;
@@ -19,6 +22,7 @@ const FPS_INPUT_WIDTH: f32 = 40.0;
 pub enum GlobalSettingsAction {
     ToggleSettings,
     ToggleThemeEditor,
+    OpenOfficialSource,
 }
 
 #[derive(Debug)]
@@ -391,12 +395,7 @@ pub fn render(
     ui.checkbox("Macro Toggle", &mut state.toggles.macro_enabled);
     drop(macro_text);
 
-    ui.same_line_with_pos(window_width - OFFICIAL_SOURCE_FROM_RIGHT);
-    ui.text_wrapped("The ONLY official source for this is");
-    let link = ui.push_style_color(StyleColor::Text, theme.accent_secondary);
-    ui.same_line_with_pos(window_width - OFFICIAL_URL_FROM_RIGHT);
-    ui.text_wrapped("https://github.com/Spencer0187/Spencer-Macro-Utilities");
-    drop(link);
+    let action = render_official_source_link(ui, window_width, theme);
 
     ui.align_text_to_frame_padding();
     #[cfg(target_os = "linux")]
@@ -434,18 +433,7 @@ pub fn render(
         }
     }
 
-    ui.same_line_with_pos(window_width - ANTI_AFK_FROM_RIGHT);
-    ui.text("Toggle Anti-AFK (");
-    ui.same_line_with_spacing(0.0, 0.0);
-    ui.text_colored(theme.accent_primary, "?");
-    ui.same_line_with_spacing(0.0, 0.0);
-    ui.text("):");
-    ui.same_line();
-    #[cfg(not(target_os = "windows"))]
-    let anti_afk_disabled = ui.begin_disabled();
-    ui.checkbox("##AntiAFKToggle", &mut state.toggles.anti_afk_enabled);
-    #[cfg(not(target_os = "windows"))]
-    drop(anti_afk_disabled);
+    render_anti_afk_toggle(ui, window_width, &mut state.toggles.anti_afk_enabled, theme);
 
     ui.same_line_with_pos(window_width - VERSION_FROM_RIGHT);
     ui.text("VERSION 3.4.0");
@@ -479,7 +467,50 @@ pub fn render(
         state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
     }
 
-    render_global_window_buttons(ui, window_width)
+    render_global_window_buttons(ui, window_width).or(action)
+}
+
+fn render_official_source_link(
+    ui: &Ui,
+    window_width: f32,
+    theme: &ThemeDefinition,
+) -> Option<GlobalSettingsAction> {
+    ui.same_line_with_pos(window_width - OFFICIAL_SOURCE_FROM_RIGHT);
+    ui.text_wrapped("The ONLY official source for this is");
+    let link = ui.push_style_color(StyleColor::Text, theme.accent_secondary);
+    ui.same_line_with_pos(window_width - OFFICIAL_URL_FROM_RIGHT);
+    ui.text_wrapped(OFFICIAL_SOURCE_URL);
+    let action = if ui.is_item_hovered() {
+        ui.set_mouse_cursor(Some(MouseCursor::Hand));
+        ui.is_item_clicked().then_some(GlobalSettingsAction::OpenOfficialSource)
+    } else {
+        None
+    };
+    drop(link);
+    action
+}
+
+fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme: &ThemeDefinition) {
+    ui.same_line_with_pos(window_width - ANTI_AFK_FROM_RIGHT);
+    let tooltip_start = ui.cursor_screen_pos();
+    ui.text("Toggle Anti-AFK (");
+    ui.same_line_with_spacing(0.0, 0.0);
+    ui.text_colored(theme.accent_primary, "?");
+    ui.same_line_with_spacing(0.0, 0.0);
+    ui.text("):");
+    let tooltip_size = ui.calc_text_size("Toggle Anti-AFK (?)");
+    if ui.is_mouse_hovering_rect(
+        tooltip_start,
+        [tooltip_start[0] + tooltip_size[0], tooltip_start[1] + tooltip_size[1]],
+    ) {
+        ui.set_tooltip(ANTI_AFK_TOOLTIP);
+    }
+    ui.same_line();
+    #[cfg(not(target_os = "windows"))]
+    let disabled = ui.begin_disabled();
+    ui.checkbox("##AntiAFKToggle", enabled);
+    #[cfg(not(target_os = "windows"))]
+    drop(disabled);
 }
 
 fn render_global_window_buttons(ui: &Ui, window_width: f32) -> Option<GlobalSettingsAction> {
@@ -504,7 +535,7 @@ fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{GlobalSettingsState, parse_cpp_fps_buffer};
+    use super::{ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL, parse_cpp_fps_buffer};
     use serde_json::{Map, json};
 
     #[test]
@@ -559,5 +590,17 @@ mod tests {
         assert_eq!(state.sensitivity(), "0.6");
         assert_eq!(state.fps, "200");
         assert_eq!(state.fps_runtime(), 120);
+    }
+    #[test]
+    fn official_source_url_matches_cpp_global_header_link() {
+        assert_eq!(OFFICIAL_SOURCE_URL, "https://github.com/Spencer0187/Spencer-Macro-Utilities");
+    }
+
+    #[test]
+    fn anti_afk_tooltip_matches_cpp_copy() {
+        assert_eq!(
+            ANTI_AFK_TOOLTIP,
+            "Anti-AFK is currently available on Windows only.\nAnti-AFK functions by counting up a timer constantly. If you are tabbed into Roblox\nand you press any key on your keyboard, the timer resets.\nIf the timer expires, it presses your configured Anti-AFK key directly.\nIf Roblox is not foreground, it briefly focuses the window first."
+        );
     }
 }
