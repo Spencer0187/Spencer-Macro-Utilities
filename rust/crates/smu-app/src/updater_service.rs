@@ -51,16 +51,17 @@ impl LinuxUpdateService {
         }
     }
 
-    pub fn prepare(&self, settings_open: bool) -> UpdaterPanelStatus {
+    pub fn prepare(&self) -> UpdaterPanelStatus {
         self.reap_finished_worker();
-        let should_start = {
-            let state = lock(&self.state);
-            self.enabled && settings_open && !state.checked_once && !state.checking
-        };
-        if should_start {
+        if self.automatic_check_needed() {
             self.start_check(false);
         }
         self.snapshot()
+    }
+
+    fn automatic_check_needed(&self) -> bool {
+        let state = lock(&self.state);
+        self.enabled && !state.checked_once && !state.checking
     }
 
     pub fn start_check(&self, force: bool) {
@@ -280,7 +281,7 @@ mod tests {
     #[test]
     fn disabled_service_never_starts_network_work() {
         let service = LinuxUpdateService::new("3.4.0".to_owned(), false);
-        let status = service.prepare(true);
+        let status = service.prepare();
         assert!(!status.enabled);
         assert!(!status.checking);
         assert!(!status.checked_once);
@@ -327,12 +328,12 @@ mod tests {
     }
 
     #[test]
-    fn unopened_settings_do_not_start_automatic_check() {
+    fn automatic_check_is_needed_at_startup_without_settings_gate() {
         let service = LinuxUpdateService::new("3.4.0".to_owned(), true);
-        let status = service.prepare(false);
-        assert!(status.enabled);
-        assert!(!status.checking);
-        assert!(!status.checked_once);
-        assert!(lock(&service.worker).is_none());
+        assert!(service.automatic_check_needed());
+        let mut state = lock(&service.state);
+        state.checking = true;
+        drop(state);
+        assert!(!service.automatic_check_needed());
     }
 }

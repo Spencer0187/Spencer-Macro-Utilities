@@ -503,11 +503,6 @@ impl ShellState {
         self.linux_input_setup = status;
     }
 
-    #[must_use]
-    pub const fn settings_open(&self) -> bool {
-        self.settings_open
-    }
-
     #[cfg(target_os = "linux")]
     pub fn set_settings_updater_status(&mut self, status: settings_menu::UpdaterPanelStatus) {
         self.settings_updater = status;
@@ -1249,7 +1244,12 @@ fn render_contents(
         .size([display_size[0] - SETTINGS_HORIZONTAL_MARGIN, settings_panel_height])
         .border(true)
         .build(ui, || {
-            global_action = global_settings::render(ui, &mut state.global, theme);
+            global_action = global_settings::render(
+                ui,
+                &mut state.global,
+                state.settings_updater.user_outdated(),
+                theme,
+            );
         });
     let global_shell_action = match global_action {
         Some(GlobalSettingsAction::ToggleSettings) => {

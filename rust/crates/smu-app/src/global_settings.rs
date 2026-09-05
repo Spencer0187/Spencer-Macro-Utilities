@@ -3,6 +3,7 @@ use dear_imgui_rs::{MouseCursor, StyleColor, Ui};
 use serde_json::{Map, Value, json};
 use smu_profile::payload::PreservedProfilePayload;
 
+const OUTDATED_FROM_LEFT: f32 = 135.0;
 const DISCLAIMER_FROM_RIGHT: f32 = 795.0;
 const OFFICIAL_SOURCE_FROM_RIGHT: f32 = 790.0;
 const OFFICIAL_URL_FROM_RIGHT: f32 = 499.0;
@@ -376,11 +377,16 @@ impl Default for GlobalSettingsState {
 pub fn render(
     ui: &Ui,
     state: &mut GlobalSettingsState,
+    user_outdated: bool,
     theme: &ThemeDefinition,
 ) -> Option<GlobalSettingsAction> {
     let window_width = ui.window_size()[0];
     ui.align_text_to_frame_padding();
     ui.text_wrapped("Global Settings");
+    if user_outdated {
+        ui.same_line_with_pos(OUTDATED_FROM_LEFT);
+        ui.text_colored(theme.error_color, "(OUTDATED VERSION)");
+    }
 
     ui.same_line_with_pos(window_width - DISCLAIMER_FROM_RIGHT);
     ui.text_wrapped("DISCLAIMER: THIS IS NOT A CHEAT, IT NEVER INTERACTS WITH ROBLOX MEMORY.");

@@ -173,8 +173,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   binders keep per-instance IDs so capture state follows the stored key rather than the visible pane.
   Linux `smu-input` now forwards current-key/transient methods through `KeyState`,
   fixing trait-object wheel capture. The Settings window also now composes the live Linux updater
-  check and AppImage auto-install path: opening Settings starts one background check, explicit
-  retry/check is available, release metadata/manifest validation runs through `smu-updater`, and SDL
+  check and AppImage auto-install path: the global header starts one background check at startup,
+  exposes C++'s `(OUTDATED VERSION)` marker after a successful newer-release check, and Settings keeps
+  explicit retry/check controls. Release metadata/manifest validation runs through `smu-updater`, and SDL
   opens the official release page for manual installation. Auto-apply is advertised only when the
   current process is actually running from the declared AppImage mount and the external AppImage is
   safely replaceable. Downloads remain HTTPS-only and are rechecked against manifest size/SHA-256;

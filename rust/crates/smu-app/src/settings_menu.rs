@@ -33,6 +33,13 @@ pub struct UpdaterPanelStatus {
     pub action_message: String,
 }
 
+impl UpdaterPanelStatus {
+    #[must_use]
+    pub const fn user_outdated(&self) -> bool {
+        self.checked_once && self.update_available
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SettingsAction {
     CheckUpdates,
@@ -410,6 +417,17 @@ mod tests {
         assert!(!status.checked_once);
         assert!(!status.checking);
         assert!(!status.update_available);
+        assert!(!status.user_outdated());
+    }
+
+    #[test]
+    fn updater_only_marks_user_outdated_after_completed_check() {
+        let mut status = UpdaterPanelStatus { update_available: true, ..Default::default() };
+        assert!(!status.user_outdated());
+        status.checked_once = true;
+        assert!(status.user_outdated());
+        status.update_available = false;
+        assert!(!status.user_outdated());
     }
 
     #[test]

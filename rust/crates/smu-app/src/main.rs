@@ -1368,8 +1368,7 @@ impl LinuxRuntimeServices {
         let selector = shell_state.process_selector();
         shell_state.set_process_found(!self.parity_capture && self.process_found(&selector));
         shell_state.set_settings_platform_status(self.settings_platform_status());
-        shell_state
-            .set_settings_updater_status(self.update_service.prepare(shell_state.settings_open()));
+        shell_state.set_settings_updater_status(self.update_service.prepare());
 
         let available = self.lag_switch_backend.is_available();
         shell_state.set_lag_switch_backend(lag_switch::BackendState {
