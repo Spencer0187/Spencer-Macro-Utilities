@@ -62,7 +62,11 @@ pub fn render(
     }
     let display = ui.io().display_size();
     let size = [display[0] * 0.5, display[1] * 0.5];
-    let position = [display[0] * 0.4, (display[1] - size[1] - 90.0) * 0.5];
+    let fallback_position = [display[0] * 0.4, (display[1] - size[1] - 90.0) * 0.5];
+    let viewport = ui.main_viewport();
+    let viewport_position = viewport.pos();
+    let viewport_size = viewport.size();
+    let position = clamp_window_position(fallback_position, size, viewport_position, viewport_size);
     let mut action = None;
     ui.window("Settings Menu")
         .opened(open)
@@ -70,6 +74,7 @@ pub fn render(
         .position(position, Condition::Appearing)
         .flags(WindowFlags::NO_RESIZE | WindowFlags::NO_COLLAPSE)
         .build(|| {
+            clamp_current_window(ui, viewport_position, viewport_size);
             ui.child_window("SettingsList").border(true).build(ui, || {
                 render_updater(ui, updater, &mut action, theme);
                 render_wayland(ui, platform, &mut action, theme);
@@ -77,6 +82,34 @@ pub fn render(
             });
         });
     action
+}
+
+fn clamp_current_window(ui: &Ui, viewport_position: [f32; 2], viewport_size: [f32; 2]) {
+    let current_position = ui.window_pos();
+    let current_size = ui.window_size();
+    let clamped =
+        clamp_window_position(current_position, current_size, viewport_position, viewport_size);
+    if clamped[0].to_bits() != current_position[0].to_bits()
+        || clamped[1].to_bits() != current_position[1].to_bits()
+    {
+        ui.set_window_pos(clamped);
+    }
+}
+
+fn clamp_window_position(
+    position: [f32; 2],
+    size: [f32; 2],
+    viewport_position: [f32; 2],
+    viewport_size: [f32; 2],
+) -> [f32; 2] {
+    let max_position = [
+        viewport_position[0] + (viewport_size[0] - size[0]).max(0.0),
+        viewport_position[1] + (viewport_size[1] - size[1]).max(0.0),
+    ];
+    [
+        position[0].clamp(viewport_position[0], max_position[0]),
+        position[1].clamp(viewport_position[1], max_position[1]),
+    ]
 }
 
 fn render_updater(
@@ -363,7 +396,12 @@ fn render_scalar_settings(
 
 #[cfg(test)]
 mod tests {
-    use super::{PlatformStatus, SPONSOR_URL, UpdaterPanelStatus};
+    use super::{PlatformStatus, SPONSOR_URL, UpdaterPanelStatus, clamp_window_position};
+
+    fn assert_position_eq(actual: [f32; 2], expected: [f32; 2]) {
+        assert_eq!(actual[0].to_bits(), expected[0].to_bits());
+        assert_eq!(actual[1].to_bits(), expected[1].to_bits());
+    }
 
     #[test]
     fn updater_status_defaults_are_inert() {
@@ -386,5 +424,37 @@ mod tests {
     #[test]
     fn sponsor_url_matches_cpp_settings_link() {
         assert_eq!(SPONSOR_URL, "https://github.com/sponsors/Spencer0187");
+    }
+
+    #[test]
+    fn clamp_window_position_keeps_in_bounds_position() {
+        assert_position_eq(
+            clamp_window_position([120.0, 80.0], [400.0, 300.0], [0.0, 0.0], [1180.0, 700.0]),
+            [120.0, 80.0],
+        );
+    }
+
+    #[test]
+    fn clamp_window_position_limits_each_viewport_edge() {
+        assert_position_eq(
+            clamp_window_position([-50.0, 500.0], [400.0, 300.0], [0.0, 0.0], [1180.0, 700.0]),
+            [0.0, 400.0],
+        );
+    }
+
+    #[test]
+    fn clamp_window_position_respects_offset_viewport_origin() {
+        assert_position_eq(
+            clamp_window_position([80.0, 900.0], [400.0, 300.0], [100.0, 200.0], [1180.0, 700.0]),
+            [100.0, 600.0],
+        );
+    }
+
+    #[test]
+    fn clamp_window_position_anchors_oversized_window_to_viewport_origin() {
+        assert_position_eq(
+            clamp_window_position([500.0, 500.0], [1400.0, 900.0], [100.0, 200.0], [1180.0, 700.0]),
+            [100.0, 200.0],
+        );
     }
 }

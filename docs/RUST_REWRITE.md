@@ -155,7 +155,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   floating window is opened by the existing global Settings button and is backed by real app/service
   state for process-found status, Shift/Chat keybinds, chat override, paste delay, global zoom/reverse,
   display-scale/profile values, sidebar-description suppression, and native Wayland ScreenCast /
-  RemoteDesktop status and actions. The RemoteDesktop enable button is hidden once control is active,
+  RemoteDesktop status and actions. The floating Settings window now clamps its appearing and live
+  positions to the main viewport with the same bounds math as C++, including offset viewports and
+  windows larger than the viewport. The RemoteDesktop enable button is hidden once control is active,
   matching C++, and the sponsor text uses the hand cursor/click interaction to open the Spencer0187
   GitHub Sponsors page through SDL. Wayland starts/stops run on one owned Settings worker so portal
   prompts and first-frame waits never block the UI thread; process status is cached for one second.
