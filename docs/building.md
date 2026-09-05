@@ -27,12 +27,20 @@ Local Windows builds are intentionally unsigned. Official release builds are sig
 ## Linux
 
 Go 1.18 or newer is required because Linux packages include the native
-network lag-switch helper. CMake 3.23 or newer is required; Ubuntu 22.04's
-default CMake is older, so install a current CMake first:
+network lag-switch helper. Rust 1.98 with Cargo is required for the Rust Linux
+application; the repository pins 1.98.0 in `rust/rust-toolchain.toml`, so a
+rustup-managed toolchain is recommended. CMake 3.23 or newer is required;
+Ubuntu 22.04's default CMake is older, so install a current CMake first:
 
 ```bash
 python3 -m pip install --user 'cmake>=3.23,<4'
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+With rustup installed, prepare the pinned Rust toolchain once:
+
+```bash
+rustup toolchain install 1.98.0 --profile minimal
 ```
 
 ### Ubuntu and Debian

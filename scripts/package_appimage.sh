@@ -109,31 +109,16 @@ cmake -S "$ROOT_DIR" -B "$BUILD_DIR" \
   -DSMU_ENABLE_SOURCE_TREE_FALLBACK=OFF \
   "$@"
 
-cmake --build "$BUILD_DIR" --target spencer_macro_utilities --parallel
+cmake --build "$BUILD_DIR" --target package-linux-dir --parallel
 
-echo "Building nethelper (Go)..."
-NETHELPER_BIN="$BUILD_DIR/nethelper"
+PACKAGE_DIR="$BUILD_DIR/SpencerMacroUtilities"
+APP_BIN="$PACKAGE_DIR/Spencer-Macro-Utilities"
+NETHELPER_BIN="$PACKAGE_DIR/nethelper"
+PROCESSHELPER_BIN="$PACKAGE_DIR/processhelper"
 
-(
-  cd "$ROOT_DIR/platform/linux/nethelper"
-  GOOS=linux CGO_ENABLED=0 go build \
-    -mod=vendor \
-    -trimpath \
-    -buildvcs=false \
-    -ldflags="-s -w" \
-    -o "$NETHELPER_BIN" \
-    .
-)
-
-chmod 755 "$NETHELPER_BIN"
-
-echo "Building processhelper (Go)..."
-PROCESSHELPER_BIN="$BUILD_DIR/processhelper"
-(
-  cd "$ROOT_DIR/platform/linux/processhelper"
-  GOOS=linux CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-s -w" -o "$PROCESSHELPER_BIN" .
-)
-chmod 755 "$PROCESSHELPER_BIN"
+test -x "$APP_BIN"
+test -x "$NETHELPER_BIN"
+test -x "$PROCESSHELPER_BIN"
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin"
@@ -144,30 +129,21 @@ mkdir -p "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses"
 mkdir -p "$APPDIR/scripts"
 mkdir -p "$APPDIR/licenses"
 
-cp "$BUILD_DIR/Spencer-Macro-Utilities" "$APPDIR/usr/bin/Spencer-Macro-Utilities"
+cp "$APP_BIN" "$APPDIR/usr/bin/Spencer-Macro-Utilities"
 cp "$NETHELPER_BIN" "$APPDIR/usr/bin/nethelper"
 cp "$PROCESSHELPER_BIN" "$APPDIR/usr/bin/processhelper"
 
 cp "$ROOT_DIR/AppImage/AppRun" "$APPDIR/AppRun"
 chmod 755 "$APPDIR/AppRun" "$APPDIR/usr/bin/Spencer-Macro-Utilities" "$APPDIR/usr/bin/nethelper" "$APPDIR/usr/bin/processhelper"
 
-cp -R "$BUILD_DIR/assets" "$APPDIR/usr/bin/assets"
+cp -R "$PACKAGE_DIR/assets" "$APPDIR/usr/bin/assets"
 
-if compgen -G "$BUILD_DIR/lib/libSDL3.so*" >/dev/null; then
-  cp -a "$BUILD_DIR"/lib/libSDL3.so* "$APPDIR/usr/lib/"
-fi
-
-# libei is a comparatively new desktop library and is not present on every
-# supported Linux distribution. The release build links it for modern
-# Wayland RemoteDesktop/EIS pointer support, so bundle its ABI-stable SONAME
-# instead of turning it into a host requirement for the AppImage.
-LIBEI_LIBDIR="$(pkg-config --variable=libdir libei-1.0)"
-LIBEI_LIBRARY="$LIBEI_LIBDIR/libei.so.1"
-if [[ ! -e "$LIBEI_LIBRARY" ]]; then
-  echo "ERROR: libei.so.1 was not found in pkg-config's libei library directory: $LIBEI_LIBDIR" >&2
+if compgen -G "$PACKAGE_DIR/lib/libSDL3.so*" >/dev/null; then
+  cp -a "$PACKAGE_DIR"/lib/libSDL3.so* "$APPDIR/usr/lib/"
+else
+  echo "ERROR: Rust portable stage did not contain bundled SDL3." >&2
   exit 1
 fi
-cp -L "$LIBEI_LIBRARY" "$APPDIR/usr/lib/libei.so.1"
 
 cp "$ROOT_DIR/scripts/install_linux_permissions.sh" "$APPDIR/scripts/install_linux_permissions.sh"
 cp "$ROOT_DIR/scripts/install_linux_permissions.sh" \
@@ -185,7 +161,6 @@ cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$APPDIR/THIRD_PARTY_NOTICES.md"
 cp "$ROOT_DIR/third_party/SDL/LICENSE.txt" "$APPDIR/licenses/SDL.txt"
 cp "$ROOT_DIR/third_party/appimage-runtime/LICENSE" \
   "$APPDIR/licenses/AppImage-type2-runtime.txt"
-cp "$ROOT_DIR/third_party/libei/LICENSE.txt" "$APPDIR/licenses/libei-MIT.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/LICENSE" \
   "$APPDIR/licenses/go-iptables-LICENSE.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/NOTICE" \
@@ -200,8 +175,6 @@ cp "$ROOT_DIR/third_party/SDL/LICENSE.txt" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/SDL.txt"
 cp "$ROOT_DIR/third_party/appimage-runtime/LICENSE" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/AppImage-type2-runtime.txt"
-cp "$ROOT_DIR/third_party/libei/LICENSE.txt" \
-  "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/libei-MIT.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/LICENSE" \
   "$APPDIR/usr/share/doc/spencer-macro-utilities/licenses/go-iptables-LICENSE.txt"
 cp "$ROOT_DIR/platform/linux/nethelper/vendor/github.com/coreos/go-iptables/NOTICE" \
@@ -243,8 +216,6 @@ test -f "$APPDIR/PRIVACY.md"
 test -f "$APPDIR/THIRD_PARTY_NOTICES.md"
 test -f "$APPDIR/licenses/SDL.txt"
 test -f "$APPDIR/licenses/AppImage-type2-runtime.txt"
-test -f "$APPDIR/licenses/libei-MIT.txt"
-test -f "$APPDIR/usr/lib/libei.so.1"
 test -f "$APPDIR/licenses/go-iptables-LICENSE.txt"
 test -f "$APPDIR/licenses/go-iptables-NOTICE.txt"
 test -f "$APPDIR/licenses/WinDivert-LGPL-3.0.txt"
@@ -288,8 +259,6 @@ chmod 755 "$BUILD_DIR/$OUTPUT_NAME"
   test -f "squashfs-root/PRIVACY.md"
   test -f "squashfs-root/licenses/SDL.txt"
   test -f "squashfs-root/licenses/AppImage-type2-runtime.txt"
-  test -f "squashfs-root/licenses/libei-MIT.txt"
-  test -f "squashfs-root/usr/lib/libei.so.1"
   test -f "squashfs-root/licenses/go-iptables-LICENSE.txt"
   test -f "squashfs-root/licenses/go-iptables-NOTICE.txt"
   test -f "squashfs-root/licenses/WinDivert-LGPL-3.0.txt"

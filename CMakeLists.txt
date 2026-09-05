@@ -58,6 +58,7 @@ option(SMU_BUNDLE_SDL3 "Bundle SDL3 shared libraries into the Linux portable out
 option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static library when available." OFF)
 option(SMU_ENABLE_SOURCE_TREE_FALLBACK "Allow development builds to locate assets in this source checkout." ON)
 option(SMU_REQUIRE_WAYLAND_SCREENCAST "Fail Linux configuration when PipeWire ScreenCast support is unavailable." OFF)
+option(SMU_PACKAGE_RUST_LINUX "Use the Rust app for Linux install and portable package targets." ON)
 option(SMU_BUILD_SLEEP_BENCHMARK "Build the optional Lua precise-sleep benchmark." OFF)
 
 add_library(lua_static STATIC
@@ -306,6 +307,47 @@ elseif(UNIX AND NOT APPLE)
     find_package(Threads REQUIRED)
     find_package(X11 QUIET)
     find_package(PkgConfig QUIET)
+
+    if(SMU_PACKAGE_RUST_LINUX)
+        find_program(SMU_CARGO_EXECUTABLE cargo)
+        find_program(SMU_PYTHON3_EXECUTABLE python3)
+        set(SMU_RUST_LINUX_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-cargo-target")
+        set(SMU_RUST_LINUX_STAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/rust-linux-app")
+        set(SMU_RUST_LINUX_BINARY "${SMU_RUST_LINUX_STAGE_DIR}/Spencer-Macro-Utilities")
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            set(SMU_RUST_LINUX_PROFILE "debug")
+        else()
+            set(SMU_RUST_LINUX_PROFILE "release")
+        endif()
+
+        if(SMU_CARGO_EXECUTABLE AND SMU_PYTHON3_EXECUTABLE)
+            add_custom_target(smu_rust_linux_app
+                COMMAND "${SMU_PYTHON3_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_rust_linux_app.py"
+                    --root "${CMAKE_CURRENT_SOURCE_DIR}"
+                    --target-dir "${SMU_RUST_LINUX_TARGET_DIR}"
+                    --stage-dir "${SMU_RUST_LINUX_STAGE_DIR}"
+                    --profile "${SMU_RUST_LINUX_PROFILE}"
+                    --cargo "${SMU_CARGO_EXECUTABLE}"
+                BYPRODUCTS
+                    "${SMU_RUST_LINUX_BINARY}"
+                    "${SMU_RUST_LINUX_STAGE_DIR}/lib/libSDL3.so.0"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+                COMMENT "Building and staging the Rust Linux application"
+                VERBATIM
+            )
+        else()
+            add_custom_target(smu_rust_linux_app
+                COMMAND "${CMAKE_COMMAND}" -E echo
+                    "ERROR: Linux Rust packaging requires both cargo and python3 in PATH."
+                COMMAND "${CMAKE_COMMAND}" -E false
+                VERBATIM
+            )
+            message(WARNING
+                "cargo and/or python3 were not found; C++ compatibility targets remain available, "
+                "but the Linux Rust package target will fail until both tools are installed.")
+        endif()
+    endif()
 
     if(PkgConfig_FOUND)
         pkg_check_modules(PIPEWIRE QUIET IMPORTED_TARGET libpipewire-0.3)
@@ -662,7 +704,19 @@ elseif(UNIX AND NOT APPLE)
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/run.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/generated/run.sh" @ONLY)
 
-    install(TARGETS spencer_macro_utilities RUNTIME DESTINATION ".")
+    if(SMU_PACKAGE_RUST_LINUX)
+        install(PROGRAMS "${SMU_RUST_LINUX_BINARY}" DESTINATION "." RENAME "Spencer-Macro-Utilities")
+        install(DIRECTORY "${SMU_RUST_LINUX_STAGE_DIR}/lib/" DESTINATION "lib")
+    else()
+        install(TARGETS spencer_macro_utilities RUNTIME DESTINATION ".")
+        if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+            install(FILES
+                "$<TARGET_FILE:${SMU_SDL3_TARGET}>"
+                "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>"
+                DESTINATION "lib"
+            )
+        endif()
+    endif()
     install(FILES "${SMU_LINUX_FONT_ASSET}" DESTINATION "assets" RENAME "LSANS.TTF")
     install(FILES "${SMU_LINUX_ICON_ASSET}" DESTINATION "assets" RENAME "smu_icon.bmp")
     install(DIRECTORY "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" DESTINATION "assets")
@@ -681,20 +735,21 @@ elseif(UNIX AND NOT APPLE)
             "${SMU_LINUX_PROCESSHELPER_BINARY}"
             DESTINATION ".")
     endif()
-    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
-        install(FILES
-            "$<TARGET_FILE:${SMU_SDL3_TARGET}>"
-            "$<TARGET_SONAME_FILE:${SMU_SDL3_TARGET}>"
-            DESTINATION "lib"
-        )
-    endif()
-
     set(SMU_LINUX_PACKAGE_DIR "${CMAKE_CURRENT_BINARY_DIR}/SpencerMacroUtilities")
+    if(SMU_PACKAGE_RUST_LINUX)
+        set(SMU_LINUX_PACKAGE_BINARY "${SMU_RUST_LINUX_BINARY}")
+        set(SMU_LINUX_PACKAGE_DEPENDENCY smu_rust_linux_app)
+        set(SMU_LINUX_PACKAGE_COMMENT "Creating Rust portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}")
+    else()
+        set(SMU_LINUX_PACKAGE_BINARY "$<TARGET_FILE:spencer_macro_utilities>")
+        set(SMU_LINUX_PACKAGE_DEPENDENCY spencer_macro_utilities)
+        set(SMU_LINUX_PACKAGE_COMMENT "Creating C++ compatibility portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}")
+    endif()
     add_custom_target(package-linux-dir
         COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SMU_LINUX_PACKAGE_DIR}"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/assets"
         COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:spencer_macro_utilities>" "${SMU_LINUX_PACKAGE_DIR}/Spencer-Macro-Utilities"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_PACKAGE_BINARY}" "${SMU_LINUX_PACKAGE_DIR}/Spencer-Macro-Utilities"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/LSANS.TTF"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "${SMU_LINUX_PACKAGE_DIR}/assets/smu_icon.bmp"
         COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "${SMU_LINUX_PACKAGE_DIR}/assets/macro_tutorials"
@@ -711,8 +766,8 @@ elseif(UNIX AND NOT APPLE)
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "${SMU_LINUX_PACKAGE_DIR}/licenses/go-iptables-NOTICE.txt"
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "${SMU_LINUX_PACKAGE_DIR}/licenses/WinDivert-LGPL-3.0.txt"
         COMMAND chmod 755 "${SMU_LINUX_PACKAGE_DIR}/run.sh" "${SMU_LINUX_PACKAGE_DIR}/Spencer-Macro-Utilities" "${SMU_LINUX_PACKAGE_DIR}/scripts/install_linux_permissions.sh"
-        DEPENDS spencer_macro_utilities
-        COMMENT "Creating portable Linux output folder at ${SMU_LINUX_PACKAGE_DIR}"
+        DEPENDS ${SMU_LINUX_PACKAGE_DEPENDENCY}
+        COMMENT "${SMU_LINUX_PACKAGE_COMMENT}"
     )
 
     if(SMU_GO_EXECUTABLE)
@@ -724,13 +779,20 @@ elseif(UNIX AND NOT APPLE)
         )
     endif()
 
-    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+    if(SMU_PACKAGE_RUST_LINUX)
+        add_custom_command(TARGET package-linux-dir POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/lib"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_RUST_LINUX_STAGE_DIR}/lib" "${SMU_LINUX_PACKAGE_DIR}/lib"
+        )
+    elseif(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         add_custom_command(TARGET package-linux-dir POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E make_directory "${SMU_LINUX_PACKAGE_DIR}/lib"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>"
+            COMMAND "${CMAKE_COMMAND}" -E rm -f "${SMU_LINUX_PACKAGE_DIR}/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
             COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>" "${SMU_LINUX_PACKAGE_DIR}/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
         )
     endif()
+
 elseif(APPLE)
     enable_language(OBJCXX)
 

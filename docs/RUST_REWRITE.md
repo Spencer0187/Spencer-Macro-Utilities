@@ -181,6 +181,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   worker. Installer tests use temporary files/ZIPs only and never invoke the live helper or current
   APPIMAGE. Debian/RPM/portable/Nix installs remain manual. Update work is disabled during parity
   capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port.
+- Linux AppImage, Debian/RPM, and portable-folder packaging now ship the Rust `smu-app` entry point
+  instead of the C++ compatibility executable. A dedicated staging helper performs a locked release
+  Cargo build, copies the exact SDL3 shared library produced by that Cargo build, and links the app with
+  `$ORIGIN/lib` so the portable tree is self-contained for SDL. Runtime font lookup prefers assets next
+  to the executable and then AppDir locations before the source-tree fallback, so packaged Rust builds
+  no longer depend on the checkout layout. The Rust Wayland pointer path uses the desktop
+  RemoteDesktop portal directly, so release metadata and AppImage assembly no longer declare or bundle
+  `libei`. The C++ Linux target remains available for compatibility oracles/tests. Nix temporarily
+  selects that C++ install path explicitly with `SMU_PACKAGE_RUST_LINUX=OFF`; moving the Nix derivation
+  onto Cargo with an offline/reproducible Rust dependency setup remains a separate packaging gate.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls

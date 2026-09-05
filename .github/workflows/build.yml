@@ -78,7 +78,7 @@ jobs:
   linux:
     name: Build Linux bundle
     needs: prepare
-    # libei-dev, required for the Wayland RemoteDesktop EIS transport, is
+    # libei-dev remains required by the C++ compatibility build used by the oracle/tests; it is
     # available in Ubuntu 24.04 but not in the former 22.04 release runner.
     runs-on: ubuntu-24.04
     permissions:
@@ -93,6 +93,9 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal
 
       - name: Install supported CMake
         run: |
@@ -146,6 +149,9 @@ jobs:
           go test -mod=vendor ./...
           go vet -mod=vendor ./...
 
+      - name: Test Rust Linux staging helper
+        run: python3 -m unittest tests.test_rust_linux_staging
+
       - name: Build all Linux formats
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
@@ -157,7 +163,7 @@ jobs:
           grep -qx 'SDL_X11:BOOL=ON' build/linux-release/CMakeCache.txt
           grep -qx 'SDL_WAYLAND:BOOL=ON' build/linux-release/CMakeCache.txt
           config="$(
-            find build/linux-release/_deps/sdl3-build \
+            find build/linux-release/rust-cargo-target/release/build/sdl3-sys-* \
               -path '*/build_config/SDL_build_config.h' \
               -print \
               -quit
@@ -173,9 +179,10 @@ jobs:
             build/linux-release/CMakeCache.txt
           grep -qx 'SMU_WAYLAND_EIS_ENABLED:INTERNAL=ON' \
             build/linux-release/CMakeCache.txt
-          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libpipewire-0.3.so.0'
-          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libdbus-1.so.3'
-          ldd build/linux-release/Spencer-Macro-Utilities | grep -q 'libei.so.1'
+          app=build/linux-release/rust-linux-app/Spencer-Macro-Utilities
+          ldd "$app" | grep -q 'libpipewire-0.3.so.0'
+          ldd "$app" | grep -q 'rust-linux-app/lib/libSDL3.so.0'
+          readelf -d "$app" | grep -F -q '$ORIGIN/lib'
 
       - name: Test Linux updater
         run: |

@@ -100,6 +100,7 @@ stdenv.mkDerivation {
     "-DSMU_BUNDLE_SDL3=OFF"
     "-DSMU_ENABLE_SOURCE_TREE_FALLBACK=OFF"
     "-DSMU_LINK_SDL3_STATIC=ON"
+    "-DSMU_PACKAGE_RUST_LINUX=OFF"
   ];
 
   preBuild = ''

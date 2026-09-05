@@ -1,4 +1,8 @@
-use std::{error::Error, path::PathBuf};
+use std::{
+    env,
+    error::Error,
+    path::{Path, PathBuf},
+};
 
 use dear_imgui_rs::{
     ColorOverride, Condition, Context, FontConfig, FontSource, NumericFormat, StbTrueTypeFontData,
@@ -233,7 +237,7 @@ fn rounding_slider(ui: &Ui, label: &str, value: &mut f32) {
 }
 
 fn load_lsans(context: &Context) -> Result<(), Box<dyn Error>> {
-    let path = source_font_path();
+    let path = font_path();
     let font = StbTrueTypeFontData::from_file(&path)?;
     let config = FontConfig::new()
         .oversample_h(FONT_OVERSAMPLE_H)
@@ -244,8 +248,47 @@ fn load_lsans(context: &Context) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn source_font_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../assets/LSANS.TTF")
+fn font_path() -> PathBuf {
+    let executable_directory =
+        env::current_exe().ok().and_then(|path| path.parent().map(Path::to_path_buf));
+    let app_directories = ["SMU_APPDIR", "APPDIR"]
+        .into_iter()
+        .filter_map(env::var_os)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    resolve_font_path_from(
+        executable_directory.as_deref(),
+        &app_directories,
+        &source_root(),
+        &env::current_dir().unwrap_or_default(),
+    )
+}
+
+fn source_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+fn resolve_font_path_from(
+    executable_directory: Option<&Path>,
+    app_directories: &[PathBuf],
+    source_root: &Path,
+    current_directory: &Path,
+) -> PathBuf {
+    let mut candidates = Vec::new();
+    if let Some(executable_directory) = executable_directory {
+        candidates.push(executable_directory.join("assets/LSANS.TTF"));
+    }
+    for app_directory in app_directories {
+        candidates.push(app_directory.join("usr/bin/assets/LSANS.TTF"));
+        candidates.push(app_directory.join("assets/LSANS.TTF"));
+    }
+    candidates.push(source_root.join("assets/LSANS.TTF"));
+    candidates.push(current_directory.join("assets/LSANS.TTF"));
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_file())
+        .unwrap_or_else(|| source_root.join("assets/LSANS.TTF"))
 }
 
 fn imgui_theme(theme: &ThemeDefinition) -> Theme {
@@ -582,7 +625,50 @@ mod tests {
 
     #[test]
     fn source_font_fixture_exists() {
-        assert!(source_font_path().is_file());
+        assert!(source_root().join("assets/LSANS.TTF").is_file());
+    }
+
+    #[test]
+    fn packaged_font_precedes_source_tree_and_appdir_fallbacks() {
+        let temporary =
+            std::env::temp_dir().join(format!("smu-font-resolution-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temporary);
+        let executable = temporary.join("portable");
+        let appdir = temporary.join("appdir");
+        let source = temporary.join("source");
+        let current = temporary.join("current");
+        for path in [
+            executable.join("assets"),
+            appdir.join("usr/bin/assets"),
+            source.join("assets"),
+            current.join("assets"),
+        ] {
+            std::fs::create_dir_all(path).expect("font fixture directory");
+        }
+        std::fs::write(source.join("assets/LSANS.TTF"), b"source").expect("source font");
+        std::fs::write(appdir.join("usr/bin/assets/LSANS.TTF"), b"appdir").expect("appdir font");
+        std::fs::write(executable.join("assets/LSANS.TTF"), b"packaged").expect("packaged font");
+
+        assert_eq!(
+            resolve_font_path_from(
+                Some(&executable),
+                std::slice::from_ref(&appdir),
+                &source,
+                &current
+            ),
+            executable.join("assets/LSANS.TTF")
+        );
+        std::fs::remove_file(executable.join("assets/LSANS.TTF")).expect("remove packaged font");
+        assert_eq!(
+            resolve_font_path_from(
+                Some(&executable),
+                std::slice::from_ref(&appdir),
+                &source,
+                &current
+            ),
+            appdir.join("usr/bin/assets/LSANS.TTF")
+        );
+        let _ = std::fs::remove_dir_all(&temporary);
     }
 
     #[test]
