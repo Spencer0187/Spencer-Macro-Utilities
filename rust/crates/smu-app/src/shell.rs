@@ -207,6 +207,8 @@ impl ShellState {
             state.theme.toggle_editor();
         } else if case == Some("profile-menu-user-reference") {
             state.profile_browser.apply_parity_reference();
+        } else if case == Some("sidebar-no-scroll-user-reference") {
+            *state.global.short_descriptions_mut() = true;
         }
         state
     }
@@ -1611,6 +1613,13 @@ mod profile_adapter_tests {
         assert!(state.theme.editor_open());
         assert_eq!(state.selected_section, -1);
         assert_eq!(state.theme.active().name, "Cyberpunk");
+    }
+
+    #[test]
+    fn sidebar_no_scroll_parity_case_enables_short_descriptions() {
+        let state = ShellState::for_parity_case(Some("sidebar-no-scroll-user-reference"));
+        assert!(state.global.short_descriptions());
+        assert_eq!(state.selected_section, -1);
     }
 
     #[test]

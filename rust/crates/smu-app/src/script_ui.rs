@@ -133,8 +133,9 @@ pub fn render_sidebar(
 ) -> Option<ScriptAction> {
     ui.spacing();
     ui.text_wrapped("Imported Scripts");
-    let item_width =
-        (left_panel_width - if ui.scroll_max_y() == 0.0 { 7.0 } else { 18.0 }).max(1.0);
+    let style = ui.clone_style();
+    let button_width = style.frame_padding()[0].mul_add(-2.0, left_panel_width);
+    let item_width = (button_width - if ui.scroll_max_y() == 0.0 { 7.0 } else { 18.0 }).max(1.0);
     if ui.button_with_size("+ Import Script", [item_width, 0.0]) {
         return Some(ScriptAction::OpenImportDialog);
     }

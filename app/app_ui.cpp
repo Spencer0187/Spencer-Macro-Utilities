@@ -122,7 +122,8 @@ void ApplyUiParityCaseIfRequested()
     const bool settingsReference = parityCase && std::strcmp(parityCase, "settings-user-reference") == 0;
     const bool themeEditorReference = parityCase && std::strcmp(parityCase, "theme-editor-user-reference") == 0;
     const bool profileMenuReference = parityCase && std::strcmp(parityCase, "profile-menu-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference) {
+    const bool sidebarNoScrollReference = parityCase && std::strcmp(parityCase, "sidebar-no-scroll-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference) {
         return;
     }
 
@@ -148,9 +149,10 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference) {
         selected_section = -1;
         section_toggles[0] = true;
+        shortdescriptions = sidebarNoScrollReference;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");
         std::snprintf(RobloxFPSChar, sizeof(RobloxFPSChar), "%s", "60");
         display_scale = 100;

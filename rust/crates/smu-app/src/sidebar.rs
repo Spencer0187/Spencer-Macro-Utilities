@@ -119,7 +119,10 @@ pub fn render(
 
         let title_size = ui.calc_text_size_with_opts(config.title, true, -1.0);
         let description_size = if short_descriptions {
-            [0.0, 0.0]
+            // C++ caches an empty description string, then still runs ImGui::CalcTextSize("").
+            // Dear ImGui returns (0, font_size) for empty text, so the hidden description keeps
+            // one text-line worth of button height even though no description is drawn.
+            ui.calc_text_size_with_opts("", true, button_width - 20.0)
         } else {
             ui.calc_text_size_with_opts(config.description, true, button_width - 20.0)
         };
@@ -171,11 +174,7 @@ pub fn render(
         } else if matches!(section_index, 5 | 11) {
             render_add_instance_row(ui, button_width, section_index, theme);
         }
-        if section_index == 14 {
-            ui.separator();
-        } else {
-            crate::parity::separator(ui);
-        }
+        crate::parity::separator(ui);
     }
     action
 }

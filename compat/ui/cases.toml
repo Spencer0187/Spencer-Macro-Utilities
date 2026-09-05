@@ -34,6 +34,25 @@ ignore = [
 ]
 
 [[case]]
+name = "sidebar-no-scroll-linux-1280x1200"
+logical_width = 1280
+logical_height = 1200
+scale = 1.0
+platform = "linux"
+parity_state = "sidebar-no-scroll-user-reference"
+automated = true
+# Same reviewed one-pixel footer reconstruction seam, at this capture's geometry.
+gate_tolerance = 13
+ignore = [
+    { x = 377, y = 1157, width = 5, height = 5 },
+    { x = 1268, y = 1157, width = 5, height = 5 },
+    { x = 377, y = 1161, width = 1, height = 31 },
+    { x = 1272, y = 1161, width = 1, height = 31 },
+    { x = 379, y = 1161, width = 892, height = 1 },
+    { x = 377, y = 1191, width = 896, height = 1 },
+]
+
+[[case]]
 name = "settings-linux-minimum"
 logical_width = 1180
 logical_height = 700

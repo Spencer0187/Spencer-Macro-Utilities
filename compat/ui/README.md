@@ -32,7 +32,10 @@ The manually reconstructed `RightSection`/footer seam in `app/app_ui.cpp` is han
 The automated `settings-linux-minimum`, `theme-editor-linux-minimum`, and
 `profile-menu-linux-minimum` cases additionally mask only the four 6x6 Dear ImGui rounded-corner
 halos for their respective floating surfaces. Settings/Theme/Profile contents, the shell underneath,
-and all non-corner floating-window geometry remain gated.
+and all non-corner floating-window geometry remain gated. `sidebar-no-scroll-linux-1280x1200`
+keeps only the translated footer-seam exclusions and leaves the complete sidebar body gated; 1200px
+is the measured 1x height where C++'s short-description fixture actually reaches
+`GetScrollMaxY()==0` and switches the button-width adjustment from 18px to 7px.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

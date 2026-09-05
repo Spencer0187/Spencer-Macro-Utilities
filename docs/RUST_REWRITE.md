@@ -406,7 +406,11 @@ Editor case caught a full-line `NewLine`/`Spacing` drift and Dear ImGui 1.92.9's
 1.92.5 oracle. The profile-menu case uses an in-memory `(default)` catalog on both sides and caught
 Rust's phantom minimum-three-row sizing, missing 5 px popup padding/`SeparatorTextAlign.y` height
 term, and disabled Delete/Duplicate buttons for `(default)`; the live default-duplicate path was
-already present, while deletion remains protected by persistence. Exact RGBA equality is the default. Masks are
+already present, while deletion remains protected by persistence. A separate 1280x1200 short-
+description capture now gates the sidebar's real no-scroll branch: it caught Rust treating
+`CalcTextSize("")` as zero height instead of Dear ImGui's `(0, font_size)`, an 8px imported-script
+width error from missing frame-padding subtraction, and a one-pixel built-in/imported separator
+offset. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 
