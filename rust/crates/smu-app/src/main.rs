@@ -46,6 +46,7 @@ mod capture;
 mod floor_bounce;
 #[cfg(target_os = "linux")]
 mod floor_bounce_runtime;
+mod foreground_ui;
 mod freeze;
 #[cfg(target_os = "linux")]
 mod freeze_runtime;

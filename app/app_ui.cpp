@@ -125,7 +125,8 @@ void ApplyUiParityCaseIfRequested()
     const bool sidebarNoScrollReference = parityCase && std::strcmp(parityCase, "sidebar-no-scroll-user-reference") == 0;
     const bool processFoundReference = parityCase && std::strcmp(parityCase, "process-found-user-reference") == 0;
     const bool processNotFoundReference = parityCase && std::strcmp(parityCase, "process-not-found-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference) {
+    const bool builtinFooterReference = parityCase && std::strcmp(parityCase, "builtin-footer-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference) {
         return;
     }
 
@@ -151,8 +152,8 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference) {
-        selected_section = -1;
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference) {
+        selected_section = builtinFooterReference ? 0 : -1;
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");

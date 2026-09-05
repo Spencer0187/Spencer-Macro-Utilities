@@ -120,9 +120,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle0", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_0", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_0",
+        &mut state.disable_outside_target,
+    );
 
     ui.text_wrapped("Automatically Unfreeze after this amount of seconds (Anti-Internet-Kick)");
     ui.set_next_item_width(INPUT_WIDTH);

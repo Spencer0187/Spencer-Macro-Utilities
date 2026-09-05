@@ -246,10 +246,13 @@ fn render_script_controls(
         return Some(ScriptAction::SetEnabled { index, enabled });
     }
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
     let mut disable_outside = script.disable_outside_roblox;
-    if ui.checkbox(format!("##ImportedScriptDisableOutside{index}"), &mut disable_outside) {
+    if crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        &format!("##ImportedScriptDisableOutside{index}"),
+        &mut disable_outside,
+    ) {
         return Some(ScriptAction::SetDisableOutside { index, disabled: disable_outside });
     }
 

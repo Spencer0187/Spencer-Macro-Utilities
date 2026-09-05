@@ -451,9 +451,12 @@ fn render_instance_enablement(
     ui.same_line();
     ui.checkbox(format!("##WallhopEnabled{sid}"), &mut instance.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox(format!("##WallhopOutside{sid}"), &mut instance.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        &format!("##WallhopOutside{sid}"),
+        &mut instance.disable_outside_target,
+    );
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]

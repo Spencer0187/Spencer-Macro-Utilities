@@ -5,7 +5,7 @@ use std::env;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
 
@@ -39,6 +39,52 @@ pub fn detect_display_server() -> DisplayServer {
         env::var_os("WAYLAND_DISPLAY").is_some(),
         env::var_os("DISPLAY").is_some(),
     )
+}
+
+#[must_use]
+pub fn foreground_detection_available() -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(probe_foreground_detection_available)
+}
+
+fn probe_foreground_detection_available() -> bool {
+    if detect_display_server() != DisplayServer::X11 {
+        return false;
+    }
+
+    let Ok((connection, screen_index)) = x11rb::connect(None) else {
+        return false;
+    };
+    let Some(screen) = connection.setup().roots.get(screen_index) else {
+        return false;
+    };
+    let Ok(active_cookie) = connection.intern_atom(true, b"_NET_ACTIVE_WINDOW") else {
+        return false;
+    };
+    let Ok(active_reply) = active_cookie.reply() else {
+        return false;
+    };
+    let Ok(pid_cookie) = connection.intern_atom(true, b"_NET_WM_PID") else {
+        return false;
+    };
+    let Ok(pid_reply) = pid_cookie.reply() else {
+        return false;
+    };
+    if active_reply.atom == x11rb::NONE || pid_reply.atom == x11rb::NONE {
+        return false;
+    }
+
+    let Ok(property_cookie) =
+        connection.get_property(false, screen.root, active_reply.atom, AtomEnum::WINDOW, 0, 1)
+    else {
+        return false;
+    };
+    let Ok(property) = property_cookie.reply() else {
+        return false;
+    };
+    property.type_ == u32::from(AtomEnum::WINDOW)
+        && property.format == 32
+        && property.value_len >= 1
 }
 
 pub trait DisplayServerSource: Send + Sync {

@@ -38,7 +38,9 @@ is the measured 1x height where C++'s short-description fixture actually reaches
 `GetScrollMaxY()==0` and switches the button-width adjustment from 18px to 7px. The paired
 `process-not-found-linux-minimum` / `process-found-linux-minimum` cases keep live process discovery
 disabled and deterministically force only the Roblox/Sober status state; their Rust captures differ
-only inside the 10x10 status dot.
+only inside the 10x10 status dot. `builtin-footer-linux-minimum` selects Freeze and gates the
+built-in pane plus `Revert Module` footer; under bare Xvfb it also exercises C++'s foreground-
+detection fallback because the required EWMH active-window properties are unavailable.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

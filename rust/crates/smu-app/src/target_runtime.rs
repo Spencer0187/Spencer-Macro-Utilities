@@ -4,7 +4,7 @@
 //! most every 25 ms. Foreground matching always uses every matching target process, even when a
 //! macro's process-control action intentionally targets only the main/newest process.
 
-use smu_process::linux::{DisplayServer, detect_display_server};
+use smu_process::linux::foreground_detection_available;
 use smu_process::{ProcessDiscovery, ProcessForeground, select_all_processes, select_main_process};
 use std::time::{Duration, Instant};
 
@@ -73,9 +73,10 @@ impl TargetProcessCache {
         if !disable_outside_target {
             return true;
         }
-        // Matches `PlatformCapabilities::canDetectForegroundProcess`: native Wayland and unknown
-        // sessions deliberately allow macros rather than pretending a failed X11 lookup is a miss.
-        if detect_display_server() != DisplayServer::X11 {
+        // Matches `PlatformCapabilities::canDetectForegroundProcess`: foreground gating requires a
+        // usable X11/EWMH active-window path. Wayland, unknown sessions, and X11 servers without
+        // the required atoms/root property deliberately fall back to always-active mode.
+        if !foreground_detection_available() {
             return true;
         }
 

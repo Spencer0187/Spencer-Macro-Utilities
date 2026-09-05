@@ -209,6 +209,8 @@ impl ShellState {
             state.profile_browser.apply_parity_reference();
         } else if case == Some("sidebar-no-scroll-user-reference") {
             *state.global.short_descriptions_mut() = true;
+        } else if case == Some("builtin-footer-user-reference") {
+            state.selected_section = 0;
         }
         state
     }
@@ -1620,6 +1622,13 @@ mod profile_adapter_tests {
         let state = ShellState::for_parity_case(Some("sidebar-no-scroll-user-reference"));
         assert!(state.global.short_descriptions());
         assert_eq!(state.selected_section, -1);
+    }
+
+    #[test]
+    fn builtin_footer_parity_case_selects_freeze_module() {
+        let state = ShellState::for_parity_case(Some("builtin-footer-user-reference"));
+        assert_eq!(state.selected_section, 0);
+        assert!(state.freeze.enabled);
     }
 
     #[test]

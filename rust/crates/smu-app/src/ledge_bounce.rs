@@ -104,9 +104,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle12", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_12", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_12",
+        &mut state.disable_outside_target,
+    );
 
     ui.checkbox("Switch Ledge Bounce to Left-Sided", &mut state.left_side);
     ui.checkbox("Stay Horizontal After Bounce", &mut state.realign);

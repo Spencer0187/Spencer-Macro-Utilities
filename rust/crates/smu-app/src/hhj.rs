@@ -231,9 +231,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle2", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_2", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_2",
+        &mut state.disable_outside_target,
+    );
 
     ui.checkbox("Automatically time inputs", &mut state.auto_toggle);
     ui.same_line();

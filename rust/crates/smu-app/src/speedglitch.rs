@@ -137,9 +137,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle3", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_3", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_3",
+        &mut state.disable_outside_target,
+    );
 
     ui.text_wrapped("Pixel Value for 180 Degree Turn BASED ON SENSITIVITY:");
     ui.set_next_item_width(90.0);

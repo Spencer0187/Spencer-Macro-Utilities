@@ -13,6 +13,7 @@ pub use control::{
 pub use foreground::{
     DisplayServer, DisplayServerSource, EnvironmentDisplayServer, ForegroundPidSource,
     ProcForegroundProcess, X11rbForegroundSource, detect_display_server,
+    foreground_detection_available,
 };
 
 /// Linux process discovery backed by a procfs tree.

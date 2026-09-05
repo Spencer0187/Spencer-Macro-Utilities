@@ -147,9 +147,12 @@ fn render_enablement(
     ui.same_line();
     ui.checkbox("##SectionToggle4", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_4", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_4",
+        &mut state.disable_outside_target,
+    );
 }
 
 fn render_content(

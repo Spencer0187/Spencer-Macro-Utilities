@@ -293,9 +293,12 @@ fn render_enablement(
     ui.same_line();
     ui.checkbox(format!("##SpamKeyEnabled{sid}"), &mut instance.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox(format!("##SpamKeyOutside{sid}"), &mut instance.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        &format!("##SpamKeyOutside{sid}"),
+        &mut instance.disable_outside_target,
+    );
 }
 
 fn render_instance_controls(

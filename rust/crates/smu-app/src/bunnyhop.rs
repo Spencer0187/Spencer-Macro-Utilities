@@ -103,9 +103,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle13", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_13", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_13",
+        &mut state.disable_outside_target,
+    );
 
     ui.text_wrapped("Bunnyhop Delay in Milliseconds (Default 10ms):");
     ui.same_line();

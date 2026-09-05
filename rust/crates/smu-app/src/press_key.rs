@@ -325,9 +325,12 @@ fn render_enablement(
     ui.same_line();
     ui.checkbox(format!("##PressKeyEnabled{sid}"), &mut instance.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox(format!("##PressKeyOutside{sid}"), &mut instance.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        &format!("##PressKeyOutside{sid}"),
+        &mut instance.disable_outside_target,
+    );
 }
 
 fn render_settings(

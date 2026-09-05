@@ -38,8 +38,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   capabilities. Process control covers cgroup-v2 child freezing for safe app cgroups, ptrace-aware
   SIGSTOP refusal, process-tree SIGSTOP/SIGCONT fallback ordering, and the existing root
   `processhelper` socket protocol behind an injected authorization gate. Foreground detection keeps
-  Wayland/unknown sessions in the C++ false path, reads `_NET_ACTIVE_WINDOW` / `_NET_WM_PID` through
-  X11 when available, and reconciles namespace PIDs against target cgroups for Sober. `smu-scripting`
+  Wayland/unknown sessions in the C++ false path and, like C++, treats X11 as capable only when the
+  `_NET_ACTIVE_WINDOW` / `_NET_WM_PID` atoms plus the root active-window property are available. That
+  capability is cached once and shared by runtime gating and all built-in/imported-script foreground
+  checkboxes; PID matching still reconciles namespace PIDs against target cgroups for Sober. `smu-scripting`
   wires the three legacy freeze globals through these capabilities with frozen-PID snapshots. On
   Linux, `smu-app` now also owns the C++-style two-minute authorization gate and Additional Freeze
   Permission Required modal; approval stages the bundled `processhelper`, launches it through
@@ -412,7 +414,10 @@ already present, while deletion remains protected by persistence. A separate 128
 description capture now gates the sidebar's real no-scroll branch: it caught Rust treating
 `CalcTextSize("")` as zero height instead of Dear ImGui's `(0, font_size)`, an 8px imported-script
 width error from missing frame-padding subtraction, and a one-pixel built-in/imported separator
-offset. Exact RGBA equality is the default. Masks are
+offset. A Freeze-selected built-in-footer capture then exposed Rust treating every X11 session as
+foreground-capable; the shared process/UI capability now matches C++'s EWMH probe and forces the
+foreground-dependent checkbox into the disabled/unchecked fallback when those properties are absent.
+Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

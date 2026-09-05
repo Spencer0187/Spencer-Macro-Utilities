@@ -160,9 +160,12 @@ pub fn render(
     ui.same_line();
     ui.checkbox("##SectionToggle10", &mut state.enabled);
     ui.same_line();
-    ui.text_wrapped("Disable outside of Target Application:");
-    ui.same_line();
-    ui.checkbox("##DisableOutsideRoblox_10", &mut state.disable_outside_target);
+    crate::foreground_ui::render_checkbox(
+        ui,
+        "Disable outside of Target Application:",
+        "##DisableOutsideRoblox_10",
+        &mut state.disable_outside_target,
+    );
 
     let current_sensitivity = cpp_atof_f32(sensitivity);
     if current_sensitivity != 0.0 && current_sensitivity != state.previous_section_sensitivity {
