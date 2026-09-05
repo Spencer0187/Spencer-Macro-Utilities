@@ -397,13 +397,16 @@ implementation can produce the same appearance more cleanly.
 Parity tests compare fixed-state C++ and Rust captures at a matrix of window sizes and display
 scales. Live process discovery is disabled during parity capture, matching the C++ oracle's forced
 `processFound = false`, so running Sober/Roblox instances cannot change the status indicator. Linux
-now has automated minimum-size captures for the Lag Switch pane, an open Settings window, and the
-Theme Editor. The Settings case keeps updater work suppressed while preserving C++'s enabled/not-yet-
-checked visual state, and it caught the missing `Select a section to see its settings.` empty-pane
-message plus the legacy 4 px Old Unicode Chat-Typing label offset. The Theme Editor case caught a
-full-line `NewLine`/`Spacing` drift and Dear ImGui 1.92.9's new per-channel `ColorEdit4` markers; Rust
-uses `Spacing()` and disables only those newer markers to preserve the C++ 1.92.5 oracle. Exact RGBA
-equality is the default. Masks are
+now has automated minimum-size captures for the Lag Switch pane, an open Settings window, the Theme
+Editor, and the profile drop-up menu. The Settings case keeps updater work suppressed while preserving
+C++'s enabled/not-yet-checked visual state, and it caught the missing `Select a section to see its
+settings.` empty-pane message plus the legacy 4 px Old Unicode Chat-Typing label offset. The Theme
+Editor case caught a full-line `NewLine`/`Spacing` drift and Dear ImGui 1.92.9's new per-channel
+`ColorEdit4` markers; Rust uses `Spacing()` and disables only those newer markers to preserve the C++
+1.92.5 oracle. The profile-menu case uses an in-memory `(default)` catalog on both sides and caught
+Rust's phantom minimum-three-row sizing, missing 5 px popup padding/`SeparatorTextAlign.y` height
+term, and disabled Delete/Duplicate buttons for `(default)`; the live default-duplicate path was
+already present, while deletion remains protected by persistence. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

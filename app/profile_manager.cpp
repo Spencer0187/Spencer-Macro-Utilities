@@ -2523,7 +2523,12 @@ bool DuplicateProfileInFile(const std::string& filepath, const std::string& sour
 // ============================================================================
 
 namespace ProfileUI {
-	static bool s_expanded = false;
+	static bool IsProfileMenuParityReference() {
+		const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+		return parityCase && std::strcmp(parityCase, "profile-menu-user-reference") == 0;
+	}
+
+	static bool s_expanded = IsProfileMenuParityReference();
 	static std::vector<std::string> s_profile_names;
 	static int s_selected_profile_idx = -1;
 
@@ -2554,6 +2559,15 @@ namespace ProfileUI {
 	}
 
 	void RefreshProfileListAndSelection() {
+		if (IsProfileMenuParityReference()) {
+			s_profile_names = {"(default)"};
+			s_selected_profile_idx = 0;
+			s_editing_profile_idx = -1;
+			s_rename_error_msg.clear();
+			s_last_saved_selection_name = "(default)";
+			return;
+		}
+
 		std::string previously_selected_name;
 		if (s_selected_profile_idx >= 0 && s_selected_profile_idx < (int)s_profile_names.size()) {
 			previously_selected_name = s_profile_names[s_selected_profile_idx];

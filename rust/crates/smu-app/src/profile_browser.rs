@@ -1,5 +1,7 @@
 use crate::theme::ThemeDefinition;
-use dear_imgui_rs::{Condition, MouseButton, SelectableFlags, StyleColor, Ui, WindowFlags};
+use dear_imgui_rs::{
+    Condition, MouseButton, SelectableFlags, StyleColor, StyleVar, Ui, WindowFlags,
+};
 use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog, generate_new_profile_name};
 
 const MENU_WIDTH: f32 = 260.0;
@@ -36,6 +38,21 @@ pub struct ProfileBrowserState {
 }
 
 impl ProfileBrowserState {
+    pub fn apply_parity_reference(&mut self) {
+        self.expanded = true;
+        self.set_current_loaded_profile(Some(DEFAULT_PROFILE_NAME));
+        self.set_catalog(
+            Some(ProfileCatalog {
+                names: vec![DEFAULT_PROFILE_NAME.to_owned()],
+                preferred_profile: Some(DEFAULT_PROFILE_NAME.to_owned()),
+                loaded_from_backup: false,
+            }),
+            Some(DEFAULT_PROFILE_NAME),
+        );
+        self.source_available = true;
+        self.refresh_requested = false;
+    }
+
     #[must_use]
     pub const fn refresh_requested(&self) -> bool {
         self.refresh_requested
@@ -150,15 +167,20 @@ pub fn render(
     }
 
     state.tick_delete_confirmation(ui.io().delta_time());
+    let style = ui.clone_style();
     let item_height = ui.text_line_height_with_spacing();
-    let shown = u16::try_from(state.names.len().clamp(3, 10)).unwrap_or(10);
-    let buttons_height =
-        ui.clone_style().item_spacing()[1].mul_add(2.0, ui.frame_height_with_spacing() * 2.0);
-    let list_height =
-        ui.clone_style().window_padding()[1].mul_add(2.0, f32::from(shown) * item_height);
-    let menu_height = (buttons_height + list_height + 8.0).min(MENU_MAX_HEIGHT);
-    let position = [button_position[0] - 135.0, button_position[1] - menu_height - 5.0 + 3.0];
+    let shown = u16::try_from(if state.names.is_empty() { 3 } else { state.names.len().min(10) })
+        .unwrap_or(10);
+    let buttons_height = style.item_spacing()[1].mul_add(2.0, ui.frame_height_with_spacing() * 2.0);
+    let list_height = style.window_padding()[1].mul_add(2.0, f32::from(shown) * item_height);
+    let menu_height =
+        (buttons_height + list_height + style.separator_text_align()[1]).min(MENU_MAX_HEIGHT);
+    let position = [
+        button_position[0] - 135.0,
+        button_position[1] - menu_height - style.window_padding()[1] + 3.0,
+    ];
 
+    let popup_padding = ui.push_style_var(StyleVar::WindowPadding([5.0, 5.0]));
     let mut action = None;
     ui.window("##ProfilesDropUpMenu")
         .position(position, Condition::Always)
@@ -172,6 +194,7 @@ pub fn render(
         .build(|| {
             action = render_menu_contents(ui, state, theme);
         });
+    drop(popup_padding);
     action
 }
 
@@ -200,7 +223,7 @@ fn render_menu_contents(
     }
     ui.same_line();
 
-    let can_delete = selected_name.as_deref().is_some_and(|name| name != DEFAULT_PROFILE_NAME);
+    let can_delete = selected_name.is_some();
     let delete_disabled = (!can_delete).then(|| ui.begin_disabled());
     let confirming = state.delete_target == state.selected_index && state.delete_target.is_some();
     let delete_color =
@@ -222,8 +245,7 @@ fn render_menu_contents(
         state.delete_loaded_name_at_confirm = state.current_loaded_profile.clone();
     }
 
-    let duplicate_allowed =
-        selected_name.as_deref().is_some_and(|name| name != DEFAULT_PROFILE_NAME);
+    let duplicate_allowed = selected_name.is_some();
     let duplicate_disabled = (!duplicate_allowed).then(|| ui.begin_disabled());
     let duplicate_clicked = ui.button_with_size("Duplicate", [-f32::MIN_POSITIVE, 0.0]);
     drop(duplicate_disabled);
@@ -337,6 +359,19 @@ mod tests {
 
     use super::{ProfileBrowserState, finish_rename};
     use smu_profile::{DEFAULT_PROFILE_NAME, ProfileCatalog};
+
+    #[test]
+    fn parity_reference_is_isolated_default_catalog() {
+        let mut state = ProfileBrowserState::default();
+        state.apply_parity_reference();
+        assert!(state.expanded);
+        assert_eq!(state.names, vec![DEFAULT_PROFILE_NAME.to_owned()]);
+        assert_eq!(state.selected_index, Some(0));
+        assert_eq!(state.current_loaded_profile.as_deref(), Some(DEFAULT_PROFILE_NAME));
+        assert!(state.source_available);
+        assert!(!state.loaded_from_backup);
+        assert!(!state.refresh_requested);
+    }
 
     #[test]
     fn rename_validation_rejects_default_empty_and_duplicates() {

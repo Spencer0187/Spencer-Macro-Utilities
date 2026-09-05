@@ -205,6 +205,8 @@ impl ShellState {
             state.settings_open = true;
         } else if case == Some("theme-editor-user-reference") {
             state.theme.toggle_editor();
+        } else if case == Some("profile-menu-user-reference") {
+            state.profile_browser.apply_parity_reference();
         }
         state
     }
