@@ -118,21 +118,21 @@ void ApplyUiParityCaseIfRequested()
     applied = true;
 
     const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
-    if (!parityCase || std::strcmp(parityCase, "lag-switch-user-reference") != 0) {
+    const bool lagSwitchReference = parityCase && std::strcmp(parityCase, "lag-switch-user-reference") == 0;
+    const bool settingsReference = parityCase && std::strcmp(parityCase, "settings-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference) {
         return;
     }
 
-    // Deterministic C++ oracle state matching the user-provided Lag Switch reference crop. This is
-    // intentionally environment-gated so normal production/profile behavior is untouched.
+    // Deterministic C++ oracle state. These branches are environment-gated so normal
+    // production/profile behavior is untouched.
     InitializeSharedThemeSystem();
     ApplySharedTheme();
-    selected_section = 15;
     constexpr int defaultSectionOrder[section_amounts] = {0, 1, 2, 15, 3, 4, 5, 6, 13, 7, 8, 9, 10, 11, 12, 14};
     for (int i = 0; i < section_amounts; ++i) {
         section_order[i] = defaultSectionOrder[i];
         section_toggles[i] = false;
     }
-    section_toggles[15] = true;
     for (auto& instance : presskey_instances) instance.section_enabled = false;
     for (auto& instance : wallhop_instances) instance.section_enabled = false;
     for (auto& instance : spamkey_instances) instance.section_enabled = false;
@@ -142,11 +142,35 @@ void ApplyUiParityCaseIfRequested()
 #else
     std::snprintf(settingsBuffer, sizeof(settingsBuffer), "%s", "RobloxPlayerBeta.exe");
 #endif
-    std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.6");
-    std::snprintf(RobloxFPSChar, sizeof(RobloxFPSChar), "%s", "200");
     camfixtoggle = false;
     macrotoggled = true;
     shortdescriptions = false;
+
+    if (settingsReference) {
+        selected_section = -1;
+        section_toggles[0] = true;
+        std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");
+        std::snprintf(RobloxFPSChar, sizeof(RobloxFPSChar), "%s", "60");
+        display_scale = 100;
+        vk_shiftkey = smu::core::SMU_VK_SHIFT;
+        chatoverride = true;
+        vk_chatkey = smu::core::SMU_VK_OEM_2;
+        useoldpaste = true;
+        PasteDelay = 1;
+        std::snprintf(PasteDelayChar, sizeof(PasteDelayChar), "%s", "1");
+        vk_afkkey = smu::core::SMU_VK_OEM_5;
+        AntiAFKTime = 15;
+        std::snprintf(AntiAFKTimeChar, sizeof(AntiAFKTimeChar), "%s", "15");
+        globalzoomin = false;
+        globalzoominreverse = false;
+        doublepressafkkey = true;
+        return;
+    }
+
+    selected_section = 15;
+    section_toggles[15] = true;
+    std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.6");
+    std::snprintf(RobloxFPSChar, sizeof(RobloxFPSChar), "%s", "200");
     islagswitchswitch = true;
     prevent_disconnect = false;
     lagswitchtargetroblox = false;
@@ -2409,7 +2433,10 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
     ImGui::Checkbox("##MacOSCursorMovement", &macos_cursor_movement);
 #endif
 
-    static bool showSettingsMenu = false;
+    static bool showSettingsMenu = [] {
+        const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+        return parityCase && std::strcmp(parityCase, "settings-user-reference") == 0;
+    }();
     ImGui::SameLine(ImGui::GetWindowWidth() - 107);
     if (showSettingsMenu ? ImGui::Button("Settings <-") : ImGui::Button("Settings ->")) {
         showSettingsMenu = !showSettingsMenu;

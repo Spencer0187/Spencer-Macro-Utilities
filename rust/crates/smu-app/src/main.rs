@@ -1368,7 +1368,14 @@ impl LinuxRuntimeServices {
         let selector = shell_state.process_selector();
         shell_state.set_process_found(!self.parity_capture && self.process_found(&selector));
         shell_state.set_settings_platform_status(self.settings_platform_status());
-        shell_state.set_settings_updater_status(self.update_service.prepare());
+        let mut updater_status = self.update_service.prepare();
+        if self.parity_capture {
+            // C++ parity mode suppresses update work in StartUpdateCheck(), but the Settings panel
+            // still looks like an enabled, not-yet-checked updater. Keep the Rust oracle state
+            // visually identical without permitting network work.
+            updater_status.enabled = true;
+        }
+        shell_state.set_settings_updater_status(updater_status);
 
         let available = self.lag_switch_backend.is_available();
         shell_state.set_lag_switch_backend(lag_switch::BackendState {

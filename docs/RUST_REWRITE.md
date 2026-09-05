@@ -396,9 +396,13 @@ implementation can produce the same appearance more cleanly.
 
 Parity tests compare fixed-state C++ and Rust captures at a matrix of window sizes and display
 scales. Live process discovery is disabled during parity capture, matching the C++ oracle's forced
-`processFound = false`, so running Sober/Roblox instances cannot change the status indicator. Exact
-RGBA equality is the default. Masks are permitted only for explicitly documented regions where the
-oracle itself is intentionally excluded; a mask must be narrow and reviewed.
+`processFound = false`, so running Sober/Roblox instances cannot change the status indicator. Linux
+now has automated minimum-size captures for both the Lag Switch pane and an open Settings window; the
+Settings case keeps updater work suppressed while preserving C++'s enabled/not-yet-checked visual
+state, and it caught the missing `Select a section to see its settings.` empty-pane message plus the
+legacy 4 px Old Unicode Chat-Typing label offset. Exact RGBA equality is the default. Masks are
+permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
+a mask must be narrow and reviewed.
 
 Named layout constants are preferred in Rust even when their numeric values must match existing
 magic constants. Pixel parity is the requirement, not preservation of the old implementation style.

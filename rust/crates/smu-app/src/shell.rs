@@ -201,6 +201,8 @@ impl ShellState {
             state.selected_section = 15;
             state.freeze.enabled = false;
             state.lag_switch = LagSwitchUiState::user_reference();
+        } else if case == Some("settings-user-reference") {
+            state.settings_open = true;
         }
         state
     }
@@ -1394,7 +1396,7 @@ fn render_right_section(
                     theme,
                 );
             }
-            _ => {}
+            _ => ui.text_wrapped("Select a section to see its settings."),
         }
     });
     (lag_action, script_action)
@@ -1589,6 +1591,14 @@ mod profile_adapter_tests {
                 .raw_snapshot();
             assert_eq!(actual, case["expected"], "C++ reset section {section}");
         }
+    }
+
+    #[test]
+    fn settings_parity_case_opens_settings_without_changing_default_section() {
+        let state = ShellState::for_parity_case(Some("settings-user-reference"));
+        assert!(state.settings_open);
+        assert_eq!(state.selected_section, -1);
+        assert_eq!(state.global.sensitivity(), "0.5");
     }
 
     #[test]

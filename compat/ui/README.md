@@ -29,6 +29,10 @@ The manually reconstructed `RightSection`/footer seam in `app/app_ui.cpp` is han
   bottom line may be ignored/tolerated;
 - rounded-corner repair rectangles are **not** broadly masked.
 
+The automated `settings-linux-minimum` case additionally masks only the four 6x6 Dear ImGui
+floating-window corner halos. The Settings contents, updater panel, shell underneath the window,
+and all non-corner window geometry remain gated.
+
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.
 

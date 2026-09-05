@@ -344,6 +344,7 @@ fn render_scalar_settings(
 
     ui.checkbox("##Oldpaste", globals.use_old_paste_mut());
     ui.same_line();
+    ui.set_cursor_pos_x(ui.cursor_pos()[0] - 4.0);
     ui.text_wrapped(
         "Old Unicode Chat-Typing (Works across languages but may be blocked by some anticheats)",
     );
