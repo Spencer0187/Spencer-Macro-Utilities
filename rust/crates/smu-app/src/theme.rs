@@ -5,8 +5,9 @@ use std::{
 };
 
 use dear_imgui_rs::{
-    ColorOverride, Condition, Context, FontConfig, FontSource, NumericFormat, StbTrueTypeFontData,
-    StyleColor, StyleTweaks, Theme, ThemePreset, TreeNodeFlags, Ui, WindowFlags,
+    ColorEditFlags, ColorOverride, Condition, Context, FontConfig, FontSource, NumericFormat,
+    StbTrueTypeFontData, StyleColor, StyleTweaks, Theme, ThemePreset, TreeNodeFlags, Ui,
+    WindowFlags,
 };
 use serde_json::{Map, Value, json};
 
@@ -178,7 +179,7 @@ impl ThemeState {
         names.push(self.custom_theme.name.clone());
         let _ = ui.combo_simple_string("Theme", &mut self.current_index, &names);
 
-        ui.new_line();
+        ui.spacing();
         ui.text_colored(self.active().text_primary, "CUSTOMIZE COLORS");
         crate::parity::separator(ui);
 
@@ -207,22 +208,22 @@ pub fn load_fonts(context: &Context) -> Result<(), Box<dyn Error>> {
 
 fn render_theme_fields(ui: &Ui, theme: &mut ThemeDefinition, is_custom: bool) {
     if ui.collapsing_header("Background Colors", TreeNodeFlags::DEFAULT_OPEN) {
-        let _ = ui.color_edit4("Dark Background", &mut theme.bg_dark);
-        let _ = ui.color_edit4("Medium Background", &mut theme.bg_medium);
-        let _ = ui.color_edit4("Light Background", &mut theme.bg_light);
+        color_edit4_cpp_1925(ui, "Dark Background", &mut theme.bg_dark);
+        color_edit4_cpp_1925(ui, "Medium Background", &mut theme.bg_medium);
+        color_edit4_cpp_1925(ui, "Light Background", &mut theme.bg_light);
     }
     if ui.collapsing_header("Accent Colors", TreeNodeFlags::DEFAULT_OPEN) {
-        let _ = ui.color_edit4("Primary Accent", &mut theme.accent_primary);
-        let _ = ui.color_edit4("Secondary Accent", &mut theme.accent_secondary);
+        color_edit4_cpp_1925(ui, "Primary Accent", &mut theme.accent_primary);
+        color_edit4_cpp_1925(ui, "Secondary Accent", &mut theme.accent_secondary);
     }
     if ui.collapsing_header("Text & Status", TreeNodeFlags::NONE) {
-        let _ = ui.color_edit4("Primary Text", &mut theme.text_primary);
-        let _ = ui.color_edit4("Secondary Text", &mut theme.text_secondary);
-        let _ = ui.color_edit4("Success", &mut theme.success_color);
-        let _ = ui.color_edit4("Warning", &mut theme.warning_color);
-        let _ = ui.color_edit4("Error", &mut theme.error_color);
-        let _ = ui.color_edit4("Border", &mut theme.border_color);
-        let _ = ui.color_edit4("Disabled", &mut theme.disabled_color);
+        color_edit4_cpp_1925(ui, "Primary Text", &mut theme.text_primary);
+        color_edit4_cpp_1925(ui, "Secondary Text", &mut theme.text_secondary);
+        color_edit4_cpp_1925(ui, "Success", &mut theme.success_color);
+        color_edit4_cpp_1925(ui, "Warning", &mut theme.warning_color);
+        color_edit4_cpp_1925(ui, "Error", &mut theme.error_color);
+        color_edit4_cpp_1925(ui, "Border", &mut theme.border_color);
+        color_edit4_cpp_1925(ui, "Disabled", &mut theme.disabled_color);
     }
     if ui.collapsing_header("Rounding", TreeNodeFlags::DEFAULT_OPEN) {
         rounding_slider(ui, "Window Rounding", &mut theme.window_rounding);
@@ -234,6 +235,12 @@ fn render_theme_fields(ui: &Ui, theme: &mut ThemeDefinition, is_custom: bool) {
         ui.text("Custom Theme Name");
         let _ = ui.input_text("##ThemeName", &mut theme.name).build();
     }
+}
+
+fn color_edit4_cpp_1925(ui: &Ui, label: &str, color: &mut [f32; 4]) {
+    // Dear ImGui 1.92.9 added per-channel color markers to ColorEdit4 drag fields. The C++ oracle
+    // is pinned to 1.92.5, where those markers did not exist. Disable only that newer visual.
+    let _ = ui.color_edit4_config(label, color).flags(ColorEditFlags::NO_COLOR_MARKERS).build();
 }
 
 fn rounding_slider(ui: &Ui, label: &str, value: &mut f32) {

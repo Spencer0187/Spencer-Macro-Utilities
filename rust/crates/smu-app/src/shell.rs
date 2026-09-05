@@ -203,6 +203,8 @@ impl ShellState {
             state.lag_switch = LagSwitchUiState::user_reference();
         } else if case == Some("settings-user-reference") {
             state.settings_open = true;
+        } else if case == Some("theme-editor-user-reference") {
+            state.theme.toggle_editor();
         }
         state
     }
@@ -1599,6 +1601,14 @@ mod profile_adapter_tests {
         assert!(state.settings_open);
         assert_eq!(state.selected_section, -1);
         assert_eq!(state.global.sensitivity(), "0.5");
+    }
+
+    #[test]
+    fn theme_editor_parity_case_opens_editor_without_changing_default_section() {
+        let state = ShellState::for_parity_case(Some("theme-editor-user-reference"));
+        assert!(state.theme.editor_open());
+        assert_eq!(state.selected_section, -1);
+        assert_eq!(state.theme.active().name, "Cyberpunk");
     }
 
     #[test]

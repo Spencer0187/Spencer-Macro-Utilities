@@ -120,7 +120,8 @@ void ApplyUiParityCaseIfRequested()
     const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
     const bool lagSwitchReference = parityCase && std::strcmp(parityCase, "lag-switch-user-reference") == 0;
     const bool settingsReference = parityCase && std::strcmp(parityCase, "settings-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference) {
+    const bool themeEditorReference = parityCase && std::strcmp(parityCase, "theme-editor-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference) {
         return;
     }
 
@@ -146,7 +147,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference) {
+    if (settingsReference || themeEditorReference) {
         selected_section = -1;
         section_toggles[0] = true;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");
@@ -164,6 +165,7 @@ void ApplyUiParityCaseIfRequested()
         globalzoomin = false;
         globalzoominreverse = false;
         doublepressafkkey = true;
+        show_theme_menu = themeEditorReference;
         return;
     }
 
