@@ -219,6 +219,8 @@ impl ShellState {
             state.selected_section = 0;
         } else if case == Some("import-preview-user-reference") {
             state.script_ui.apply_import_preview_parity_reference();
+        } else if case == Some("import-preview-error-user-reference") {
+            state.script_ui.apply_import_preview_error_parity_reference();
         } else if case == Some("warning-toast-user-reference") {
             state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
         } else if case == Some("tutorial-media-user-reference") {

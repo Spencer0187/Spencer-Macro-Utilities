@@ -58,6 +58,17 @@ impl ScriptUiState {
     }
 
     #[cfg(target_os = "linux")]
+    pub fn apply_import_preview_error_parity_reference(&mut self) {
+        self.pending_import = Some(PathBuf::from("/tmp/smu-parity-preview.lua"));
+        self.preview.clear();
+        "Preview unavailable: the selected file contains embedded NUL bytes."
+            .clone_into(&mut self.preview_error);
+        self.open_trust_modal = true;
+        self.import_error.clear();
+        self.import_notice.clear();
+    }
+
+    #[cfg(target_os = "linux")]
     pub fn apply_parity_reference(&mut self) {
         self.snapshots = vec![ScriptRecordSnapshot {
             path: PathBuf::from("/tmp/smu-parity-script.lua"),
@@ -890,6 +901,20 @@ mod tests {
         assert_eq!(state.pending_import.as_deref(), Some(Path::new("/tmp/smu-parity-preview.lua")));
         assert!(state.preview.contains("pressKey(0x41)"));
         assert!(state.preview_error.is_empty());
+        assert!(state.open_trust_modal);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn import_preview_error_parity_reference_uses_cpp_nul_message() {
+        let mut state = ScriptUiState::default();
+        state.apply_import_preview_error_parity_reference();
+        assert_eq!(state.pending_import.as_deref(), Some(Path::new("/tmp/smu-parity-preview.lua")));
+        assert!(state.preview.is_empty());
+        assert_eq!(
+            state.preview_error,
+            "Preview unavailable: the selected file contains embedded NUL bytes."
+        );
         assert!(state.open_trust_modal);
     }
 

@@ -424,8 +424,9 @@ callback and a callback that returns no controls; it also removed the stale Rust
 persistence warning from a path whose persistence is already attached. The import-trust preview is
 now gated with an in-memory Lua source fixture as well: Rust ports C++'s centered 760x560 constrained
 modal, exact disclaimer/section heading, bordered horizontal-scroll syntax preview, visible-line
-clipping, metadata/comment/string/keyword/function/risky-function coloring, and parity-capture
-`DeltaTime` stabilization at 1/60s so Dear ImGui modal dimming reaches the same third-frame state as
+clipping, metadata/comment/string/keyword/function/risky-function coloring, and the matching
+error-colored embedded-NUL rejection branch. Parity capture `DeltaTime` is stabilized at 1/60s so
+Dear ImGui modal dimming reaches the same third-frame state as
 the C++ 60 FPS oracle. A warning-toast capture now gates a real Rust warning FIFO and the C++-matching
 top-right selectable/Dismiss surface; Linux startup feeds the existing foreground-detection fallback
 warning through that queue. The deterministic toast fixture stays single-line because Dear ImGui

@@ -128,9 +128,10 @@ void ApplyUiParityCaseIfRequested()
     const bool builtinFooterReference = parityCase && std::strcmp(parityCase, "builtin-footer-user-reference") == 0;
     const bool importedScriptFooterReference = parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0;
     const bool importPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
+    const bool importPreviewErrorReference = parityCase && std::strcmp(parityCase, "import-preview-error-user-reference") == 0;
     const bool warningToastReference = parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
     const bool tutorialMediaReference = parityCase && std::strcmp(parityCase, "tutorial-media-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !warningToastReference && !tutorialMediaReference) {
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialMediaReference) {
         return;
     }
 
@@ -156,7 +157,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || warningToastReference || tutorialMediaReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialMediaReference) {
         selected_section = builtinFooterReference ? 0 : (tutorialMediaReference ? 9 : -1);
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
@@ -1445,17 +1446,25 @@ void RenderImportTrustModal()
 {
     static bool parityReferenceApplied = false;
     const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
-    if (!parityReferenceApplied && parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0) {
+    const bool cleanPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
+    const bool errorPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-error-user-reference") == 0;
+    if (!parityReferenceApplied && (cleanPreviewReference || errorPreviewReference)) {
         parityReferenceApplied = true;
         g_pending_import_path = "/tmp/smu-parity-preview.lua";
-        g_import_preview.content =
-            "-- @name: Preview Fixture\n"
-            "local message = \"hello\"\n"
-            "print(message)\n"
-            "pressKey(0x41)\n"
-            "-- review before import\n";
+        g_import_preview.content.clear();
         g_import_preview.error.clear();
-        BuildImportPreviewLineOffsets(g_import_preview);
+        if (errorPreviewReference) {
+            g_import_preview.error = "Preview unavailable: the selected file contains embedded NUL bytes.";
+            g_import_preview.lineOffsets.clear();
+        } else {
+            g_import_preview.content =
+                "-- @name: Preview Fixture\n"
+                "local message = \"hello\"\n"
+                "print(message)\n"
+                "pressKey(0x41)\n"
+                "-- review before import\n";
+            BuildImportPreviewLineOffsets(g_import_preview);
+        }
         g_open_import_trust_modal = true;
     }
 
@@ -3915,7 +3924,8 @@ void RenderAppUi(AppContext& context)
         RenderImportTrustModal();
     } else {
         const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
-        if (parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0) {
+        if (parityCase && (std::strcmp(parityCase, "import-preview-user-reference") == 0 ||
+                              std::strcmp(parityCase, "import-preview-error-user-reference") == 0)) {
             RenderImportTrustModal();
         } else if (parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0) {
             RenderPlatformWarningNotifications();
