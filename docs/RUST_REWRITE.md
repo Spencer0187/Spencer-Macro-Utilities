@@ -374,10 +374,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   into a fresh rollback directory inside the installation root, rejects symlink/non-regular targets and
   overlapping staging/install roots, preserves user files outside the frozen bundle layout, and can commit
   or reverse the complete transaction; unit tests cover successful commit, explicit rollback, and automatic
-  rollback after a mid-update filesystem collision. Auto-apply remains off because the Rust bundle contains
-  side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned; production
-  signing/publishing must establish a bundle-wide trust policy before the replacement launcher can be
-  enabled. macOS still lacks its native Rust adapters.
+  rollback after a mid-update filesystem collision. `smu-updater` now also exposes one shared downloaded-
+  asset verifier: it enforces the manifest-declared size and SHA-256 digest and can return the exact
+  authenticated bytes read from disk. The Linux updater has been switched to that verifier, so future
+  Windows helper code will not duplicate package-integrity logic. Auto-apply remains off because the Rust
+  bundle contains side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned;
+  production signing/publishing must establish a bundle-wide trust policy before the replacement launcher
+  can be enabled. macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

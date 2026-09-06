@@ -2,9 +2,9 @@
 
 use crate::{
     CurlUpdateTransport, LinuxArchitecture, MAXIMUM_UPDATE_BYTES, ReleaseAsset, ReleaseInfo,
-    UpdatePlatform, current_platform, is_updater_version_allowed, select_update_asset,
+    UpdatePlatform, current_platform, is_updater_version_allowed, read_verified_update_asset,
+    select_update_asset,
 };
-use sha2::{Digest as _, Sha256};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read as _, Write as _};
@@ -336,41 +336,13 @@ fn verify_downloaded_asset(
     asset: &ReleaseAsset,
     destination: &Path,
 ) -> Result<(), LinuxUpdateError> {
-    let size = destination.metadata().map(|metadata| metadata.len()).unwrap_or_default();
-    if size != asset.size_bytes {
-        let _ = fs::remove_file(destination);
-        return Err(LinuxUpdateError::new(
-            "Downloaded update size did not match update-manifest.json.",
-        ));
-    }
-    let actual = sha256_file(destination)?;
-    if !actual.eq_ignore_ascii_case(&asset.sha256) {
-        let _ = fs::remove_file(destination);
-        return Err(LinuxUpdateError::new(
-            "Downloaded update SHA-256 did not match update-manifest.json.",
-        ));
-    }
-    Ok(())
-}
-
-fn sha256_file(path: &Path) -> Result<String, LinuxUpdateError> {
-    let mut file = File::open(path).map_err(|_| {
-        LinuxUpdateError::new("Could not open downloaded update for SHA-256 verification.")
-    })?;
-    let mut digest = Sha256::new();
-    let mut buffer = vec![0_u8; 65_536];
-    loop {
-        let count = file.read(&mut buffer).map_err(|_| {
-            LinuxUpdateError::new(
-                "Failed while reading the downloaded update for SHA-256 verification.",
-            )
-        })?;
-        if count == 0 {
-            break;
+    match read_verified_update_asset(asset, destination) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let _ = fs::remove_file(destination);
+            Err(LinuxUpdateError::new(error.to_string()))
         }
-        digest.update(&buffer[..count]);
     }
-    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn validate_appimage_file(path: &Path) -> Result<(), LinuxUpdateError> {
@@ -668,7 +640,7 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
-    use sha2::Sha256;
+    use sha2::{Digest as _, Sha256};
     use std::io::Cursor;
     use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 

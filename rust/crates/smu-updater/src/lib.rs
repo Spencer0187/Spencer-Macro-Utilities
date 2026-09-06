@@ -25,9 +25,13 @@ pub use linux_install::{
     LinuxUpdateError, LinuxUpdateLaunch, apply_linux_update, linux_auto_apply_supported,
 };
 use serde_json::Value;
+use sha2::{Digest as _, Sha256};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::fs::File;
+use std::io::Read as _;
+use std::path::Path;
 #[cfg(target_os = "windows")]
 pub use windows::{
     WinInetUpdateTransport, WindowsUpdateTrustError, authenticode_signer_sha256,
@@ -52,6 +56,84 @@ pub struct ReleaseAsset {
     pub download_url: String,
     pub size_bytes: u64,
     pub sha256: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UpdateAssetVerificationError(String);
+
+impl UpdateAssetVerificationError {
+    fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
+
+impl fmt::Display for UpdateAssetVerificationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for UpdateAssetVerificationError {}
+
+/// Verify already-downloaded package bytes against the validated manifest contract.
+///
+/// # Errors
+///
+/// Returns an error when the byte length or SHA-256 digest differs from the release asset contract.
+pub fn verify_downloaded_asset_bytes(
+    asset: &ReleaseAsset,
+    bytes: &[u8],
+) -> Result<(), UpdateAssetVerificationError> {
+    let size = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    if size != asset.size_bytes || size == 0 || size > MAXIMUM_UPDATE_BYTES {
+        return Err(UpdateAssetVerificationError::new(
+            "Downloaded update size did not match update-manifest.json.",
+        ));
+    }
+    let actual = format!("{:x}", Sha256::digest(bytes));
+    if !actual.eq_ignore_ascii_case(&asset.sha256) {
+        return Err(UpdateAssetVerificationError::new(
+            "Downloaded update SHA-256 did not match update-manifest.json.",
+        ));
+    }
+    Ok(())
+}
+
+/// Read an update package into memory and return only bytes authenticated by the validated manifest.
+///
+/// # Errors
+///
+/// Returns an error for missing/unreadable files, size-limit violations, short/long reads, or SHA-256
+/// mismatch. The caller receives no bytes unless verification succeeds.
+pub fn read_verified_update_asset(
+    asset: &ReleaseAsset,
+    path: &Path,
+) -> Result<Vec<u8>, UpdateAssetVerificationError> {
+    let metadata = path.metadata().map_err(|_| {
+        UpdateAssetVerificationError::new("Could not open downloaded update for verification.")
+    })?;
+    if !metadata.is_file()
+        || metadata.len() != asset.size_bytes
+        || metadata.len() > MAXIMUM_UPDATE_BYTES
+    {
+        return Err(UpdateAssetVerificationError::new(
+            "Downloaded update size did not match update-manifest.json.",
+        ));
+    }
+    let capacity = usize::try_from(metadata.len()).map_err(|_| {
+        UpdateAssetVerificationError::new("Downloaded update is too large for this process.")
+    })?;
+    let file = File::open(path).map_err(|_| {
+        UpdateAssetVerificationError::new("Could not open downloaded update for verification.")
+    })?;
+    let mut bytes = Vec::with_capacity(capacity);
+    file.take(MAXIMUM_UPDATE_BYTES.saturating_add(1)).read_to_end(&mut bytes).map_err(|_| {
+        UpdateAssetVerificationError::new(
+            "Failed while reading the downloaded update for verification.",
+        )
+    })?;
+    verify_downloaded_asset_bytes(asset, &bytes)?;
+    Ok(bytes)
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -573,8 +655,10 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
     const SHA256: &str = "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD";
+    static VERIFY_FILE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     fn linux_architecture() -> LinuxArchitecture {
         if cfg!(target_arch = "x86_64") {
@@ -648,6 +732,53 @@ mod tests {
 
     fn replace_once(value: &str, from: &str, to: &str) -> String {
         value.replacen(from, to, 1)
+    }
+
+    #[test]
+    fn downloaded_asset_bytes_require_exact_manifest_size_and_sha256() {
+        let asset = ReleaseAsset {
+            name: "update.zip".to_owned(),
+            download_url: "https://example.invalid/update.zip".to_owned(),
+            size_bytes: 3,
+            sha256: SHA256.to_owned(),
+        };
+        assert!(verify_downloaded_asset_bytes(&asset, b"abc").is_ok());
+
+        let mut wrong_size = asset.clone();
+        wrong_size.size_bytes = 4;
+        assert_eq!(
+            verify_downloaded_asset_bytes(&wrong_size, b"abc")
+                .expect_err("size mismatch should fail")
+                .to_string(),
+            "Downloaded update size did not match update-manifest.json."
+        );
+
+        let mut wrong_hash = asset;
+        wrong_hash.sha256 = "0".repeat(64);
+        assert_eq!(
+            verify_downloaded_asset_bytes(&wrong_hash, b"abc")
+                .expect_err("hash mismatch should fail")
+                .to_string(),
+            "Downloaded update SHA-256 did not match update-manifest.json."
+        );
+    }
+
+    #[test]
+    fn verified_asset_file_returns_the_exact_authenticated_bytes() {
+        let counter = VERIFY_FILE_COUNTER.fetch_add(1, AtomicOrdering::Relaxed);
+        let path = std::env::temp_dir()
+            .join(format!("smu-updater-verified-asset-{}-{counter}.zip", std::process::id()));
+        std::fs::write(&path, b"abc").expect("asset fixture should be written");
+        let asset = ReleaseAsset {
+            name: "update.zip".to_owned(),
+            download_url: "https://example.invalid/update.zip".to_owned(),
+            size_bytes: 3,
+            sha256: SHA256.to_owned(),
+        };
+        let bytes = read_verified_update_asset(&asset, &path)
+            .expect("matching asset should return authenticated bytes");
+        let _ = std::fs::remove_file(path);
+        assert_eq!(bytes, b"abc");
     }
 
     #[test]
