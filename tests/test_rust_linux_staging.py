@@ -265,7 +265,17 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("pub struct WinDivertDelayedPacketSender", windows)
         self.assertIn("open_filter_shared", windows)
         self.assertIn("Arc<SharedWinDivertHandle>", windows)
+        self.assertIn("Arc<WinDivertHandleSlot>", windows)
         self.assertIn("WindowsDelayedSender<DelayedWinDivertPacket>", windows)
+        self.assertIn("let current = lock_mutex(&self.current);", windows)
+        self.assertIn("pub(crate) struct WinDivertPacketWorker", windows)
+        self.assertIn("fn packet_worker_loop(", windows)
+        self.assertIn("let current = lock_mutex(&shared.capture);", windows)
+        self.assertIn("shared.handle_slot.install(Arc::clone(&handle));", windows)
+        self.assertIn("fn run_capture_handle(", windows)
+        self.assertIn("windows_packet_decision(", windows)
+        self.assertIn("WindowsPacketAction::DelayMs", windows)
+        self.assertIn("handle_slot.shutdown_current()", windows)
         self.assertIn("assert_eq!(std::mem::size_of::<WinDivertAddress>(), 80);", windows)
         for export in (
             "WinDivertOpen",

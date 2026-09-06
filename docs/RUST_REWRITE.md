@@ -288,10 +288,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   are frozen in a host-tested queue worker too, including C++'s front-of-deque behavior when a later
   packet has an earlier deadline. That queue worker now compiles on Windows as a crate-internal
   production primitive with `start`/`enqueue`/`stop`, and live WinDivert handle ownership is wired for
-  delayed reinjection: shared handles keep both the DLL module and WinDivert handle alive across the
-  sender thread and shut down/close only after the final owner drops. Packet capture/reinjection worker
-  orchestration, dynamic target refresh, Windows Rust packaging of those assets, and `smu-app` backend
-  wiring are still missing;
+  delayed reinjection. A Windows packet worker now owns the real capture loop too: it opens the frozen
+  filter, receives packets, applies the host-tested C++ decision core, immediately sends/drops or queues
+  delayed packets, and shuts down the current handle to wake a blocked `Recv` before reopening on filter
+  changes. Final filter validation and handle publication share the capture lock so an update cannot miss
+  a just-opened stale handle, while delayed sends hold the handle-slot lock across `WinDivertSend` just as
+  C++ holds `g_windivert_handle_mutex` across delayed reinjection. The delayed sender keeps one
+  lifetime-long queue and resolves the current handle only when a packet becomes due, matching C++
+  across restarts.
+  Dynamic Roblox IP/process-port refresh, the `LagSwitchControl` backend state/arbitration layer,
+  Windows Rust packaging of WinDivert assets, and `smu-app` backend wiring are still missing;
   macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform

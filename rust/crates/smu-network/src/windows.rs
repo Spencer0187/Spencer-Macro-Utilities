@@ -1,11 +1,18 @@
-use crate::{windows_delay::WindowsDelayedSender, windows_payload_range};
+use crate::{
+    LagSwitchConfig, WindowsPacketAction, build_windows_windivert_filter,
+    windows_delay::WindowsDelayedSender, windows_packet_decision, windows_payload_range,
+};
 use std::{
     env,
     ffi::{CString, c_void},
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::JoinHandle,
+    time::{Duration, Instant},
 };
 use windows_sys::Win32::{
     Foundation::{FreeLibrary, GetLastError, HANDLE, HMODULE, INVALID_HANDLE_VALUE},
@@ -344,6 +351,11 @@ pub struct SharedWinDivertHandle {
     raw: usize,
 }
 
+#[derive(Debug, Default)]
+pub struct WinDivertHandleSlot {
+    current: Mutex<Option<Arc<SharedWinDivertHandle>>>,
+}
+
 impl std::fmt::Debug for SharedWinDivertHandle {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("SharedWinDivertHandle").finish_non_exhaustive()
@@ -369,6 +381,47 @@ impl SharedWinDivertHandle {
     }
 }
 
+impl WinDivertHandleSlot {
+    pub fn install(&self, handle: Arc<SharedWinDivertHandle>) {
+        let previous = {
+            let mut current = lock_mutex(&self.current);
+            current.replace(handle)
+        };
+        if let Some(previous) = previous {
+            previous.shutdown();
+        }
+    }
+
+    #[must_use]
+    pub fn current(&self) -> Option<Arc<SharedWinDivertHandle>> {
+        lock_mutex(&self.current).clone()
+    }
+
+    pub fn shutdown_current(&self) {
+        let current = lock_mutex(&self.current).take();
+        if let Some(current) = current {
+            current.shutdown();
+        }
+    }
+
+    pub fn clear_if_current(&self, expected: &Arc<SharedWinDivertHandle>) {
+        let removed = {
+            let mut current = lock_mutex(&self.current);
+            if current.as_ref().is_some_and(|handle| Arc::ptr_eq(handle, expected)) {
+                current.take()
+            } else {
+                None
+            }
+        };
+        drop(removed);
+    }
+
+    fn send(&self, packet: &[u8], address: &WinDivertAddress) -> bool {
+        let current = lock_mutex(&self.current);
+        current.as_ref().is_some_and(|handle| handle.send(packet, address))
+    }
+}
+
 impl Drop for SharedWinDivertHandle {
     fn drop(&mut self) {
         self.api.shutdown_handle(self.raw());
@@ -388,9 +441,9 @@ pub struct WinDivertDelayedPacketSender {
 }
 
 impl WinDivertDelayedPacketSender {
-    pub fn start(handle: Arc<SharedWinDivertHandle>) -> Self {
+    pub fn start(handle_slot: Arc<WinDivertHandleSlot>) -> Self {
         let sender = WindowsDelayedSender::start(move |packet: DelayedWinDivertPacket| {
-            let _ = handle.send(&packet.data, &packet.address);
+            let _ = handle_slot.send(&packet.data, &packet.address);
         });
         Self { sender }
     }
@@ -404,6 +457,189 @@ impl WinDivertDelayedPacketSender {
 
     pub(crate) fn stop(&self) {
         self.sender.stop();
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct WinDivertCaptureSnapshot {
+    pub config: LagSwitchConfig,
+    pub roblox_dynamic_ips: Vec<String>,
+    pub process_udp_ports: Vec<i32>,
+    pub target_process_present: bool,
+    pub is_rcc: bool,
+}
+
+impl Default for WinDivertCaptureSnapshot {
+    fn default() -> Self {
+        Self {
+            config: LagSwitchConfig::default(),
+            roblox_dynamic_ips: Vec::new(),
+            process_udp_ports: Vec::new(),
+            target_process_present: false,
+            is_rcc: false,
+        }
+    }
+}
+
+impl WinDivertCaptureSnapshot {
+    fn filter(&self) -> String {
+        build_windows_windivert_filter(
+            &self.config,
+            &self.roblox_dynamic_ips,
+            &self.process_udp_ports,
+            self.target_process_present,
+        )
+    }
+}
+
+struct WinDivertPacketWorkerShared {
+    running: AtomicBool,
+    capture: Mutex<WinDivertCaptureSnapshot>,
+    handle_slot: Arc<WinDivertHandleSlot>,
+}
+
+pub(crate) struct WinDivertPacketWorker {
+    shared: Arc<WinDivertPacketWorkerShared>,
+    delayed_sender: Arc<WinDivertDelayedPacketSender>,
+    worker: Mutex<Option<JoinHandle<()>>>,
+}
+
+impl std::fmt::Debug for WinDivertPacketWorker {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WinDivertPacketWorker")
+            .field("running", &self.shared.running.load(Ordering::Acquire))
+            .field("capture", &*lock_mutex(&self.shared.capture))
+            .finish_non_exhaustive()
+    }
+}
+
+impl WinDivertPacketWorker {
+    pub(crate) fn start(api: Arc<WinDivertApi>, initial: WinDivertCaptureSnapshot) -> Self {
+        let handle_slot = Arc::new(WinDivertHandleSlot::default());
+        let delayed_sender =
+            Arc::new(WinDivertDelayedPacketSender::start(Arc::clone(&handle_slot)));
+        let shared = Arc::new(WinDivertPacketWorkerShared {
+            running: AtomicBool::new(true),
+            capture: Mutex::new(initial),
+            handle_slot,
+        });
+        let worker_api = Arc::clone(&api);
+        let worker_shared = Arc::clone(&shared);
+        let worker_sender = Arc::clone(&delayed_sender);
+        let worker = std::thread::spawn(move || {
+            packet_worker_loop(worker_api, worker_shared, worker_sender);
+        });
+        Self { shared, delayed_sender, worker: Mutex::new(Some(worker)) }
+    }
+
+    pub(crate) fn update_capture(&self, capture: WinDivertCaptureSnapshot) {
+        let restart = {
+            let mut current = lock_mutex(&self.shared.capture);
+            let restart = current.filter() != capture.filter();
+            *current = capture;
+            restart
+        };
+        if restart {
+            self.shared.handle_slot.shutdown_current();
+        }
+    }
+
+    pub(crate) fn stop(&self) {
+        self.shared.running.store(false, Ordering::Release);
+        self.shared.handle_slot.shutdown_current();
+        let worker = lock_mutex(&self.worker).take();
+        if let Some(worker) = worker {
+            let _ = worker.join();
+        }
+        self.delayed_sender.stop();
+    }
+}
+
+impl Drop for WinDivertPacketWorker {
+    fn drop(&mut self) {
+        self.stop();
+    }
+}
+
+fn packet_worker_loop(
+    api: Arc<WinDivertApi>,
+    shared: Arc<WinDivertPacketWorkerShared>,
+    delayed_sender: Arc<WinDivertDelayedPacketSender>,
+) {
+    while shared.running.load(Ordering::Acquire) {
+        let filter = lock_mutex(&shared.capture).filter();
+        let Some(handle) = api.open_filter_shared(&filter).map(Arc::new) else {
+            std::thread::sleep(Duration::from_millis(500));
+            continue;
+        };
+        let installed = {
+            let current = lock_mutex(&shared.capture);
+            if current.filter() != filter {
+                false
+            } else {
+                shared.handle_slot.install(Arc::clone(&handle));
+                true
+            }
+        };
+        if !installed {
+            handle.shutdown();
+            continue;
+        }
+        run_capture_handle(api.as_ref(), shared.as_ref(), delayed_sender.as_ref(), &handle);
+        shared.handle_slot.clear_if_current(&handle);
+    }
+    shared.handle_slot.shutdown_current();
+}
+
+fn run_capture_handle(
+    api: &WinDivertApi,
+    shared: &WinDivertPacketWorkerShared,
+    delayed_sender: &WinDivertDelayedPacketSender,
+    handle: &Arc<SharedWinDivertHandle>,
+) {
+    let mut packet = vec![0_u8; WINDIVERT_MTU_MAX];
+    let mut last_safety_pulse = Instant::now();
+    let mut safety_pulse_active = false;
+    while shared.running.load(Ordering::Acquire) {
+        let mut address = WinDivertAddress::default();
+        let Some(packet_len) = api.recv(handle.raw(), &mut packet, &mut address) else {
+            break;
+        };
+        let Some(packet) = packet.get(..packet_len) else {
+            continue;
+        };
+        let capture = lock_mutex(&shared.capture).clone();
+        let payload = api.parsed_payload(packet);
+        let elapsed_ms = u64::try_from(last_safety_pulse.elapsed().as_millis()).unwrap_or(u64::MAX);
+        let decision = windows_packet_decision(
+            &capture.config,
+            address.outbound(),
+            capture.is_rcc,
+            elapsed_ms,
+            safety_pulse_active,
+            payload,
+        );
+        safety_pulse_active = decision.safety_pulse_active;
+        if decision.reset_safety_clock {
+            last_safety_pulse = Instant::now();
+        }
+        match decision.action {
+            WindowsPacketAction::Drop => {}
+            WindowsPacketAction::Send => {
+                let _ = handle.send(packet, &address);
+            }
+            WindowsPacketAction::DelayMs(delay_ms) => {
+                let _ = delayed_sender.enqueue(packet, address, delay_ms);
+            }
+        }
+    }
+}
+
+fn lock_mutex<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
     }
 }
 
