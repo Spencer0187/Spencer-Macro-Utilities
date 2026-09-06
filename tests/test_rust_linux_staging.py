@@ -256,6 +256,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             "WinDivertOpen",
             "WinDivertRecv",
             "WinDivertSend",
+            "WinDivertHelperParsePacket",
             "WinDivertShutdown",
             "WinDivertClose",
         ):

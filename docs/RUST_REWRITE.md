@@ -275,8 +275,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   base config, and base blocking, so `LagSwitchController` no longer depends on the Linux concrete
   backend and can drive a Windows transport through the same runtime path. `smu-network::windows` now
   provides the native loader/ABI foundation too: it requires `SMCWinDivert.dll` and
-  `SMCWinDivert64.sys` beside the executable, resolves `Open`/`Recv`/`Send`/`Shutdown`/`Close`, models
-  the bundled 80-byte `WINDIVERT_ADDRESS`, and probes driver availability with the C++
+  `SMCWinDivert64.sys` beside the executable, resolves `Open`/`Recv`/`Send`/`HelperParsePacket`/
+  `Shutdown`/`Close`, models the bundled 80-byte `WINDIVERT_ADDRESS`, bounds-checks the parser-returned
+  payload pointer before exposing it as a Rust slice, and probes driver availability with the C++
   `Open("false", NETWORK, 0, SNIFF)` call. This Fedora toolchain has neither a Windows stdlib nor
   `rust-src`, so the Windows-only loader is validated here with rustfmt, locked `windows-sys` API
   signatures, Windows-target metadata, source guards, and the bundled DLL export table; native Windows

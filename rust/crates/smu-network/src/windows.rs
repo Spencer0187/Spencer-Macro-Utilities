@@ -1,3 +1,4 @@
+use crate::windows_payload_range;
 use std::{
     env,
     ffi::{CString, c_void},
@@ -117,6 +118,21 @@ type RecvFn =
     unsafe extern "system" fn(HANDLE, *mut c_void, u32, *mut u32, *mut WinDivertAddress) -> i32;
 type SendFn =
     unsafe extern "system" fn(HANDLE, *const c_void, u32, *mut u32, *const WinDivertAddress) -> i32;
+type ParsePacketFn = unsafe extern "system" fn(
+    *const c_void,
+    u32,
+    *mut *mut c_void,
+    *mut *mut c_void,
+    *mut u8,
+    *mut *mut c_void,
+    *mut *mut c_void,
+    *mut *mut c_void,
+    *mut *mut c_void,
+    *mut *mut c_void,
+    *mut u32,
+    *mut *mut c_void,
+    *mut u32,
+) -> i32;
 type ShutdownFn = unsafe extern "system" fn(HANDLE, i32) -> i32;
 type CloseFn = unsafe extern "system" fn(HANDLE) -> i32;
 
@@ -125,6 +141,7 @@ pub struct WinDivertApi {
     open: OpenFn,
     recv: RecvFn,
     send: SendFn,
+    parse_packet: ParsePacketFn,
     shutdown: ShutdownFn,
     close: CloseFn,
 }
@@ -165,9 +182,10 @@ impl WinDivertApi {
         let open = unsafe { resolve_open(module)? };
         let recv = unsafe { resolve_recv(module)? };
         let send = unsafe { resolve_send(module)? };
+        let parse_packet = unsafe { resolve_parse_packet(module)? };
         let shutdown = unsafe { resolve_shutdown(module)? };
         let close = unsafe { resolve_close(module)? };
-        Ok(Self { module, open, recv, send, shutdown, close })
+        Ok(Self { module, open, recv, send, parse_packet, shutdown, close })
     }
 
     pub fn probe(&self) -> Result<(), WinDivertLoadError> {
@@ -216,6 +234,41 @@ impl WinDivertApi {
         unsafe {
             (self.send)(handle, packet.as_ptr().cast(), length, std::ptr::null_mut(), address) != 0
         }
+    }
+
+    #[must_use]
+    pub fn parsed_payload<'packet>(&self, packet: &'packet [u8]) -> Option<&'packet [u8]> {
+        let packet_len = u32::try_from(packet.len()).ok()?;
+        let mut payload = std::ptr::null_mut::<c_void>();
+        let mut payload_len = 0_u32;
+        // SAFETY: the packet buffer stays alive for the full call; every omitted WinDivert parser
+        // output is documented optional, and payload/payload_len are valid writable out parameters.
+        let ok = unsafe {
+            (self.parse_packet)(
+                packet.as_ptr().cast(),
+                packet_len,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut payload,
+                &mut payload_len,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        if ok == 0 || payload.is_null() {
+            return None;
+        }
+        let packet_start = packet.as_ptr() as usize;
+        let payload_start = payload as usize;
+        let offset = payload_start.checked_sub(packet_start)?;
+        let range =
+            windows_payload_range(packet.len(), offset, usize::try_from(payload_len).ok()?)?;
+        Some(&packet[range])
     }
 
     fn shutdown_handle(&self, handle: HANDLE) {
@@ -302,6 +355,15 @@ unsafe fn resolve_send(module: HMODULE) -> Result<SendFn, WinDivertLoadError> {
     let function = unsafe { export(module, b"WinDivertSend\0", "WinDivertSend")? };
     // SAFETY: WinDivertSend has the signature declared in the bundled windivert.h.
     Ok(unsafe { std::mem::transmute::<unsafe extern "system" fn() -> isize, SendFn>(function) })
+}
+
+unsafe fn resolve_parse_packet(module: HMODULE) -> Result<ParsePacketFn, WinDivertLoadError> {
+    let function =
+        unsafe { export(module, b"WinDivertHelperParsePacket\0", "WinDivertHelperParsePacket")? };
+    // SAFETY: WinDivertHelperParsePacket has the signature declared in the bundled windivert.h.
+    Ok(unsafe {
+        std::mem::transmute::<unsafe extern "system" fn() -> isize, ParsePacketFn>(function)
+    })
 }
 
 unsafe fn resolve_shutdown(module: HMODULE) -> Result<ShutdownFn, WinDivertLoadError> {

@@ -332,6 +332,16 @@ pub fn build_windows_windivert_filter(
     format!("{direction} and {target} and {}", windows_protocol_filter(config))
 }
 
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_payload_range(
+    packet_len: usize,
+    payload_offset: usize,
+    payload_len: usize,
+) -> Option<std::ops::Range<usize>> {
+    let end = payload_offset.checked_add(payload_len)?;
+    (payload_offset <= packet_len && end <= packet_len).then_some(payload_offset..end)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WindowsPacketAction {
     Drop,
@@ -637,6 +647,15 @@ mod tests {
             build_windows_windivert_filter(&config, &[], &[], false),
             "(inbound or outbound) and false and false"
         );
+    }
+
+    #[test]
+    fn windows_payload_range_rejects_out_of_packet_parser_results() {
+        assert_eq!(windows_payload_range(100, 20, 30), Some(20..50));
+        assert_eq!(windows_payload_range(100, 100, 0), Some(100..100));
+        assert_eq!(windows_payload_range(100, 101, 0), None);
+        assert_eq!(windows_payload_range(100, 90, 11), None);
+        assert_eq!(windows_payload_range(100, usize::MAX, 2), None);
     }
 
     #[test]
