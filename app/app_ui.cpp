@@ -141,6 +141,11 @@ void ApplyUiParityCaseIfRequested()
     const bool themeDefaultDarkReference = parityCase && std::strcmp(parityCase, "theme-default-dark-user-reference") == 0;
     const bool themeSunsetOrangeReference = parityCase && std::strcmp(parityCase, "theme-sunset-orange-user-reference") == 0;
     const bool themeShellReference = themeCyberpunkIdleReference || themeCyberpunkHoverReference || themeDefaultDarkReference || themeSunsetOrangeReference;
+    const bool adminModalReference = parityCase && std::strcmp(parityCase, "modal-admin-user-reference") == 0;
+    const bool freezeModalReference = parityCase && std::strcmp(parityCase, "modal-freeze-helper-user-reference") == 0;
+    const bool waylandScreenModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-screen-user-reference") == 0;
+    const bool waylandMouseModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0;
+    const bool linuxModalReference = adminModalReference || freezeModalReference || waylandScreenModalReference || waylandMouseModalReference;
     int moduleBodyReferenceSection = -1;
     if (parityCase) {
         if (std::strcmp(parityCase, "module-item-desync-user-reference") == 0) moduleBodyReferenceSection = 1;
@@ -154,7 +159,7 @@ void ApplyUiParityCaseIfRequested()
         else if (std::strcmp(parityCase, "module-floor-bounce-user-reference") == 0) moduleBodyReferenceSection = 14;
     }
     const bool moduleBodyReference = moduleBodyReferenceSection >= 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !moduleBodyReference) {
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !linuxModalReference && !moduleBodyReference) {
         return;
     }
 
@@ -180,7 +185,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || moduleBodyReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || linuxModalReference || moduleBodyReference) {
         selected_section = moduleBodyReference ? moduleBodyReferenceSection :
             (builtinFooterReference ? 0 :
             (tutorialMediaReference ? 9 :
@@ -206,6 +211,7 @@ void ApplyUiParityCaseIfRequested()
         globalzoominreverse = false;
         doublepressafkkey = true;
         show_theme_menu = themeEditorReference;
+        bShowAdminPopup = adminModalReference;
         if (themeDefaultDarkReference) {
             current_theme_index = 0;
         } else if (themeCyberpunkIdleReference || themeCyberpunkHoverReference) {
@@ -1737,7 +1743,9 @@ void RenderLinuxInputSetup(AppContext& context)
 void RenderWaylandScreenCapturePrompt(AppContext& context)
 {
 #if defined(__linux__)
-    if (!context.linuxWaylandScreenCapturePromptPending) {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference = parityCase && std::strcmp(parityCase, "modal-wayland-screen-user-reference") == 0;
+    if (!context.linuxWaylandScreenCapturePromptPending && !parityReference) {
         return;
     }
 
@@ -1781,7 +1789,9 @@ void RenderWaylandScreenCapturePrompt(AppContext& context)
 void RenderWaylandRemoteDesktopPrompt(AppContext& context)
 {
 #if defined(__linux__)
-    if (!context.linuxWaylandRemoteDesktopPromptPending) {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference = parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0;
+    if (!context.linuxWaylandRemoteDesktopPromptPending && !parityReference) {
         return;
     }
 
@@ -1922,7 +1932,9 @@ void RenderMacOSPermissionSetup(AppContext& context)
 void RenderAdministratorRequiredPopup()
 {
 #if defined(_WIN32) || defined(__linux__)
-    if (bShowAdminPopup) {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference = parityCase && std::strcmp(parityCase, "modal-admin-user-reference") == 0;
+    if (bShowAdminPopup || parityReference) {
         ImGui::OpenPopup("Administrator Required");
     }
 
@@ -2001,7 +2013,9 @@ void RenderAdministratorRequiredPopup()
 void RenderPrivilegedFreezeHelperPopup()
 {
 #if defined(__linux__)
-    if (smu::platform::linux::IsPrivilegedFreezeHelperAuthorizationPending()) {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference = parityCase && std::strcmp(parityCase, "modal-freeze-helper-user-reference") == 0;
+    if (smu::platform::linux::IsPrivilegedFreezeHelperAuthorizationPending() || parityReference) {
         ImGui::OpenPopup("Additional Freeze Permission Required");
     }
 
@@ -3965,6 +3979,14 @@ void RenderAppUi(AppContext& context)
             RenderImportTrustModal();
         } else if (parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0) {
             RenderPlatformWarningNotifications();
+        } else if (parityCase && std::strcmp(parityCase, "modal-admin-user-reference") == 0) {
+            RenderAdministratorRequiredPopup();
+        } else if (parityCase && std::strcmp(parityCase, "modal-freeze-helper-user-reference") == 0) {
+            RenderPrivilegedFreezeHelperPopup();
+        } else if (parityCase && std::strcmp(parityCase, "modal-wayland-screen-user-reference") == 0) {
+            RenderWaylandScreenCapturePrompt(context);
+        } else if (parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0) {
+            RenderWaylandRemoteDesktopPrompt(context);
         }
     }
 

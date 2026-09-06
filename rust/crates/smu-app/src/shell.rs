@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use dear_imgui_rs::sys;
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use serde_json::{Map, Value};
 use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
@@ -209,6 +211,17 @@ fn parity_theme_name(case: Option<&str>) -> Option<&'static str> {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn parity_linux_modal(case: Option<&str>) -> Option<LinuxModal> {
+    match case {
+        Some("modal-admin-user-reference") => Some(LinuxModal::LagSwitchHelper),
+        Some("modal-freeze-helper-user-reference") => Some(LinuxModal::FreezeHelper),
+        Some("modal-wayland-screen-user-reference") => Some(LinuxModal::WaylandScreenCapture),
+        Some("modal-wayland-mouse-user-reference") => Some(LinuxModal::WaylandRemoteDesktop),
+        _ => None,
+    }
+}
+
 fn parity_module_body_section(case: Option<&str>) -> Option<i32> {
     match case {
         Some("module-item-desync-user-reference") => Some(1),
@@ -264,6 +277,10 @@ impl ShellState {
         }
         if let Some(name) = parity_theme_name(case) {
             state.theme.select_named_for_parity(name);
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(modal) = parity_linux_modal(case) {
+            state.linux_modals.pending_open.insert(modal);
         }
         state
     }
@@ -1062,6 +1079,41 @@ fn render_linux_input_setup(
 }
 
 #[cfg(target_os = "linux")]
+fn set_next_linux_modal_layout(
+    ui: &Ui,
+    width: f32,
+    position_condition: Condition,
+    constraints: Option<([f32; 2], [f32; 2])>,
+) {
+    let viewport = ui.main_viewport();
+    let pos = viewport.pos();
+    let size = viewport.size();
+    let center = [size[0].mul_add(0.5, pos[0]), size[1].mul_add(0.5, pos[1])];
+    // SAFETY: these configure the immediately following modal Begin while `ui` owns the active
+    // Dear ImGui context for the frame.
+    unsafe {
+        sys::igSetNextWindowPos(
+            sys::ImVec2_c { x: center[0], y: center[1] },
+            position_condition as i32,
+            sys::ImVec2_c { x: 0.5, y: 0.5 },
+        );
+        if let Some((min, max)) = constraints {
+            sys::igSetNextWindowSizeConstraints(
+                sys::ImVec2_c { x: min[0], y: min[1] },
+                sys::ImVec2_c { x: max[0], y: max[1] },
+                None,
+                std::ptr::null_mut(),
+            );
+        } else {
+            sys::igSetNextWindowSize(
+                sys::ImVec2_c { x: width, y: 0.0 },
+                Condition::Appearing as i32,
+            );
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn open_linux_modal(ui: &Ui, state: &mut LinuxModalState, modal: LinuxModal, name: &str) {
     if state.pending_open.remove(&modal) {
         let _ = ui.open_popup(name);
@@ -1098,7 +1150,13 @@ fn render_lag_switch_helper_modal(
         LinuxModal::LagSwitchHelper,
         "Administrator Required",
     );
-    let _popup = ui.begin_modal_popup("Administrator Required")?;
+    set_next_linux_modal_layout(ui, 0.0, Condition::Always, Some(([520.0, 0.0], [720.0, 1000.0])));
+    let mut keep_open = true;
+    let _popup = ui
+        .begin_modal_popup_config("Administrator Required")
+        .opened(&mut keep_open)
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
     ui.text_wrapped("Linux lagswitch features require a privileged nethelper process.");
     ui.text_wrapped("This process involves:");
     ui.bullet_text("Starting the bundled nethelper with pkexec.");
@@ -1118,6 +1176,7 @@ fn render_lag_switch_helper_modal(
         ui.close_current_popup();
         return Some(ShellAction::StartLagSwitchHelper);
     }
+    ui.set_item_default_focus();
     ui.same_line();
     if ui.button_with_size("Cancel", [120.0, 0.0]) {
         ui.close_current_popup();
@@ -1128,16 +1187,20 @@ fn render_lag_switch_helper_modal(
 #[cfg(target_os = "linux")]
 fn render_freeze_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
     open_linux_modal(ui, state, LinuxModal::FreezeHelper, "Additional Freeze Permission Required");
-    let _popup = ui.begin_modal_popup("Additional Freeze Permission Required")?;
+    set_next_linux_modal_layout(ui, 0.0, Condition::Always, Some(([560.0, 0.0], [760.0, 1000.0])));
+    let _popup = ui
+        .begin_modal_popup_config("Additional Freeze Permission Required")
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
     ui.text_wrapped(
         "SMU cannot move Sober's game process into the temporary cgroup used by Freeze with your current Linux permissions.",
     );
-    ui.new_line();
+    ui.spacing();
     ui.text_wrapped(
         "To keep Sober-compatible freezing working, SMU can start its bundled privileged Linux helper with pkexec.",
     );
     ui.text_wrapped("This grants the helper root access for this SMU session.");
-    ui.new_line();
+    ui.spacing();
     ui.bullet_text("The SMU GUI remains running as your normal desktop user.");
     ui.bullet_text("The helper only accepts commands from this exact SMU process.");
     ui.bullet_text("The helper exits when SMU exits; nothing is installed permanently.");
@@ -1149,6 +1212,7 @@ fn render_freeze_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<Sh
         ui.close_current_popup();
         return Some(ShellAction::StartFreezeHelper);
     }
+    ui.set_item_default_focus();
     ui.same_line();
     if ui.button_with_size("Cancel##FreezeHelper", [120.0, 0.0]) {
         ui.close_current_popup();
@@ -1163,7 +1227,13 @@ fn render_wayland_screen_capture_modal(
     state: &mut LinuxModalState,
 ) -> Option<ShellAction> {
     open_linux_modal(ui, state, LinuxModal::WaylandScreenCapture, "Enable Wayland Screen Capture?");
-    let _popup = ui.begin_modal_popup("Enable Wayland Screen Capture?")?;
+    set_next_linux_modal_layout(ui, 560.0, Condition::Appearing, None);
+    let mut keep_open = true;
+    let popup = ui
+        .begin_modal_popup_config("Enable Wayland Screen Capture?")
+        .opened(&mut keep_open)
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
     ui.text_wrapped(
         "A running Lua script called getPixelColor() or getPixelRect(). On Wayland, SMU must ask the desktop portal for permission to capture one monitor.",
     );
@@ -1180,6 +1250,10 @@ fn render_wayland_screen_capture_modal(
         ui.close_current_popup();
         return Some(ShellAction::DeclineWaylandScreenCapture);
     }
+    drop(popup);
+    if !keep_open {
+        return Some(ShellAction::DeclineWaylandScreenCapture);
+    }
     None
 }
 
@@ -1194,7 +1268,13 @@ fn render_wayland_remote_desktop_modal(
         LinuxModal::WaylandRemoteDesktop,
         "Enable Wayland Absolute Mouse Control?",
     );
-    let _popup = ui.begin_modal_popup("Enable Wayland Absolute Mouse Control?")?;
+    set_next_linux_modal_layout(ui, 590.0, Condition::Appearing, None);
+    let mut keep_open = true;
+    let popup = ui
+        .begin_modal_popup_config("Enable Wayland Absolute Mouse Control?")
+        .opened(&mut keep_open)
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
     ui.text_wrapped(
         "A running Lua script called moveMouseAbs(). On Wayland, SMU needs explicit permission to control the pointer and capture one monitor through the desktop portal.",
     );
@@ -1209,6 +1289,10 @@ fn render_wayland_remote_desktop_modal(
     ui.same_line();
     if ui.button("Don't Enable##WaylandRemoteDesktop") {
         ui.close_current_popup();
+        return Some(ShellAction::DeclineWaylandRemoteDesktop);
+    }
+    drop(popup);
+    if !keep_open {
         return Some(ShellAction::DeclineWaylandRemoteDesktop);
     }
     None
@@ -1578,6 +1662,8 @@ fn nudge_footer_y(ui: &Ui) {
 mod profile_adapter_tests {
     #![allow(clippy::expect_used)]
 
+    #[cfg(target_os = "linux")]
+    use super::LinuxModal;
     use super::ShellState;
     use crate::warning_toast;
     use serde_json::{Map, json};
@@ -1749,6 +1835,22 @@ mod profile_adapter_tests {
         ] {
             let state = ShellState::for_parity_case(Some(case));
             assert_eq!(state.theme.active().name, theme_name);
+            assert_eq!(state.selected_section, -1);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_modal_parity_cases_queue_expected_popup() {
+        for (case, modal) in [
+            ("modal-admin-user-reference", LinuxModal::LagSwitchHelper),
+            ("modal-freeze-helper-user-reference", LinuxModal::FreezeHelper),
+            ("modal-wayland-screen-user-reference", LinuxModal::WaylandScreenCapture),
+            ("modal-wayland-mouse-user-reference", LinuxModal::WaylandRemoteDesktop),
+        ] {
+            let state = ShellState::for_parity_case(Some(case));
+            assert_eq!(state.linux_modals.pending_open.len(), 1);
+            assert!(state.linux_modals.pending_open.contains(&modal));
             assert_eq!(state.selected_section, -1);
         }
     }

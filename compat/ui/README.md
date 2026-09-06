@@ -78,7 +78,13 @@ The 1280x800 theme matrix now gates Cyberpunk idle and real sidebar hover plus D
 Sunset Orange. The hover case injects the same mouse position before Dear ImGui `NewFrame` on both
 apps, so it exercises the production `ButtonHovered` path; idle-to-hover changes the same
 (16,152)-(350,197) sidebar region on each implementation. Default Dark masks only three measured
-zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments.
+zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments. Four
+Linux permission/policy modal cases now gate Administrator Required, Additional Freeze Permission
+Required, Wayland Screen Capture, and Wayland Absolute Mouse Control through their real production
+modal renderers with helper/portal side effects left untouched. Rust now mirrors C++'s centering,
+window width/constraints, `AlwaysAutoResize`, close-button behavior, spacing, and default focus. The
+modal cases mask only their measured rounded 6x6 corners; Administrator Required also has one stable
+1x2 dimmed-text threshold fragment at (173,119).
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.
@@ -86,7 +92,10 @@ place and produced the same visible structure.
 ## Required states
 
 Every scale captures the main shell/footer and both sidebar branches (`GetScrollMaxY()==0` and an
-overflowing sidebar). At 1280x800/1x additionally capture Cyberpunk idle/hover, Default Dark,
+overflowing sidebar). The fractional-scale rows remain manual OS/DPI references: under the current
+Xvfb Linux harness, SDL's documented `SDL_VIDEO_X11_SCALING_FACTOR` override produced pixel-identical
+1x and 1.25x captures in both implementations, so marking those rows automated would not exercise the
+real display-scale path. At 1280x800/1x additionally capture Cyberpunk idle/hover, Default Dark,
 Sunset Orange, profile menu, Settings, Theme Editor, import trust/syntax preview, warning toast,
 tutorial media, built-in-module footer, imported-script footer, and Roblox process found/not found.
 
