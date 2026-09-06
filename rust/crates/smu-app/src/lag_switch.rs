@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 use smu_core::Hotkey;
 use smu_profile::payload::PreservedProfilePayload;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use smu_network::{LagSwitchConfig, LagSwitchTargetMode};
 
 const LAG_DURATION_INPUT_WIDTH: f32 = 60.0;
@@ -285,13 +285,17 @@ impl LagSwitchUiState {
         crate::profile_adapter::insert_bool(overlay, "show_lag_overlay", self.overlay.shown);
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[must_use]
     pub fn controller_settings(
         &self,
         macro_enabled: bool,
     ) -> crate::lag_switch_runtime::LagSwitchControllerSettings {
         let unblock_duration_ms = self.auto_unlag.unblock_ms_text.parse::<i32>().unwrap_or(0);
+        #[cfg(target_os = "windows")]
+        let prevent_disconnect = self.prevent_disconnect;
+        #[cfg(target_os = "linux")]
+        let prevent_disconnect = false;
         crate::lag_switch_runtime::LagSwitchControllerSettings {
             macro_enabled,
             section_enabled: self.enabled,
@@ -309,7 +313,7 @@ impl LagSwitchUiState {
                 target_roblox_only: self.filter.roblox_only,
                 use_udp: true,
                 use_tcp: self.filter.use_tcp,
-                prevent_disconnect: false,
+                prevent_disconnect,
                 auto_unblock: self.auto_unlag.enabled,
                 max_duration_seconds: self.auto_unlag.max_duration_seconds,
                 unblock_duration_ms,

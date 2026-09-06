@@ -652,7 +652,6 @@ impl ShellState {
         &mut self.script_ui
     }
 
-    #[cfg(target_os = "linux")]
     #[must_use]
     pub fn process_selector(&self) -> String {
         self.global.process_selector()
@@ -874,7 +873,7 @@ impl ShellState {
         )
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[must_use]
     pub fn lag_switch_controller_settings(
         &self,
@@ -882,7 +881,7 @@ impl ShellState {
         self.lag_switch.controller_settings(self.macro_runtime_enabled())
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     pub const fn set_lag_switch_backend(&mut self, backend: crate::lag_switch::BackendState) {
         self.lag_switch.backend = backend;
     }

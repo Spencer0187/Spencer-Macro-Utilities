@@ -1,4 +1,4 @@
-//! Live Linux Lag Switch controller vertical slice.
+//! Live Windows/Linux Lag Switch controller vertical slice.
 //!
 //! The controller retains the legacy 2 ms polling cadence and owns hotkey edge/config-cache state.
 //! It performs no blocking packet work; the native network service owns packet interception and its

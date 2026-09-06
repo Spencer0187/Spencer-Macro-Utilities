@@ -337,12 +337,14 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("discovery.find_main_process(selector)", service)
         self.assertIn("parity_override", service)
 
-    def test_smu_app_keeps_portable_script_profile_dependencies_outside_linux_cfg(self) -> None:
+    def test_smu_app_keeps_portable_dependencies_global_and_network_runtime_platform_scoped(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
         )
         dependencies = manifest["dependencies"]
-        linux_dependencies = manifest["target"]["cfg(target_os = \"linux\")"]["dependencies"]
+        targets = manifest["target"]
+        linux_dependencies = targets["cfg(target_os = \"linux\")"]["dependencies"]
+        windows_dependencies = targets["cfg(target_os = \"windows\")"]["dependencies"]
         for name in (
             "smu-core",
             "smu-display",
@@ -352,8 +354,42 @@ class RustLinuxStagingTest(unittest.TestCase):
             "smu-scripting",
         ):
             self.assertIn(name, dependencies)
-        for name in ("smu-core", "smu-display", "smu-input", "smu-process", "smu-scripting"):
             self.assertNotIn(name, linux_dependencies)
+            self.assertNotIn(name, windows_dependencies)
+        for name in ("smu-network", "smu-roblox", "smu-runtime"):
+            self.assertNotIn(name, dependencies)
+            self.assertIn(name, linux_dependencies)
+            self.assertIn(name, windows_dependencies)
+
+    def test_windows_lag_switch_app_wiring_shares_native_backend_and_preserves_ui_flag_split(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        lag_switch = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch.rs"
+        ).read_text(encoding="utf-8")
+        runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch_runtime.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "struct WindowsLagSwitchServices",
+            "WindowsLagSwitchBackend::new",
+            "Some(lag_switch.script_network())",
+            "Some(lag_switch.roblox_log())",
+            "windows_lag_switch.prepare_shell(shell_state);",
+            "windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);",
+            "windows_lag_switch.shutdown();",
+            "self.backend.set_process_target(selector, take_all_process_ids);",
+        ):
+            self.assertIn(expected, main)
+        self.assertIn(
+            '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn controller_settings(',
+            lag_switch,
+        )
+        self.assertIn("let prevent_disconnect = self.prevent_disconnect;", lag_switch)
+        self.assertIn("let prevent_disconnect = false;", lag_switch)
+        self.assertNotIn("backend_enabled.store(initialized, Ordering::Release);", runtime)
 
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:
         self.assertEqual(

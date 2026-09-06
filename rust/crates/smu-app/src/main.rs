@@ -7,11 +7,10 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "linux")]
-use std::sync::{
-    Mutex, MutexGuard,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Mutex, MutexGuard};
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
 
@@ -31,13 +30,17 @@ use script_app_service::ScriptAppServices;
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
 #[cfg(target_os = "linux")]
 use smu_input::linux::EvdevUinputInputDevice;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use smu_network::LagSwitchControl;
 #[cfg(target_os = "linux")]
-use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
+use smu_network::linux::LinuxLagSwitchBackend;
+#[cfg(target_os = "windows")]
+use smu_network::windows::WindowsLagSwitchBackend;
 #[cfg(target_os = "linux")]
 use smu_process::linux::{
     ProcCgroupProcessControl, ProcDiscovery, ProcForegroundProcess, UnixFreezeHelper,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
 
@@ -68,7 +71,7 @@ mod item_unequip;
 mod item_unequip_runtime;
 mod keybind;
 mod lag_switch;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod lag_switch_runtime;
 mod laugh_clip;
 #[cfg(target_os = "linux")]
@@ -1119,6 +1122,8 @@ fn start_portable_script_app(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
     parity_case: Option<&str>,
+    #[cfg(target_os = "windows")] network: Option<Arc<dyn LagSwitchControl>>,
+    #[cfg(target_os = "windows")] roblox_log: Option<Arc<dyn RobloxLogSource>>,
 ) -> ScriptAppServices {
     let (selector, take_all_process_ids) = shell_state.script_process_target();
     let mut config = ScriptManagerConfig::new(app_version());
@@ -1139,6 +1144,8 @@ fn start_portable_script_app(
                 display: Some(display),
                 process_discovery: Some(process_discovery),
                 process_control: Some(process_control),
+                network,
+                roblox_log,
                 saved_settings: Some(saved_settings.clone()),
                 ..ScriptServices::default()
             }
@@ -1156,6 +1163,116 @@ fn start_portable_script_app(
         saved_settings,
         parity_case == Some("imported-script-footer-user-reference"),
     )
+}
+
+#[cfg(target_os = "windows")]
+fn start_windows_script_app(
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    shell_state: &shell::ShellState,
+    parity_case: Option<&str>,
+    lag_switch: &WindowsLagSwitchServices,
+) -> ScriptAppServices {
+    start_portable_script_app(
+        saved_settings,
+        shell_state,
+        parity_case,
+        Some(lag_switch.script_network()),
+        Some(lag_switch.roblox_log()),
+    )
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsLagSwitchServices {
+    backend: Arc<WindowsLagSwitchBackend>,
+    enabled: Arc<AtomicBool>,
+    roblox_log: Arc<dyn RobloxLogSource>,
+    controller: lag_switch_runtime::LagSwitchController,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsLagSwitchServices {
+    fn new(shell_state: &shell::ShellState) -> Self {
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> =
+            Arc::new(smu_process::windows::WindowsProcessBackend::new());
+        let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
+        let backend =
+            Arc::new(WindowsLagSwitchBackend::new(discovery, Some(Arc::clone(&roblox_log))));
+        let (selector, take_all_process_ids) = shell_state.script_process_target();
+        backend.set_process_target(selector, take_all_process_ids);
+        let enabled = Arc::new(AtomicBool::new(false));
+        let input: Arc<dyn smu_input::KeyState> =
+            Arc::new(smu_input::windows::WindowsKeyState::new());
+        let control: Arc<dyn LagSwitchControl> = backend.clone();
+        let controller = lag_switch_runtime::LagSwitchController::start(
+            input,
+            control,
+            Arc::clone(&enabled),
+            shell_state.lag_switch_controller_settings(),
+        );
+        Self { backend, enabled, roblox_log, controller }
+    }
+
+    fn script_network(&self) -> Arc<dyn LagSwitchControl> {
+        self.backend.clone()
+    }
+
+    fn roblox_log(&self) -> Arc<dyn RobloxLogSource> {
+        Arc::clone(&self.roblox_log)
+    }
+
+    fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        shell_state.set_lag_switch_backend(lag_switch::BackendState {
+            enabled: self.enabled.load(Ordering::Acquire),
+            available: self.backend.is_available(),
+            actively_lagging: self.backend.is_blocking_active(),
+        });
+        if self.controller.take_helper_prompt_request() {
+            self.report_init_failure(shell_state);
+        }
+    }
+
+    fn finish_shell(
+        &self,
+        action: Option<&shell::ShellAction>,
+        shell_state: &mut shell::ShellState,
+    ) {
+        self.controller.update_settings(shell_state.lag_switch_controller_settings());
+        let (selector, take_all_process_ids) = shell_state.script_process_target();
+        self.backend.set_process_target(selector, take_all_process_ids);
+        if action == Some(&shell::ShellAction::ToggleLagSwitchBackend) {
+            self.handle_toggle(shell_state);
+        }
+    }
+
+    fn handle_toggle(&self, shell_state: &mut shell::ShellState) {
+        if self.enabled.load(Ordering::Acquire) {
+            self.backend.shutdown();
+            self.enabled.store(false, Ordering::Release);
+            return;
+        }
+        self.backend.set_base_config(shell_state.lag_switch_controller_settings().config);
+        let initialized = self.backend.init();
+        self.enabled.store(initialized, Ordering::Release);
+        if !initialized {
+            self.report_init_failure(shell_state);
+        }
+    }
+
+    fn report_init_failure(&self, shell_state: &mut shell::ShellState) {
+        let reason = self.backend.unsupported_reason();
+        let message = if reason.is_empty() {
+            "WinDivert could not be initialized.".to_owned()
+        } else {
+            format!("WinDivert could not be initialized: {reason}")
+        };
+        shell_state.push_warning(message);
+    }
+
+    fn shutdown(&self) {
+        self.controller.stop();
+        self.backend.shutdown();
+        self.enabled.store(false, Ordering::Release);
+    }
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -1835,6 +1952,17 @@ fn show_root_launch_error() {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn reject_root_gui_launch(parity_capture: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // SAFETY: `geteuid` has no preconditions and does not access caller-owned memory.
+    let effective_uid = unsafe { libc::geteuid() };
+    if !root_launch_refused(effective_uid, parity_capture) {
+        return Ok(());
+    }
+    show_root_launch_error();
+    Err(std::io::Error::other(ROOT_LAUNCH_MESSAGE).into())
+}
+
 fn initialize_sdl()
 -> Result<(sdl3::Sdl, sdl3::VideoSubsystem, sdl3::EventPump), Box<dyn std::error::Error>> {
     let sdl = sdl3::init()?;
@@ -1843,6 +1971,20 @@ fn initialize_sdl()
     enable_native_ime_ui();
     configure_gl_attributes(&video);
     Ok((sdl, video, events))
+}
+
+fn initialize_opengl(
+    video: &sdl3::VideoSubsystem,
+    window: &Window,
+) -> Result<sdl3::video::GLContext, Box<dyn std::error::Error>> {
+    let gl_context = window.gl_create_context()?;
+    window.gl_make_current(&gl_context)?;
+    gl::load_with(|symbol| {
+        video
+            .gl_get_proc_address(symbol)
+            .map_or(ptr::null(), |function| (function as *const ()).cast::<c_void>())
+    });
+    Ok(gl_context)
 }
 
 #[cfg(target_os = "windows")]
@@ -1906,6 +2048,8 @@ struct UiLoopContext<'a> {
     portable_script_runtime: Option<&'a script_runtime::ScriptRuntimeController>,
     #[cfg(target_os = "linux")]
     linux_services: &'a LinuxRuntimeServices,
+    #[cfg(target_os = "windows")]
+    windows_lag_switch: &'a WindowsLagSwitchServices,
 }
 
 fn stabilize_parity_delta_time(imgui: &mut Context, capture_path: Option<&Path>) {
@@ -1925,6 +2069,19 @@ fn prepare_parity_frame(imgui: &mut Context, capture_path: Option<&Path>) {
     stabilize_parity_delta_time(imgui, capture_path);
 }
 
+fn prepare_shared_shell_frame(
+    profile_service: &profile_service::ProfileBrowserService,
+    script_app: &ScriptAppServices,
+    shell_state: &mut shell::ShellState,
+) {
+    profile_service.prepare_shell(shell_state.profile_browser_mut());
+    #[cfg(target_os = "windows")]
+    smu_input::windows::set_display_scale_percent(shell_state.display_scale());
+    script_app.prepare_ui(shell_state.script_ui_mut());
+    shell_state
+        .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
+}
+
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
         events,
@@ -1940,6 +2097,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         portable_script_runtime,
         #[cfg(target_os = "linux")]
         linux_services,
+        #[cfg(target_os = "windows")]
+        windows_lag_switch,
     } = context;
 
     let mut rendered_frames = 0_u32;
@@ -1959,14 +2118,11 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         prepare_parity_frame(imgui, capture_path);
         let frame = imgui.begin_frame();
         let ui = frame.ui();
-        profile_service.prepare_shell(shell_state.profile_browser_mut());
-        #[cfg(target_os = "windows")]
-        smu_input::windows::set_display_scale_percent(shell_state.display_scale());
-        script_app.prepare_ui(shell_state.script_ui_mut());
-        shell_state
-            .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
+        prepare_shared_shell_frame(profile_service, script_app, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(shell_state);
+        #[cfg(target_os = "windows")]
+        windows_lag_switch.prepare_shell(shell_state);
         let selector = shell_state.process_selector();
         shell_state.set_process_found(process_status.found(&selector));
         maybe_autosave_profile_selection(profile_service, shell_state, window, script_app);
@@ -2001,6 +2157,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         }
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        #[cfg(target_os = "windows")]
+        windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);
         if let Some(shell::ShellAction::Script(script_action)) = shell_action.as_ref()
             && script_app.handle_action(script_action, shell_state.script_ui_mut(), window)
         {
@@ -2049,17 +2207,19 @@ fn initialize_imgui(
     Ok(imgui)
 }
 
+fn apply_initial_script_profile(
+    script_app: &ScriptAppServices,
+    profile_service: &profile_service::ProfileBrowserService,
+) {
+    if let Some(payload) = profile_service.current_payload() {
+        script_app.apply_profile(payload);
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     #[cfg(target_os = "linux")]
-    {
-        // SAFETY: `geteuid` has no preconditions and does not access caller-owned memory.
-        let effective_uid = unsafe { libc::geteuid() };
-        if root_launch_refused(effective_uid, parity_case.is_some()) {
-            show_root_launch_error();
-            return Err(std::io::Error::other(ROOT_LAUNCH_MESSAGE).into());
-        }
-    }
+    reject_root_gui_launch(parity_case.is_some())?;
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let (mut shell_state, mut profile_service) = initial_profile_state(parity_case.as_deref());
     let saved_settings = initial_saved_settings(&profile_service);
@@ -2069,13 +2229,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut window =
         create_initial_window(&video, parity_case.as_deref(), &profile_service, &shell_state)?;
 
-    let gl_context = window.gl_create_context()?;
-    window.gl_make_current(&gl_context)?;
-    gl::load_with(|symbol| {
-        video
-            .gl_get_proc_address(symbol)
-            .map_or(ptr::null(), |function| (function as *const ()).cast::<c_void>())
-    });
+    let gl_context = initialize_opengl(&video, &window)?;
 
     let mut imgui = initialize_imgui(&mut shell_state, parity_case.as_deref())?;
 
@@ -2100,7 +2254,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let process_status = &portable_process_status;
     #[cfg(target_os = "linux")]
     let script_app = linux_services.script_app();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    let windows_lag_switch = WindowsLagSwitchServices::new(&shell_state);
+    #[cfg(target_os = "windows")]
+    let portable_script_app = start_windows_script_app(
+        Arc::clone(&saved_settings),
+        &shell_state,
+        parity_case.as_deref(),
+        &windows_lag_switch,
+    );
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
     let portable_script_app = start_portable_script_app(
         Arc::clone(&saved_settings),
         &shell_state,
@@ -2108,9 +2271,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     #[cfg(not(target_os = "linux"))]
     let script_app = &portable_script_app;
-    if let Some(payload) = profile_service.current_payload() {
-        script_app.apply_profile(payload);
-    }
+    apply_initial_script_profile(script_app, &profile_service);
     #[cfg(not(target_os = "linux"))]
     let portable_script_runtime = start_portable_script_runtime(script_app, &shell_state);
     #[cfg(target_os = "linux")]
@@ -2141,6 +2302,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         process_status,
         script_app,
         portable_script_runtime: portable_script_runtime.as_ref(),
+        #[cfg(target_os = "windows")]
+        windows_lag_switch: &windows_lag_switch,
     })?;
 
     save_profiles_before_shutdown(
@@ -2157,6 +2320,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(controller) = portable_script_runtime.as_ref() {
         controller.stop();
     }
+    #[cfg(target_os = "windows")]
+    windows_lag_switch.shutdown();
     script_app.shutdown();
 
     Ok(())

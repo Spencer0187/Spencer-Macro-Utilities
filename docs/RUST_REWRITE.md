@@ -302,12 +302,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   worker, and rebuilds the live capture when those targets change. The process-port path uses the
   shared Windows process backend and preserves C++'s main/all-PID selection, network-order port swap,
   sorted/deduplicated port set, and Roblox-target precedence. WinDivert `ERROR_INVALID_PARAMETER`
-  recovery also mirrors C++ by dropping sticky dynamic Roblox IPs before retrying the filter. Windows
-  Rust packaging of WinDivert assets and `smu-app` backend wiring are still missing; macOS still lacks
-  its native Rust adapters.
-  Those integrations plus Windows/macOS C++ entry-point
-  removal remain the cross-platform
-  rewrite gates.
+  recovery also mirrors C++ by dropping sticky dynamic Roblox IPs before retrying the filter. `smu-app`
+  now composes that backend on Windows too: one shared backend/log reader feeds both the built-in 2 ms
+  Lag Switch controller and imported-script `ScriptServices`, process-target changes propagate into the
+  backend, the Windows UI owns manual initialize/shutdown plus status/warnings, and app shutdown stops
+  the controller before tearing down WinDivert. Hotkey initialization still deliberately leaves the
+  separate C++-compatibility enabled flag unchanged; manual UI initialization is the only newly wired
+  path that claims that state in this slice. Script-side cold initialization still needs its separate
+  C++-parity handoff. Windows Rust packaging of `SMCWinDivert.dll` / `SMCWinDivert64.sys` is still
+  missing, and macOS still lacks its native Rust adapters. Those integrations plus Windows/macOS C++
+  entry-point removal remain the cross-platform rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

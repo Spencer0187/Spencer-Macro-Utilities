@@ -23,8 +23,13 @@ sdl3.workspace = true
 workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-smu-updater = { path = "../smu-updater", version = "=0.0.0" }
-smu-runtime = { path = "../smu-runtime", version = "=0.0.0" }
-libc.workspace = true
 smu-network = { path = "../smu-network", version = "=0.0.0" }
 smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
+smu-runtime = { path = "../smu-runtime", version = "=0.0.0" }
+smu-updater = { path = "../smu-updater", version = "=0.0.0" }
+libc.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+smu-network = { path = "../smu-network", version = "=0.0.0" }
+smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
+smu-runtime = { path = "../smu-runtime", version = "=0.0.0" }
