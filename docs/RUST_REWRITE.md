@@ -287,10 +287,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reset quirk all have host-executable tests. The fake-lag sender's FIFO/deadline and shutdown semantics
   are frozen in a host-tested queue worker too, including C++'s front-of-deque behavior when a later
   packet has an earlier deadline. That queue worker now compiles on Windows as a crate-internal
-  production primitive with `start`/`enqueue`/`stop`; live WinDivert handle wiring for that sender,
-  packet capture/
-  reinjection threads, dynamic target refresh, Windows Rust packaging of those assets, and `smu-app` backend wiring
-  are still missing;
+  production primitive with `start`/`enqueue`/`stop`, and live WinDivert handle ownership is wired for
+  delayed reinjection: shared handles keep both the DLL module and WinDivert handle alive across the
+  sender thread and shut down/close only after the final owner drops. Packet capture/reinjection worker
+  orchestration, dynamic target refresh, Windows Rust packaging of those assets, and `smu-app` backend
+  wiring are still missing;
   macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform

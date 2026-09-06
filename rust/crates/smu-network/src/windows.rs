@@ -1,9 +1,11 @@
-use crate::windows_payload_range;
+use crate::{windows_delay::WindowsDelayedSender, windows_payload_range};
 use std::{
     env,
     ffi::{CString, c_void},
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
 };
 use windows_sys::Win32::{
     Foundation::{FreeLibrary, GetLastError, HANDLE, HMODULE, INVALID_HANDLE_VALUE},
@@ -137,7 +139,7 @@ type ShutdownFn = unsafe extern "system" fn(HANDLE, i32) -> i32;
 type CloseFn = unsafe extern "system" fn(HANDLE) -> i32;
 
 pub struct WinDivertApi {
-    module: HMODULE,
+    module: usize,
     open: OpenFn,
     recv: RecvFn,
     send: SendFn,
@@ -185,7 +187,7 @@ impl WinDivertApi {
         let parse_packet = unsafe { resolve_parse_packet(module)? };
         let shutdown = unsafe { resolve_shutdown(module)? };
         let close = unsafe { resolve_close(module)? };
-        Ok(Self { module, open, recv, send, parse_packet, shutdown, close })
+        Ok(Self { module: module as usize, open, recv, send, parse_packet, shutdown, close })
     }
 
     pub fn probe(&self) -> Result<(), WinDivertLoadError> {
@@ -209,6 +211,14 @@ impl WinDivertApi {
         // SAFETY: the pointer is valid NUL-terminated storage for the duration of the call.
         let handle = unsafe { (self.open)(filter.as_ptr().cast(), WINDIVERT_LAYER_NETWORK, 0, 0) };
         OwnedWinDivertHandle::new(self, handle)
+    }
+
+    #[must_use]
+    pub fn open_filter_shared(self: &Arc<Self>, filter: &str) -> Option<SharedWinDivertHandle> {
+        let filter = CString::new(filter).ok()?;
+        // SAFETY: the pointer is valid NUL-terminated storage for the duration of the call.
+        let handle = unsafe { (self.open)(filter.as_ptr().cast(), WINDIVERT_LAYER_NETWORK, 0, 0) };
+        SharedWinDivertHandle::new(Arc::clone(self), handle)
     }
 
     pub fn recv(
@@ -288,10 +298,10 @@ impl WinDivertApi {
 
 impl Drop for WinDivertApi {
     fn drop(&mut self) {
-        // SAFETY: the module is owned by this API object and all owned handles borrow `self`, so they
-        // cannot outlive the module.
+        // SAFETY: `module` stores the pointer-sized HMODULE value returned by LoadLibraryW. Shared
+        // handle owners keep an Arc<WinDivertApi>, so the module cannot unload while they are alive.
         unsafe {
-            let _ = FreeLibrary(self.module);
+            let _ = FreeLibrary(self.module as HMODULE);
         }
     }
 }
@@ -326,6 +336,74 @@ impl Drop for OwnedWinDivertHandle<'_> {
     fn drop(&mut self) {
         self.api.shutdown_handle(self.raw);
         self.api.close_handle(self.raw);
+    }
+}
+
+pub struct SharedWinDivertHandle {
+    api: Arc<WinDivertApi>,
+    raw: usize,
+}
+
+impl std::fmt::Debug for SharedWinDivertHandle {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("SharedWinDivertHandle").finish_non_exhaustive()
+    }
+}
+
+impl SharedWinDivertHandle {
+    fn new(api: Arc<WinDivertApi>, raw: HANDLE) -> Option<Self> {
+        (!raw.is_null() && raw != INVALID_HANDLE_VALUE).then_some(Self { api, raw: raw as usize })
+    }
+
+    #[must_use]
+    pub fn raw(&self) -> HANDLE {
+        self.raw as HANDLE
+    }
+
+    pub fn shutdown(&self) {
+        self.api.shutdown_handle(self.raw());
+    }
+
+    pub fn send(&self, packet: &[u8], address: &WinDivertAddress) -> bool {
+        self.api.send(self.raw(), packet, address)
+    }
+}
+
+impl Drop for SharedWinDivertHandle {
+    fn drop(&mut self) {
+        self.api.shutdown_handle(self.raw());
+        self.api.close_handle(self.raw());
+    }
+}
+
+#[derive(Debug)]
+struct DelayedWinDivertPacket {
+    data: Vec<u8>,
+    address: WinDivertAddress,
+}
+
+#[derive(Debug)]
+pub struct WinDivertDelayedPacketSender {
+    sender: WindowsDelayedSender<DelayedWinDivertPacket>,
+}
+
+impl WinDivertDelayedPacketSender {
+    pub fn start(handle: Arc<SharedWinDivertHandle>) -> Self {
+        let sender = WindowsDelayedSender::start(move |packet: DelayedWinDivertPacket| {
+            let _ = handle.send(&packet.data, &packet.address);
+        });
+        Self { sender }
+    }
+
+    pub(crate) fn enqueue(&self, packet: &[u8], address: WinDivertAddress, delay_ms: u64) -> bool {
+        self.sender.enqueue(
+            DelayedWinDivertPacket { data: packet.to_vec(), address },
+            Duration::from_millis(delay_ms),
+        )
+    }
+
+    pub(crate) fn stop(&self) {
+        self.sender.stop();
     }
 }
 

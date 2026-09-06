@@ -261,6 +261,11 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("pub fn start", delayed)
         self.assertIn("pub fn enqueue", delayed)
         self.assertIn("pub fn stop", delayed)
+        self.assertIn("pub struct SharedWinDivertHandle", windows)
+        self.assertIn("pub struct WinDivertDelayedPacketSender", windows)
+        self.assertIn("open_filter_shared", windows)
+        self.assertIn("Arc<SharedWinDivertHandle>", windows)
+        self.assertIn("WindowsDelayedSender<DelayedWinDivertPacket>", windows)
         self.assertIn("assert_eq!(std::mem::size_of::<WinDivertAddress>(), 80);", windows)
         for export in (
             "WinDivertOpen",
