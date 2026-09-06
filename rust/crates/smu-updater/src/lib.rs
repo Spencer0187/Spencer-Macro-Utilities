@@ -12,6 +12,7 @@ mod linux_install;
 #[cfg(target_os = "windows")]
 mod windows;
 mod windows_bundle;
+mod windows_replace;
 
 pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
@@ -33,6 +34,9 @@ pub use windows::{
     require_matching_authenticode_signer, verify_authenticode_signature,
 };
 pub use windows_bundle::{WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle};
+pub use windows_replace::{
+    WindowsReplacementError, WindowsReplacementTransaction, replace_windows_bundle_tree,
+};
 
 pub const LATEST_RELEASE_PAGE_URL: &str =
     "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest";

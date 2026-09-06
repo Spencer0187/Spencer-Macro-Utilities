@@ -151,8 +151,106 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
     Ok(files)
 }
 
-fn destination_path(root: &Path, relative: &str) -> PathBuf {
+pub fn destination_path(root: &Path, relative: &str) -> PathBuf {
     relative.split('/').fold(root.to_path_buf(), |path, part| path.join(part))
+}
+
+fn tree_relative_name(root: &Path, path: &Path) -> Result<String, WindowsBundleError> {
+    let relative = path.strip_prefix(root).map_err(|_| {
+        WindowsBundleError::new("Windows update staging tree escaped the expected package root.")
+    })?;
+    let mut parts = Vec::new();
+    for component in relative.components() {
+        let value = component.as_os_str().to_str().ok_or_else(|| {
+            WindowsBundleError::new("Windows update staging tree contains a non-UTF-8 path.")
+        })?;
+        if value.is_empty() || matches!(value, "." | "..") {
+            return Err(WindowsBundleError::new(
+                "Windows update staging tree contains an unsafe path.",
+            ));
+        }
+        parts.push(value);
+    }
+    Ok(parts.join("/"))
+}
+
+pub fn validate_windows_bundle_tree(
+    package_root: &Path,
+) -> Result<Vec<String>, WindowsBundleError> {
+    if !package_root.is_dir()
+        || package_root.file_name().and_then(|value| value.to_str()) != Some(WINDOWS_BUNDLE_ROOT)
+    {
+        return Err(WindowsBundleError::new(
+            "Windows update staging tree does not use the expected package root.",
+        ));
+    }
+    let mut pending = vec![package_root.to_path_buf()];
+    let mut files = BTreeSet::new();
+    let mut total_size = 0_u64;
+    while let Some(directory) = pending.pop() {
+        let entries = fs::read_dir(&directory).map_err(|error| {
+            WindowsBundleError::new(format!(
+                "Could not inspect the Windows update staging tree: {error}"
+            ))
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                WindowsBundleError::new(format!(
+                    "Could not inspect a Windows update staging entry: {error}"
+                ))
+            })?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path).map_err(|error| {
+                WindowsBundleError::new(format!(
+                    "Could not inspect Windows update staging metadata: {error}"
+                ))
+            })?;
+            if metadata.file_type().is_symlink() {
+                return Err(WindowsBundleError::new(
+                    "Windows update staging tree contains a symbolic link.",
+                ));
+            }
+            if metadata.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if !metadata.is_file() {
+                return Err(WindowsBundleError::new(
+                    "Windows update staging tree contains a non-regular entry.",
+                ));
+            }
+            let relative = tree_relative_name(package_root, &path)?;
+            if !bundle_path_allowed(&relative) {
+                return Err(WindowsBundleError::new(format!(
+                    "Windows update staging tree contains an unexpected file: {relative}"
+                )));
+            }
+            if !files.insert(relative) || files.len() > MAXIMUM_BUNDLE_ENTRIES {
+                return Err(WindowsBundleError::new(
+                    "Windows update staging tree contains too many or duplicate files.",
+                ));
+            }
+            total_size = total_size.checked_add(metadata.len()).ok_or_else(|| {
+                WindowsBundleError::new("Windows update staging tree size overflowed.")
+            })?;
+            if total_size > MAXIMUM_UPDATE_BYTES {
+                return Err(WindowsBundleError::new(
+                    "Windows update staging tree exceeds the 512 MiB expanded-size limit.",
+                ));
+            }
+        }
+    }
+    for required in REQUIRED_FILES {
+        let path = destination_path(package_root, required);
+        if !files.contains(*required)
+            || path.metadata().map(|value| value.len()).unwrap_or_default() == 0
+        {
+            return Err(WindowsBundleError::new(format!(
+                "Windows update staging tree is missing a non-empty required runtime file: {required}"
+            )));
+        }
+    }
+    Ok(files.into_iter().collect())
 }
 
 /// Validate and extract a Rust Windows update bundle into a clean staging directory.

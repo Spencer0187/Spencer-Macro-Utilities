@@ -369,9 +369,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   also now owns the C++ Authenticode trust primitives: WinTrust validates each executable's chain and
   revocation state, Crypt32 extracts the signer certificate SHA-256 fingerprint, and the public
   same-signer operation first verifies both executables before comparing their signer fingerprints.
-  Auto-apply remains off because the Rust bundle contains side-loaded runtime siblings and the repository
-  `SMCWinDivert.dll` is currently unsigned; production signing/publishing must establish a bundle-wide
-  trust policy before the replacement launcher can be enabled. macOS still lacks its native Rust adapters.
+  The updater also now owns a platform-neutral multi-file replacement transaction for the validated staged
+  tree. It copies each managed file through a unique same-directory temporary file, moves overwritten files
+  into a fresh rollback directory inside the installation root, rejects symlink/non-regular targets and
+  overlapping staging/install roots, preserves user files outside the frozen bundle layout, and can commit
+  or reverse the complete transaction; unit tests cover successful commit, explicit rollback, and automatic
+  rollback after a mid-update filesystem collision. Auto-apply remains off because the Rust bundle contains
+  side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned; production
+  signing/publishing must establish a bundle-wide trust policy before the replacement launcher can be
+  enabled. macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
