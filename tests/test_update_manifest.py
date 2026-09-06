@@ -67,6 +67,31 @@ class UpdateManifestTests(unittest.TestCase):
                 self.assertEqual(contract["size"], len(payload))
                 self.assertEqual(contract["sha256"], hashlib.sha256(payload).hexdigest())
 
+    def test_rust_windows_validation_can_override_and_isolate_manifest_asset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            release_dir = Path(temp_dir)
+            filename = "Spencer-Macro-Utilities-Rust-Windows-unsigned.zip"
+            payload = b"rust-windows-bundle"
+            (release_dir / filename).write_bytes(payload)
+
+            manifest = MANIFEST.build_manifest(
+                release_dir,
+                "3.4.0",
+                windows_asset=filename,
+                only_platform="windows-x64",
+            )
+
+            self.assertEqual(set(manifest["artifacts"]), {"windows-x64"})
+            contract = manifest["artifacts"]["windows-x64"]
+            self.assertEqual(contract["asset"], filename)
+            self.assertEqual(contract["size"], len(payload))
+            self.assertEqual(contract["sha256"], hashlib.sha256(payload).hexdigest())
+
+    def test_asset_override_rejects_paths(self) -> None:
+        for invalid in ("", "../update.zip", "nested/update.zip", ".", ".."):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                MANIFEST.update_assets("3.4.0", invalid)
+
     def test_missing_official_asset_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             release_dir = Path(temp_dir)

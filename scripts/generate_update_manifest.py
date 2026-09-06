@@ -37,6 +37,19 @@ def official_update_assets(version: str) -> dict[str, str]:
     }
 
 
+def validate_asset_name(value: str) -> str:
+    if not value or Path(value).name != value or value in {".", ".."}:
+        raise ValueError("update asset override must be a plain filename")
+    return value
+
+
+def update_assets(version: str, windows_asset: str | None = None) -> dict[str, str]:
+    assets = official_update_assets(version)
+    if windows_asset is not None:
+        assets["windows-x64"] = validate_asset_name(windows_asset)
+    return assets
+
+
 def file_contract(path: Path) -> dict[str, object]:
     if not path.is_file():
         raise FileNotFoundError(f"required updater asset is missing: {path.name}")
@@ -54,11 +67,21 @@ def file_contract(path: Path) -> dict[str, object]:
     }
 
 
-def build_manifest(release_dir: Path, version: str) -> dict[str, object]:
+def build_manifest(
+    release_dir: Path,
+    version: str,
+    windows_asset: str | None = None,
+    only_platform: str | None = None,
+) -> dict[str, object]:
     version = validate_version(version)
+    selected = update_assets(version, windows_asset)
+    if only_platform is not None:
+        if only_platform not in selected:
+            raise ValueError(f"unsupported update platform: {only_platform}")
+        selected = {only_platform: selected[only_platform]}
     artifacts = {
         key: file_contract(release_dir / filename)
-        for key, filename in official_update_assets(version).items()
+        for key, filename in selected.items()
     }
     return {
         "schema_version": SCHEMA_VERSION,
@@ -73,12 +96,22 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--release-dir", type=Path, required=True)
     result.add_argument("--version", required=True)
     result.add_argument("--output", type=Path, required=True)
+    result.add_argument("--windows-asset")
+    result.add_argument(
+        "--only-platform",
+        choices=("windows-x64", "linux-x86_64", "macos-universal"),
+    )
     return result
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    manifest = build_manifest(args.release_dir, args.version)
+    manifest = build_manifest(
+        args.release_dir,
+        args.version,
+        windows_asset=args.windows_asset,
+        only_platform=args.only_platform,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0

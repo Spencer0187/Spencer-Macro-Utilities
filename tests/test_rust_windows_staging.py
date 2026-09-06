@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import tomllib
 import unittest
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "stage_rust_windows_app.py"
@@ -11,6 +12,14 @@ SPEC = importlib.util.spec_from_file_location("stage_rust_windows_app", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+PACKAGE_SCRIPT = ROOT / "scripts" / "package_rust_windows_bundle.py"
+PACKAGE_SPEC = importlib.util.spec_from_file_location(
+    "package_rust_windows_bundle", PACKAGE_SCRIPT
+)
+assert PACKAGE_SPEC is not None and PACKAGE_SPEC.loader is not None
+PACKAGE_MODULE = importlib.util.module_from_spec(PACKAGE_SPEC)
+PACKAGE_SPEC.loader.exec_module(PACKAGE_MODULE)
 
 
 class RustWindowsStagingTest(unittest.TestCase):
@@ -170,6 +179,35 @@ class RustWindowsStagingTest(unittest.TestCase):
                     root / "stage",
                 )
 
+    def test_package_bundle_contains_runtime_tree_and_release_notices(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            temp = Path(directory)
+            stage = temp / "stage"
+            assets = stage / "assets" / "macro_tutorials"
+            assets.mkdir(parents=True)
+            for name in PACKAGE_MODULE.RUNTIME_FILES:
+                (stage / name).write_bytes(name.encode())
+            (stage / "assets" / "LSANS.TTF").write_bytes(b"font")
+            (assets / "wallhop.jpg").write_bytes(b"tutorial")
+            output = temp / "rust-windows.zip"
+
+            PACKAGE_MODULE.package_bundle(ROOT, stage, output)
+
+            with zipfile.ZipFile(output) as archive:
+                names = set(archive.namelist())
+            prefix = f"{PACKAGE_MODULE.PACKAGE_ROOT}/"
+            for name in PACKAGE_MODULE.RUNTIME_FILES:
+                self.assertIn(prefix + name, names)
+            self.assertIn(prefix + "assets/LSANS.TTF", names)
+            self.assertIn(prefix + "assets/macro_tutorials/wallhop.jpg", names)
+            self.assertIn(prefix + "README.md", names)
+            self.assertIn(prefix + "LICENSE", names)
+            self.assertIn(prefix + "PRIVACY.md", names)
+            self.assertIn(prefix + "THIRD_PARTY_NOTICES.md", names)
+            self.assertIn(prefix + "licenses/SDL.txt", names)
+            self.assertIn(prefix + "licenses/WinDivert-LGPL-3.0.txt", names)
+            self.assertNotIn("Spencer-Macro-Utilities.exe", names)
+
     def test_rust_windows_binary_uses_gui_subsystem_and_product_stage_name(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
@@ -321,7 +359,11 @@ class RustWindowsStagingTest(unittest.TestCase):
             workflow,
         )
         self.assertIn("scripts/stage_rust_windows_app.py", workflow)
+        self.assertIn("scripts/package_rust_windows_bundle.py", workflow)
+        self.assertIn("scripts/generate_update_manifest.py", workflow)
+        self.assertIn("--only-platform windows-x64", workflow)
         self.assertIn("rust-windows-app-unsigned", workflow)
+        self.assertIn("rust-windows-release-contract-unsigned", workflow)
         self.assertNotIn("SignPath", workflow)
 
 

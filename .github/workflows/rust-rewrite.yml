@@ -8,7 +8,10 @@ on:
       - "rust/**"
       - "compat/**"
       - "scripts/stage_rust_windows_app.py"
+      - "scripts/package_rust_windows_bundle.py"
+      - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
   pull_request:
@@ -16,7 +19,10 @@ on:
       - "rust/**"
       - "compat/**"
       - "scripts/stage_rust_windows_app.py"
+      - "scripts/package_rust_windows_bundle.py"
+      - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
 
@@ -58,8 +64,8 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
-      - name: Windows Rust staging unit tests
-        run: python -m unittest tests.test_rust_windows_staging
+      - name: Windows Rust packaging/manifest unit tests
+        run: python -m unittest tests.test_rust_windows_staging tests.test_update_manifest
       - name: Test Windows Rust application and updater
         run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater
       - name: Clippy Windows Rust application and updater
@@ -108,9 +114,66 @@ jobs:
           if ($version.OriginalFilename -ne $expectedOriginal) {
             throw "Unexpected OriginalFilename: $($version.OriginalFilename)"
           }
+      - name: Package unsigned Rust Windows release bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/rust-windows-release | Out-Null
+          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-unsigned.zip"
+          python scripts/package_rust_windows_bundle.py `
+            --root . `
+            --stage-dir build/rust-windows-app `
+            --output $bundle
+          $version = (Get-Content -Raw version).Trim()
+          $assetName = Split-Path -Leaf $bundle
+          python scripts/generate_update_manifest.py `
+            --release-dir build/rust-windows-release `
+            --version $version `
+            --output build/rust-windows-release/update-manifest-rust-windows.json `
+            --windows-asset $assetName `
+            --only-platform windows-x64
+      - name: Validate unsigned Rust Windows release bundle contract
+        shell: pwsh
+        run: |
+          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-unsigned.zip"
+          $verify = "build/rust-windows-release-verify"
+          Remove-Item $verify -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -LiteralPath $bundle -DestinationPath $verify
+          $root = "$verify/Spencer-Macro-Utilities"
+          @(
+            "$root/Spencer-Macro-Utilities.exe",
+            "$root/SDL3.dll",
+            "$root/SMCWinDivert.dll",
+            "$root/SMCWinDivert64.sys",
+            "$root/assets/LSANS.TTF",
+            "$root/README.md",
+            "$root/LICENSE",
+            "$root/PRIVACY.md",
+            "$root/THIRD_PARTY_NOTICES.md",
+            "$root/licenses/SDL.txt",
+            "$root/licenses/WinDivert-LGPL-3.0.txt"
+          ) | ForEach-Object {
+            if (-not (Test-Path -LiteralPath $_ -PathType Leaf)) {
+              throw "Missing Rust Windows release-bundle file: $_"
+            }
+          }
+          $manifest = Get-Content -Raw build/rust-windows-release/update-manifest-rust-windows.json | ConvertFrom-Json
+          $artifact = $manifest.artifacts.'windows-x64'
+          if ($artifact.asset -ne (Split-Path -Leaf $bundle)) {
+            throw "Rust Windows validation manifest references the wrong asset: $($artifact.asset)"
+          }
+          $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $bundle).Hash.ToLowerInvariant()
+          if ($artifact.sha256 -ne $actualHash) {
+            throw "Rust Windows validation manifest SHA-256 does not match the bundle."
+          }
       - name: Upload unsigned Rust Windows validation artifact
         uses: actions/upload-artifact@v4
         with:
           name: rust-windows-app-unsigned
           path: build/rust-windows-app
+          if-no-files-found: error
+      - name: Upload unsigned Rust Windows release-contract artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-windows-release-contract-unsigned
+          path: build/rust-windows-release
           if-no-files-found: error

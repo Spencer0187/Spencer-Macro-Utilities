@@ -343,8 +343,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   before relaunch, and a Windows-only `ShellExecuteExW(..., "runas", ...)` helper starts the current
   executable elevated while the original instance exits through normal controller/backend shutdown. The
   rewrite CI has a separate `windows-latest` job that runs Windows unit tests plus clippy, exercises the
-  staging path, verifies the required siblings, and uploads only an explicitly unsigned validation
-  artifact. The Rust PE now also embeds the legacy Windows product identity through a build script: the
+  staging path, verifies the required siblings, and uploads only explicitly unsigned validation
+  artifacts. It now also packages that staged tree as a future release-style ZIP rooted at
+  `Spencer-Macro-Utilities/`, including all runtime siblings/assets plus the same release notices/licenses
+  as the legacy Windows bundle. `generate_update_manifest.py` keeps the production asset mapping unchanged
+  by default but supports an opt-in Windows asset override/platform-only mode so rewrite CI can emit and
+  SHA-256-verify a Windows-only manifest against the Rust bundle without changing `build.yml` or the
+  signed C++ release. The Rust PE now also embeds the legacy Windows product identity through a build script: the
   canonical repository `version` file drives numeric/string file and product versions, `smu.ico` is
   embedded as icon resource 102, and company/description/internal/original filename/product/copyright
   fields mirror the C++ resource script. Windows CI inspects the staged executable's version metadata so
@@ -354,8 +359,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
   limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
   Automatic Windows apply deliberately remains disabled until the Authenticode-verified replacement and
-  relaunch path is ported. That trusted apply path plus multi-file signing/release packaging remain
-  separate cutover gates; macOS still lacks its native Rust adapters.
+  relaunch path is ported. The unsigned multi-file bundle shape is now frozen in rewrite CI; production
+  signing/publishing of that bundle and the trusted apply path remain separate cutover gates. macOS still
+  lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
