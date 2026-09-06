@@ -609,6 +609,10 @@ mod tests {
             true
         }
 
+        fn is_initialized(&self) -> bool {
+            true
+        }
+
         fn is_available(&self) -> bool {
             true
         }

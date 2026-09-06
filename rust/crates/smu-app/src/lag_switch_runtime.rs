@@ -309,6 +309,10 @@ mod tests {
             success
         }
 
+        fn is_initialized(&self) -> bool {
+            self.available.load(Ordering::Acquire)
+        }
+
         fn is_available(&self) -> bool {
             self.available.load(Ordering::Acquire)
         }

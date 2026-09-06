@@ -1182,9 +1182,75 @@ fn start_windows_script_app(
 }
 
 #[cfg(target_os = "windows")]
+struct WindowsLagSwitchControlAdapter {
+    backend: Arc<WindowsLagSwitchBackend>,
+    enabled: Arc<AtomicBool>,
+}
+
+#[cfg(target_os = "windows")]
+impl LagSwitchControl for WindowsLagSwitchControlAdapter {
+    fn initialize(&self) -> bool {
+        let initialized = self.backend.initialize();
+        if initialized {
+            self.enabled.store(true, Ordering::Release);
+        }
+        initialized
+    }
+
+    fn is_initialized(&self) -> bool {
+        self.backend.is_initialized()
+    }
+
+    fn is_available(&self) -> bool {
+        self.backend.is_available()
+    }
+
+    fn effective_config(&self) -> smu_network::LagSwitchConfig {
+        self.backend.effective_config()
+    }
+
+    fn is_blocking_active(&self) -> bool {
+        self.backend.is_blocking_active()
+    }
+
+    fn is_base_blocking_active(&self) -> bool {
+        self.backend.is_base_blocking_active()
+    }
+
+    fn set_base_blocking_active(&self, active: bool) {
+        self.backend.set_base_blocking_active(active);
+    }
+
+    fn set_base_config(&self, config: smu_network::LagSwitchConfig) {
+        self.backend.set_base_config(config);
+    }
+
+    fn unsupported_reason(&self) -> String {
+        self.backend.unsupported_reason()
+    }
+
+    fn set_script_blocking_active(&self, owner_token: usize, active: bool) {
+        self.backend.set_script_blocking_active(owner_token, active);
+    }
+
+    fn set_script_config_override(&self, owner_token: usize, config: smu_network::LagSwitchConfig) {
+        self.backend.set_script_config_override(owner_token, config);
+    }
+
+    fn clear_script_config_override(&self, owner_token: usize) {
+        self.backend.clear_script_config_override(owner_token);
+    }
+
+    fn clear_script_state(&self, owner_token: usize) {
+        self.backend.clear_script_state(owner_token);
+    }
+}
+
+#[cfg(target_os = "windows")]
 struct WindowsLagSwitchServices {
     backend: Arc<WindowsLagSwitchBackend>,
     enabled: Arc<AtomicBool>,
+    control: Arc<dyn LagSwitchControl>,
     roblox_log: Arc<dyn RobloxLogSource>,
     controller: lag_switch_runtime::LagSwitchController,
 }
@@ -1202,18 +1268,21 @@ impl WindowsLagSwitchServices {
         let enabled = Arc::new(AtomicBool::new(false));
         let input: Arc<dyn smu_input::KeyState> =
             Arc::new(smu_input::windows::WindowsKeyState::new());
-        let control: Arc<dyn LagSwitchControl> = backend.clone();
+        let control: Arc<dyn LagSwitchControl> = Arc::new(WindowsLagSwitchControlAdapter {
+            backend: Arc::clone(&backend),
+            enabled: Arc::clone(&enabled),
+        });
         let controller = lag_switch_runtime::LagSwitchController::start(
             input,
-            control,
+            Arc::clone(&control),
             Arc::clone(&enabled),
             shell_state.lag_switch_controller_settings(),
         );
-        Self { backend, enabled, roblox_log, controller }
+        Self { backend, enabled, control, roblox_log, controller }
     }
 
     fn script_network(&self) -> Arc<dyn LagSwitchControl> {
-        self.backend.clone()
+        Arc::clone(&self.control)
     }
 
     fn roblox_log(&self) -> Arc<dyn RobloxLogSource> {

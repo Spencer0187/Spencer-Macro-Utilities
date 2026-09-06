@@ -379,6 +379,10 @@ impl LagSwitchControl for LinuxLagSwitchBackend {
         self.init()
     }
 
+    fn is_initialized(&self) -> bool {
+        lock(&self.inner.state).available
+    }
+
     fn is_available(&self) -> bool {
         lock(&self.inner.state).available
     }

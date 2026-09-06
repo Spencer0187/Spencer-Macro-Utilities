@@ -361,7 +361,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             self.assertIn(name, linux_dependencies)
             self.assertIn(name, windows_dependencies)
 
-    def test_windows_lag_switch_app_wiring_shares_native_backend_and_preserves_ui_flag_split(self) -> None:
+    def test_windows_lag_switch_app_wiring_shares_native_backend_and_tracks_windows_init_flag(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
         )
@@ -373,8 +373,11 @@ class RustLinuxStagingTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         for expected in (
+            "struct WindowsLagSwitchControlAdapter",
             "struct WindowsLagSwitchServices",
             "WindowsLagSwitchBackend::new",
+            "self.enabled.store(true, Ordering::Release);",
+            "Arc::clone(&self.control)",
             "Some(lag_switch.script_network())",
             "Some(lag_switch.roblox_log())",
             "windows_lag_switch.prepare_shell(shell_state);",

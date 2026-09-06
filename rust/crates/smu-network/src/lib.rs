@@ -147,6 +147,7 @@ impl LagSwitchState {
 /// Runtime lag-switch capability consumed by the app and scripting layers.
 pub trait LagSwitchControl: Send + Sync {
     fn initialize(&self) -> bool;
+    fn is_initialized(&self) -> bool;
     fn is_available(&self) -> bool;
     fn effective_config(&self) -> LagSwitchConfig;
     fn is_blocking_active(&self) -> bool;

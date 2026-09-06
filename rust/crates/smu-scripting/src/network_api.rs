@@ -369,6 +369,9 @@ fn install_toggle_api(
             }
         }
         if let Some(backend) = &toggle_backend {
+            if enabled && !backend.is_initialized() && !backend.initialize() {
+                return Ok(());
+            }
             toggle_context.mark_lag_switch_touched();
             backend.set_script_blocking_active(toggle_context.owner_token(), enabled);
         }
@@ -491,11 +494,15 @@ mod tests {
     use crate::MAX_SCRIPT_RUNTIME;
     use smu_network::LagSwitchState;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     #[derive(Debug)]
     struct FakeBackend {
         state: Mutex<LagSwitchState>,
         available: bool,
+        initialized: AtomicBool,
+        initialize_success: bool,
+        initialize_calls: AtomicUsize,
         reason: String,
     }
 
@@ -504,12 +511,19 @@ mod tests {
             Self {
                 state: Mutex::new(LagSwitchState::default()),
                 available: true,
+                initialized: AtomicBool::new(true),
+                initialize_success: true,
+                initialize_calls: AtomicUsize::new(0),
                 reason: String::new(),
             }
         }
     }
 
     impl FakeBackend {
+        fn cold(initialize_success: bool) -> Self {
+            Self { initialized: AtomicBool::new(false), initialize_success, ..Self::default() }
+        }
+
         fn state(&self) -> std::sync::MutexGuard<'_, LagSwitchState> {
             self.state.lock().expect("lag-switch state lock")
         }
@@ -517,7 +531,17 @@ mod tests {
 
     impl LagSwitchControl for FakeBackend {
         fn initialize(&self) -> bool {
-            self.available
+            self.initialize_calls.fetch_add(1, Ordering::AcqRel);
+            if self.initialize_success {
+                self.initialized.store(true, Ordering::Release);
+                true
+            } else {
+                false
+            }
+        }
+
+        fn is_initialized(&self) -> bool {
+            self.initialized.load(Ordering::Acquire)
         }
 
         fn is_available(&self) -> bool {
@@ -561,12 +585,17 @@ mod tests {
         }
     }
 
-    fn vm_with_network() -> (LuaScriptVm, ScriptInputContext, Arc<FakeBackend>) {
+    fn vm_with_backend(backend: Arc<FakeBackend>) -> (LuaScriptVm, ScriptInputContext) {
         let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
         let context = ScriptInputContext::default();
-        let backend = Arc::new(FakeBackend::default());
-        install_network_api(&vm, context.clone(), Some(backend.clone()))
+        install_network_api(&vm, context.clone(), Some(backend))
             .expect("network API should install");
+        (vm, context)
+    }
+
+    fn vm_with_network() -> (LuaScriptVm, ScriptInputContext, Arc<FakeBackend>) {
+        let backend = Arc::new(FakeBackend::default());
+        let (vm, context) = vm_with_backend(backend.clone());
         (vm, context, backend)
     }
 
@@ -635,6 +664,33 @@ mod tests {
         vm.execute_source("lagSwitch(false)", "disable.lua")
             .expect("canonical name should disable lag switch");
         assert!(!backend.is_blocking_active());
+    }
+
+    #[test]
+    fn lag_switch_true_cold_initializes_before_claiming_script_blocking() {
+        let backend = Arc::new(FakeBackend::cold(true));
+        let (vm, _) = vm_with_backend(backend.clone());
+
+        vm.execute_source("lagSwitch(true)", "cold-enable.lua")
+            .expect("successful cold initialization should keep script running");
+
+        assert_eq!(backend.initialize_calls.load(Ordering::Acquire), 1);
+        assert!(backend.is_initialized());
+        assert!(backend.is_blocking_active());
+    }
+
+    #[test]
+    fn failed_cold_initialization_skips_script_blocking_without_throwing() {
+        let backend = Arc::new(FakeBackend::cold(false));
+        let (vm, context) = vm_with_backend(backend.clone());
+
+        vm.execute_source("lagSwitch(true)", "cold-failure.lua")
+            .expect("C++ keeps the script running when backend initialization fails");
+
+        assert_eq!(backend.initialize_calls.load(Ordering::Acquire), 1);
+        assert!(!backend.is_initialized());
+        assert!(!backend.is_blocking_active());
+        assert!(!context.take_lag_switch_touched());
     }
 
     #[test]

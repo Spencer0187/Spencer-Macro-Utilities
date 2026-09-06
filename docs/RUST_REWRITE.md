@@ -306,10 +306,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   now composes that backend on Windows too: one shared backend/log reader feeds both the built-in 2 ms
   Lag Switch controller and imported-script `ScriptServices`, process-target changes propagate into the
   backend, the Windows UI owns manual initialize/shutdown plus status/warnings, and app shutdown stops
-  the controller before tearing down WinDivert. Hotkey initialization still deliberately leaves the
-  separate C++-compatibility enabled flag unchanged; manual UI initialization is the only newly wired
-  path that claims that state in this slice. Script-side cold initialization still needs its separate
-  C++-parity handoff. An isolated Windows Rust staging path now exists without touching the signed C++
+  the controller before tearing down WinDivert. Windows initialization now also preserves the actual
+  C++ side effect: a Windows-only `LagSwitchControl` adapter publishes successful controller/script
+  initialization into the compatibility enabled flag, while the shared controller itself remains free
+  of that side effect so Linux keeps its existing helper/flag split. The scripting API now distinguishes
+  platform support from initialized transport explicitly and cold-initializes before `lagSwitch(true)`
+  takes script blocking ownership; a failed cold init leaves the script running without claiming the
+  block, matching C++. Per-script Windows administrator-warning/error diagnostics and Linux helper-prompt
+  handoff still need their C++-parity plumbing. An isolated Windows Rust staging path now exists without touching the signed C++
   release: `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
   experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
   `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has

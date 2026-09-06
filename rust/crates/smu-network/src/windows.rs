@@ -1012,6 +1012,10 @@ impl LagSwitchControl for WindowsLagSwitchBackend {
         self.init()
     }
 
+    fn is_initialized(&self) -> bool {
+        lock_mutex(&self.inner.state).driver_enabled
+    }
+
     fn is_available(&self) -> bool {
         true
     }
