@@ -73,7 +73,7 @@ jobs:
         shell: pwsh
         run: |
           $required = @(
-            "build/rust-windows-app/smu-app.exe",
+            "build/rust-windows-app/Spencer-Macro-Utilities.exe",
             "build/rust-windows-app/SDL3.dll",
             "build/rust-windows-app/SMCWinDivert.dll",
             "build/rust-windows-app/SMCWinDivert64.sys",

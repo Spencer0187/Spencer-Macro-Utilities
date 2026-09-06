@@ -13,16 +13,40 @@ import shutil
 import subprocess
 import sys
 
-APP_OUTPUT_NAME = "smu-app.exe"
+APP_OUTPUT_NAME = "Spencer-Macro-Utilities.exe"
 CARGO_BINARY_NAME = "smu-app.exe"
 SDL_DLL_NAME = "SDL3.dll"
 WINDIVERT_DLL_NAME = "SMCWinDivert.dll"
 WINDIVERT_DRIVER_NAME = "SMCWinDivert64.sys"
+WINDOWS_GUI_SUBSYSTEM = 2
 
 
 def run(command: list[str], *, cwd: Path, env: dict[str, str]) -> None:
     print("+", " ".join(command), flush=True)
     subprocess.run(command, cwd=cwd, env=env, check=True)
+
+
+def pe_subsystem(executable: Path) -> int:
+    with executable.open("rb") as stream:
+        dos_header = stream.read(64)
+        if len(dos_header) < 64 or dos_header[:2] != b"MZ":
+            raise RuntimeError(f"not a Windows PE executable: {executable}")
+        pe_offset = int.from_bytes(dos_header[0x3C:0x40], "little")
+        stream.seek(pe_offset)
+        signature = stream.read(4)
+        if signature != b"PE\0\0":
+            raise RuntimeError(f"missing PE signature: {executable}")
+        coff_header = stream.read(20)
+        if len(coff_header) != 20:
+            raise RuntimeError(f"truncated PE COFF header: {executable}")
+        optional_size = int.from_bytes(coff_header[16:18], "little")
+        optional_header = stream.read(optional_size)
+        if len(optional_header) != optional_size or optional_size < 70:
+            raise RuntimeError(f"truncated PE optional header: {executable}")
+        magic = int.from_bytes(optional_header[:2], "little")
+        if magic not in {0x10B, 0x20B}:
+            raise RuntimeError(f"unsupported PE optional-header magic 0x{magic:04X}: {executable}")
+        return int.from_bytes(optional_header[68:70], "little")
 
 
 def resolve_sdl_dll(target_dir: Path, profile: str) -> Path:
@@ -137,6 +161,11 @@ def build_and_stage(
     run(command, cwd=root / "rust", env=env)
 
     binary = target_dir / profile / CARGO_BINARY_NAME
+    subsystem = pe_subsystem(binary)
+    if subsystem != WINDOWS_GUI_SUBSYSTEM:
+        raise RuntimeError(
+            f"Rust Windows app uses PE subsystem {subsystem}, expected GUI subsystem {WINDOWS_GUI_SUBSYSTEM}"
+        )
     sdl_dll = resolve_sdl_dll(target_dir, profile)
     assets, windivert_dll, windivert_driver = required_runtime_sources(root)
     return stage_runtime(

@@ -13,6 +13,23 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RustWindowsStagingTest(unittest.TestCase):
+    def test_pe_subsystem_reads_gui_header(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "app.exe"
+            payload = bytearray(0x200)
+            payload[:2] = b"MZ"
+            payload[0x3C:0x40] = (0x80).to_bytes(4, "little")
+            payload[0x80:0x84] = b"PE\0\0"
+            payload[0x94:0x96] = (0xF0).to_bytes(2, "little")
+            optional = 0x98
+            payload[optional : optional + 2] = (0x20B).to_bytes(2, "little")
+            payload[optional + 68 : optional + 70] = MODULE.WINDOWS_GUI_SUBSYSTEM.to_bytes(
+                2, "little"
+            )
+            executable.write_bytes(payload)
+
+            self.assertEqual(MODULE.pe_subsystem(executable), MODULE.WINDOWS_GUI_SUBSYSTEM)
+
     def test_repository_windivert_payloads_match_expected_port_inputs(self) -> None:
         expected = {
             "SMCWinDivert.dll": "c1e060ee19444a259b2162f8af0f3fe8c4428a1c6f694dce20de194ac8d7d9a2",
@@ -118,8 +135,8 @@ class RustWindowsStagingTest(unittest.TestCase):
                 stage,
             )
 
-            self.assertEqual(staged[0], stage / "smu-app.exe")
-            self.assertEqual((stage / "smu-app.exe").read_bytes(), b"rust-app")
+            self.assertEqual(staged[0], stage / "Spencer-Macro-Utilities.exe")
+            self.assertEqual((stage / "Spencer-Macro-Utilities.exe").read_bytes(), b"rust-app")
             self.assertEqual((stage / "SDL3.dll").read_bytes(), b"sdl")
             self.assertEqual(
                 (stage / "SMCWinDivert.dll").read_bytes(), b"windivert-dll"
@@ -151,6 +168,17 @@ class RustWindowsStagingTest(unittest.TestCase):
                     existing,
                     root / "stage",
                 )
+
+    def test_rust_windows_binary_uses_gui_subsystem_and_product_stage_name(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]',
+            main,
+        )
+        self.assertEqual(MODULE.APP_OUTPUT_NAME, "Spencer-Macro-Utilities.exe")
+        self.assertEqual(MODULE.CARGO_BINARY_NAME, "smu-app.exe")
 
     def test_rewrite_workflow_has_isolated_unsigned_windows_rust_validation(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(

@@ -1,3 +1,5 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 //! Minimal `SDL3` + Dear `ImGui` + `OpenGL3` compatibility spike.
 
 use std::{

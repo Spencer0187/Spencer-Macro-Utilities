@@ -333,8 +333,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   is enabled without that real-keyboard activity source. An isolated Windows Rust staging path now exists
   without touching the signed C++ release:
   `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
-  experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
-  `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has
+  experimental directory containing a staged `Spencer-Macro-Utilities.exe`, Cargo's exact `SDL3.dll`,
+  the full file-based `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings.
+  The Rust binary itself now uses the Windows GUI subsystem like the legacy `WIN32` CMake target, and the
+  staging helper parses the PE optional header to reject an accidental console-subsystem build. Cargo's
+  internal binary target remains `smu-app.exe` so Linux naming/staging stays unchanged. The rewrite CI has
   a separate `windows-latest` job that runs Windows clippy, exercises that staging path, verifies the
   required siblings, and uploads only an explicitly unsigned validation artifact. Production Windows
   naming/subsystem/resources, elevation/relaunch UX, updater compatibility, and multi-file signing/release
