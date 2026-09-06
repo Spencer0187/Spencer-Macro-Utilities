@@ -183,6 +183,12 @@ fn apply_shell_window_style(window: &mut Window, shell_state: &shell::ShellState
     let _ = set_window_always_on_top(window, shell_state.always_on_top());
 }
 
+fn overlay_imported_scripts(overlay: &mut Map<String, Value>, imported_scripts: Option<Value>) {
+    if let Some(imported_scripts) = imported_scripts {
+        overlay.insert("imported_scripts".to_owned(), imported_scripts);
+    }
+}
+
 fn live_profile_payload(
     shell_state: &shell::ShellState,
     baseline: &PreservedProfilePayload,
@@ -197,9 +203,7 @@ fn live_profile_payload(
     crate::profile_adapter::insert_i32(&mut overlay, "WindowPosY", window_y);
     crate::profile_adapter::insert_u32(&mut overlay, "screen_width", window_width);
     crate::profile_adapter::insert_u32(&mut overlay, "screen_height", window_height);
-    if let Some(imported_scripts) = imported_scripts {
-        overlay.insert("imported_scripts".to_owned(), imported_scripts);
-    }
+    overlay_imported_scripts(&mut overlay, imported_scripts);
     shell_payload.with_overlay(&overlay)
 }
 
@@ -593,6 +597,17 @@ mod profile_orchestration_tests {
         let (_state, service) = initial_profile_state(Some("lag-switch-linux-minimum"));
         assert_eq!(service.current_name(), Some(smu_profile::DEFAULT_PROFILE_NAME));
         assert!(service.current_payload().is_some());
+    }
+
+    #[test]
+    fn imported_script_overlay_only_replaces_profile_state_when_provided() {
+        let mut overlay = Map::new();
+        overlay_imported_scripts(&mut overlay, None);
+        assert!(!overlay.contains_key("imported_scripts"));
+
+        let scripts = json!([{"path":"new.lua","enabled":true}]);
+        overlay_imported_scripts(&mut overlay, Some(scripts.clone()));
+        assert_eq!(overlay.get("imported_scripts"), Some(&scripts));
     }
 
     #[test]
@@ -1274,20 +1289,21 @@ impl LinuxRuntimeServices {
         action: &script_ui::ScriptAction,
         shell_state: &mut shell::ShellState,
         window: &sdl3::video::Window,
-    ) {
+    ) -> bool {
         use script_ui::ScriptAction;
+        let mut imported = false;
         match action {
             ScriptAction::OpenImportDialog => self.open_script_dialog(window),
             ScriptAction::ConfirmImport { path } => {
                 let result = self.script_manager.import_script_with_result(path);
                 shell_state.script_ui_mut().cancel_import();
+                shell_state.script_ui_mut().set_import_notice(String::new());
                 match result {
                     ScriptImportResult::Success => {
+                        imported = true;
                         shell_state.script_ui_mut().set_snapshots(self.script_manager.snapshot());
                         shell_state.script_ui_mut().select_last_script();
-                        shell_state.script_ui_mut().set_import_notice(
-                            "Imported for this session. Rust profile persistence for imported scripts is not attached yet.",
-                        );
+                        shell_state.script_ui_mut().set_import_error(String::new());
                     }
                     ScriptImportResult::UnsupportedExtension => shell_state
                         .script_ui_mut()
@@ -1333,6 +1349,7 @@ impl LinuxRuntimeServices {
                 let _ = self.script_manager.queue_settings_button(*index, id.clone());
             }
         }
+        imported
     }
 
     fn process_found(&self, selector: &str) -> bool {
@@ -1463,6 +1480,7 @@ impl LinuxRuntimeServices {
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
         window: &sdl3::video::Window,
+        profile_service: &mut profile_service::ProfileBrowserService,
     ) {
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
             controller.update_settings(shell_state.bunnyhop_controller_settings());
@@ -1517,7 +1535,19 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.wallhop_controller.as_ref() {
             controller.update_settings(shell_state.wallhop_controller_settings());
         }
-        self.handle_action(action, shell_state, window);
+        if self.handle_action(action, shell_state, window) {
+            let scripts = self.profile_script_state();
+            if save_profiles_now(profile_service, shell_state, window, Some(scripts)) {
+                if let Some(payload) = profile_service.current_payload() {
+                    self.update_saved_settings(payload);
+                }
+                profile_service.refresh_selected(shell_state.profile_browser_mut(), None);
+            } else {
+                shell_state.script_ui_mut().set_import_error(
+                    "Script imported, but the settings file could not be updated.",
+                );
+            }
+        }
     }
 
     fn handle_input_setup_action(
@@ -1566,7 +1596,8 @@ impl LinuxRuntimeServices {
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
         window: &sdl3::video::Window,
-    ) {
+    ) -> bool {
+        let mut imported = false;
         match action {
             Some(
                 action @ (shell::ShellAction::InstallLinuxInputPermissionsGraphical
@@ -1656,13 +1687,14 @@ impl LinuxRuntimeServices {
                 self.wayland_portal.decline_remote_desktop_activation_request();
             }
             Some(shell::ShellAction::Script(action)) => {
-                self.handle_script_action(action, shell_state, window);
+                imported = self.handle_script_action(action, shell_state, window);
             }
             Some(
                 shell::ShellAction::PersistNotificationSuppression | shell::ShellAction::Profile(_),
             )
             | None => {}
         }
+        imported
     }
 
     fn update_restart_requested(&self) -> bool {
@@ -2076,7 +2108,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         );
         apply_shell_window_style(window, shell_state);
         #[cfg(target_os = "linux")]
-        linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        linux_services.finish_shell(shell_action.as_ref(), shell_state, window, profile_service);
         #[cfg(target_os = "linux")]
         if linux_services.update_restart_requested() {
             break 'main;

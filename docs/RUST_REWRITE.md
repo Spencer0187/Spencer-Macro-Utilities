@@ -113,8 +113,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   copyable. Imports use SDL3's native file dialog for `.smus/.hss/.lua/.txt`, suppress all macro
   hotkeys while the external modal owns input, and require an explicit trust modal with a read-only
   source preview before manager import. Imported-script persistence is now attached to the live profile
-  adapter: profile saves serialize the manager records, profile loads deserialize the selected record
-  set, and `savedSetting`/`getSavedValue` reads from a thread-safe normalized snapshot of the currently
+  adapter: a successful import immediately saves the current profile like C++ and reports
+  `Script imported, but the settings file could not be updated.` if that write fails; ordinary profile
+  saves serialize the manager records, profile loads deserialize the selected record set, and
+  `savedSetting`/`getSavedValue` reads from a thread-safe normalized snapshot of the currently
   loaded profile. The default parity case remains script-free and storage-isolated, and its pixel gate
   is unchanged.
 - `smu-app` now owns C++-compatible `Revert Module` behavior for all 16 built-in sections and for
