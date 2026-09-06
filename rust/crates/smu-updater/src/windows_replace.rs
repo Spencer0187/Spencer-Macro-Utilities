@@ -182,8 +182,16 @@ fn rollback_records(
                 first_error =
                     Some(format!("Could not recreate a rollback target directory: {error}"));
             }
-            if backup.exists()
-                && let Err(error) = fs::rename(&backup, &target)
+            if !backup.exists() {
+                if first_error.is_none() {
+                    first_error = Some(format!(
+                        "Windows update rollback backup is missing: {}",
+                        backup.display()
+                    ));
+                }
+                continue;
+            }
+            if let Err(error) = fs::rename(&backup, &target)
                 && first_error.is_none()
             {
                 first_error =
@@ -421,6 +429,25 @@ mod tests {
         );
         assert!(!install.join("SDL3.dll").exists());
         assert!(!backup.exists());
+    }
+
+    #[test]
+    fn rollback_reports_missing_original_backup_instead_of_succeeding_silently() {
+        let temp = TestDirectory::new("missing-backup");
+        let staged = staged_tree(&temp.0);
+        let install = temp.0.join("install");
+        fs::create_dir_all(&install).expect("install root should exist");
+        write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
+        let backup = install.join(".smu-update-backup-test");
+
+        let transaction = replace_windows_bundle_tree(&staged, &install, &backup)
+            .expect("replacement should succeed");
+        fs::remove_file(backup.join("Spencer-Macro-Utilities.exe"))
+            .expect("rollback fixture should remove the original backup");
+        let error = transaction.rollback().expect_err("missing backup must fail rollback");
+
+        assert!(error.to_string().contains("rollback backup is missing"));
+        assert!(!install.join("Spencer-Macro-Utilities.exe").exists());
     }
 
     #[test]
