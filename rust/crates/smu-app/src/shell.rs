@@ -674,6 +674,21 @@ impl ShellState {
         (self.global.process_selector(), self.freeze.take_all_process_ids)
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub fn anti_afk_controller_settings(
+        &self,
+    ) -> crate::anti_afk_runtime::AntiAfkControllerSettings {
+        crate::anti_afk_runtime::AntiAfkControllerSettings {
+            enabled: self.global.anti_afk_enabled() && self.keybind_capture.runtime_allowed(),
+            process_selector: self.global.process_selector(),
+            take_all_process_ids: self.freeze.take_all_process_ids,
+            afk_key: smu_core::Hotkey::new(self.global.afk_key()),
+            minutes: self.global.anti_afk_minutes(),
+            double_press: self.global.double_press_afk_key(),
+        }
+    }
+
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[must_use]
     pub fn freeze_controller_settings(&self) -> crate::freeze_runtime::FreezeControllerSettings {

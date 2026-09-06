@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{io, mem::size_of, sync::OnceLock};
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, FILETIME, HANDLE, INVALID_HANDLE_VALUE},
+    Foundation::{CloseHandle, FILETIME, HANDLE, HWND, INVALID_HANDLE_VALUE, LPARAM, RECT},
     System::{
         Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
@@ -15,7 +15,11 @@ use windows_sys::Win32::{
             GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SUSPEND_RESUME,
         },
     },
-    UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId},
+    UI::WindowsAndMessaging::{
+        EnumWindows, GW_OWNER, GetForegroundWindow, GetWindow, GetWindowRect,
+        GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsWindowVisible, SW_RESTORE,
+        SWP_NOMOVE, SWP_NOSIZE, SetForegroundWindow, SetWindowPos, ShowWindow,
+    },
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -102,6 +106,122 @@ fn process_creation_time(pid: u32) -> Option<u64> {
         return None;
     }
     Some((u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WindowsWindowRect {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WindowsWindowHandle(HWND);
+
+impl WindowsWindowHandle {
+    fn raw(self) -> HWND {
+        self.0
+    }
+
+    #[must_use]
+    pub fn rect(self) -> Option<WindowsWindowRect> {
+        let mut rect = RECT::default();
+        // SAFETY: `rect` is valid writable storage and the HWND is only passed back to Win32.
+        (unsafe { GetWindowRect(self.raw(), &mut rect) } != 0).then_some(WindowsWindowRect {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+        })
+    }
+
+    pub fn show_restore(self) {
+        // SAFETY: ShowWindow retains no Rust references; the handle came from Win32 enumeration.
+        unsafe {
+            let _ = ShowWindow(self.raw(), SW_RESTORE);
+        }
+    }
+
+    pub fn set_topmost(self, active: bool) {
+        let insert_after = if active { HWND_TOPMOST } else { HWND_NOTOPMOST };
+        // SAFETY: this changes only z-order; no caller memory is retained.
+        unsafe {
+            let _ = SetWindowPos(self.raw(), insert_after, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        }
+    }
+
+    pub fn set_foreground(self) {
+        // SAFETY: SetForegroundWindow retains no Rust references.
+        unsafe {
+            let _ = SetForegroundWindow(self.raw());
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ProcessWindowSearchContext {
+    pids: *const u32,
+    pid_count: usize,
+    window: HWND,
+    creation_time: u64,
+    found_any: bool,
+}
+
+unsafe extern "system" fn find_newest_process_window_callback(hwnd: HWND, lparam: LPARAM) -> i32 {
+    if unsafe { IsWindowVisible(hwnd) } == 0 || !unsafe { GetWindow(hwnd, GW_OWNER) }.is_null() {
+        return 1;
+    }
+    // SAFETY: `lparam` points at the stack context owned by `find_newest_process_window` for the
+    // synchronous duration of EnumWindows.
+    let context = unsafe { &mut *(lparam as *mut ProcessWindowSearchContext) };
+    // SAFETY: the pointer/length pair originates from the live `pids` slice and remains valid until
+    // EnumWindows returns.
+    let pids = unsafe { std::slice::from_raw_parts(context.pids, context.pid_count) };
+    let mut window_pid = 0_u32;
+    // SAFETY: `window_pid` is valid writable storage for the duration of the call.
+    unsafe {
+        GetWindowThreadProcessId(hwnd, &mut window_pid);
+    }
+    if !pids.contains(&window_pid) {
+        return 1;
+    }
+    let Some(creation_time) = process_creation_time(window_pid) else {
+        return 1;
+    };
+    if !context.found_any || creation_time > context.creation_time {
+        context.window = hwnd;
+        context.creation_time = creation_time;
+        context.found_any = true;
+    }
+    1
+}
+
+#[must_use]
+pub fn find_newest_process_window(pids: &[u32]) -> Option<WindowsWindowHandle> {
+    if pids.is_empty() {
+        return None;
+    }
+    let mut context = ProcessWindowSearchContext {
+        pids: pids.as_ptr(),
+        pid_count: pids.len(),
+        window: std::ptr::null_mut(),
+        creation_time: 0,
+        found_any: false,
+    };
+    // SAFETY: EnumWindows invokes the callback synchronously while `context` and `pids` remain live.
+    unsafe {
+        let _ =
+            EnumWindows(Some(find_newest_process_window_callback), (&raw mut context) as LPARAM);
+    }
+    context.found_any.then_some(WindowsWindowHandle(context.window))
+}
+
+#[must_use]
+pub fn foreground_window() -> Option<WindowsWindowHandle> {
+    // SAFETY: GetForegroundWindow has no pointer arguments and retains no memory.
+    let window = unsafe { GetForegroundWindow() };
+    (!window.is_null()).then_some(WindowsWindowHandle(window))
 }
 
 type NtProcessFn = unsafe extern "system" fn(HANDLE) -> i32;

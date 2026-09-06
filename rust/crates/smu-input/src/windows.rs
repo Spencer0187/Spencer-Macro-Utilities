@@ -8,7 +8,7 @@ use smu_core::KeyCode;
 use std::{
     sync::{
         Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicPtr, AtomicU32, AtomicU64, Ordering},
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -19,19 +19,21 @@ use windows_sys::Win32::{
     UI::{
         Input::KeyboardAndMouse::{
             GetAsyncKeyState, GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
-            KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE,
-            MAPVK_VK_TO_VSC_EX, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
-            MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
-            MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN,
-            MOUSEEVENTF_XUP, MOUSEINPUT, MapVirtualKeyExW, SendInput,
+            KBDLLHOOKSTRUCT, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
+            KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC_EX, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
+            MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE,
+            MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL,
+            MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, MapVirtualKeyExW, SendInput,
         },
         WindowsAndMessaging::{
             CallNextHookEx, DispatchMessageW, GA_ROOT, GetAncestor, GetForegroundWindow,
-            GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, HC_ACTION, HHOOK,
-            LLMHF_INJECTED, LLMHF_LOWER_IL_INJECTED, MSG, MSLLHOOKSTRUCT, PM_NOREMOVE,
-            PeekMessageW, PostThreadMessageW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-            SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetWindowsHookExW, TranslateMessage,
-            UnhookWindowsHookEx, WH_MOUSE_LL, WM_MOUSEWHEEL, WM_QUIT, WM_USER, XBUTTON1, XBUTTON2,
+            GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, HC_ACTION, LLKHF_INJECTED,
+            LLKHF_LOWER_IL_INJECTED, LLMHF_INJECTED, LLMHF_LOWER_IL_INJECTED, MSG, MSLLHOOKSTRUCT,
+            PM_NOREMOVE, PeekMessageW, PostThreadMessageW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+            SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetCursorPos, SetWindowsHookExW,
+            TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
+            WM_KEYUP, WM_MOUSEWHEEL, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, XBUTTON1,
+            XBUTTON2,
         },
     },
 };
@@ -46,7 +48,10 @@ static WHEEL_HOOK_LIFECYCLE: OnceLock<Mutex<WheelHookLifecycle>> = OnceLock::new
 static WHEEL_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
 static WHEEL_HOOK_READY: AtomicBool = AtomicBool::new(false);
 static WHEEL_HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
-static WHEEL_HOOK_HANDLE: AtomicIsize = AtomicIsize::new(0);
+static WHEEL_HOOK_HANDLE: AtomicPtr<core::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
+static KEYBOARD_HOOK_HANDLE: AtomicPtr<core::ffi::c_void> = AtomicPtr::new(std::ptr::null_mut());
+static KEYBOARD_HOOK_READY: AtomicBool = AtomicBool::new(false);
+static REAL_KEYBOARD_ACTIVITY_SERIAL: AtomicU64 = AtomicU64::new(0);
 static PENDING_BINDING_INPUT: AtomicU32 = AtomicU32::new(KeyCode::NONE.raw());
 
 #[derive(Default)]
@@ -62,6 +67,11 @@ struct InputBudgetState {
 
 pub fn set_display_scale_percent(scale: i32) {
     DISPLAY_SCALE_PERCENT.store(scale.clamp(10, 500), Ordering::Release);
+}
+
+pub fn set_cursor_position_direct(x: i32, y: i32) -> bool {
+    // SAFETY: SetCursorPos takes value coordinates and retains no Rust memory.
+    unsafe { SetCursorPos(x, y) != 0 }
 }
 
 pub fn set_gui_window_handle(handle: *mut core::ffi::c_void) {
@@ -127,9 +137,49 @@ fn lock_lifecycle() -> std::sync::MutexGuard<'static, WheelHookLifecycle> {
     }
 }
 
+fn keyboard_event_is_injected(event: &KBDLLHOOKSTRUCT) -> bool {
+    event.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED) != 0
+        || event.dwExtraInfo == INJECTED_INPUT_TAG
+}
+
 fn mouse_event_is_injected(event: &MSLLHOOKSTRUCT) -> bool {
     event.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED) != 0
         || event.dwExtraInfo == INJECTED_INPUT_TAG
+}
+
+#[must_use]
+pub fn real_keyboard_activity_serial() -> u64 {
+    REAL_KEYBOARD_ACTIVITY_SERIAL.load(Ordering::Acquire)
+}
+
+#[must_use]
+pub fn keyboard_activity_hook_ready() -> bool {
+    KEYBOARD_HOOK_READY.load(Ordering::Acquire)
+}
+
+fn hook_code_is_action(code: i32) -> bool {
+    u32::try_from(code) == Ok(HC_ACTION)
+}
+
+fn keyboard_hook_message(wparam: WPARAM) -> bool {
+    matches!(u32::try_from(wparam), Ok(WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP))
+}
+
+unsafe extern "system" fn keyboard_activity_hook(
+    code: i32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if hook_code_is_action(code) && keyboard_hook_message(wparam) && lparam != 0 {
+        // SAFETY: WH_KEYBOARD_LL supplies a KBDLLHOOKSTRUCT pointer for HC_ACTION keyboard messages.
+        let event = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
+        if !keyboard_event_is_injected(event) {
+            REAL_KEYBOARD_ACTIVITY_SERIAL.fetch_add(1, Ordering::Release);
+        }
+    }
+    let hook = KEYBOARD_HOOK_HANDLE.load(Ordering::Acquire);
+    // SAFETY: forwarding the hook event is required by the Win32 low-level hook contract.
+    unsafe { CallNextHookEx(hook, code, wparam, lparam) }
 }
 
 unsafe extern "system" fn binding_mouse_wheel_hook(
@@ -137,7 +187,7 @@ unsafe extern "system" fn binding_mouse_wheel_hook(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    if code == HC_ACTION as i32 && wparam == WM_MOUSEWHEEL as usize && lparam != 0 {
+    if hook_code_is_action(code) && u32::try_from(wparam) == Ok(WM_MOUSEWHEEL) && lparam != 0 {
         // SAFETY: WH_MOUSE_LL supplies an MSLLHOOKSTRUCT pointer for HC_ACTION mouse messages.
         let event = unsafe { &*(lparam as *const MSLLHOOKSTRUCT) };
         if !mouse_event_is_injected(event) {
@@ -147,7 +197,7 @@ unsafe extern "system" fn binding_mouse_wheel_hook(
             }
         }
     }
-    let hook = WHEEL_HOOK_HANDLE.load(Ordering::Acquire) as HHOOK;
+    let hook = WHEEL_HOOK_HANDLE.load(Ordering::Acquire);
     // SAFETY: forwarding the hook event is required by the Win32 low-level hook contract.
     unsafe { CallNextHookEx(hook, code, wparam, lparam) }
 }
@@ -159,8 +209,12 @@ fn wheel_hook_thread() {
         let mut message = MSG::default();
         let _ = PeekMessageW(&mut message, std::ptr::null_mut(), WM_USER, WM_USER, PM_NOREMOVE);
         let module = GetModuleHandleW(std::ptr::null());
+        let keyboard_hook =
+            SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_activity_hook), module, 0);
+        KEYBOARD_HOOK_HANDLE.store(keyboard_hook, Ordering::Release);
+        KEYBOARD_HOOK_READY.store(!keyboard_hook.is_null(), Ordering::Release);
         let hook = SetWindowsHookExW(WH_MOUSE_LL, Some(binding_mouse_wheel_hook), module, 0);
-        WHEEL_HOOK_HANDLE.store(hook as isize, Ordering::Release);
+        WHEEL_HOOK_HANDLE.store(hook, Ordering::Release);
         WHEEL_HOOK_READY.store(true, Ordering::Release);
 
         while WHEEL_HOOK_RUNNING.load(Ordering::Acquire) {
@@ -175,8 +229,13 @@ fn wheel_hook_thread() {
         if !hook.is_null() {
             let _ = UnhookWindowsHookEx(hook);
         }
+        if !keyboard_hook.is_null() {
+            let _ = UnhookWindowsHookEx(keyboard_hook);
+        }
     }
-    WHEEL_HOOK_HANDLE.store(0, Ordering::Release);
+    WHEEL_HOOK_HANDLE.store(std::ptr::null_mut(), Ordering::Release);
+    KEYBOARD_HOOK_HANDLE.store(std::ptr::null_mut(), Ordering::Release);
+    KEYBOARD_HOOK_READY.store(false, Ordering::Release);
     WHEEL_HOOK_THREAD_ID.store(0, Ordering::Release);
     WHEEL_HOOK_READY.store(false, Ordering::Release);
 }
@@ -186,6 +245,7 @@ fn acquire_wheel_hook() {
     if lifecycle.users == 0 {
         PENDING_BINDING_INPUT.store(KeyCode::NONE.raw(), Ordering::Release);
         WHEEL_HOOK_READY.store(false, Ordering::Release);
+        KEYBOARD_HOOK_READY.store(false, Ordering::Release);
         WHEEL_HOOK_THREAD_ID.store(0, Ordering::Release);
         WHEEL_HOOK_RUNNING.store(true, Ordering::Release);
         lifecycle.thread = Some(std::thread::spawn(wheel_hook_thread));
@@ -313,6 +373,30 @@ fn mouse_input(flags: u32, mouse_data: u32, dx: i32, dy: i32) -> INPUT {
                 dwExtraInfo: INJECTED_INPUT_TAG,
             },
         },
+    }
+}
+
+pub fn set_left_mouse_button_direct(down: bool) {
+    let input = INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx: 0,
+                dy: 0,
+                mouseData: 0,
+                dwFlags: if down { MOUSEEVENTF_LEFTDOWN } else { MOUSEEVENTF_LEFTUP },
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    // SAFETY: `input` points to one initialized Win32 INPUT record and remains valid for the call.
+    unsafe {
+        let _ = SendInput(
+            1,
+            &raw const input,
+            i32::try_from(std::mem::size_of::<INPUT>()).unwrap_or_default(),
+        );
     }
 }
 

@@ -72,6 +72,12 @@ impl GlobalSettingsState {
         self.toggles.macro_enabled
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn anti_afk_enabled(&self) -> bool {
+        self.toggles.anti_afk_enabled
+    }
+
     #[must_use]
     pub fn process_selector(&self) -> String {
         self.process.name.clone()
@@ -151,8 +157,26 @@ impl GlobalSettingsState {
         &mut self.chat_key
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn afk_key(&self) -> u32 {
+        self.afk_key
+    }
+
     pub const fn afk_key_mut(&mut self) -> &mut u32 {
         &mut self.afk_key
+    }
+
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn anti_afk_minutes(&self) -> i32 {
+        self.anti_afk_minutes
+    }
+
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn double_press_afk_key(&self) -> bool {
+        self.double_press_afk_key
     }
 
     pub const fn chat_override_mut(&mut self) -> &mut bool {
@@ -343,7 +367,7 @@ impl Default for GlobalSettingsState {
         Self {
             toggles: GlobalToggles {
                 macro_enabled: true,
-                anti_afk_enabled: false,
+                anti_afk_enabled: cfg!(target_os = "windows"),
                 cam_fix_enabled: false,
             },
             process: ProcessUiState {

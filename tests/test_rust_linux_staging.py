@@ -103,6 +103,10 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("NtSuspendProcess", windows_backend)
         self.assertIn("NtResumeProcess", windows_backend)
         self.assertIn("GetForegroundWindow", windows_backend)
+        self.assertIn("EnumWindows", windows_backend)
+        self.assertIn("GetWindowRect", windows_backend)
+        self.assertIn("find_newest_process_window", windows_backend)
+        self.assertIn("WindowsWindowHandle", windows_backend)
 
     def test_smu_app_generic_loop_owns_script_services_on_all_platforms(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
@@ -171,6 +175,9 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("MOUSEEVENTF_VIRTUALDESK", input_backend)
         self.assertIn("SetWindowsHookExW", input_backend)
         self.assertIn("WH_MOUSE_LL", input_backend)
+        self.assertIn("WH_KEYBOARD_LL", input_backend)
+        self.assertIn("real_keyboard_activity_serial", input_backend)
+        self.assertIn("SetCursorPos", input_backend)
         self.assertIn("WM_MOUSEWHEEL", input_backend)
         self.assertIn("LLMHF_INJECTED", input_backend)
         self.assertIn("LLMHF_LOWER_IL_INJECTED", input_backend)
@@ -259,6 +266,71 @@ class RustLinuxStagingTest(unittest.TestCase):
             '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn bunnyhop_controller_settings',
             shell,
         )
+
+    def test_windows_anti_afk_runtime_matches_cpp_hook_timer_and_window_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "anti_afk_runtime.rs"
+        ).read_text(encoding="utf-8")
+        input_backend = (
+            ROOT / "rust" / "crates" / "smu-input" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+        process_backend = (
+            ROOT / "rust" / "crates" / "smu-process" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            'mod anti_afk_runtime;',
+            "AntiAfkController::start",
+            "anti_afk_controller.update_settings",
+            "anti_afk_controller.stop();",
+            "keyboard_activity_hook_ready()",
+            "Anti-AFK may not reset on physical keyboard activity.",
+        ):
+            self.assertIn(expected, main)
+        global_settings = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "global_settings.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("pub fn anti_afk_controller_settings", shell)
+        self.assertIn("self.keybind_capture.runtime_allowed()", shell)
+        self.assertIn('anti_afk_enabled: cfg!(target_os = "windows")', global_settings)
+        self.assertNotIn("macro_enabled()", shell.split("pub fn anti_afk_controller_settings", 1)[1].split("pub fn freeze_controller_settings", 1)[0])
+        for expected in (
+            "evaluate_anti_afk_timer_step",
+            "real_keyboard_activity_serial",
+            "find_newest_process_window",
+            "foreground_window",
+            "BACKGROUND_FOCUS_SETTLE_MS",
+            "ORIGINAL_FOREGROUND_SETTLE_MS",
+            "hold_key_chord",
+            "set_cursor_position_direct",
+            "set_left_mouse_button_direct",
+        ):
+            self.assertIn(expected, runtime)
+        for expected in (
+            "WH_KEYBOARD_LL",
+            "KBDLLHOOKSTRUCT",
+            "REAL_KEYBOARD_ACTIVITY_SERIAL",
+            "KEYBOARD_HOOK_READY",
+            "keyboard_activity_hook_ready",
+            "LLKHF_INJECTED",
+            "LLKHF_LOWER_IL_INJECTED",
+        ):
+            self.assertIn(expected, input_backend)
+        for expected in (
+            "EnumWindows",
+            "IsWindowVisible",
+            "GW_OWNER",
+            "GetWindowRect",
+            "SetWindowPos",
+            "SetForegroundWindow",
+        ):
+            self.assertIn(expected, process_backend)
 
     def test_smu_network_freezes_cpp_windivert_filter_grammar(self) -> None:
         network = (

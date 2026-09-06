@@ -323,8 +323,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Item Unequip/Laugh Clip/Press Key/Spam Key/Ledge Bounce/Speedglitch/Wall Walk/Walless LHJ/Wallhop
   controllers. Their settings are refreshed from the shell every frame and every controller is stopped
   explicitly at app shutdown. Lag Switch remains its separately owned Windows controller because it also
-  owns WinDivert lifecycle. The global Windows-only Anti-AFK execution path is still a separate parity
-  gate. An isolated Windows Rust staging path now exists without touching the signed C++ release:
+  owns WinDivert lifecycle. Windows Anti-AFK is now composed as its own controller too: the existing
+  low-level input-hook lease also counts real (non-injected) keyboard activity, the shared process backend
+  selects the newest visible target window for background activation, and the controller reuses the
+  characterized timer/key/click/focus timing while keeping the blocking activation sequence on one owned
+  worker. It deliberately ignores the global Macro Toggle like C++, defaults on for fresh Windows
+  settings, and remains suppressed through the keybind capture/release window. The shared low-level hook
+  tracks whether the keyboard hook actually installed, and the shell emits a one-time warning if Anti-AFK
+  is enabled without that real-keyboard activity source. An isolated Windows Rust staging path now exists
+  without touching the signed C++ release:
   `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
   experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
   `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has

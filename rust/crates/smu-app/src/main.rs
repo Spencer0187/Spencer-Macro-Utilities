@@ -44,6 +44,8 @@ use smu_process::linux::{
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
 
+#[cfg(target_os = "windows")]
+mod anti_afk_runtime;
 mod bunnyhop;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod bunnyhop_runtime;
@@ -1353,6 +1355,8 @@ impl WindowsMacroPlatformServices {
 #[cfg(target_os = "windows")]
 struct WindowsBuiltinRuntimeServices {
     platform: WindowsMacroPlatformServices,
+    anti_afk_hook_warning_emitted: AtomicBool,
+    anti_afk_controller: anti_afk_runtime::AntiAfkController,
     bunnyhop_controller: bunnyhop_runtime::BunnyhopController,
     hhj_controller: hhj_runtime::HhjController,
     floor_bounce_controller: floor_bounce_runtime::FloorBounceController,
@@ -1375,6 +1379,13 @@ impl WindowsBuiltinRuntimeServices {
     fn new(shell_state: &shell::ShellState, platform: &WindowsMacroPlatformServices) -> Self {
         let platform = platform.clone();
         let hhj_active = Arc::new(AtomicBool::new(false));
+        let anti_afk_controller = anti_afk_runtime::AntiAfkController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.display),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.anti_afk_controller_settings(),
+        );
         let bunnyhop_controller = bunnyhop_runtime::BunnyhopController::start(
             Arc::clone(&platform.input),
             Arc::clone(&platform.discovery),
@@ -1473,6 +1484,8 @@ impl WindowsBuiltinRuntimeServices {
         );
         Self {
             platform,
+            anti_afk_hook_warning_emitted: AtomicBool::new(false),
+            anti_afk_controller,
             bunnyhop_controller,
             hhj_controller,
             floor_bounce_controller,
@@ -1499,9 +1512,18 @@ impl WindowsBuiltinRuntimeServices {
             );
             shell_state.set_keybind_input(input);
         }
+        if shell_state.anti_afk_controller_settings().enabled
+            && !smu_input::windows::keyboard_activity_hook_ready()
+            && !self.anti_afk_hook_warning_emitted.swap(true, Ordering::AcqRel)
+        {
+            shell_state.push_warning(
+                "Windows input backend failed to install its low-level keyboard hook. Anti-AFK may not reset on physical keyboard activity.",
+            );
+        }
     }
 
     fn finish_shell(&self, shell_state: &shell::ShellState) {
+        self.anti_afk_controller.update_settings(shell_state.anti_afk_controller_settings());
         self.bunnyhop_controller.update_settings(shell_state.bunnyhop_controller_settings());
         self.hhj_controller.update_settings(shell_state.hhj_controller_settings());
         self.floor_bounce_controller
@@ -1523,6 +1545,7 @@ impl WindowsBuiltinRuntimeServices {
     }
 
     fn shutdown(&self) {
+        self.anti_afk_controller.stop();
         self.floor_bounce_controller.stop();
         self.hhj_controller.stop();
         self.bunnyhop_controller.stop();
