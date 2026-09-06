@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import tempfile
+import tomllib
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,38 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("if(SMU_BUILD_CPP_LINUX_APP)\n        add_executable(spencer_macro_utilities", cmake)
         self.assertIn("add_library(lua_static STATIC EXCLUDE_FROM_ALL", cmake)
         self.assertIn("add_library(smu_platform_linux STATIC EXCLUDE_FROM_ALL", cmake)
+
+    def test_nix_package_builds_rust_offline_and_keeps_both_helpers(self) -> None:
+        package = (ROOT / "nix" / "package.nix").read_text(encoding="utf-8")
+        self.assertIn("rustPlatform.buildRustPackage {", package)
+        self.assertIn("cargoLock.lockFile = ../rust/Cargo.lock;", package)
+        self.assertIn('cargoRoot = "rust";', package)
+        self.assertIn('buildAndTestSubdir = "rust";', package)
+        self.assertIn("rustPlatform.bindgenHook", package)
+        self.assertIn("GOPROXY=off", package)
+        self.assertIn("GOSUMDB=off", package)
+        self.assertIn("go test -mod=vendor ./...", package)
+        self.assertIn('install -Dm755 "$helperOut/nethelper" "$appDir/nethelper-unwrapped"', package)
+        self.assertIn('install -Dm755 "$helperOut/processhelper" "$appDir/processhelper"', package)
+        self.assertNotIn("SMU_PACKAGE_RUST_LINUX=OFF", package)
+        self.assertNotIn("libei", package)
+
+    def test_nix_package_stages_exact_cargo_sdl_shared_library(self) -> None:
+        package = (ROOT / "nix" / "package.nix").read_text(encoding="utf-8")
+        self.assertIn(
+            "find \"$root\" -path '*/release/build/sdl3-sys-*/out/lib64/libSDL3.so.0' -type l -print",
+            package,
+        )
+        self.assertIn('install -Dm755 "$helperOut/$sdlName" "$out/lib/$sdlName"', package)
+        self.assertIn('ln -s "$sdlName" "$out/lib/libSDL3.so.0"', package)
+        self.assertIn('ln -s "$sdlName" "$out/lib/libSDL3.so"', package)
+        self.assertIn('--prefix LD_LIBRARY_PATH : "$out/lib:${runtimeLibraryPath}"', package)
+
+    def test_nix_cargo_lock_has_no_git_dependencies(self) -> None:
+        lock = tomllib.loads((ROOT / "rust" / "Cargo.lock").read_text(encoding="utf-8"))
+        sources = [package.get("source", "") for package in lock["package"]]
+        self.assertFalse(any(source.startswith("git+") for source in sources))
+        self.assertTrue(any(source.startswith("registry+") for source in sources))
 
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:
         self.assertEqual(

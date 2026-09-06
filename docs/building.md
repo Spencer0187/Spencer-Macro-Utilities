@@ -155,7 +155,7 @@ nix run
 nix flake check
 ```
 
-The flake builds from the current checkout and uses the committed lock file.
+The flake builds the Rust `smu-app` entry point from the current checkout with nixpkgs' `buildRustPackage`, using the committed Cargo lock file for offline dependency vendoring. It also builds the vendored Go `nethelper` and the dependency-free `processhelper`, then stages both helpers plus the Cargo-built SDL3 shared library beside the wrapped app runtime.
 
 For NixOS, add this repository as an input, include `smu.nixosModules.default`, and configure the desktop users who should receive input-device access:
 

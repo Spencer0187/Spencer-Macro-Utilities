@@ -204,17 +204,21 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - Linux AppImage, Debian/RPM, and portable-folder packaging now ship the Rust `smu-app` entry point
   instead of the C++ compatibility executable. The default Linux CMake `all` target now builds/stages
   Rust and does not create the legacy C++ GUI target at all. `SMU_BUILD_CPP_LINUX_COMPAT_APP=ON`
-  explicitly adds that compatibility oracle alongside Rust, while `SMU_PACKAGE_RUST_LINUX=OFF` still
-  forces the C++ GUI path for legacy/Nix packaging. `lua_static` and `smu_platform_linux` are
-  `EXCLUDE_FROM_ALL` compatibility libraries and are pulled in only by C++ GUI/tests/oracles that need
-  them. A dedicated staging helper performs a locked release Cargo build, copies the exact SDL3 shared
-  library produced by that Cargo build, and links the app with `$ORIGIN/lib` so the portable tree is
+  explicitly adds that compatibility oracle alongside Rust, while `SMU_PACKAGE_RUST_LINUX=OFF` remains
+  the legacy C++ packaging escape hatch. `lua_static` and `smu_platform_linux` are `EXCLUDE_FROM_ALL`
+  compatibility libraries and are pulled in only by C++ GUI/tests/oracles that need them. A dedicated
+  staging helper performs a locked release Cargo build, copies the exact SDL3 shared library produced
+  by that Cargo build, and links the app with `$ORIGIN/lib` so the portable tree is
   self-contained for SDL. Runtime font lookup prefers assets next to the executable and then AppDir
   locations before the source-tree fallback, so packaged Rust builds no longer depend on the checkout
   layout. The Rust Wayland pointer path uses the desktop RemoteDesktop portal directly, so release
-  metadata and AppImage assembly no longer declare or bundle `libei`. Nix temporarily selects the C++
-  install path explicitly with `SMU_PACKAGE_RUST_LINUX=OFF`; moving the Nix derivation onto Cargo with
-  an offline/reproducible Rust dependency setup remains a separate packaging gate.
+  metadata and AppImage assembly no longer declare or bundle `libei`. The Nix derivation now builds
+  `smu-app` with `rustPlatform.buildRustPackage`, imports the committed Cargo lockfile for offline
+  dependency vendoring, runs both Go helper test/build steps without network access, stages the exact
+  Cargo-built SDL3 shared library, and installs both `nethelper` and `processhelper` inside `SMU_APPDIR`.
+  The flake/package surface therefore uses the Rust entry point too; this checkout has no local `nix`
+  executable, so the derivation is structurally guarded and host-layout/runtime-smoked here, while a
+  real `nix build`/`nix flake check` remains the external validation step.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
