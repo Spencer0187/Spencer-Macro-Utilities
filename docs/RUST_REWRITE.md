@@ -269,7 +269,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Physical wheel bindings are native too: a reference-counted `WH_MOUSE_LL` hook is shared by both
   `WindowsKeyState` owners, ignores Win32/SMU-tagged injected events, stores the latest wheel direction
   in the same single transient slot as C++, and shuts down when the last input owner drops. Windows
-  network integration is still missing; macOS still lacks its native Rust adapters.
+  network migration has started at the deterministic boundary: `smu-network` now builds the exact C++
+  WinDivert direction/protocol/Roblox/custom filter grammar, including process UDP-port precedence and
+  dynamic-IP set ordering. Dynamic DLL loading, packet capture/reinjection, fake-lag queues, and target
+  refresh workers are still missing; macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.
@@ -374,7 +377,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   C++'s separate `bWinDivertEnabled` compatibility flag: hotkey-triggered transport initialization can
   succeed while that UI-enabled flag stays false; manual UI/helper initialization sets it true.
 - `smu-network` owns lag-switch config arbitration, the deterministic Linux helper command grammar,
-  and the runtime control capability used by scripting. Linux now also has the real root-validated
+  the deterministic Windows WinDivert filter grammar, and the runtime control capability used by
+  scripting. The Windows builder preserves C++ direction/fake-lag capture rules, protocol selection,
+  process-UDP-port targeting precedence, Roblox range/dynamic-IP set ordering, and custom IP/port
+  clause order without requiring the WinDivert transport to be live. Linux now also has the real root-validated
   `nethelper` Unix-socket transport, applied-command dedup/error semantics, script/base ownership,
   and the one-second dynamic Roblox-target refresh worker; endpoint metadata comes from `smu-roblox`
   instead of duplicating log parsing. `smu-scripting` wires `lagSwitch` / `lagswitch`, config

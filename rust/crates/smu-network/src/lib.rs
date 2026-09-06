@@ -208,6 +208,125 @@ fn join_ports(values: &[i32]) -> String {
     values.iter().map(i32::to_string).collect::<Vec<_>>().join(",")
 }
 
+const WINDOWS_ROBLOX_RANGE_FILTER: &str = "((ip.SrcAddr >= 128.116.0.0 and ip.SrcAddr <= 128.116.255.255) or (ip.DstAddr >= 128.116.0.0 and ip.DstAddr <= 128.116.255.255))";
+
+const fn windows_protocol_filter(config: &LagSwitchConfig) -> &'static str {
+    match (config.use_udp, config.use_tcp) {
+        (true, true) => "(udp or tcp)",
+        (true, false) => "udp",
+        (false, true) => "tcp",
+        (false, false) => "false",
+    }
+}
+
+fn windows_process_udp_port_filter(process_udp_ports: &[i32]) -> String {
+    let mut ports = process_udp_ports.to_vec();
+    ports.sort_unstable();
+    ports.dedup();
+    if ports.is_empty() {
+        return String::new();
+    }
+    let clauses = ports
+        .into_iter()
+        .map(|port| {
+            format!("((outbound and udp.SrcPort == {port}) or (inbound and udp.DstPort == {port}))")
+        })
+        .collect::<Vec<_>>();
+    format!("({})", clauses.join(" or "))
+}
+
+fn windows_roblox_ip_filter(roblox_dynamic_ips: &[String]) -> String {
+    let mut ips = roblox_dynamic_ips.to_vec();
+    ips.sort_unstable();
+    ips.dedup();
+    let mut filter = WINDOWS_ROBLOX_RANGE_FILTER.to_owned();
+    for ip in ips {
+        filter.push_str(" or (ip.SrcAddr == ");
+        filter.push_str(&ip);
+        filter.push_str(" or ip.DstAddr == ");
+        filter.push_str(&ip);
+        filter.push(')');
+    }
+    format!("({filter})")
+}
+
+fn windows_roblox_filter(
+    roblox_dynamic_ips: &[String],
+    process_udp_ports: &[i32],
+    target_process_present: bool,
+) -> String {
+    let process_filter = windows_process_udp_port_filter(process_udp_ports);
+    if !process_filter.is_empty() {
+        return process_filter;
+    }
+    if !target_process_present {
+        return "false".to_owned();
+    }
+    windows_roblox_ip_filter(roblox_dynamic_ips)
+}
+
+fn windows_custom_target_filter(config: &LagSwitchConfig, roblox_dynamic_ips: &[String]) -> String {
+    let mut clauses = Vec::new();
+    if config.include_roblox_dynamic_ips {
+        clauses.push(windows_roblox_ip_filter(roblox_dynamic_ips));
+    }
+    for ip in &config.remote_ips {
+        clauses.push(format!(
+            "((outbound and ip.DstAddr == {ip}) or (inbound and ip.SrcAddr == {ip}))"
+        ));
+    }
+    for port in &config.remote_ports {
+        let mut port_clauses = Vec::new();
+        if config.use_udp {
+            port_clauses.push(format!(
+                "((outbound and udp.DstPort == {port}) or (inbound and udp.SrcPort == {port}))"
+            ));
+        }
+        if config.use_tcp {
+            port_clauses.push(format!(
+                "((outbound and tcp.DstPort == {port}) or (inbound and tcp.SrcPort == {port}))"
+            ));
+        }
+        match port_clauses.len() {
+            1 => clauses.push(port_clauses.remove(0)),
+            2 => clauses.push(format!("({} or {})", port_clauses[0], port_clauses[1])),
+            _ => {}
+        }
+    }
+    if clauses.is_empty() {
+        return "false".to_owned();
+    }
+    format!("({})", clauses.join(" or "))
+}
+
+/// Build the Windows `WinDivert` filter using the same grammar and targeting precedence as C++.
+#[must_use]
+pub fn build_windows_windivert_filter(
+    config: &LagSwitchConfig,
+    roblox_dynamic_ips: &[String],
+    process_udp_ports: &[i32],
+    target_process_present: bool,
+) -> String {
+    let capture_inbound =
+        config.inbound_hard_block || (config.fake_lag_enabled && config.inbound_fake_lag);
+    let capture_outbound =
+        config.outbound_hard_block || (config.fake_lag_enabled && config.outbound_fake_lag);
+    let direction = match (capture_inbound, capture_outbound) {
+        (true, true) => "(inbound or outbound)",
+        (true, false) => "inbound",
+        (false, true) => "outbound",
+        (false, false) => "false",
+    };
+    let target = match config.target_mode {
+        LagSwitchTargetMode::All => "true".to_owned(),
+        LagSwitchTargetMode::Custom => windows_custom_target_filter(config, roblox_dynamic_ips),
+        LagSwitchTargetMode::Roblox => {
+            windows_roblox_filter(roblox_dynamic_ips, process_udp_ports, target_process_present)
+        }
+    };
+    format!("{direction} and {target} and {}", windows_protocol_filter(config))
+}
+
 /// Build the Linux helper's `block ...` command using already-discovered Roblox server IPs.
 ///
 /// # Errors
@@ -326,6 +445,89 @@ mod tests {
         for invalid in ["", "1.2.3", "1.2.3.4.5", "256.1.1.1", "1..2.3", "+1.2.3.4", "1.2.3.0044"] {
             assert!(!is_valid_ipv4_address(invalid), "{invalid}");
         }
+    }
+
+    #[test]
+    fn windows_windivert_filter_uses_cpp_roblox_target_precedence() {
+        let config = LagSwitchConfig::default();
+        assert_eq!(
+            build_windows_windivert_filter(&config, &[], &[], false),
+            "(inbound or outbound) and false and udp"
+        );
+        assert_eq!(
+            build_windows_windivert_filter(
+                &config,
+                &["9.9.9.9".to_owned()],
+                &[6000, 5000, 6000],
+                false,
+            ),
+            "(inbound or outbound) and (((outbound and udp.SrcPort == 5000) or (inbound and udp.DstPort == 5000)) or ((outbound and udp.SrcPort == 6000) or (inbound and udp.DstPort == 6000))) and udp"
+        );
+    }
+
+    #[test]
+    fn windows_windivert_roblox_ip_filter_matches_cpp_set_order() {
+        let config = LagSwitchConfig::default();
+        let filter = build_windows_windivert_filter(
+            &config,
+            &["9.9.9.9".to_owned(), "1.2.3.4".to_owned(), "9.9.9.9".to_owned()],
+            &[],
+            true,
+        );
+        assert_eq!(
+            filter,
+            "(inbound or outbound) and (((ip.SrcAddr >= 128.116.0.0 and ip.SrcAddr <= 128.116.255.255) or (ip.DstAddr >= 128.116.0.0 and ip.DstAddr <= 128.116.255.255)) or (ip.SrcAddr == 1.2.3.4 or ip.DstAddr == 1.2.3.4) or (ip.SrcAddr == 9.9.9.9 or ip.DstAddr == 9.9.9.9)) and udp"
+        );
+    }
+
+    #[test]
+    fn windows_windivert_custom_filter_preserves_cpp_clause_order() {
+        let config = LagSwitchConfig {
+            target_mode: LagSwitchTargetMode::Custom,
+            use_udp: true,
+            use_tcp: true,
+            remote_ips: vec!["2.2.2.2".to_owned(), "1.1.1.1".to_owned()],
+            remote_ports: vec![80, 443],
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(
+            build_windows_windivert_filter(&config, &[], &[], false),
+            "(inbound or outbound) and (((outbound and ip.DstAddr == 2.2.2.2) or (inbound and ip.SrcAddr == 2.2.2.2)) or ((outbound and ip.DstAddr == 1.1.1.1) or (inbound and ip.SrcAddr == 1.1.1.1)) or (((outbound and udp.DstPort == 80) or (inbound and udp.SrcPort == 80)) or ((outbound and tcp.DstPort == 80) or (inbound and tcp.SrcPort == 80))) or (((outbound and udp.DstPort == 443) or (inbound and udp.SrcPort == 443)) or ((outbound and tcp.DstPort == 443) or (inbound and tcp.SrcPort == 443)))) and (udp or tcp)"
+        );
+    }
+
+    #[test]
+    fn windows_windivert_fake_lag_direction_matches_cpp_capture_rule() {
+        let config = LagSwitchConfig {
+            inbound_hard_block: false,
+            outbound_hard_block: false,
+            fake_lag_enabled: true,
+            inbound_fake_lag: false,
+            outbound_fake_lag: true,
+            target_mode: LagSwitchTargetMode::All,
+            use_udp: false,
+            use_tcp: true,
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(
+            build_windows_windivert_filter(&config, &[], &[], false),
+            "outbound and true and tcp"
+        );
+    }
+
+    #[test]
+    fn windows_windivert_custom_port_without_protocol_matches_cpp_false_target() {
+        let config = LagSwitchConfig {
+            target_mode: LagSwitchTargetMode::Custom,
+            use_udp: false,
+            use_tcp: false,
+            remote_ports: vec![443],
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(
+            build_windows_windivert_filter(&config, &[], &[], false),
+            "(inbound or outbound) and false and false"
+        );
     }
 
     #[test]

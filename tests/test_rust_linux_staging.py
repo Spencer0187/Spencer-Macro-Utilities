@@ -215,6 +215,20 @@ class RustLinuxStagingTest(unittest.TestCase):
         for module in ("runtime_input", "script_runtime", "target_runtime"):
             self.assertNotIn(f'#[cfg(target_os = "linux")]\nmod {module};', main)
 
+    def test_smu_network_freezes_cpp_windivert_filter_grammar(self) -> None:
+        network = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("pub fn build_windows_windivert_filter(", network)
+        self.assertIn("WINDOWS_ROBLOX_RANGE_FILTER", network)
+        self.assertIn("udp.SrcPort", network)
+        self.assertIn("udp.DstPort", network)
+        self.assertIn("ip.DstAddr", network)
+        self.assertIn("tcp.DstPort", network)
+        self.assertIn("LagSwitchTargetMode::Roblox", network)
+        self.assertIn("LagSwitchTargetMode::Custom", network)
+        self.assertIn("LagSwitchTargetMode::All", network)
+
     def test_smu_app_generic_loop_owns_process_status_on_windows_and_linux(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
