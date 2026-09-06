@@ -344,8 +344,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   executable elevated while the original instance exits through normal controller/backend shutdown. The
   rewrite CI has a separate `windows-latest` job that runs Windows unit tests plus clippy, exercises the
   staging path, verifies the required siblings, and uploads only an explicitly unsigned validation
-  artifact. Production Windows PE resources/version/icon embedding, updater compatibility, and multi-file
-  signing/release packaging remain separate cutover gates; macOS still lacks its native Rust adapters.
+  artifact. The Rust PE now also embeds the legacy Windows product identity through a build script: the
+  canonical repository `version` file drives numeric/string file and product versions, `smu.ico` is
+  embedded as icon resource 102, and company/description/internal/original filename/product/copyright
+  fields mirror the C++ resource script. Windows CI inspects the staged executable's version metadata so
+  resource compilation is validated on a real Windows host. Embedded legacy RCDATA is intentionally not
+  reused because the Rust runtime owns file-based assets/WinDivert siblings. Updater compatibility and
+  multi-file signing/release packaging remain separate cutover gates; macOS still lacks its native Rust
+  adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

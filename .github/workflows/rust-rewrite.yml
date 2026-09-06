@@ -71,11 +71,12 @@ jobs:
           --target-dir build/rust-windows-target
           --stage-dir build/rust-windows-app
           --profile release
-      - name: Validate staged runtime siblings
+      - name: Validate staged runtime siblings and PE metadata
         shell: pwsh
         run: |
+          $app = "build/rust-windows-app/Spencer-Macro-Utilities.exe"
           $required = @(
-            "build/rust-windows-app/Spencer-Macro-Utilities.exe",
+            $app,
             "build/rust-windows-app/SDL3.dll",
             "build/rust-windows-app/SMCWinDivert.dll",
             "build/rust-windows-app/SMCWinDivert64.sys",
@@ -85,6 +86,27 @@ jobs:
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
               throw "Missing staged Rust Windows runtime file: $path"
             }
+          }
+          $expectedVersion = (Get-Content -Raw version).Trim()
+          $version = (Get-Item -LiteralPath $app).VersionInfo
+          if ($version.CompanyName -ne "Spencer's Open Source Macro Industries") {
+            throw "Unexpected CompanyName: $($version.CompanyName)"
+          }
+          if ($version.FileDescription -ne "Spencer Macro Utilities") {
+            throw "Unexpected FileDescription: $($version.FileDescription)"
+          }
+          if ($version.FileVersion -ne $expectedVersion) {
+            throw "Unexpected FileVersion: $($version.FileVersion)"
+          }
+          if ($version.ProductName -ne "Spencer Macro Utilities") {
+            throw "Unexpected ProductName: $($version.ProductName)"
+          }
+          if ($version.ProductVersion -ne $expectedVersion) {
+            throw "Unexpected ProductVersion: $($version.ProductVersion)"
+          }
+          $expectedOriginal = "Spencer-Macro-Utilities-V$expectedVersion-Windows.exe"
+          if ($version.OriginalFilename -ne $expectedOriginal) {
+            throw "Unexpected OriginalFilename: $($version.OriginalFilename)"
           }
       - name: Upload unsigned Rust Windows validation artifact
         uses: actions/upload-artifact@v4

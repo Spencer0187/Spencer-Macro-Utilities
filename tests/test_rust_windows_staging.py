@@ -181,6 +181,31 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertEqual(MODULE.APP_OUTPUT_NAME, "Spencer-Macro-Utilities.exe")
         self.assertEqual(MODULE.CARGO_BINARY_NAME, "smu-app.exe")
 
+    def test_windows_pe_resources_match_cpp_product_identity_contract(self) -> None:
+        build_script = (ROOT / "rust" / "crates" / "smu-app" / "build.rs").read_text(
+            encoding="utf-8"
+        )
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(manifest["build-dependencies"]["winres"], "=0.1.12")
+        for expected in (
+            'root.join("version")',
+            'root.join("resources/windows/smu.ico")',
+            '.set_language(0x0409)',
+            '.set_icon_with_id(icon_path, "102")',
+            '"CompanyName", "Spencer\'s Open Source Macro Industries"',
+            '"FileDescription", "Spencer Macro Utilities"',
+            '"InternalName", "Spencer-Macro-Utilities.exe"',
+            '"LegalCopyright", "Copyright (C) 2025"',
+            'format!("Spencer-Macro-Utilities-V{version}-Windows.exe")',
+            '"ProductName", "Spencer Macro Utilities"',
+            "VersionInfo::FILEVERSION",
+            "VersionInfo::PRODUCTVERSION",
+        ):
+            self.assertIn(expected, build_script)
+
     def test_windows_admin_relaunch_preserves_cpp_modal_save_and_runas_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
