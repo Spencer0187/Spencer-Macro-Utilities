@@ -131,7 +131,12 @@ void ApplyUiParityCaseIfRequested()
     const bool importPreviewErrorReference = parityCase && std::strcmp(parityCase, "import-preview-error-user-reference") == 0;
     const bool warningToastReference = parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
     const bool tutorialMediaReference = parityCase && std::strcmp(parityCase, "tutorial-media-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialMediaReference) {
+    const bool tutorialWallhopReference = parityCase && std::strcmp(parityCase, "tutorial-wallhop-user-reference") == 0;
+    const bool tutorialItemClipReference = parityCase && std::strcmp(parityCase, "tutorial-item-clip-user-reference") == 0;
+    const bool tutorialWallWalkReference = parityCase && std::strcmp(parityCase, "tutorial-wall-walk-user-reference") == 0;
+    const bool tutorialSpamKeyReference = parityCase && std::strcmp(parityCase, "tutorial-spam-key-user-reference") == 0;
+    const bool tutorialModuleReference = tutorialMediaReference || tutorialWallhopReference || tutorialItemClipReference || tutorialWallWalkReference || tutorialSpamKeyReference;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference) {
         return;
     }
 
@@ -157,8 +162,13 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialMediaReference) {
-        selected_section = builtinFooterReference ? 0 : (tutorialMediaReference ? 9 : -1);
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference) {
+        selected_section = builtinFooterReference ? 0 :
+            (tutorialMediaReference ? 9 :
+            (tutorialWallhopReference ? 6 :
+            (tutorialItemClipReference ? 8 :
+            (tutorialWallWalkReference ? 10 :
+            (tutorialSpamKeyReference ? 11 : -1)))));
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");

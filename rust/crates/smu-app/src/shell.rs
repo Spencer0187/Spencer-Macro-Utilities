@@ -225,6 +225,14 @@ impl ShellState {
             state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
         } else if case == Some("tutorial-media-user-reference") {
             state.selected_section = 9;
+        } else if case == Some("tutorial-wallhop-user-reference") {
+            state.selected_section = 6;
+        } else if case == Some("tutorial-item-clip-user-reference") {
+            state.selected_section = 8;
+        } else if case == Some("tutorial-wall-walk-user-reference") {
+            state.selected_section = 10;
+        } else if case == Some("tutorial-spam-key-user-reference") {
+            state.selected_section = 11;
         }
         state
     }

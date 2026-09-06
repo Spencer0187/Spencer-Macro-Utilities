@@ -56,7 +56,13 @@ std::array<TutorialTexture, 4> g_textures = {{
 bool RenderParityPlaceholder(float displayWidth, float displayHeight)
 {
     const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
-    if (!parityCase || std::strcmp(parityCase, "tutorial-media-user-reference") != 0) {
+    const bool tutorialReference = parityCase && (
+        std::strcmp(parityCase, "tutorial-media-user-reference") == 0 ||
+        std::strcmp(parityCase, "tutorial-wallhop-user-reference") == 0 ||
+        std::strcmp(parityCase, "tutorial-item-clip-user-reference") == 0 ||
+        std::strcmp(parityCase, "tutorial-wall-walk-user-reference") == 0 ||
+        std::strcmp(parityCase, "tutorial-spam-key-user-reference") == 0);
+    if (!tutorialReference) {
         return false;
     }
 

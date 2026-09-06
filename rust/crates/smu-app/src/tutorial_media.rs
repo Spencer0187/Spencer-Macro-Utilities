@@ -7,6 +7,13 @@ use dear_imgui_rs::texture::{ManagedTextureId, OwnedTextureData, TextureFormat};
 use dear_imgui_rs::{Context, Ui};
 
 const PARITY_CASE: &str = "tutorial-media-user-reference";
+const PARITY_CASES: [&str; 5] = [
+    PARITY_CASE,
+    "tutorial-wallhop-user-reference",
+    "tutorial-item-clip-user-reference",
+    "tutorial-wall-walk-user-reference",
+    "tutorial-spam-key-user-reference",
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TutorialImage {
@@ -55,7 +62,11 @@ impl TutorialMedia {
     pub fn load(context: &mut Context, parity_case: Option<&str>) -> (Self, Vec<String>) {
         if parity_case.is_some() {
             return (
-                Self { parity_placeholder: parity_case == Some(PARITY_CASE), ..Self::default() },
+                Self {
+                    parity_placeholder: parity_case
+                        .is_some_and(|case| PARITY_CASES.contains(&case)),
+                    ..Self::default()
+                },
                 Vec::new(),
             );
         }

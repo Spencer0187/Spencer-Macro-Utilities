@@ -61,8 +61,13 @@ selects Laugh Clip and replaces only the tutorial JPEG with the same centered 24
 placeholder on both apps, so the oracle gates the real media slot, surrounding tutorial text, and
 module layout without depending on JPEG decoder output. Production Rust loads the same four tutorial
 JPEGs as C++ through managed ImGui textures, with packaged/AppDir/source-tree asset resolution and
-missing-asset warnings routed through the warning FIFO. The tutorial-media case needs no masks beyond
-the standard minimum-size footer seam.
+missing-asset warnings routed through the warning FIFO. Four companion cases gate the same centered
+placeholder inside Wallhop, Item Clip, Wall Walk, and Spam Key. They caught Wallhop-specific drift:
+Rust was missing C++'s IMPORTANT sensitivity note, auto-sized the 25px Jump Key reset button, and
+incorrectly treated initial/profile sensitivity as a user edit, recalibrating the default 300px
+flick to 600px before first render. Startup/profile state now preserves pixels like C++, while a real
+sensitivity edit still triggers recalibration. These tutorial cases need no masks beyond the standard
+minimum-size footer seam.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

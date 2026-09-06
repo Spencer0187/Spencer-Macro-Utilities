@@ -435,8 +435,13 @@ application surface rather than an upstream line-break implementation. Tutorial 
 same four JPEG assets as C++ through managed ImGui textures, with packaged/AppDir/source-tree lookup,
 centered aspect-preserving sizing, and warning-FIFO fallback when an asset cannot be loaded. The
 Laugh Clip tutorial-media oracle swaps only the JPEG for an identical 248x140 placeholder on both
-sides, so image-slot/layout parity is deterministic without comparing decoder output. Exact RGBA
-equality is the default. Masks are
+sides, so image-slot/layout parity is deterministic without comparing decoder output. Companion
+Wallhop, Item Clip, Wall Walk, and Spam Key captures reuse that placeholder to gate each tutorial
+module body. Wallhop parity exposed three Rust production drifts: the missing IMPORTANT sensitivity
+note, an auto-sized Jump Key reset button instead of C++'s fixed 25px control, and a first-frame
+sensitivity sync that converted the canonical default 300px flick to 600px from stale 150-degree
+text. Rust now treats startup/profile sensitivity as already applied and only recalibrates Wallhop
+pixels after an actual sensitivity edit, matching C++. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

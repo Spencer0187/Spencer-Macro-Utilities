@@ -57,10 +57,16 @@ impl Default for WallhopUiInstance {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WallhopUiState {
     instances: MultiInstanceState<WallhopUiInstance>,
     applied_sensitivity_revision: u64,
+}
+
+impl Default for WallhopUiState {
+    fn default() -> Self {
+        Self { instances: MultiInstanceState::default(), applied_sensitivity_revision: 1 }
+    }
 }
 
 fn wallhop_base_from_profile(payload: &PreservedProfilePayload) -> WallhopUiInstance {
@@ -387,6 +393,11 @@ pub fn render(
     render_instance_options(ui, instance, &sid, capture);
 
     crate::parity::separator(ui);
+    ui.text_wrapped("IMPORTANT:");
+    ui.text_wrapped(
+        "THE ANGLE THAT YOU TURN IS DIRECTLY RELATED TO YOUR ROBLOX SENSITIVITY. INTEGERS ONLY!",
+    );
+    crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("This macro allows you to double jump on stacked wall parts by flicking and jumping automatically.");
@@ -557,7 +568,7 @@ fn render_instance_options(
     ui.checkbox(format!("Jump During Wallhop##{sid}"), &mut instance.jump);
     ui.checkbox(format!("Flick-Back During Wallhop##{sid}"), &mut instance.flick_back);
     if ui.collapsing_header(format!("Hotkeys##WallhopHotkeys{sid}"), TreeNodeFlags::DEFAULT_OPEN) {
-        if ui.button(format!("R##WallhopJumpKeyReset{sid}")) {
+        if ui.button_with_size(format!("R##WallhopJumpKeyReset{sid}"), [25.0, 0.0]) {
             instance.jump_key = Hotkey::new(KeyCode::SPACE.raw());
         }
         ui.same_line();
@@ -631,10 +642,14 @@ mod tests {
         let mut state = WallhopUiState::default();
         state.add_default();
         state.sync_sensitivity_edit("0.5", false, 1);
+        assert_eq!(state.instances()[0].dx, 300);
+        assert_eq!(state.instances()[1].dx, 300);
+
+        state.sync_sensitivity_edit("0.5", false, 2);
         assert_eq!(state.instances()[0].dx, 600);
         assert_eq!(state.instances()[1].dx, 600);
         state.add_default();
-        state.sync_sensitivity_edit("0.5", false, 1);
+        state.sync_sensitivity_edit("0.5", false, 2);
         assert_eq!(state.instances()[2].dx, 300);
     }
 }

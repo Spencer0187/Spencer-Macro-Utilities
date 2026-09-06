@@ -233,7 +233,6 @@ impl GlobalSettingsState {
         if let Some(value) = crate::profile_adapter::string_value(payload, "RobloxSensValue") {
             value.clone_into(&mut self.sensitivity);
             self.speed_calibration_revision = self.speed_calibration_revision.wrapping_add(1);
-            self.wallhop_sensitivity_revision = self.wallhop_sensitivity_revision.wrapping_add(1);
         }
         if let Some(value) = crate::profile_adapter::string_value(payload, "RobloxFPSChar") {
             value.clone_into(&mut self.fps);
@@ -626,6 +625,14 @@ mod tests {
         assert_eq!(state.sensitivity(), "0.6");
         assert_eq!(state.fps, "200");
         assert_eq!(state.fps_runtime(), 120);
+    }
+
+    #[test]
+    fn profile_load_does_not_count_as_wallhop_sensitivity_edit() {
+        let mut state = GlobalSettingsState::default();
+        let revision = state.wallhop_sensitivity_revision();
+        state.apply_profile(&smu_profile::payload::PreservedProfilePayload::cpp_default());
+        assert_eq!(state.wallhop_sensitivity_revision(), revision);
     }
     #[test]
     fn official_source_url_matches_cpp_global_header_link() {
