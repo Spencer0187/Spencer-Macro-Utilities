@@ -111,8 +111,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `onSettings()` controls. Running scripts use cached read-only settings semantics: interactive
   controls are disabled while text/separators remain visible and `dynamicTextbox` stays selectable and
   copyable. Imports use SDL3's native file dialog for `.smus/.hss/.lua/.txt`, suppress all macro
-  hotkeys while the external modal owns input, and require an explicit trust modal with a read-only
-  source preview before manager import. Imported-script persistence is now attached to the live profile
+  hotkeys while the external modal owns input, and now fall back to an in-app Dear ImGui filesystem
+  browser when SDL reports the native picker unavailable. The fallback starts at the current directory,
+  lists directories before supported script files, supports double-click navigation/open plus an editable
+  relative/absolute path field, and keeps macro input captured until it closes. Selected files then enter
+  the same explicit trust modal with a read-only source preview before manager import. C++ uses the
+  separately compiled ImGuiFileDialog widget for this rare fallback path, so Rust validates its fallback
+  behavior with filesystem-model and headless-render tests rather than unsafe cross-version Dear ImGui
+  ABI sharing. Imported-script persistence is now attached to the live profile
   adapter: a successful import immediately saves the current profile like C++ and reports
   `Script imported, but the settings file could not be updated.` if that write fails; ordinary profile
   saves serialize the manager records, profile loads deserialize the selected record set, and

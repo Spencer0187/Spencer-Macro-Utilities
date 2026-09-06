@@ -94,7 +94,12 @@ network/download/browser actions left untouched. Rust now mirrors C++'s centered
 masked in each branch. Critical Platform Error is also gated directly with the production FIFO modal
 and support text. Rust now has a real critical-notification queue instead of warning-only UI, and
 in-session profile-save failures enqueue that modal; the parity fixture uses one deterministic
-critical message and masks only its four measured rounded corners.
+critical message and masks only its four measured rounded corners. The rare script file-picker
+fallback is behavior-tested rather than added to the pixel manifest: C++ renders third-party
+ImGuiFileDialog against its C++ Dear ImGui build, while Rust now uses a native Dear ImGui filesystem
+browser to avoid cross-version ABI sharing. Filesystem filtering/path resolution and a headless modal
+render smoke cover that fallback, and the existing import-preview pixel cases still gate the shared
+trust-preview handoff that follows a selection.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

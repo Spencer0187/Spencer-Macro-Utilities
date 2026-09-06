@@ -448,6 +448,20 @@ mod profile_orchestration_tests {
 
     #[cfg(target_os = "linux")]
     #[test]
+    fn native_script_dialog_sdl_failure_uses_in_app_fallback() {
+        sdl3::set_error("unavailable").expect("set SDL error for dialog fallback test");
+        assert!(matches!(
+            script_dialog_error_result(sdl3::dialog::DialogError::SdlError(sdl3::get_error())),
+            ScriptDialogResult::Unavailable
+        ));
+        assert!(matches!(
+            script_dialog_error_result(sdl3::dialog::DialogError::Canceled),
+            ScriptDialogResult::Canceled
+        ));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
     fn process_found_parity_state_is_explicit_and_isolated() {
         assert!(LinuxParityOptions::from_case(Some("process-found-user-reference")).process_found);
         assert!(
@@ -729,7 +743,16 @@ enum WaylandSettingsTask {
 enum ScriptDialogResult {
     Selected(PathBuf),
     Canceled,
+    Unavailable,
     Error(String),
+}
+
+fn script_dialog_error_result(error: sdl3::dialog::DialogError) -> ScriptDialogResult {
+    match error {
+        sdl3::dialog::DialogError::Canceled => ScriptDialogResult::Canceled,
+        sdl3::dialog::DialogError::SdlError(_) => ScriptDialogResult::Unavailable,
+        error => ScriptDialogResult::Error(error.to_string()),
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -1242,6 +1265,9 @@ impl LinuxRuntimeServices {
                 shell_state.script_ui_mut().queue_import_candidate(path);
             }
             Some(ScriptDialogResult::Canceled) | None => {}
+            Some(ScriptDialogResult::Unavailable) => {
+                shell_state.script_ui_mut().open_file_dialog_fallback();
+            }
             Some(ScriptDialogResult::Error(error)) => {
                 shell_state.script_ui_mut().set_import_error(error);
             }
@@ -1266,8 +1292,7 @@ impl LinuxRuntimeServices {
                     .into_iter()
                     .next()
                     .map_or(ScriptDialogResult::Canceled, ScriptDialogResult::Selected),
-                Err(sdl3::dialog::DialogError::Canceled) => ScriptDialogResult::Canceled,
-                Err(error) => ScriptDialogResult::Error(error.to_string()),
+                Err(error) => script_dialog_error_result(error),
             };
             *lock(&result_slot) = Some(dialog_result);
             busy.store(false, Ordering::Release);
@@ -1279,7 +1304,7 @@ impl LinuxRuntimeServices {
             Some(window),
             callback,
         ) {
-            *lock(&self.script_dialog_result) = Some(ScriptDialogResult::Error(error.to_string()));
+            *lock(&self.script_dialog_result) = Some(script_dialog_error_result(error));
             self.script_dialog_busy.store(false, Ordering::Release);
         }
     }
@@ -1421,8 +1446,11 @@ impl LinuxRuntimeServices {
         {
             shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
         }
-        shell_state.set_external_input_capture(self.script_dialog_busy.load(Ordering::Acquire));
         self.prepare_script_ui(shell_state);
+        shell_state.set_external_input_capture(
+            self.script_dialog_busy.load(Ordering::Acquire)
+                || shell_state.script_ui().file_dialog_fallback_open(),
+        );
         if shell_state.keybind_input_poll_needed() {
             let input = keybind::InputSnapshot::capture(
                 self.input_service.as_ref(),

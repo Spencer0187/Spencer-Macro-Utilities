@@ -4,11 +4,16 @@
 //! snapshots, queues typed actions, and owns transient selection/import-preview state.
 
 use crate::{keybind, theme::ThemeDefinition};
-use dear_imgui_rs::{Condition, ListClipper, StyleColor, StyleVar, Ui, WindowFlags, sys};
+use dear_imgui_rs::{
+    Condition, ListClipper, MouseButton, SelectableFlags, StyleColor, StyleVar, Ui, WindowFlags,
+    sys,
+};
 use serde_json::{Value, json};
 use smu_scripting::{ScriptRecordSnapshot, SettingsUiControl, SettingsUiControlKind};
 use std::fs;
 use std::path::{Path, PathBuf};
+
+pub const FILE_DIALOG_FALLBACK_SMOKE_CASE: &str = "script-file-dialog-fallback-rust-smoke";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ScriptAction {
@@ -26,6 +31,22 @@ pub enum ScriptAction {
     SettingButton { index: usize, id: String },
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ScriptFileDialogEntry {
+    path: PathBuf,
+    label: String,
+    directory: bool,
+}
+
+#[derive(Debug, Default)]
+struct ScriptFileDialogFallbackState {
+    open: bool,
+    directory: PathBuf,
+    selected: Option<PathBuf>,
+    path_text: String,
+    error: String,
+}
+
 #[derive(Debug, Default)]
 pub struct ScriptUiState {
     snapshots: Vec<ScriptRecordSnapshot>,
@@ -37,6 +58,7 @@ pub struct ScriptUiState {
     preview: String,
     preview_error: String,
     open_trust_modal: bool,
+    file_dialog_fallback: ScriptFileDialogFallbackState,
 }
 
 impl ScriptUiState {
@@ -143,6 +165,21 @@ impl ScriptUiState {
         self.import_notice = notice.into();
     }
 
+    pub fn open_file_dialog_fallback(&mut self) {
+        self.file_dialog_fallback.open = true;
+        self.file_dialog_fallback.directory =
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        self.file_dialog_fallback.selected = None;
+        self.file_dialog_fallback.path_text.clear();
+        self.file_dialog_fallback.error.clear();
+        self.import_error.clear();
+    }
+
+    #[must_use]
+    pub const fn file_dialog_fallback_open(&self) -> bool {
+        self.file_dialog_fallback.open
+    }
+
     pub fn queue_import_candidate(&mut self, path: PathBuf) {
         self.preview.clear();
         self.preview_error.clear();
@@ -183,6 +220,61 @@ impl ScriptUiState {
         };
         self.controls.clear();
     }
+}
+
+fn is_supported_script_path(path: &Path) -> bool {
+    path.extension().and_then(|extension| extension.to_str()).is_some_and(|extension| {
+        matches!(extension.to_ascii_lowercase().as_str(), "smus" | "hss" | "lua" | "txt")
+    })
+}
+
+fn fallback_directory_entries(directory: &Path) -> Result<Vec<ScriptFileDialogEntry>, String> {
+    let entries = fs::read_dir(directory)
+        .map_err(|error| format!("Could not read {}: {error}", directory.display()))?;
+    let mut entries = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let path = entry.path();
+            let directory = path.is_dir();
+            if !(directory || path.is_file() && is_supported_script_path(&path)) {
+                return None;
+            }
+            Some(ScriptFileDialogEntry {
+                label: entry.file_name().to_string_lossy().into_owned(),
+                path,
+                directory,
+            })
+        })
+        .collect::<Vec<_>>();
+    entries.sort_by(|left, right| {
+        right.directory.cmp(&left.directory).then_with(|| {
+            left.label
+                .to_ascii_lowercase()
+                .cmp(&right.label.to_ascii_lowercase())
+                .then_with(|| left.label.cmp(&right.label))
+        })
+    });
+    Ok(entries)
+}
+
+fn fallback_selected_path(state: &ScriptFileDialogFallbackState) -> Result<PathBuf, String> {
+    let raw = state.path_text.trim();
+    let path = if raw.is_empty() {
+        state.selected.clone().ok_or_else(|| "Select a script file first.".to_owned())?
+    } else {
+        let typed = PathBuf::from(raw);
+        if typed.is_absolute() { typed } else { state.directory.join(typed) }
+    };
+    if path.is_dir() {
+        return Err("The selected path is a directory.".to_owned());
+    }
+    if !path.is_file() {
+        return Err("The selected script file does not exist.".to_owned());
+    }
+    if !is_supported_script_path(&path) {
+        return Err("Unsupported script extension.".to_owned());
+    }
+    Ok(path)
 }
 
 pub fn render_sidebar(
@@ -770,6 +862,176 @@ fn render_import_preview(ui: &Ui, state: &ScriptUiState, theme: &ThemeDefinition
         });
 }
 
+fn set_file_dialog_fallback_layout(ui: &Ui) {
+    let viewport = ui.main_viewport();
+    let viewport_pos = viewport.pos();
+    let viewport_size = viewport.size();
+    let center = [
+        viewport_size[0].mul_add(0.5, viewport_pos[0]),
+        viewport_size[1].mul_add(0.5, viewport_pos[1]),
+    ];
+    let min_size = [(viewport_size[0] * 0.5).max(320.0), (viewport_size[1] * 0.5).max(240.0)];
+    let max_size =
+        [(viewport_size[0] - 32.0).max(min_size[0]), (viewport_size[1] - 32.0).max(min_size[1])];
+    // SAFETY: these configure the immediately following modal Begin while `ui` owns the active
+    // Dear ImGui context for this frame.
+    unsafe {
+        sys::igSetNextWindowPos(
+            sys::ImVec2_c { x: center[0], y: center[1] },
+            Condition::Appearing as i32,
+            sys::ImVec2_c { x: 0.5, y: 0.5 },
+        );
+        sys::igSetNextWindowSizeConstraints(
+            sys::ImVec2_c { x: min_size[0], y: min_size[1] },
+            sys::ImVec2_c { x: max_size[0], y: max_size[1] },
+            None,
+            std::ptr::null_mut(),
+        );
+        sys::igSetNextWindowSize(
+            sys::ImVec2_c { x: min_size[0], y: min_size[1] },
+            Condition::Appearing as i32,
+        );
+    }
+}
+
+fn render_fallback_entry_list(
+    ui: &Ui,
+    state: &mut ScriptUiState,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    let entries = match fallback_directory_entries(&state.file_dialog_fallback.directory) {
+        Ok(entries) => entries,
+        Err(error) => {
+            error.clone_into(&mut state.file_dialog_fallback.error);
+            return (None, None);
+        }
+    };
+
+    let selected = state.file_dialog_fallback.selected.clone();
+    let available = ui.content_region_avail()[1];
+    let list_height = (available - 92.0).max(80.0);
+    let mut clicked = None;
+    let mut activated = None;
+    ui.child_window("##ScriptFileDialogFallbackList")
+        .size([0.0, list_height])
+        .border(true)
+        .flags(WindowFlags::HORIZONTAL_SCROLLBAR)
+        .build(ui, || {
+            for entry in &entries {
+                let label = if entry.directory {
+                    format!("[DIR] {}", entry.label)
+                } else {
+                    entry.label.clone()
+                };
+                if ui
+                    .selectable_config(&label)
+                    .selected(selected.as_ref() == Some(&entry.path))
+                    .flags(SelectableFlags::ALLOW_DOUBLE_CLICK)
+                    .build()
+                {
+                    clicked = Some(entry.clone());
+                    if ui.is_mouse_double_clicked(MouseButton::Left) {
+                        activated = Some(entry.clone());
+                    }
+                }
+            }
+        });
+    if let Some(entry) = clicked {
+        state.file_dialog_fallback.selected = Some(entry.path.clone());
+        entry.label.clone_into(&mut state.file_dialog_fallback.path_text);
+        state.file_dialog_fallback.error.clear();
+    }
+    match activated {
+        Some(entry) if entry.directory => (Some(entry.path), None),
+        Some(entry) => (None, Some(entry.path)),
+        None => (None, None),
+    }
+}
+
+pub fn render_file_dialog_fallback(ui: &Ui, state: &mut ScriptUiState) {
+    if !state.file_dialog_fallback.open {
+        return;
+    }
+
+    let _ = ui.open_popup("Import SMU Script");
+    set_file_dialog_fallback_layout(ui);
+    let Some(_popup) =
+        ui.begin_modal_popup_config("Import SMU Script").flags(WindowFlags::NO_COLLAPSE).begin()
+    else {
+        return;
+    };
+
+    let up_destination = if ui.button("Up") {
+        state.file_dialog_fallback.directory.parent().map(Path::to_path_buf)
+    } else {
+        None
+    };
+    ui.same_line();
+    ui.text_wrapped(format!("Folder: {}", sanitize_path(&state.file_dialog_fallback.directory)));
+
+    let (entry_destination, activated_file) = render_fallback_entry_list(ui, state);
+    let navigate_to = entry_destination.or(up_destination);
+
+    ui.set_next_item_width(-f32::MIN_POSITIVE);
+    let enter = ui
+        .input_text("##ScriptFileDialogFallbackPath", &mut state.file_dialog_fallback.path_text)
+        .hint("Script file name or path")
+        .enter_returns_true(true)
+        .build();
+
+    let open_clicked = ui.button_with_size("Open", [90.0, 0.0]);
+    ui.same_line();
+    let cancel_clicked = ui.button_with_size("Cancel", [90.0, 0.0]);
+    if !state.file_dialog_fallback.error.is_empty() {
+        ui.same_line();
+        ui.text_colored([1.0, 0.25, 0.25, 1.0], &state.file_dialog_fallback.error);
+    }
+
+    if let Some(directory) = navigate_to {
+        state.file_dialog_fallback.directory = directory;
+        state.file_dialog_fallback.selected = None;
+        state.file_dialog_fallback.path_text.clear();
+        state.file_dialog_fallback.error.clear();
+        return;
+    }
+
+    if cancel_clicked {
+        state.file_dialog_fallback = ScriptFileDialogFallbackState::default();
+        ui.close_current_popup();
+        return;
+    }
+
+    if let Some(path) = activated_file {
+        state.file_dialog_fallback = ScriptFileDialogFallbackState::default();
+        ui.close_current_popup();
+        state.queue_import_candidate(path);
+        return;
+    }
+
+    if open_clicked || enter {
+        match fallback_selected_path(&state.file_dialog_fallback) {
+            Ok(path) => {
+                state.file_dialog_fallback = ScriptFileDialogFallbackState::default();
+                ui.close_current_popup();
+                state.queue_import_candidate(path);
+            }
+            Err(error) if error == "The selected path is a directory." => {
+                let raw = state.file_dialog_fallback.path_text.trim();
+                let typed = PathBuf::from(raw);
+                let directory = if typed.is_absolute() {
+                    typed
+                } else {
+                    state.file_dialog_fallback.directory.join(typed)
+                };
+                state.file_dialog_fallback.directory = directory;
+                state.file_dialog_fallback.selected = None;
+                state.file_dialog_fallback.path_text.clear();
+                state.file_dialog_fallback.error.clear();
+            }
+            Err(error) => error.clone_into(&mut state.file_dialog_fallback.error),
+        }
+    }
+}
+
 pub fn render_trust_modal(
     ui: &Ui,
     state: &mut ScriptUiState,
@@ -872,6 +1134,8 @@ fn sanitize_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+
     use super::*;
     use smu_core::Hotkey;
     use smu_scripting::{ImportedScriptMetadata, SCRIPT_UNBOUND_HOTKEY};
@@ -949,6 +1213,57 @@ mod tests {
         state.select(2);
         state.remove_completed(1);
         assert_eq!(state.selected(), Some(1));
+    }
+
+    #[test]
+    fn fallback_directory_model_filters_sorts_and_resolves_relative_script() {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let counter = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let directory = std::env::temp_dir()
+            .join(format!("smu-script-fallback-{}-{counter}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(directory.join("z-dir")).expect("create z-dir");
+        fs::create_dir_all(directory.join("a-dir")).expect("create a-dir");
+        fs::write(directory.join("b.lua"), "return true").expect("write b.lua");
+        fs::write(directory.join("A.TXT"), "text").expect("write A.TXT");
+        fs::write(directory.join("ignored.md"), "ignored").expect("write ignored.md");
+
+        let entries = fallback_directory_entries(&directory).expect("read fallback directory");
+        let labels = entries.iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>();
+        assert_eq!(labels, ["a-dir", "z-dir", "A.TXT", "b.lua"]);
+        assert!(entries[0].directory && entries[1].directory);
+        assert!(!entries[2].directory && !entries[3].directory);
+
+        let mut state = ScriptFileDialogFallbackState {
+            open: true,
+            directory: directory.clone(),
+            selected: None,
+            path_text: "b.lua".to_owned(),
+            error: String::new(),
+        };
+        assert_eq!(fallback_selected_path(&state), Ok(directory.join("b.lua")));
+        state.path_text = "ignored.md".to_owned();
+        assert_eq!(fallback_selected_path(&state), Err("Unsupported script extension.".to_owned()));
+
+        fs::remove_dir_all(&directory).expect("remove fallback directory");
+    }
+
+    #[test]
+    fn fallback_renderer_keeps_modal_active_in_headless_imgui_frame() {
+        let mut context = dear_imgui_rs::Context::create();
+        let _ = context.set_ini_filename::<PathBuf>(None);
+        context
+            .font_atlas()
+            .try_claim_legacy_renderer()
+            .expect("legacy renderer font atlas")
+            .build();
+        context.io_mut().set_display_size([1180.0, 700.0]);
+        context.io_mut().set_delta_time(1.0 / 60.0);
+        let mut state = ScriptUiState::default();
+        state.open_file_dialog_fallback();
+        let frame = context.begin_frame();
+        render_file_dialog_fallback(frame.ui(), &mut state);
+        assert!(state.file_dialog_fallback_open());
     }
 
     #[test]

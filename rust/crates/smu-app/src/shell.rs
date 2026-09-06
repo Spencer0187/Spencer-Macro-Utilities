@@ -265,6 +265,8 @@ impl ShellState {
             state.script_ui.apply_import_preview_error_parity_reference();
         } else if case == Some("warning-toast-user-reference") {
             state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
+        } else if case == Some(script_ui::FILE_DIALOG_FALLBACK_SMOKE_CASE) {
+            state.script_ui.open_file_dialog_fallback();
         } else if case == Some(critical_modal::PARITY_CASE) {
             state.critical_modal.push(critical_modal::PARITY_MESSAGE);
         } else if case == Some("tutorial-media-user-reference") {
@@ -641,6 +643,11 @@ impl ShellState {
     }
 
     #[cfg(target_os = "linux")]
+    pub const fn script_ui(&self) -> &ScriptUiState {
+        &self.script_ui
+    }
+
+    #[cfg(target_os = "linux")]
     pub const fn script_ui_mut(&mut self) -> &mut ScriptUiState {
         &mut self.script_ui
     }
@@ -998,6 +1005,9 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     if let Some(setup_action) = render_linux_input_setup(ui, state, &active_theme) {
         action = Some(setup_action);
     }
+
+    #[cfg(target_os = "linux")]
+    script_ui::render_file_dialog_fallback(ui, &mut state.script_ui);
 
     #[cfg(target_os = "linux")]
     if let Some(script_action) =
@@ -1679,7 +1689,7 @@ mod profile_adapter_tests {
     #[cfg(target_os = "linux")]
     use super::LinuxModal;
     use super::ShellState;
-    use crate::{critical_modal, warning_toast};
+    use crate::{critical_modal, script_ui, warning_toast};
     use serde_json::{Map, json};
     use smu_profile::payload::PreservedProfilePayload;
 
@@ -1820,6 +1830,14 @@ mod profile_adapter_tests {
         let state = ShellState::for_parity_case(Some("warning-toast-user-reference"));
         assert_eq!(state.warning_toast.front(), Some(warning_toast::PARITY_WARNING_MESSAGE));
         assert_eq!(state.warning_toast.len(), 1);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn script_file_dialog_fallback_smoke_case_opens_fallback_picker() {
+        let state = ShellState::for_parity_case(Some(script_ui::FILE_DIALOG_FALLBACK_SMOKE_CASE));
+        assert!(state.script_ui.file_dialog_fallback_open());
+        assert_eq!(state.selected_section, -1);
     }
 
     #[test]
