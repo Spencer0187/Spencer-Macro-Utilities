@@ -124,6 +124,7 @@ mod walless_lhj_runtime;
 mod wallhop;
 #[cfg(target_os = "linux")]
 mod wallhop_runtime;
+mod warning_toast;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -2128,6 +2129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         parity_case.is_none(),
         LinuxParityOptions::from_case(parity_case.as_deref()),
     );
+    #[cfg(target_os = "linux")]
+    if parity_case.is_none() && !smu_process::linux::foreground_detection_available() {
+        shell_state.push_warning(warning_toast::FOREGROUND_FALLBACK_WARNING);
+    }
     #[cfg(target_os = "linux")]
     if let Some(payload) = profile_service.current_payload() {
         linux_services.apply_profile_script_state(payload);

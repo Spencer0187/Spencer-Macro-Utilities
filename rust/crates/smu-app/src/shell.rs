@@ -27,6 +27,7 @@ use crate::{
     wall_walk::{self, WallWalkUiState},
     walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
     wallhop::{self, WallhopUiState},
+    warning_toast::{self, WarningToastState},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -121,6 +122,7 @@ pub struct ShellState {
     settings_platform: settings_menu::PlatformStatus,
     settings_updater: settings_menu::UpdaterPanelStatus,
     notifications: NotificationSuppressionState,
+    warning_toast: WarningToastState,
     theme: theme::ThemeState,
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
@@ -161,6 +163,7 @@ impl Default for ShellState {
             settings_platform: settings_menu::PlatformStatus::default(),
             settings_updater: settings_menu::UpdaterPanelStatus::default(),
             notifications: NotificationSuppressionState::default(),
+            warning_toast: WarningToastState::default(),
             theme: theme::ThemeState::default(),
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
@@ -213,6 +216,8 @@ impl ShellState {
             state.selected_section = 0;
         } else if case == Some("import-preview-user-reference") {
             state.script_ui.apply_import_preview_parity_reference();
+        } else if case == Some("warning-toast-user-reference") {
+            state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
         }
         state
     }
@@ -518,6 +523,10 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub fn set_settings_updater_status(&mut self, status: settings_menu::UpdaterPanelStatus) {
         self.settings_updater = status;
+    }
+
+    pub fn push_warning(&mut self, message: impl Into<String>) {
+        self.warning_toast.push(message);
     }
 
     pub const fn profile_browser_mut(&mut self) -> &mut ProfileBrowserState {
@@ -897,6 +906,8 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         .build(|| {
             action = render_contents(ui, state, display_size, &active_theme);
         });
+
+    warning_toast::render(ui, &mut state.warning_toast);
 
     #[cfg(target_os = "linux")]
     if let Some(modal_action) = render_linux_modals(ui, state, &active_theme) {
@@ -1498,6 +1509,7 @@ mod profile_adapter_tests {
     #![allow(clippy::expect_used)]
 
     use super::ShellState;
+    use crate::warning_toast;
     use serde_json::{Map, json};
     use smu_profile::payload::PreservedProfilePayload;
 
@@ -1631,6 +1643,13 @@ mod profile_adapter_tests {
         let state = ShellState::for_parity_case(Some("builtin-footer-user-reference"));
         assert_eq!(state.selected_section, 0);
         assert!(state.freeze.enabled);
+    }
+
+    #[test]
+    fn warning_toast_parity_case_queues_only_reference_warning() {
+        let state = ShellState::for_parity_case(Some("warning-toast-user-reference"));
+        assert_eq!(state.warning_toast.front(), Some(warning_toast::PARITY_WARNING_MESSAGE));
+        assert_eq!(state.warning_toast.len(), 1);
     }
 
     #[test]

@@ -128,7 +128,8 @@ void ApplyUiParityCaseIfRequested()
     const bool builtinFooterReference = parityCase && std::strcmp(parityCase, "builtin-footer-user-reference") == 0;
     const bool importedScriptFooterReference = parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0;
     const bool importPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference) {
+    const bool warningToastReference = parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !warningToastReference) {
         return;
     }
 
@@ -154,7 +155,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || warningToastReference) {
         selected_section = builtinFooterReference ? 0 : -1;
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
@@ -3769,8 +3770,19 @@ void RenderPlatformCriticalNotifications()
 void RenderPlatformWarningNotifications()
 {
     static std::vector<smu::log::LogEntry> activeWarnings;
-    auto newWarnings = smu::log::DrainWarningNotifications();
-    activeWarnings.insert(activeWarnings.end(), newWarnings.begin(), newWarnings.end());
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool warningToastReference =
+        parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
+    if (activeWarnings.empty() && warningToastReference) {
+        smu::log::LogEntry entry;
+        entry.level = smu::log::LogLevel::Warning;
+        entry.message = "Deterministic platform warning parity fixture.";
+        activeWarnings.push_back(entry);
+    }
+    if (!warningToastReference) {
+        auto newWarnings = smu::log::DrainWarningNotifications();
+        activeWarnings.insert(activeWarnings.end(), newWarnings.begin(), newWarnings.end());
+    }
     if (activeWarnings.empty()) {
         return;
     }
@@ -3904,6 +3916,8 @@ void RenderAppUi(AppContext& context)
         const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
         if (parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0) {
             RenderImportTrustModal();
+        } else if (parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0) {
+            RenderPlatformWarningNotifications();
         }
     }
 

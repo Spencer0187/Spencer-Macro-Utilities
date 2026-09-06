@@ -49,6 +49,12 @@ preview and gates the centered trust modal, syntax-highlighted read-only preview
 and dimmed shell underneath. Rust parity captures pin Dear ImGui `DeltaTime` to 1/60s after backend
 frame setup, matching the C++ oracle's active-frame cadence so time-based modal dimming reaches the
 same third-frame state. Only the four reviewed rounded modal-corner halos are additionally masked.
+`warning-toast-linux-minimum` gates the real top-right warning FIFO/toast window, selectable read-only
+message field, and Dismiss control. Its deterministic fixture is deliberately one line: Dear ImGui
+rewrote punctuation-aware word breaking between 1.92.5 and 1.92.9, so this case isolates the toast
+surface instead of treating that upstream wrapping algorithm as application behavior. Rust's live
+Linux path also queues the foreground-detection fallback warning through this same FIFO. Only the
+four measured 6x6 toast-window corner halos are additionally masked.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

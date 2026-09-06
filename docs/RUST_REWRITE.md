@@ -426,7 +426,12 @@ now gated with an in-memory Lua source fixture as well: Rust ports C++'s centere
 modal, exact disclaimer/section heading, bordered horizontal-scroll syntax preview, visible-line
 clipping, metadata/comment/string/keyword/function/risky-function coloring, and parity-capture
 `DeltaTime` stabilization at 1/60s so Dear ImGui modal dimming reaches the same third-frame state as
-the C++ 60 FPS oracle. Exact RGBA equality is the default. Masks are
+the C++ 60 FPS oracle. A warning-toast capture now gates a real Rust warning FIFO and the C++-matching
+top-right selectable/Dismiss surface; Linux startup feeds the existing foreground-detection fallback
+warning through that queue. The deterministic toast fixture stays single-line because Dear ImGui
+rewrote punctuation-aware word wrapping between 1.92.5 and 1.92.9, and the oracle should gate the
+application surface rather than an upstream line-break implementation. Exact RGBA equality is the
+default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 
