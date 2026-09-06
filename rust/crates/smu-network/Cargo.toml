@@ -11,5 +11,11 @@ smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
 [target.'cfg(target_os = "linux")'.dependencies]
 libc.workspace = true
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }
+
 [lints]
 workspace = true

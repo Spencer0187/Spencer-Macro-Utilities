@@ -1350,6 +1350,7 @@ version = "0.0.0"
 dependencies = [
  "libc",
  "smu-roblox",
+ "windows-sys",
 ]
 
 [[package]]

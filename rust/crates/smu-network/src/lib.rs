@@ -5,6 +5,8 @@
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum LagSwitchTargetMode {

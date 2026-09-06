@@ -229,6 +229,40 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("LagSwitchTargetMode::Custom", network)
         self.assertIn("LagSwitchTargetMode::All", network)
 
+    def test_smu_network_has_native_windows_windivert_loader_foundation(self) -> None:
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-network" / "Cargo.toml").read_text(
+                encoding="utf-8"
+            )
+        )
+        network = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8")
+        windows = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+
+        windows_dependencies = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"]
+        self.assertEqual(
+            windows_dependencies["windows-sys"]["features"],
+            ["Win32_Foundation", "Win32_System_LibraryLoader"],
+        )
+        self.assertIn('#[cfg(target_os = "windows")]\npub mod windows;', network)
+        self.assertIn('WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll"', windows)
+        self.assertIn('WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys"', windows)
+        self.assertIn("pub struct WinDivertAddress", windows)
+        self.assertIn("assert_eq!(std::mem::size_of::<WinDivertAddress>(), 80);", windows)
+        for export in (
+            "WinDivertOpen",
+            "WinDivertRecv",
+            "WinDivertSend",
+            "WinDivertShutdown",
+            "WinDivertClose",
+        ):
+            self.assertIn(export, windows)
+        self.assertIn('b"false\\0".as_ptr()', windows)
+        self.assertIn("WINDIVERT_FLAG_SNIFF", windows)
+
     def test_lag_switch_controller_uses_shared_network_contract(self) -> None:
         runtime = (
             ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch_runtime.rs"

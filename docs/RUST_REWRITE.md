@@ -273,9 +273,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   WinDivert direction/protocol/Roblox/custom filter grammar, including process UDP-port precedence and
   dynamic-IP set ordering. The shared `LagSwitchControl` contract now also owns backend initialization,
   base config, and base blocking, so `LagSwitchController` no longer depends on the Linux concrete
-  backend and can drive a Windows transport through the same runtime path. Dynamic DLL loading, packet
-  capture/reinjection, fake-lag queues, and target
-  refresh workers are still missing; macOS still lacks its native Rust adapters.
+  backend and can drive a Windows transport through the same runtime path. `smu-network::windows` now
+  provides the native loader/ABI foundation too: it requires `SMCWinDivert.dll` and
+  `SMCWinDivert64.sys` beside the executable, resolves `Open`/`Recv`/`Send`/`Shutdown`/`Close`, models
+  the bundled 80-byte `WINDIVERT_ADDRESS`, and probes driver availability with the C++
+  `Open("false", NETWORK, 0, SNIFF)` call. This Fedora toolchain has neither a Windows stdlib nor
+  `rust-src`, so the Windows-only loader is validated here with rustfmt, locked `windows-sys` API
+  signatures, Windows-target metadata, source guards, and the bundled DLL export table; native Windows
+  `cargo check` remains external. Packet capture/reinjection policy, fake-lag queues, dynamic target
+  refresh, Windows Rust packaging of those assets, and `smu-app` backend wiring are still missing;
+  macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.
