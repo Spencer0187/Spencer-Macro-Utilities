@@ -228,9 +228,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   settings inside the worker, and preserves the custom-text early return plus three separate dropdown
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
-  asymmetries. Linux built-in execution, settings UI, and production entry-point cutover are complete;
-  cross-platform app-service composition plus Windows/macOS C++ entry-point removal remain separate
-  rewrite gates.
+  asymmetries. Linux built-in execution, settings UI, and production entry-point cutover are complete.
+  The first cross-platform composition prerequisite is now in place too: `smu-core`, `smu-input`, and
+  `smu-scripting` are ordinary `smu-app` dependencies instead of Linux-only dependencies, and a
+  platform-neutral `ScriptProfileBridge` owns imported-script serialization plus the live saved-setting
+  snapshot. Linux delegates its existing profile/script persistence through that bridge without changing
+  runtime behavior; Windows/macOS still need concrete input/display/process/network service adapters and
+  C++ entry-point removal as separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

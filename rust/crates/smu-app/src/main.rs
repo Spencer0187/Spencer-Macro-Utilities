@@ -27,6 +27,8 @@ use serde_json::{Map, Value};
 use smu_profile::payload::PreservedProfilePayload;
 
 #[cfg(target_os = "linux")]
+use script_profile_bridge::ScriptProfileBridge;
+#[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
 #[cfg(target_os = "linux")]
 use smu_input::linux::EvdevUinputInputDevice;
@@ -98,6 +100,7 @@ mod profile_browser;
 mod profile_service;
 #[cfg(target_os = "linux")]
 mod runtime_input;
+mod script_profile_bridge;
 #[cfg(target_os = "linux")]
 mod script_runtime;
 #[cfg(target_os = "linux")]
@@ -790,7 +793,7 @@ struct LinuxRuntimeServices {
     wayland_settings_worker: Mutex<Option<JoinHandle<()>>>,
     input_setup: linux_input_setup_service::LinuxInputSetupService,
     input_service: Arc<EvdevUinputInputDevice>,
-    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    script_profile: ScriptProfileBridge,
     update_service: updater_service::LinuxUpdateService,
     script_manager: Arc<ScriptManager>,
     script_runtime_controller: Option<script_runtime::ScriptRuntimeController>,
@@ -1160,6 +1163,7 @@ impl LinuxRuntimeServices {
             Arc::clone(&saved_settings),
             shell_state,
         );
+        let script_profile = ScriptProfileBridge::new(Arc::clone(&script_manager), saved_settings);
         let hhj_active = Arc::new(AtomicBool::new(false));
         let bunnyhop_controller = start_bunnyhop_controller(&platform, shell_state);
         let hhj_controller = start_hhj_controller(&platform, Arc::clone(&hhj_active), shell_state);
@@ -1218,7 +1222,7 @@ impl LinuxRuntimeServices {
             wayland_settings_worker: Mutex::new(None),
             input_setup,
             input_service: platform.input_service,
-            saved_settings,
+            script_profile,
             update_service,
             script_manager,
             script_runtime_controller,
@@ -1730,20 +1734,15 @@ impl LinuxRuntimeServices {
     }
 
     fn profile_script_state(&self) -> serde_json::Value {
-        self.script_manager.serialize()
+        self.script_profile.serialize_scripts()
     }
 
     fn apply_profile_script_state(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
-        self.saved_settings.replace(payload);
-        let scripts = payload
-            .raw_value("imported_scripts")
-            .cloned()
-            .unwrap_or_else(|| serde_json::Value::Array(Vec::new()));
-        self.script_manager.deserialize(&scripts);
+        self.script_profile.apply_profile(payload);
     }
 
     fn update_saved_settings(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
-        self.saved_settings.replace(payload);
+        self.script_profile.update_saved_settings(payload);
     }
 
     fn shutdown(&self) {
@@ -1751,7 +1750,7 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.script_runtime_controller.as_ref() {
             controller.stop();
         }
-        self.script_manager.shutdown();
+        self.script_profile.shutdown();
         if let Some(controller) = self.floor_bounce_controller.as_ref() {
             controller.stop();
         }

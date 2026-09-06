@@ -61,6 +61,17 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertFalse(any(source.startswith("git+") for source in sources))
         self.assertTrue(any(source.startswith("registry+") for source in sources))
 
+    def test_smu_app_keeps_portable_script_profile_dependencies_outside_linux_cfg(self) -> None:
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        dependencies = manifest["dependencies"]
+        linux_dependencies = manifest["target"]["cfg(target_os = \"linux\")"]["dependencies"]
+        for name in ("smu-core", "smu-input", "smu-profile", "smu-scripting"):
+            self.assertIn(name, dependencies)
+        for name in ("smu-core", "smu-input", "smu-scripting"):
+            self.assertNotIn(name, linux_dependencies)
+
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:
         self.assertEqual(
             MODULE.rustflags_with_origin_runpath("-C target-cpu=x86-64-v2"),
