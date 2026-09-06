@@ -282,6 +282,10 @@ impl ShellState {
         if let Some(modal) = parity_linux_modal(case) {
             state.linux_modals.pending_open.insert(modal);
         }
+        #[cfg(target_os = "linux")]
+        if case == Some(crate::linux_input_setup::PARITY_CASE) {
+            state.set_linux_input_setup_status(crate::linux_input_setup::parity_reference_status());
+        }
         state
     }
 
@@ -1853,6 +1857,15 @@ mod profile_adapter_tests {
             assert!(state.linux_modals.pending_open.contains(&modal));
             assert_eq!(state.selected_section, -1);
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_input_setup_parity_case_uses_reference_status() {
+        let state = ShellState::for_parity_case(Some(crate::linux_input_setup::PARITY_CASE));
+        assert_eq!(state.linux_input_setup, crate::linux_input_setup::parity_reference_status());
+        assert!(!state.platform_input_ready);
+        assert_eq!(state.selected_section, -1);
     }
 
     #[test]

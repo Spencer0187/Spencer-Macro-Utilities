@@ -1397,7 +1397,11 @@ impl LinuxRuntimeServices {
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
         self.reap_wayland_settings_worker();
-        shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
+        if std::env::var("SMU_UI_PARITY_CASE").ok().as_deref()
+            != Some(linux_input_setup::PARITY_CASE)
+        {
+            shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
+        }
         shell_state.set_external_input_capture(self.script_dialog_busy.load(Ordering::Acquire));
         self.prepare_script_ui(shell_state);
         if shell_state.keybind_input_poll_needed() {

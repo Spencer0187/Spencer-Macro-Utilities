@@ -451,10 +451,13 @@ gates Cyberpunk idle/hover, Default Dark, and Sunset Orange; the hover fixture i
 position before `NewFrame` on both apps and exercises the real sidebar hover path. Default Dark needs
 only three measured zero-rounding edge masks, while Sunset Orange needs four tiny rounded footer
 corner masks. Linux permission/policy modals are also gated directly: Administrator Required,
-Additional Freeze Permission Required, Wayland Screen Capture, and Wayland Absolute Mouse Control.
-Rust now mirrors the C++ modal center/size constraints, `AlwaysAutoResize`, close-button semantics,
-spacing, and default focus; only measured rounded corners plus one stable 1x2 dimmed-text threshold
-fragment on Administrator Required are masked. Fractional-scale manifest rows remain manual OS/DPI
+Additional Freeze Permission Required, Wayland Screen Capture, Wayland Absolute Mouse Control, and
+Linux Input Setup Required. Rust now mirrors the C++ modal center/size constraints,
+`AlwaysAutoResize`, close-button semantics, spacing, default focus, and the input-setup modal's 580px
+fixed-wrap unformatted details/action regions. The input-setup fixture uses deterministic in-memory
+permission summary/details text and bypasses only the live permission snapshot during parity capture;
+only measured rounded corners plus one stable 1x2 dimmed-text threshold fragment on Administrator
+Required are masked. Fractional-scale manifest rows remain manual OS/DPI
 references because Xvfb plus SDL's X11 scaling override produced pixel-identical 1x/1.25x captures
 instead of exercising a real content-scale change. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;

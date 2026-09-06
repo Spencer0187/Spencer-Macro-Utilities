@@ -145,7 +145,8 @@ void ApplyUiParityCaseIfRequested()
     const bool freezeModalReference = parityCase && std::strcmp(parityCase, "modal-freeze-helper-user-reference") == 0;
     const bool waylandScreenModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-screen-user-reference") == 0;
     const bool waylandMouseModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0;
-    const bool linuxModalReference = adminModalReference || freezeModalReference || waylandScreenModalReference || waylandMouseModalReference;
+    const bool linuxInputSetupModalReference = parityCase && std::strcmp(parityCase, "modal-linux-input-setup-user-reference") == 0;
+    const bool linuxModalReference = adminModalReference || freezeModalReference || waylandScreenModalReference || waylandMouseModalReference || linuxInputSetupModalReference;
     int moduleBodyReferenceSection = -1;
     if (parityCase) {
         if (std::strcmp(parityCase, "module-item-desync-user-reference") == 0) moduleBodyReferenceSection = 1;
@@ -1665,7 +1666,9 @@ std::string FileUrlFromPath(const std::string& path)
 void RenderLinuxInputSetup(AppContext& context)
 {
 #if defined(__linux__)
-    if (!context.linuxInputSetupRequired) {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference = parityCase && std::strcmp(parityCase, "modal-linux-input-setup-user-reference") == 0;
+    if (!context.linuxInputSetupRequired && !parityReference) {
         return;
     }
 
@@ -1681,9 +1684,15 @@ void RenderLinuxInputSetup(AppContext& context)
             "The graphical installer uses your desktop polkit agent. If no authentication window appears, "
             "use the terminal installer or copy the manual sudo command.");
         ImGui::Separator();
-        ImGui::TextWrapped("%s", context.linuxInputPermissionSummary.c_str());
+        const char* permissionSummary = parityReference
+            ? "Parity permission summary: Linux input devices are not accessible."
+            : context.linuxInputPermissionSummary.c_str();
+        const char* permissionDetails = parityReference
+            ? "/dev/input/event0: Permission denied\n/dev/uinput: Permission denied"
+            : context.linuxInputPermissionDetails.c_str();
+        ImGui::TextWrapped("%s", permissionSummary);
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 580.0f);
-        ImGui::TextUnformatted(context.linuxInputPermissionDetails.c_str());
+        ImGui::TextUnformatted(permissionDetails);
         ImGui::PopTextWrapPos();
         ImGui::Separator();
 
@@ -1722,14 +1731,14 @@ void RenderLinuxInputSetup(AppContext& context)
             }
         }
 
-        if (!context.linuxInputSetupActionMessage.empty()) {
+        if (!parityReference && !context.linuxInputSetupActionMessage.empty()) {
             ImGui::Separator();
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 580.0f);
             ImGui::TextUnformatted(context.linuxInputSetupActionMessage.c_str());
             ImGui::PopTextWrapPos();
         }
 
-        if (!context.linuxInputSetupRequired) {
+        if (!context.linuxInputSetupRequired && !parityReference) {
             ImGui::CloseCurrentPopup();
         }
 
@@ -3987,6 +3996,8 @@ void RenderAppUi(AppContext& context)
             RenderWaylandScreenCapturePrompt(context);
         } else if (parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0) {
             RenderWaylandRemoteDesktopPrompt(context);
+        } else if (parityCase && std::strcmp(parityCase, "modal-linux-input-setup-user-reference") == 0) {
+            RenderLinuxInputSetup(context);
         }
     }
 

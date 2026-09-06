@@ -80,11 +80,13 @@ apps, so it exercises the production `ButtonHovered` path; idle-to-hover changes
 (16,152)-(350,197) sidebar region on each implementation. Default Dark masks only three measured
 zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments. Four
 Linux permission/policy modal cases now gate Administrator Required, Additional Freeze Permission
-Required, Wayland Screen Capture, and Wayland Absolute Mouse Control through their real production
-modal renderers with helper/portal side effects left untouched. Rust now mirrors C++'s centering,
-window width/constraints, `AlwaysAutoResize`, close-button behavior, spacing, and default focus. The
-modal cases mask only their measured rounded 6x6 corners; Administrator Required also has one stable
-1x2 dimmed-text threshold fragment at (173,119).
+Required, Wayland Screen Capture, Wayland Absolute Mouse Control, and Linux Input Setup Required
+through their real production modal renderers with helper/portal/installer side effects left
+untouched. Rust now mirrors C++'s centering, window width/constraints, `AlwaysAutoResize`, close-button
+behavior, spacing, default focus, and the input-setup modal's 580px fixed-wrap unformatted detail
+regions. The input-setup case injects a deterministic in-memory permission summary/details fixture;
+modal cases mask only their measured rounded 6x6 corners, while Administrator Required also has one
+stable 1x2 dimmed-text threshold fragment at (173,119).
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.
