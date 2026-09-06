@@ -131,6 +131,8 @@ mod wallhop;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod wallhop_runtime;
 mod warning_toast;
+#[cfg(target_os = "windows")]
+mod windows_elevation;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -302,7 +304,19 @@ fn save_profiles_now(
     save_live_profile(service, shell_state, window, &current_name, imported_scripts).is_some()
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+const fn privileged_shell_action_needs_save(action: Option<&shell::ShellAction>) -> bool {
+    match action {
+        Some(shell::ShellAction::PersistNotificationSuppression) => true,
+        #[cfg(target_os = "linux")]
+        Some(shell::ShellAction::StartLagSwitchHelper) => true,
+        #[cfg(target_os = "windows")]
+        Some(shell::ShellAction::RestartAsAdmin) => true,
+        _ => false,
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn save_before_privileged_shell_action(
     action: Option<&shell::ShellAction>,
     service: &mut profile_service::ProfileBrowserService,
@@ -310,13 +324,7 @@ fn save_before_privileged_shell_action(
     window: &Window,
     script_app: &ScriptAppServices,
 ) {
-    if !matches!(
-        action,
-        Some(
-            shell::ShellAction::PersistNotificationSuppression
-                | shell::ShellAction::StartLagSwitchHelper
-        )
-    ) {
+    if !privileged_shell_action_needs_save(action) {
         return;
     }
     let _ = save_profiles_now(service, shell_state, window, Some(script_app.serialize_scripts()));
@@ -1311,13 +1319,22 @@ impl WindowsLagSwitchServices {
     }
 
     fn report_init_failure(&self, shell_state: &mut shell::ShellState) {
-        let reason = self.backend.unsupported_reason();
-        let message = if reason.is_empty() {
-            "WinDivert could not be initialized.".to_owned()
-        } else {
-            format!("WinDivert could not be initialized: {reason}")
-        };
-        shell_state.push_warning(message);
+        match self.backend.initialization_failure() {
+            smu_network::LagSwitchInitializationFailure::RequiresAdministrator => {
+                shell_state.request_admin_restart_popup();
+            }
+            smu_network::LagSwitchInitializationFailure::RequiresHelper => {
+                shell_state.push_warning("WinDivert could not be initialized.");
+            }
+            smu_network::LagSwitchInitializationFailure::Error(reason) => {
+                let message = if reason.is_empty() {
+                    "WinDivert could not be initialized.".to_owned()
+                } else {
+                    format!("WinDivert could not be initialized: {reason}")
+                };
+                shell_state.push_warning(message);
+            }
+        }
     }
 
     fn shutdown(&self) {
@@ -2371,6 +2388,20 @@ fn prepare_shared_shell_frame(
         .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
 }
 
+fn finish_shared_shell_frame(
+    window: &mut Window,
+    script_app: &ScriptAppServices,
+    portable_script_runtime: Option<&script_runtime::ScriptRuntimeController>,
+    shell_state: &shell::ShellState,
+) {
+    apply_shell_window_style(window, shell_state);
+    let (script_selector, script_take_all) = shell_state.script_process_target();
+    script_app.set_process_target(script_selector, script_take_all);
+    if let Some(controller) = portable_script_runtime {
+        controller.update_settings(shell_state.script_runtime_settings());
+    }
+}
+
 fn handle_profile_shell_action(
     action: Option<&shell::ShellAction>,
     profile_service: &mut profile_service::ProfileBrowserService,
@@ -2392,6 +2423,38 @@ fn handle_profile_shell_action(
         ProfileActionOutcome::Saved(payload) => script_app.update_saved_settings(&payload),
         ProfileActionOutcome::Loaded(payload) => script_app.apply_profile(&payload),
         ProfileActionOutcome::None => {}
+    }
+}
+
+fn handle_script_shell_action(
+    action: Option<&shell::ShellAction>,
+    script_app: &ScriptAppServices,
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    window: &Window,
+) {
+    let Some(shell::ShellAction::Script(script_action)) = action else {
+        return;
+    };
+    if script_app.handle_action(script_action, shell_state.script_ui_mut(), window) {
+        persist_imported_script(script_app, profile_service, shell_state, window);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn handle_windows_privileged_shell_action(
+    action: Option<&shell::ShellAction>,
+    shell_state: &mut shell::ShellState,
+) -> bool {
+    if action != Some(&shell::ShellAction::RestartAsAdmin) {
+        return false;
+    }
+    match windows_elevation::restart_as_admin() {
+        Ok(()) => true,
+        Err(error) => {
+            shell_state.push_warning(error);
+            false
+        }
     }
 }
 
@@ -2451,7 +2514,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             window,
             script_app,
         );
-        #[cfg(target_os = "linux")]
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
         save_before_privileged_shell_action(
             shell_action.as_ref(),
             profile_service,
@@ -2459,23 +2522,24 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             window,
             script_app,
         );
-        apply_shell_window_style(window, shell_state);
-        let (script_selector, script_take_all) = shell_state.script_process_target();
-        script_app.set_process_target(script_selector, script_take_all);
-        if let Some(controller) = portable_script_runtime {
-            controller.update_settings(shell_state.script_runtime_settings());
+        #[cfg(target_os = "windows")]
+        if handle_windows_privileged_shell_action(shell_action.as_ref(), shell_state) {
+            break 'main;
         }
+        finish_shared_shell_frame(window, script_app, portable_script_runtime, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
         #[cfg(target_os = "windows")]
         windows_builtin_runtime.finish_shell(shell_state);
         #[cfg(target_os = "windows")]
         windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);
-        if let Some(shell::ShellAction::Script(script_action)) = shell_action.as_ref()
-            && script_app.handle_action(script_action, shell_state.script_ui_mut(), window)
-        {
-            persist_imported_script(script_app, profile_service, shell_state, window);
-        }
+        handle_script_shell_action(
+            shell_action.as_ref(),
+            script_app,
+            profile_service,
+            shell_state,
+            window,
+        );
         #[cfg(target_os = "linux")]
         if linux_services.update_restart_requested() {
             break 'main;

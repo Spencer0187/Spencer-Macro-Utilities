@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import tempfile
+import tomllib
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,12 +181,63 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertEqual(MODULE.APP_OUTPUT_NAME, "Spencer-Macro-Utilities.exe")
         self.assertEqual(MODULE.CARGO_BINARY_NAME, "smu-app.exe")
 
+    def test_windows_admin_relaunch_preserves_cpp_modal_save_and_runas_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        elevation = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "windows_elevation.rs"
+        ).read_text(encoding="utf-8")
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        windows_sys = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"][
+            "windows-sys"
+        ]
+
+        for expected in (
+            "RestartAsAdmin",
+            "request_admin_restart_popup",
+            "render_windows_admin_modal",
+            'begin_modal_popup_config("Administrator Required")',
+            'ui.button_with_size("Restart as Admin"',
+            'ui.checkbox("Do not show this again"',
+        ):
+            self.assertIn(expected, shell)
+        for expected in (
+            "privileged_shell_action_needs_save",
+            "ShellAction::RestartAsAdmin",
+            "save_profiles_now",
+            "handle_windows_privileged_shell_action",
+            "windows_elevation::restart_as_admin()",
+            "break 'main;",
+        ):
+            self.assertIn(expected, main)
+        for expected in (
+            "ShellExecuteExW",
+            'OsStr::new("runas")',
+            "std::env::current_exe()",
+            "SW_SHOWNORMAL",
+        ):
+            self.assertIn(expected, elevation)
+        for feature in (
+            "Win32_Foundation",
+            "Win32_System_Registry",
+            "Win32_UI_Shell",
+            "Win32_UI_WindowsAndMessaging",
+        ):
+            self.assertIn(feature, windows_sys["features"])
+
     def test_rewrite_workflow_has_isolated_unsigned_windows_rust_validation(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("windows-rust-app:", workflow)
         self.assertIn("runs-on: windows-latest", workflow)
+        self.assertIn("cargo test --manifest-path rust/Cargo.toml -p smu-app", workflow)
         self.assertIn("scripts/stage_rust_windows_app.py", workflow)
         self.assertIn("rust-windows-app-unsigned", workflow)
         self.assertNotIn("SignPath", workflow)

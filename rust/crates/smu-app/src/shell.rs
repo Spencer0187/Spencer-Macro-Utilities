@@ -1,4 +1,4 @@
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 use dear_imgui_rs::sys;
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use serde_json::{Map, Value};
@@ -62,6 +62,8 @@ pub enum ShellAction {
     StartWaylandRemoteDesktopFromSettings,
     #[cfg(target_os = "linux")]
     StartLagSwitchHelper,
+    #[cfg(target_os = "windows")]
+    RestartAsAdmin,
     PersistNotificationSuppression,
     #[cfg(target_os = "linux")]
     StartFreezeHelper,
@@ -114,6 +116,13 @@ struct LinuxModalState {
     admin_error: String,
 }
 
+#[cfg(target_os = "windows")]
+#[derive(Debug, Default)]
+struct WindowsModalState {
+    pending_admin_open: bool,
+    pending_admin_restart: bool,
+}
+
 #[derive(Debug)]
 pub struct ShellState {
     always_on_top: bool,
@@ -153,6 +162,8 @@ pub struct ShellState {
     lag_switch: LagSwitchUiState,
     #[cfg(target_os = "linux")]
     linux_modals: LinuxModalState,
+    #[cfg(target_os = "windows")]
+    windows_modals: WindowsModalState,
 }
 
 impl Default for ShellState {
@@ -195,6 +206,8 @@ impl Default for ShellState {
             lag_switch: LagSwitchUiState::default(),
             #[cfg(target_os = "linux")]
             linux_modals: LinuxModalState::default(),
+            #[cfg(target_os = "windows")]
+            windows_modals: WindowsModalState::default(),
         }
     }
 }
@@ -284,6 +297,10 @@ impl ShellState {
         #[cfg(target_os = "linux")]
         if let Some(modal) = parity_linux_modal(case) {
             state.linux_modals.pending_open.insert(modal);
+        }
+        #[cfg(target_os = "windows")]
+        if case == Some("modal-admin-user-reference") {
+            state.windows_modals.pending_admin_open = true;
         }
         #[cfg(target_os = "linux")]
         if case == Some(crate::linux_input_setup::PARITY_CASE) {
@@ -910,6 +927,15 @@ impl ShellState {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    pub fn request_admin_restart_popup(&mut self) {
+        if self.admin_warning_suppressed() {
+            self.windows_modals.pending_admin_restart = true;
+        } else {
+            self.windows_modals.pending_admin_open = true;
+        }
+    }
+
     #[cfg(target_os = "linux")]
     pub fn set_lag_switch_helper_error(&mut self, error: impl Into<String>) {
         self.linux_modals.admin_error = error.into();
@@ -1004,6 +1030,10 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
 
     #[cfg(target_os = "linux")]
     if let Some(modal_action) = render_linux_modals(ui, state, &active_theme) {
+        action = Some(modal_action);
+    }
+    #[cfg(target_os = "windows")]
+    if let Some(modal_action) = render_windows_admin_modal(ui, state) {
         action = Some(modal_action);
     }
     #[cfg(target_os = "linux")]
@@ -1105,8 +1135,8 @@ fn render_linux_input_setup(
     })
 }
 
-#[cfg(target_os = "linux")]
-fn set_next_linux_modal_layout(
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn set_next_privileged_modal_layout(
     ui: &Ui,
     width: f32,
     position_condition: Condition,
@@ -1138,6 +1168,54 @@ fn set_next_linux_modal_layout(
             );
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn render_windows_admin_modal(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
+    if state.windows_modals.pending_admin_restart {
+        state.windows_modals.pending_admin_restart = false;
+        return Some(ShellAction::RestartAsAdmin);
+    }
+    if state.windows_modals.pending_admin_open {
+        state.windows_modals.pending_admin_open = false;
+        let _ = ui.open_popup("Administrator Required");
+    }
+
+    set_next_privileged_modal_layout(
+        ui,
+        0.0,
+        Condition::Always,
+        Some(([520.0, 0.0], [720.0, 1000.0])),
+    );
+    let mut keep_open = true;
+    let _popup = ui
+        .begin_modal_popup_config("Administrator Required")
+        .opened(&mut keep_open)
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
+    ui.text_wrapped("WinDivert features require Administrator privileges.");
+    ui.text_wrapped("This process involves:");
+    ui.bullet_text("Extracting SMCWinDivert.dll and WinDivert64.sys to the current folder.");
+    ui.bullet_text("Restarting this application as Administrator.");
+    crate::parity::separator(ui);
+
+    let mut action = None;
+    let mut suppress_admin_warning = state.admin_warning_suppressed();
+    if ui.checkbox("Do not show this again", &mut suppress_admin_warning) {
+        let _ = state.set_admin_warning_suppressed(suppress_admin_warning);
+        action = Some(ShellAction::PersistNotificationSuppression);
+    }
+    crate::parity::separator(ui);
+    if ui.button_with_size("Restart as Admin", [180.0, 0.0]) {
+        ui.close_current_popup();
+        return Some(ShellAction::RestartAsAdmin);
+    }
+    ui.set_item_default_focus();
+    ui.same_line();
+    if ui.button_with_size("Cancel", [120.0, 0.0]) {
+        ui.close_current_popup();
+    }
+    action
 }
 
 #[cfg(target_os = "linux")]
@@ -1177,7 +1255,12 @@ fn render_lag_switch_helper_modal(
         LinuxModal::LagSwitchHelper,
         "Administrator Required",
     );
-    set_next_linux_modal_layout(ui, 0.0, Condition::Always, Some(([520.0, 0.0], [720.0, 1000.0])));
+    set_next_privileged_modal_layout(
+        ui,
+        0.0,
+        Condition::Always,
+        Some(([520.0, 0.0], [720.0, 1000.0])),
+    );
     let mut keep_open = true;
     let _popup = ui
         .begin_modal_popup_config("Administrator Required")
@@ -1214,7 +1297,12 @@ fn render_lag_switch_helper_modal(
 #[cfg(target_os = "linux")]
 fn render_freeze_helper_modal(ui: &Ui, state: &mut LinuxModalState) -> Option<ShellAction> {
     open_linux_modal(ui, state, LinuxModal::FreezeHelper, "Additional Freeze Permission Required");
-    set_next_linux_modal_layout(ui, 0.0, Condition::Always, Some(([560.0, 0.0], [760.0, 1000.0])));
+    set_next_privileged_modal_layout(
+        ui,
+        0.0,
+        Condition::Always,
+        Some(([560.0, 0.0], [760.0, 1000.0])),
+    );
     let _popup = ui
         .begin_modal_popup_config("Additional Freeze Permission Required")
         .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
@@ -1254,7 +1342,7 @@ fn render_wayland_screen_capture_modal(
     state: &mut LinuxModalState,
 ) -> Option<ShellAction> {
     open_linux_modal(ui, state, LinuxModal::WaylandScreenCapture, "Enable Wayland Screen Capture?");
-    set_next_linux_modal_layout(ui, 560.0, Condition::Appearing, None);
+    set_next_privileged_modal_layout(ui, 560.0, Condition::Appearing, None);
     let mut keep_open = true;
     let popup = ui
         .begin_modal_popup_config("Enable Wayland Screen Capture?")
@@ -1295,7 +1383,7 @@ fn render_wayland_remote_desktop_modal(
         LinuxModal::WaylandRemoteDesktop,
         "Enable Wayland Absolute Mouse Control?",
     );
-    set_next_linux_modal_layout(ui, 590.0, Condition::Appearing, None);
+    set_next_privileged_modal_layout(ui, 590.0, Condition::Appearing, None);
     let mut keep_open = true;
     let popup = ui
         .begin_modal_popup_config("Enable Wayland Absolute Mouse Control?")
@@ -1965,6 +2053,21 @@ mod profile_adapter_tests {
         state.request_lag_switch_helper_popup();
         assert!(!state.linux_modals.pending_open.contains(&LinuxModal::LagSwitchHelper));
         assert!(state.linux_modals.pending_lag_switch_helper_start);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn admin_restart_request_uses_modal_until_warning_is_suppressed() {
+        let mut state = ShellState::default();
+        state.request_admin_restart_popup();
+        assert!(state.windows_modals.pending_admin_open);
+        assert!(!state.windows_modals.pending_admin_restart);
+
+        state.windows_modals.pending_admin_open = false;
+        assert!(state.set_admin_warning_suppressed(true));
+        state.request_admin_restart_popup();
+        assert!(!state.windows_modals.pending_admin_open);
+        assert!(state.windows_modals.pending_admin_restart);
     }
 
     #[test]

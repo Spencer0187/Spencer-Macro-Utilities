@@ -337,11 +337,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   the full file-based `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings.
   The Rust binary itself now uses the Windows GUI subsystem like the legacy `WIN32` CMake target, and the
   staging helper parses the PE optional header to reject an accidental console-subsystem build. Cargo's
-  internal binary target remains `smu-app.exe` so Linux naming/staging stays unchanged. The rewrite CI has
-  a separate `windows-latest` job that runs Windows clippy, exercises that staging path, verifies the
-  required siblings, and uploads only an explicitly unsigned validation artifact. Production Windows
-  naming/subsystem/resources, elevation/relaunch UX, updater compatibility, and multi-file signing/release
-  packaging remain separate cutover gates; macOS still lacks its native Rust adapters.
+  internal binary target remains `smu-app.exe` so Linux naming/staging stays unchanged. Windows UAC
+  relaunch is now owned by Rust as well: failed WinDivert initialization requests the existing
+  `Administrator Required` flow, suppression auto-queues the relaunch path, profile/script state is saved
+  before relaunch, and a Windows-only `ShellExecuteExW(..., "runas", ...)` helper starts the current
+  executable elevated while the original instance exits through normal controller/backend shutdown. The
+  rewrite CI has a separate `windows-latest` job that runs Windows unit tests plus clippy, exercises the
+  staging path, verifies the required siblings, and uploads only an explicitly unsigned validation
+  artifact. Production Windows PE resources/version/icon embedding, updater compatibility, and multi-file
+  signing/release packaging remain separate cutover gates; macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
