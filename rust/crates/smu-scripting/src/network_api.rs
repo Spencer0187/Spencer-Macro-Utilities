@@ -381,10 +381,13 @@ fn install_toggle_api(
                 } else {
                     match backend.initialization_failure() {
                         LagSwitchInitializationFailure::RequiresAdministrator => {
-                            toggle_context.set_lag_switch_warning(LAG_SWITCH_REQUIRES_ADMIN_WARNING)
+                            toggle_context
+                                .set_lag_switch_warning(LAG_SWITCH_REQUIRES_ADMIN_WARNING);
                         }
-                        LagSwitchInitializationFailure::RequiresHelper => toggle_context
-                            .set_lag_switch_warning(LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING),
+                        LagSwitchInitializationFailure::RequiresHelper => {
+                            toggle_context
+                                .set_lag_switch_warning(LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING);
+                        }
                         LagSwitchInitializationFailure::Error(message) => {
                             toggle_context.set_lag_switch_error(if message.is_empty() {
                                 LAG_SWITCH_INITIALIZATION_ERROR.to_owned()

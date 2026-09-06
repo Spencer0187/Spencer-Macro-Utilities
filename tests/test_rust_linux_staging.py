@@ -118,8 +118,8 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("script_app.handle_action(script_action, shell_state.script_ui_mut(), window)", main)
         self.assertIn("script_app.shutdown();", main)
         self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
-        self.assertIn("process_discovery: Some(process_discovery)", main)
-        self.assertIn("process_control: Some(process_control)", main)
+        self.assertIn("process_discovery: Some(Arc::clone(&platform.discovery))", main)
+        self.assertIn("process_control: Some(Arc::clone(&platform.control))", main)
         self.assertNotIn(
             '#[cfg(target_os = "linux")]\n    Script(ScriptAction),',
             shell,
@@ -205,15 +205,60 @@ class RustLinuxStagingTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("fn start_portable_script_runtime(", main)
         self.assertIn("smu_input::windows::WindowsKeyState::new()", main)
-        self.assertIn("input: Some(input)", main)
+        self.assertIn("input: Some(Arc::clone(&platform.input))", main)
         self.assertIn("smu_display::windows::WindowsDisplayCapture::new()", main)
-        self.assertIn("display: Some(display)", main)
+        self.assertIn("display: Some(Arc::clone(&platform.display))", main)
         self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
+        self.assertIn("Arc::clone(&platform.key_state)", main)
+        self.assertIn("Arc::clone(&platform.foreground)", main)
         self.assertIn("input: Arc<dyn KeyState>", runtime)
         self.assertIn("discovery.find_all_processes(selector)", target_runtime)
         self.assertIn("discovery.find_main_process(selector)", target_runtime)
         for module in ("runtime_input", "script_runtime", "target_runtime"):
             self.assertNotIn(f'#[cfg(target_os = "linux")]\nmod {module};', main)
+
+    def test_windows_builtin_macro_runtime_uses_shared_native_platform_services(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in (
+            "struct WindowsMacroPlatformServices",
+            "struct WindowsBuiltinRuntimeServices",
+            "WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform)",
+            "ProcessStatusService::new(Some(Arc::clone(&windows_platform.discovery)), None)",
+            "windows_builtin_runtime.prepare_shell(shell_state);",
+            "windows_builtin_runtime.finish_shell(shell_state);",
+            "builtin_runtime.shutdown();",
+            "start_portable_script_runtime(script_app, &shell_state, &windows_platform)",
+        ):
+            self.assertIn(expected, main)
+        for controller in (
+            "BunnyhopController::start",
+            "HhjController::start",
+            "FloorBounceController::start",
+            "FreezeController::start",
+            "ItemDesyncController::start",
+            "ItemClipController::start",
+            "ItemUnequipController::start",
+            "LaughClipController::start",
+            "PressKeyController::start",
+            "SpamKeyController::start",
+            "LedgeBounceController::start",
+            "SpeedglitchController::start",
+            "WallWalkController::start",
+            "WallessLhjController::start",
+            "WallhopController::start",
+        ):
+            self.assertIn(controller, main)
+        self.assertNotIn('#[cfg(target_os = "linux")]\nmod bunnyhop_runtime;', main)
+        self.assertIn(
+            '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn bunnyhop_controller_settings',
+            shell,
+        )
 
     def test_smu_network_freezes_cpp_windivert_filter_grammar(self) -> None:
         network = (
@@ -386,7 +431,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             "Some(lag_switch.roblox_log())",
             "windows_lag_switch.prepare_shell(shell_state);",
             "windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);",
-            "windows_lag_switch.shutdown();",
+            "lag_switch.shutdown();",
             "self.backend.set_process_target(selector, take_all_process_ids);",
         ):
             self.assertIn(expected, main)

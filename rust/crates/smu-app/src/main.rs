@@ -45,39 +45,39 @@ use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
 
 mod bunnyhop;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod bunnyhop_runtime;
 mod capture;
 mod critical_modal;
 mod floor_bounce;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod floor_bounce_runtime;
 mod foreground_ui;
 mod freeze;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod freeze_runtime;
 mod global_settings;
 mod hhj;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod hhj_runtime;
 mod item_clip;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod item_clip_runtime;
 mod item_desync;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod item_desync_runtime;
 mod item_unequip;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod item_unequip_runtime;
 mod keybind;
 mod lag_switch;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod lag_switch_runtime;
 mod laugh_clip;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod laugh_clip_runtime;
 mod ledge_bounce;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod ledge_bounce_runtime;
 #[cfg(target_os = "linux")]
 mod linux_freeze_authorization;
@@ -92,7 +92,7 @@ mod multi_instance;
 mod notification_suppression;
 mod parity;
 mod press_key;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod press_key_runtime;
 mod process_status_service;
 mod profile_adapter;
@@ -107,10 +107,10 @@ mod settings_menu;
 mod shell;
 mod sidebar;
 mod spam_key;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod spam_key_runtime;
 mod speedglitch;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod speedglitch_runtime;
 mod target_runtime;
 mod theme;
@@ -118,13 +118,13 @@ mod tutorial_media;
 #[cfg(target_os = "linux")]
 mod updater_service;
 mod wall_walk;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod wall_walk_runtime;
 mod walless_lhj;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod walless_lhj_runtime;
 mod wallhop;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod wallhop_runtime;
 mod warning_toast;
 
@@ -1103,60 +1103,24 @@ fn apply_linux_foreground_warning(shell_state: &mut shell::ShellState, parity_ca
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
 fn start_portable_process_status() -> ProcessStatusService {
-    #[cfg(target_os = "windows")]
-    {
-        let backend: Arc<dyn smu_process::ProcessDiscovery> =
-            Arc::new(smu_process::windows::WindowsProcessBackend::new());
-        ProcessStatusService::new(Some(backend), None)
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        ProcessStatusService::new(None, None)
-    }
+    ProcessStatusService::new(None, None)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
 fn start_portable_script_app(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
     parity_case: Option<&str>,
-    #[cfg(target_os = "windows")] network: Option<Arc<dyn LagSwitchControl>>,
-    #[cfg(target_os = "windows")] roblox_log: Option<Arc<dyn RobloxLogSource>>,
 ) -> ScriptAppServices {
     let (selector, take_all_process_ids) = shell_state.script_process_target();
     let mut config = ScriptManagerConfig::new(app_version());
     config.process_selector = selector;
     config.take_all_process_ids = take_all_process_ids;
-    let services = {
-        #[cfg(target_os = "windows")]
-        {
-            let input: Arc<dyn smu_input::InputDevice> =
-                Arc::new(smu_input::windows::WindowsKeyState::new());
-            let display: Arc<dyn smu_display::DisplayCapture> =
-                Arc::new(smu_display::windows::WindowsDisplayCapture::new());
-            let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
-            let process_discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
-            let process_control: Arc<dyn smu_process::ProcessControl> = backend;
-            ScriptServices {
-                input: Some(input),
-                display: Some(display),
-                process_discovery: Some(process_discovery),
-                process_control: Some(process_control),
-                network,
-                roblox_log,
-                saved_settings: Some(saved_settings.clone()),
-                ..ScriptServices::default()
-            }
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            ScriptServices {
-                saved_settings: Some(saved_settings.clone()),
-                ..ScriptServices::default()
-            }
-        }
+    let services = ScriptServices {
+        saved_settings: Some(saved_settings.clone()),
+        ..ScriptServices::default()
     };
     ScriptAppServices::new(
         Arc::new(ScriptManager::new(config, services)),
@@ -1170,14 +1134,27 @@ fn start_windows_script_app(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
     parity_case: Option<&str>,
+    platform: &WindowsMacroPlatformServices,
     lag_switch: &WindowsLagSwitchServices,
 ) -> ScriptAppServices {
-    start_portable_script_app(
+    let (selector, take_all_process_ids) = shell_state.script_process_target();
+    let mut config = ScriptManagerConfig::new(app_version());
+    config.process_selector = selector;
+    config.take_all_process_ids = take_all_process_ids;
+    let services = ScriptServices {
+        input: Some(Arc::clone(&platform.input)),
+        display: Some(Arc::clone(&platform.display)),
+        process_discovery: Some(Arc::clone(&platform.discovery)),
+        process_control: Some(Arc::clone(&platform.control)),
+        network: Some(lag_switch.script_network()),
+        roblox_log: Some(lag_switch.roblox_log()),
+        saved_settings: Some(saved_settings.clone()),
+        ..ScriptServices::default()
+    };
+    ScriptAppServices::new(
+        Arc::new(ScriptManager::new(config, services)),
         saved_settings,
-        shell_state,
-        parity_case,
-        Some(lag_switch.script_network()),
-        Some(lag_switch.roblox_log()),
+        parity_case == Some("imported-script-footer-user-reference"),
     )
 }
 
@@ -1261,23 +1238,21 @@ struct WindowsLagSwitchServices {
 
 #[cfg(target_os = "windows")]
 impl WindowsLagSwitchServices {
-    fn new(shell_state: &shell::ShellState) -> Self {
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> =
-            Arc::new(smu_process::windows::WindowsProcessBackend::new());
+    fn new(shell_state: &shell::ShellState, platform: &WindowsMacroPlatformServices) -> Self {
         let roblox_log: Arc<dyn RobloxLogSource> = Arc::new(SharedRobloxLogReader::default());
-        let backend =
-            Arc::new(WindowsLagSwitchBackend::new(discovery, Some(Arc::clone(&roblox_log))));
+        let backend = Arc::new(WindowsLagSwitchBackend::new(
+            Arc::clone(&platform.discovery),
+            Some(Arc::clone(&roblox_log)),
+        ));
         let (selector, take_all_process_ids) = shell_state.script_process_target();
         backend.set_process_target(selector, take_all_process_ids);
         let enabled = Arc::new(AtomicBool::new(false));
-        let input: Arc<dyn smu_input::KeyState> =
-            Arc::new(smu_input::windows::WindowsKeyState::new());
         let control: Arc<dyn LagSwitchControl> = Arc::new(WindowsLagSwitchControlAdapter {
             backend: Arc::clone(&backend),
             enabled: Arc::clone(&enabled),
         });
         let controller = lag_switch_runtime::LagSwitchController::start(
-            input,
+            Arc::clone(&platform.key_state),
             Arc::clone(&control),
             Arc::clone(&enabled),
             shell_state.lag_switch_controller_settings(),
@@ -1348,22 +1323,236 @@ impl WindowsLagSwitchServices {
     }
 }
 
+#[cfg(target_os = "windows")]
+#[derive(Clone)]
+struct WindowsMacroPlatformServices {
+    input: Arc<dyn smu_input::InputDevice>,
+    key_state: Arc<dyn smu_input::KeyState>,
+    display: Arc<dyn smu_display::DisplayCapture>,
+    discovery: Arc<dyn smu_process::ProcessDiscovery>,
+    foreground: Arc<dyn smu_process::ProcessForeground>,
+    control: Arc<dyn smu_process::ProcessControl>,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsMacroPlatformServices {
+    fn new() -> Self {
+        let input_service = Arc::new(smu_input::windows::WindowsKeyState::new());
+        let process = Arc::new(smu_process::windows::WindowsProcessBackend::new());
+        let input: Arc<dyn smu_input::InputDevice> = input_service.clone();
+        let key_state: Arc<dyn smu_input::KeyState> = input_service;
+        let display: Arc<dyn smu_display::DisplayCapture> =
+            Arc::new(smu_display::windows::WindowsDisplayCapture::new());
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = process.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = process.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = process;
+        Self { input, key_state, display, discovery, foreground, control }
+    }
+}
+
+#[cfg(target_os = "windows")]
+struct WindowsBuiltinRuntimeServices {
+    platform: WindowsMacroPlatformServices,
+    bunnyhop_controller: bunnyhop_runtime::BunnyhopController,
+    hhj_controller: hhj_runtime::HhjController,
+    floor_bounce_controller: floor_bounce_runtime::FloorBounceController,
+    freeze_controller: freeze_runtime::FreezeController,
+    item_desync_controller: item_desync_runtime::ItemDesyncController,
+    item_clip_controller: item_clip_runtime::ItemClipController,
+    item_unequip_controller: item_unequip_runtime::ItemUnequipController,
+    laugh_clip_controller: laugh_clip_runtime::LaughClipController,
+    press_key_controller: press_key_runtime::PressKeyController,
+    spam_key_controller: spam_key_runtime::SpamKeyController,
+    ledge_bounce_controller: ledge_bounce_runtime::LedgeBounceController,
+    speedglitch_controller: speedglitch_runtime::SpeedglitchController,
+    wall_walk_controller: wall_walk_runtime::WallWalkController,
+    walless_lhj_controller: walless_lhj_runtime::WallessLhjController,
+    wallhop_controller: wallhop_runtime::WallhopController,
+}
+
+#[cfg(target_os = "windows")]
+impl WindowsBuiltinRuntimeServices {
+    fn new(shell_state: &shell::ShellState, platform: &WindowsMacroPlatformServices) -> Self {
+        let platform = platform.clone();
+        let hhj_active = Arc::new(AtomicBool::new(false));
+        let bunnyhop_controller = bunnyhop_runtime::BunnyhopController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.bunnyhop_controller_settings(),
+        );
+        let hhj_controller = hhj_runtime::HhjController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            Arc::clone(&platform.control),
+            Arc::clone(&hhj_active),
+            shell_state.hhj_controller_settings(),
+        );
+        let floor_bounce_controller = floor_bounce_runtime::FloorBounceController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            Arc::clone(&platform.control),
+            hhj_active,
+            shell_state.floor_bounce_controller_settings(),
+        );
+        let freeze_controller = freeze_runtime::FreezeController::start(
+            Arc::clone(&platform.key_state),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            Arc::clone(&platform.control),
+            shell_state.freeze_controller_settings(),
+        );
+        let item_desync_controller = item_desync_runtime::ItemDesyncController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.item_desync_controller_settings(),
+        );
+        let item_clip_controller = item_clip_runtime::ItemClipController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.item_clip_controller_settings(),
+        );
+        let item_unequip_controller = item_unequip_runtime::ItemUnequipController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.item_unequip_controller_settings(),
+        );
+        let laugh_clip_controller = laugh_clip_runtime::LaughClipController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.laugh_clip_controller_settings(),
+        );
+        let press_key_controller = press_key_runtime::PressKeyController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.press_key_controller_settings(),
+        );
+        let spam_key_controller = spam_key_runtime::SpamKeyController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.spam_key_controller_settings(),
+        );
+        let ledge_bounce_controller = ledge_bounce_runtime::LedgeBounceController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.ledge_bounce_controller_settings(),
+        );
+        let speedglitch_controller = speedglitch_runtime::SpeedglitchController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.speedglitch_controller_settings(),
+        );
+        let wall_walk_controller = wall_walk_runtime::WallWalkController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.wall_walk_controller_settings(),
+        );
+        let walless_lhj_controller = walless_lhj_runtime::WallessLhjController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            Arc::clone(&platform.control),
+            shell_state.walless_lhj_controller_settings(),
+        );
+        let wallhop_controller = wallhop_runtime::WallhopController::start(
+            Arc::clone(&platform.input),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
+            shell_state.wallhop_controller_settings(),
+        );
+        Self {
+            platform,
+            bunnyhop_controller,
+            hhj_controller,
+            floor_bounce_controller,
+            freeze_controller,
+            item_desync_controller,
+            item_clip_controller,
+            item_unequip_controller,
+            laugh_clip_controller,
+            press_key_controller,
+            spam_key_controller,
+            ledge_bounce_controller,
+            speedglitch_controller,
+            wall_walk_controller,
+            walless_lhj_controller,
+            wallhop_controller,
+        }
+    }
+
+    fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        if shell_state.keybind_input_poll_needed() {
+            let input = keybind::InputSnapshot::capture(
+                self.platform.key_state.as_ref(),
+                shell_state.keybind_capture_active(),
+            );
+            shell_state.set_keybind_input(input);
+        }
+    }
+
+    fn finish_shell(&self, shell_state: &shell::ShellState) {
+        self.bunnyhop_controller.update_settings(shell_state.bunnyhop_controller_settings());
+        self.hhj_controller.update_settings(shell_state.hhj_controller_settings());
+        self.floor_bounce_controller
+            .update_settings(shell_state.floor_bounce_controller_settings());
+        self.freeze_controller.update_settings(shell_state.freeze_controller_settings());
+        self.item_desync_controller.update_settings(shell_state.item_desync_controller_settings());
+        self.item_clip_controller.update_settings(shell_state.item_clip_controller_settings());
+        self.item_unequip_controller
+            .update_settings(shell_state.item_unequip_controller_settings());
+        self.laugh_clip_controller.update_settings(shell_state.laugh_clip_controller_settings());
+        self.press_key_controller.update_settings(shell_state.press_key_controller_settings());
+        self.spam_key_controller.update_settings(shell_state.spam_key_controller_settings());
+        self.ledge_bounce_controller
+            .update_settings(shell_state.ledge_bounce_controller_settings());
+        self.speedglitch_controller.update_settings(shell_state.speedglitch_controller_settings());
+        self.wall_walk_controller.update_settings(shell_state.wall_walk_controller_settings());
+        self.walless_lhj_controller.update_settings(shell_state.walless_lhj_controller_settings());
+        self.wallhop_controller.update_settings(shell_state.wallhop_controller_settings());
+    }
+
+    fn shutdown(&self) {
+        self.floor_bounce_controller.stop();
+        self.hhj_controller.stop();
+        self.bunnyhop_controller.stop();
+        self.ledge_bounce_controller.stop();
+        self.spam_key_controller.stop();
+        self.press_key_controller.stop();
+        self.wallhop_controller.stop();
+        self.walless_lhj_controller.stop();
+        self.wall_walk_controller.stop();
+        self.laugh_clip_controller.stop();
+        self.item_unequip_controller.stop();
+        self.item_clip_controller.stop();
+        self.speedglitch_controller.stop();
+        self.item_desync_controller.stop();
+        self.freeze_controller.stop();
+    }
+}
+
 #[cfg(not(target_os = "linux"))]
 fn start_portable_script_runtime(
     script_app: &ScriptAppServices,
     shell_state: &shell::ShellState,
+    #[cfg(target_os = "windows")] platform: &WindowsMacroPlatformServices,
 ) -> Option<script_runtime::ScriptRuntimeController> {
     #[cfg(target_os = "windows")]
     {
-        let input: Arc<dyn smu_input::KeyState> =
-            Arc::new(smu_input::windows::WindowsKeyState::new());
-        let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
-        let discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
-        let foreground: Arc<dyn smu_process::ProcessForeground> = backend;
         Some(script_runtime::ScriptRuntimeController::start(
-            input,
-            discovery,
-            foreground,
+            Arc::clone(&platform.key_state),
+            Arc::clone(&platform.discovery),
+            Arc::clone(&platform.foreground),
             script_app.manager(),
             shell_state.script_runtime_settings(),
         ))
@@ -2123,6 +2312,8 @@ struct UiLoopContext<'a> {
     linux_services: &'a LinuxRuntimeServices,
     #[cfg(target_os = "windows")]
     windows_lag_switch: &'a WindowsLagSwitchServices,
+    #[cfg(target_os = "windows")]
+    windows_builtin_runtime: &'a WindowsBuiltinRuntimeServices,
 }
 
 fn stabilize_parity_delta_time(imgui: &mut Context, capture_path: Option<&Path>) {
@@ -2155,6 +2346,30 @@ fn prepare_shared_shell_frame(
         .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
 }
 
+fn handle_profile_shell_action(
+    action: Option<&shell::ShellAction>,
+    profile_service: &mut profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    window: &Window,
+    script_app: &ScriptAppServices,
+) {
+    let Some(shell::ShellAction::Profile(profile_action)) = action else {
+        return;
+    };
+    let outcome = handle_profile_action(
+        profile_action,
+        profile_service,
+        shell_state,
+        window,
+        Some(script_app.serialize_scripts()),
+    );
+    match outcome {
+        ProfileActionOutcome::Saved(payload) => script_app.update_saved_settings(&payload),
+        ProfileActionOutcome::Loaded(payload) => script_app.apply_profile(&payload),
+        ProfileActionOutcome::None => {}
+    }
+}
+
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
         events,
@@ -2172,6 +2387,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         linux_services,
         #[cfg(target_os = "windows")]
         windows_lag_switch,
+        #[cfg(target_os = "windows")]
+        windows_builtin_runtime,
     } = context;
 
     let mut rendered_frames = 0_u32;
@@ -2195,25 +2412,20 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(shell_state);
         #[cfg(target_os = "windows")]
+        windows_builtin_runtime.prepare_shell(shell_state);
+        #[cfg(target_os = "windows")]
         windows_lag_switch.prepare_shell(shell_state);
         let selector = shell_state.process_selector();
         shell_state.set_process_found(process_status.found(&selector));
         maybe_autosave_profile_selection(profile_service, shell_state, window, script_app);
         let shell_action = shell::render(ui, shell_state);
-        if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
-            let outcome = handle_profile_action(
-                profile_action,
-                profile_service,
-                shell_state,
-                window,
-                Some(script_app.serialize_scripts()),
-            );
-            match outcome {
-                ProfileActionOutcome::Saved(payload) => script_app.update_saved_settings(&payload),
-                ProfileActionOutcome::Loaded(payload) => script_app.apply_profile(&payload),
-                ProfileActionOutcome::None => {}
-            }
-        }
+        handle_profile_shell_action(
+            shell_action.as_ref(),
+            profile_service,
+            shell_state,
+            window,
+            script_app,
+        );
         #[cfg(target_os = "linux")]
         save_before_privileged_shell_action(
             shell_action.as_ref(),
@@ -2230,6 +2442,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         }
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        #[cfg(target_os = "windows")]
+        windows_builtin_runtime.finish_shell(shell_state);
         #[cfg(target_os = "windows")]
         windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);
         if let Some(shell::ShellAction::Script(script_action)) = shell_action.as_ref()
@@ -2280,6 +2494,30 @@ fn initialize_imgui(
     Ok(imgui)
 }
 
+type GuiRuntime =
+    (sdl3::Sdl, sdl3::VideoSubsystem, sdl3::EventPump, Window, sdl3::video::GLContext, Context);
+
+fn initialize_gui_runtime(
+    parity_case: Option<&str>,
+    profile_service: &profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+) -> Result<GuiRuntime, Box<dyn std::error::Error>> {
+    let (sdl, video, events) = initialize_sdl()?;
+    let window = create_initial_window(&video, parity_case, profile_service, shell_state)?;
+    let gl_context = initialize_opengl(&video, &window)?;
+    let imgui = initialize_imgui(shell_state, parity_case)?;
+    Ok((sdl, video, events, window, gl_context, imgui))
+}
+
+fn initialize_render_backend(
+    imgui: &mut Context,
+    window: &Window,
+    gl_context: &sdl3::video::GLContext,
+) -> Result<Sdl3OpenGl3Backend, Box<dyn std::error::Error>> {
+    // SAFETY: the caller retains the window and GL context until after the backend is dropped.
+    Ok(unsafe { Sdl3OpenGl3Backend::init(imgui, window, gl_context, GLSL_VERSION)? })
+}
+
 fn apply_initial_script_profile(
     script_app: &ScriptAppServices,
     profile_service: &profile_service::ProfileBrowserService,
@@ -2287,6 +2525,48 @@ fn apply_initial_script_profile(
     if let Some(payload) = profile_service.current_payload() {
         script_app.apply_profile(payload);
     }
+}
+
+#[cfg(target_os = "linux")]
+fn start_linux_runtime_services(
+    shell_state: &mut shell::ShellState,
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    parity_case: Option<&str>,
+) -> LinuxRuntimeServices {
+    let services = LinuxRuntimeServices::new(
+        shell_state,
+        saved_settings,
+        parity_case.is_none(),
+        LinuxParityOptions::from_case(parity_case),
+    );
+    apply_linux_foreground_warning(shell_state, parity_case);
+    services
+}
+
+#[cfg(target_os = "windows")]
+fn shutdown_portable_services(
+    script_runtime: Option<&script_runtime::ScriptRuntimeController>,
+    builtin_runtime: &WindowsBuiltinRuntimeServices,
+    lag_switch: &WindowsLagSwitchServices,
+    script_app: &ScriptAppServices,
+) {
+    if let Some(controller) = script_runtime {
+        controller.stop();
+    }
+    builtin_runtime.shutdown();
+    lag_switch.shutdown();
+    script_app.shutdown();
+}
+
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+fn shutdown_portable_services(
+    script_runtime: Option<&script_runtime::ScriptRuntimeController>,
+    script_app: &ScriptAppServices,
+) {
+    if let Some(controller) = script_runtime {
+        controller.stop();
+    }
+    script_app.shutdown();
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -2297,43 +2577,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut shell_state, mut profile_service) = initial_profile_state(parity_case.as_deref());
     let saved_settings = initial_saved_settings(&profile_service);
 
-    let (_sdl, video, mut events) = initialize_sdl()?;
+    let (_sdl, _video, mut events, mut window, gl_context, mut imgui) =
+        initialize_gui_runtime(parity_case.as_deref(), &profile_service, &mut shell_state)?;
 
-    let mut window =
-        create_initial_window(&video, parity_case.as_deref(), &profile_service, &shell_state)?;
-
-    let gl_context = initialize_opengl(&video, &window)?;
-
-    let mut imgui = initialize_imgui(&mut shell_state, parity_case.as_deref())?;
-
-    // SAFETY: `window` and `gl_context` are declared before `imgui`/backend and therefore outlive
-    // the native Dear ImGui attachments that retain their pointers.
-    let mut backend =
-        unsafe { Sdl3OpenGl3Backend::init(&mut imgui, &window, &gl_context, GLSL_VERSION)? };
+    let mut backend = initialize_render_backend(&mut imgui, &window, &gl_context)?;
     #[cfg(target_os = "linux")]
-    let linux_services = LinuxRuntimeServices::new(
-        &shell_state,
+    let linux_services = start_linux_runtime_services(
+        &mut shell_state,
         Arc::clone(&saved_settings),
-        parity_case.is_none(),
-        LinuxParityOptions::from_case(parity_case.as_deref()),
+        parity_case.as_deref(),
     );
     #[cfg(target_os = "linux")]
-    apply_linux_foreground_warning(&mut shell_state, parity_case.as_deref());
-    #[cfg(target_os = "linux")]
     let process_status = linux_services.process_status();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    let windows_platform = WindowsMacroPlatformServices::new();
+    #[cfg(target_os = "windows")]
+    let portable_process_status =
+        ProcessStatusService::new(Some(Arc::clone(&windows_platform.discovery)), None);
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
     let portable_process_status = start_portable_process_status();
     #[cfg(not(target_os = "linux"))]
     let process_status = &portable_process_status;
     #[cfg(target_os = "linux")]
     let script_app = linux_services.script_app();
     #[cfg(target_os = "windows")]
-    let windows_lag_switch = WindowsLagSwitchServices::new(&shell_state);
+    let windows_lag_switch = WindowsLagSwitchServices::new(&shell_state, &windows_platform);
+    #[cfg(target_os = "windows")]
+    let windows_builtin_runtime =
+        WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform);
     #[cfg(target_os = "windows")]
     let portable_script_app = start_windows_script_app(
         Arc::clone(&saved_settings),
         &shell_state,
         parity_case.as_deref(),
+        &windows_platform,
         &windows_lag_switch,
     );
     #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
@@ -2345,24 +2622,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(target_os = "linux"))]
     let script_app = &portable_script_app;
     apply_initial_script_profile(script_app, &profile_service);
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    let portable_script_runtime =
+        start_portable_script_runtime(script_app, &shell_state, &windows_platform);
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
     let portable_script_runtime = start_portable_script_runtime(script_app, &shell_state);
     #[cfg(target_os = "linux")]
-    run_ui_loop(UiLoopContext {
-        events: &mut events,
-        backend: &mut backend,
-        imgui: &mut imgui,
-        window: &mut window,
-        gl_context: &gl_context,
-        capture_path: capture_path.as_deref(),
-        shell_state: &mut shell_state,
-        profile_service: &mut profile_service,
-        process_status,
-        script_app,
-        portable_script_runtime: None,
-        linux_services: &linux_services,
-    })?;
+    let portable_script_runtime_ref = None;
     #[cfg(not(target_os = "linux"))]
+    let portable_script_runtime_ref = portable_script_runtime.as_ref();
     run_ui_loop(UiLoopContext {
         events: &mut events,
         backend: &mut backend,
@@ -2374,9 +2642,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         profile_service: &mut profile_service,
         process_status,
         script_app,
-        portable_script_runtime: portable_script_runtime.as_ref(),
+        portable_script_runtime: portable_script_runtime_ref,
+        #[cfg(target_os = "linux")]
+        linux_services: &linux_services,
         #[cfg(target_os = "windows")]
         windows_lag_switch: &windows_lag_switch,
+        #[cfg(target_os = "windows")]
+        windows_builtin_runtime: &windows_builtin_runtime,
     })?;
 
     save_profiles_before_shutdown(
@@ -2388,14 +2660,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     #[cfg(target_os = "linux")]
-    linux_services.shutdown();
-    #[cfg(not(target_os = "linux"))]
-    if let Some(controller) = portable_script_runtime.as_ref() {
-        controller.stop();
+    {
+        linux_services.shutdown();
+        script_app.shutdown();
     }
     #[cfg(target_os = "windows")]
-    windows_lag_switch.shutdown();
-    script_app.shutdown();
+    shutdown_portable_services(
+        portable_script_runtime.as_ref(),
+        &windows_builtin_runtime,
+        &windows_lag_switch,
+        script_app,
+    );
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    shutdown_portable_services(portable_script_runtime.as_ref(), script_app);
 
     Ok(())
 }

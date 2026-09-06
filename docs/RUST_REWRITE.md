@@ -316,8 +316,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `RequiresHelper`, or backend-error diagnostics. Windows checks effective-token administrator
   membership with the same SID/membership API family as C++, Linux reports the helper requirement, and
   the scripting execution context publishes the matching warning/error onto each script instance without
-  throwing into Lua. An isolated Windows Rust staging path now exists without touching the signed C++
-  release: `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
+  throwing into Lua. Windows app composition now also owns the migrated built-in macro runtime rather
+  than leaving those controllers Linux-only: one shared `WindowsKeyState`, `WindowsProcessBackend`, and
+  `WindowsDisplayCapture` service set feeds process status, imported-script services, script hotkeys,
+  WinDivert targeting, keybind capture, and the Bunnyhop/HHJ/Floor Bounce/Freeze/Item Desync/Item Clip/
+  Item Unequip/Laugh Clip/Press Key/Spam Key/Ledge Bounce/Speedglitch/Wall Walk/Walless LHJ/Wallhop
+  controllers. Their settings are refreshed from the shell every frame and every controller is stopped
+  explicitly at app shutdown. Lag Switch remains its separately owned Windows controller because it also
+  owns WinDivert lifecycle. The global Windows-only Anti-AFK execution path is still a separate parity
+  gate. An isolated Windows Rust staging path now exists without touching the signed C++ release:
+  `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
   experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
   `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has
   a separate `windows-latest` job that runs Windows clippy, exercises that staging path, verifies the
