@@ -1201,6 +1201,10 @@ impl LagSwitchControl for WindowsLagSwitchControlAdapter {
         self.backend.is_initialized()
     }
 
+    fn initialization_failure(&self) -> smu_network::LagSwitchInitializationFailure {
+        self.backend.initialization_failure()
+    }
+
     fn is_available(&self) -> bool {
         self.backend.is_available()
     }

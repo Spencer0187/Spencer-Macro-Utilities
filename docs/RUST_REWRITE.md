@@ -312,16 +312,18 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   of that side effect so Linux keeps its existing helper/flag split. The scripting API now distinguishes
   platform support from initialized transport explicitly and cold-initializes before `lagSwitch(true)`
   takes script blocking ownership; a failed cold init leaves the script running without claiming the
-  block, matching C++. Per-script Windows administrator-warning/error diagnostics and Linux helper-prompt
-  handoff still need their C++-parity plumbing. An isolated Windows Rust staging path now exists without touching the signed C++
+  block, matching C++. Initialization failures now carry explicit `RequiresAdministrator`,
+  `RequiresHelper`, or backend-error diagnostics. Windows checks effective-token administrator
+  membership with the same SID/membership API family as C++, Linux reports the helper requirement, and
+  the scripting execution context publishes the matching warning/error onto each script instance without
+  throwing into Lua. An isolated Windows Rust staging path now exists without touching the signed C++
   release: `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
   experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
   `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has
   a separate `windows-latest` job that runs Windows clippy, exercises that staging path, verifies the
   required siblings, and uploads only an explicitly unsigned validation artifact. Production Windows
-  naming/subsystem/resources, elevation, updater compatibility, multi-file signing/release packaging,
-  and the script-side cold-initialization compatibility handoff remain separate cutover gates; macOS
-  still lacks its native Rust adapters.
+  naming/subsystem/resources, elevation/relaunch UX, updater compatibility, and multi-file signing/release
+  packaging remain separate cutover gates; macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

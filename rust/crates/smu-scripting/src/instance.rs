@@ -409,6 +409,7 @@ impl LuaScriptInstance {
     ) -> Result<(), LuaExecutionError> {
         self.diagnostics.running = true;
         self.diagnostics.last_warning.clear();
+        self.execution_context.clear_lag_switch_diagnostics();
         let result = if self.vm.has_function("onExecute") {
             self.vm.call_no_args_with_started("onExecute", MAX_SCRIPT_RUNTIME, started)
         } else {
@@ -420,12 +421,13 @@ impl LuaScriptInstance {
         };
 
         match &result {
-            Ok(()) => self.diagnostics.last_error.clear(),
+            Ok(()) => self.diagnostics.last_error = self.execution_context.lag_switch_error(),
             Err(error) if error.kind == LuaExecutionErrorKind::Cancelled => {
                 self.diagnostics.last_error.clear();
             }
             Err(error) => self.diagnostics.last_error.clone_from(&error.message),
         }
+        self.diagnostics.last_warning = self.execution_context.lag_switch_warning();
 
         let reason = cleanup_reason(result.as_ref().err());
         self.finish_execution(reason);
@@ -544,10 +546,11 @@ mod tests {
 
     use super::*;
     use smu_input::{InputInjector, KeyState};
-    use smu_network::{LagSwitchConfig, LagSwitchState};
+    use smu_network::{LagSwitchConfig, LagSwitchInitializationFailure, LagSwitchState};
     use smu_process::ProcessRecord;
     use std::io;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -590,15 +593,33 @@ mod tests {
     struct FakeNetwork {
         state: Mutex<LagSwitchState>,
         clears: Mutex<Vec<usize>>,
+        initialized: AtomicBool,
+        initialize_success: bool,
+        initialization_failure: LagSwitchInitializationFailure,
     }
 
     impl Default for FakeNetwork {
         fn default() -> Self {
-            Self { state: Mutex::new(LagSwitchState::default()), clears: Mutex::new(Vec::new()) }
+            Self {
+                state: Mutex::new(LagSwitchState::default()),
+                clears: Mutex::new(Vec::new()),
+                initialized: AtomicBool::new(true),
+                initialize_success: true,
+                initialization_failure: LagSwitchInitializationFailure::Error(String::new()),
+            }
         }
     }
 
     impl FakeNetwork {
+        fn cold_failure(initialization_failure: LagSwitchInitializationFailure) -> Self {
+            Self {
+                initialized: AtomicBool::new(false),
+                initialize_success: false,
+                initialization_failure,
+                ..Self::default()
+            }
+        }
+
         fn state(&self) -> std::sync::MutexGuard<'_, LagSwitchState> {
             self.state.lock().expect("network state lock")
         }
@@ -606,11 +627,20 @@ mod tests {
 
     impl LagSwitchControl for FakeNetwork {
         fn initialize(&self) -> bool {
-            true
+            if self.initialize_success {
+                self.initialized.store(true, Ordering::Release);
+                true
+            } else {
+                false
+            }
         }
 
         fn is_initialized(&self) -> bool {
-            true
+            self.initialized.load(Ordering::Acquire)
+        }
+
+        fn initialization_failure(&self) -> LagSwitchInitializationFailure {
+            self.initialization_failure.clone()
         }
 
         fn is_available(&self) -> bool {
@@ -694,10 +724,10 @@ mod tests {
         }
     }
 
-    fn instance_with_services()
-    -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
+    fn instance_with_network(
+        network: Arc<FakeNetwork>,
+    ) -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
         let input = Arc::new(FakeInput::default());
-        let network = Arc::new(FakeNetwork::default());
         let process = Arc::new(FakeProcessControl::default());
         let services = ScriptServices {
             input: Some(input.clone()),
@@ -711,6 +741,11 @@ mod tests {
         let instance =
             LuaScriptInstance::new(config, services).expect("instance should initialize");
         (instance, input, network, process)
+    }
+
+    fn instance_with_services()
+    -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
+        instance_with_network(Arc::new(FakeNetwork::default()))
     }
 
     #[test]
@@ -811,6 +846,41 @@ mod tests {
                 .expect("cleanup reason should return"),
             "error"
         );
+    }
+
+    #[test]
+    fn lag_switch_admin_failure_surfaces_warning_without_failing_script() {
+        let network = Arc::new(FakeNetwork::cold_failure(
+            LagSwitchInitializationFailure::RequiresAdministrator,
+        ));
+        let (mut instance, _, _, _) = instance_with_network(network);
+        instance
+            .load_source(b"function onExecute() lagSwitch(true) end", "lag-admin.lua")
+            .expect("script should load");
+
+        instance.execute().expect("lag-switch init warning must not fail script");
+
+        assert_eq!(
+            instance.diagnostics().last_warning,
+            crate::network_api::LAG_SWITCH_REQUIRES_ADMIN_WARNING
+        );
+        assert!(instance.diagnostics().last_error.is_empty());
+    }
+
+    #[test]
+    fn lag_switch_backend_failure_surfaces_last_error_without_failing_script() {
+        let network = Arc::new(FakeNetwork::cold_failure(LagSwitchInitializationFailure::Error(
+            "driver probe failed".to_owned(),
+        )));
+        let (mut instance, _, _, _) = instance_with_network(network);
+        instance
+            .load_source(b"function onExecute() lagSwitch(true) end", "lag-error.lua")
+            .expect("script should load");
+
+        instance.execute().expect("lag-switch init errors remain non-throwing like C++");
+
+        assert_eq!(instance.diagnostics().last_error, "driver probe failed");
+        assert!(instance.diagnostics().last_warning.is_empty());
     }
 
     #[test]

@@ -248,7 +248,9 @@ class RustLinuxStagingTest(unittest.TestCase):
             [
                 "Win32_Foundation",
                 "Win32_NetworkManagement_IpHelper",
+                "Win32_Security",
                 "Win32_System_LibraryLoader",
+                "Win32_System_SystemServices",
             ],
         )
         self.assertIn("smu-process", windows_dependencies)
@@ -258,6 +260,8 @@ class RustLinuxStagingTest(unittest.TestCase):
         )
         self.assertIn('WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll"', windows)
         self.assertIn('WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys"', windows)
+        self.assertIn("CheckTokenMembership", windows)
+        self.assertIn("LagSwitchInitializationFailure::RequiresAdministrator", windows)
         self.assertIn("pub struct WinDivertAddress", windows)
         delayed = (
             ROOT / "rust" / "crates" / "smu-network" / "src" / "windows_delay.rs"

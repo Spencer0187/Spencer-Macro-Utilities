@@ -76,6 +76,8 @@ struct ScriptInputState {
     script_hotkey: AtomicU32,
     mouse_motion_mode: AtomicU32,
     lag_switch_touched: AtomicBool,
+    lag_switch_warning: Mutex<String>,
+    lag_switch_error: Mutex<String>,
     managed: Mutex<ManagedHotkeys>,
 }
 
@@ -88,6 +90,8 @@ impl Default for ScriptInputState {
             script_hotkey: AtomicU32::new(0),
             mouse_motion_mode: AtomicU32::new(ScriptMouseMotionMode::Raw as u32),
             lag_switch_touched: AtomicBool::new(false),
+            lag_switch_warning: Mutex::new(String::new()),
+            lag_switch_error: Mutex::new(String::new()),
             managed: Mutex::new(ManagedHotkeys::default()),
         }
     }
@@ -170,6 +174,54 @@ impl ScriptInputContext {
 
     pub(crate) fn take_lag_switch_touched(&self) -> bool {
         self.state.lag_switch_touched.swap(false, Ordering::AcqRel)
+    }
+
+    pub(crate) fn clear_lag_switch_diagnostics(&self) {
+        match self.state.lag_switch_warning.lock() {
+            Ok(mut warning) => warning.clear(),
+            Err(poisoned) => poisoned.into_inner().clear(),
+        }
+        match self.state.lag_switch_error.lock() {
+            Ok(mut error) => error.clear(),
+            Err(poisoned) => poisoned.into_inner().clear(),
+        }
+    }
+
+    pub(crate) fn set_lag_switch_warning(&self, message: impl Into<String>) {
+        let message = message.into();
+        match self.state.lag_switch_warning.lock() {
+            Ok(mut warning) => *warning = message,
+            Err(poisoned) => *poisoned.into_inner() = message,
+        }
+    }
+
+    pub(crate) fn clear_lag_switch_warning(&self) {
+        match self.state.lag_switch_warning.lock() {
+            Ok(mut warning) => warning.clear(),
+            Err(poisoned) => poisoned.into_inner().clear(),
+        }
+    }
+
+    pub(crate) fn set_lag_switch_error(&self, message: impl Into<String>) {
+        let message = message.into();
+        match self.state.lag_switch_error.lock() {
+            Ok(mut error) => *error = message,
+            Err(poisoned) => *poisoned.into_inner() = message,
+        }
+    }
+
+    pub(crate) fn lag_switch_warning(&self) -> String {
+        match self.state.lag_switch_warning.lock() {
+            Ok(warning) => warning.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
+    }
+
+    pub(crate) fn lag_switch_error(&self) -> String {
+        match self.state.lag_switch_error.lock() {
+            Ok(error) => error.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 }
 

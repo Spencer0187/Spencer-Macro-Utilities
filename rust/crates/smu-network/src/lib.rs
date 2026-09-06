@@ -144,10 +144,20 @@ impl LagSwitchState {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LagSwitchInitializationFailure {
+    RequiresAdministrator,
+    RequiresHelper,
+    Error(String),
+}
+
 /// Runtime lag-switch capability consumed by the app and scripting layers.
 pub trait LagSwitchControl: Send + Sync {
     fn initialize(&self) -> bool;
     fn is_initialized(&self) -> bool;
+    fn initialization_failure(&self) -> LagSwitchInitializationFailure {
+        LagSwitchInitializationFailure::Error(self.unsupported_reason())
+    }
     fn is_available(&self) -> bool;
     fn effective_config(&self) -> LagSwitchConfig;
     fn is_blocking_active(&self) -> bool;

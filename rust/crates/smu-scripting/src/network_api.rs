@@ -3,13 +3,19 @@
 use crate::input_api::{ScriptExecutionMode, ScriptInputContext};
 use crate::lua_runtime::LuaScriptVm;
 use mlua::{Error as LuaError, Lua, Table, Value};
-use smu_network::{LagSwitchConfig, LagSwitchControl, LagSwitchTargetMode, is_valid_ipv4_address};
+use smu_network::{
+    LagSwitchConfig, LagSwitchControl, LagSwitchInitializationFailure, LagSwitchTargetMode,
+    is_valid_ipv4_address,
+};
 use std::fmt;
 use std::sync::Arc;
 
 const MAX_LIST_ENTRIES: usize = 64;
 const MAX_DELAY_MS: i64 = 300_000;
 const MAX_DURATION_SECONDS: f64 = 3600.0;
+pub(crate) const LAG_SWITCH_REQUIRES_ADMIN_WARNING: &str = "Lag switch was requested, but SMU is not running as Administrator. The script continued, but lag-switch actions were skipped.";
+const LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING: &str = "Lag switch was requested, but the Linux lagswitch helper is not running. Approve the lagswitch permission prompt to continue.";
+const LAG_SWITCH_INITIALIZATION_ERROR: &str = "Lag switch backend could not be initialized.";
 
 #[derive(Debug)]
 pub struct ScriptNetworkApiError(String);
@@ -369,8 +375,26 @@ fn install_toggle_api(
             }
         }
         if let Some(backend) = &toggle_backend {
-            if enabled && !backend.is_initialized() && !backend.initialize() {
-                return Ok(());
+            if enabled && !backend.is_initialized() {
+                if backend.initialize() {
+                    toggle_context.clear_lag_switch_warning();
+                } else {
+                    match backend.initialization_failure() {
+                        LagSwitchInitializationFailure::RequiresAdministrator => {
+                            toggle_context.set_lag_switch_warning(LAG_SWITCH_REQUIRES_ADMIN_WARNING)
+                        }
+                        LagSwitchInitializationFailure::RequiresHelper => toggle_context
+                            .set_lag_switch_warning(LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING),
+                        LagSwitchInitializationFailure::Error(message) => {
+                            toggle_context.set_lag_switch_error(if message.is_empty() {
+                                LAG_SWITCH_INITIALIZATION_ERROR.to_owned()
+                            } else {
+                                message
+                            });
+                        }
+                    }
+                    return Ok(());
+                }
             }
             toggle_context.mark_lag_switch_touched();
             backend.set_script_blocking_active(toggle_context.owner_token(), enabled);
@@ -502,6 +526,7 @@ mod tests {
         available: bool,
         initialized: AtomicBool,
         initialize_success: bool,
+        initialize_failure: LagSwitchInitializationFailure,
         initialize_calls: AtomicUsize,
         reason: String,
     }
@@ -513,6 +538,7 @@ mod tests {
                 available: true,
                 initialized: AtomicBool::new(true),
                 initialize_success: true,
+                initialize_failure: LagSwitchInitializationFailure::Error(String::new()),
                 initialize_calls: AtomicUsize::new(0),
                 reason: String::new(),
             }
@@ -522,6 +548,15 @@ mod tests {
     impl FakeBackend {
         fn cold(initialize_success: bool) -> Self {
             Self { initialized: AtomicBool::new(false), initialize_success, ..Self::default() }
+        }
+
+        fn cold_with_failure(failure: LagSwitchInitializationFailure) -> Self {
+            Self {
+                initialized: AtomicBool::new(false),
+                initialize_success: false,
+                initialize_failure: failure,
+                ..Self::default()
+            }
         }
 
         fn state(&self) -> std::sync::MutexGuard<'_, LagSwitchState> {
@@ -542,6 +577,10 @@ mod tests {
 
         fn is_initialized(&self) -> bool {
             self.initialized.load(Ordering::Acquire)
+        }
+
+        fn initialization_failure(&self) -> LagSwitchInitializationFailure {
+            self.initialize_failure.clone()
         }
 
         fn is_available(&self) -> bool {
@@ -691,6 +730,62 @@ mod tests {
         assert!(!backend.is_initialized());
         assert!(!backend.is_blocking_active());
         assert!(!context.take_lag_switch_touched());
+    }
+
+    #[test]
+    fn failed_cold_initialization_publishes_cpp_admin_warning_without_claiming_block() {
+        let backend = Arc::new(FakeBackend::cold_with_failure(
+            LagSwitchInitializationFailure::RequiresAdministrator,
+        ));
+        let (vm, context) = vm_with_backend(backend.clone());
+
+        vm.execute_source("lagSwitch(true)", "cold-admin.lua")
+            .expect("missing elevation must not throw into Lua");
+
+        assert_eq!(context.lag_switch_warning(), LAG_SWITCH_REQUIRES_ADMIN_WARNING);
+        assert!(context.lag_switch_error().is_empty());
+        assert!(!backend.is_blocking_active());
+        assert!(!context.take_lag_switch_touched());
+    }
+
+    #[test]
+    fn failed_cold_initialization_publishes_cpp_linux_helper_warning() {
+        let backend = Arc::new(FakeBackend::cold_with_failure(
+            LagSwitchInitializationFailure::RequiresHelper,
+        ));
+        let (vm, context) = vm_with_backend(backend);
+
+        vm.execute_source("lagSwitch(true)", "cold-helper.lua")
+            .expect("missing helper must not throw into Lua");
+
+        assert_eq!(context.lag_switch_warning(), LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING);
+        assert!(context.lag_switch_error().is_empty());
+    }
+
+    #[test]
+    fn failed_cold_initialization_preserves_backend_error_for_instance_diagnostics() {
+        let backend = Arc::new(FakeBackend::cold_with_failure(
+            LagSwitchInitializationFailure::Error("driver probe failed".to_owned()),
+        ));
+        let (vm, context) = vm_with_backend(backend);
+
+        vm.execute_source("lagSwitch(true)", "cold-error.lua")
+            .expect("backend init errors remain non-throwing like C++");
+
+        assert!(context.lag_switch_warning().is_empty());
+        assert_eq!(context.lag_switch_error(), "driver probe failed");
+    }
+
+    #[test]
+    fn successful_cold_initialization_clears_stale_lag_switch_warning() {
+        let backend = Arc::new(FakeBackend::cold(true));
+        let (vm, context) = vm_with_backend(backend);
+        context.set_lag_switch_warning("stale warning");
+
+        vm.execute_source("lagSwitch(true)", "cold-success.lua")
+            .expect("successful init should enable lag switch");
+
+        assert!(context.lag_switch_warning().is_empty());
     }
 
     #[test]

@@ -1,8 +1,8 @@
 //! Linux `nethelper` transport and lag-switch backend.
 
 use crate::{
-    LagSwitchConfig, LagSwitchControl, LagSwitchState, LagSwitchTargetMode,
-    build_linux_apply_command, is_valid_ipv4_address,
+    LagSwitchConfig, LagSwitchControl, LagSwitchInitializationFailure, LagSwitchState,
+    LagSwitchTargetMode, build_linux_apply_command, is_valid_ipv4_address,
 };
 use smu_roblox::RobloxLogSource;
 use std::fmt;
@@ -381,6 +381,14 @@ impl LagSwitchControl for LinuxLagSwitchBackend {
 
     fn is_initialized(&self) -> bool {
         lock(&self.inner.state).available
+    }
+
+    fn initialization_failure(&self) -> LagSwitchInitializationFailure {
+        if lock(&self.inner.state).available {
+            LagSwitchInitializationFailure::Error(self.unsupported_reason())
+        } else {
+            LagSwitchInitializationFailure::RequiresHelper
+        }
     }
 
     fn is_available(&self) -> bool {

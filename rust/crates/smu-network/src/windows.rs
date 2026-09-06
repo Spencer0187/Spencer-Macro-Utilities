@@ -1,8 +1,8 @@
 use crate::{
-    LagSwitchConfig, LagSwitchControl, LagSwitchState, LagSwitchTargetMode,
-    WindowsDynamicTargetState, WindowsPacketAction, build_windows_windivert_filter,
-    windows_delay::WindowsDelayedSender, windows_packet_decision, windows_payload_range,
-    windows_udp_ports_for_rows,
+    LagSwitchConfig, LagSwitchControl, LagSwitchInitializationFailure, LagSwitchState,
+    LagSwitchTargetMode, WindowsDynamicTargetState, WindowsPacketAction,
+    build_windows_windivert_filter, windows_delay::WindowsDelayedSender, windows_packet_decision,
+    windows_payload_range, windows_udp_ports_for_rows,
 };
 use smu_process::ProcessDiscovery;
 use smu_roblox::RobloxLogSource;
@@ -26,7 +26,11 @@ use windows_sys::Win32::{
     NetworkManagement::IpHelper::{
         GetExtendedUdpTable, MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
     },
-    System::LibraryLoader::{GetProcAddress, LoadLibraryW},
+    Security::{AllocateAndInitializeSid, CheckTokenMembership, FreeSid, SECURITY_NT_AUTHORITY},
+    System::{
+        LibraryLoader::{GetProcAddress, LoadLibraryW},
+        SystemServices::{DOMAIN_ALIAS_RID_ADMINS, SECURITY_BUILTIN_DOMAIN_RID},
+    },
 };
 
 const WINDIVERT_LAYER_NETWORK: i32 = 0;
@@ -48,6 +52,42 @@ struct Udp6RowOwnerPid {
 pub const WINDIVERT_MTU_MAX: usize = 40 + 0xFFFF;
 pub const WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll";
 pub const WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys";
+
+#[must_use]
+pub fn is_running_as_admin() -> bool {
+    let authority = SECURITY_NT_AUTHORITY;
+    let mut admin_sid = std::ptr::null_mut();
+    // SAFETY: the authority and output pointer are valid for the duration of the call, and the
+    // subauthority count matches the two populated RID arguments.
+    let allocated = unsafe {
+        AllocateAndInitializeSid(
+            &authority,
+            2,
+            SECURITY_BUILTIN_DOMAIN_RID.unsigned_abs(),
+            DOMAIN_ALIAS_RID_ADMINS.unsigned_abs(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            &mut admin_sid,
+        )
+    };
+    if allocated == 0 {
+        return false;
+    }
+
+    let mut is_member = 0;
+    // SAFETY: `admin_sid` was allocated successfully above; a null token handle asks Windows to
+    // inspect the effective token for the current thread/process, matching the C++ implementation.
+    let checked = unsafe { CheckTokenMembership(std::ptr::null_mut(), admin_sid, &mut is_member) };
+    // SAFETY: `admin_sid` is owned by this function after a successful allocation.
+    unsafe {
+        let _ = FreeSid(admin_sid);
+    }
+    checked != 0 && is_member != 0
+}
 
 fn query_udp_table_buffer(address_family: u32) -> Option<(Vec<u32>, usize)> {
     let mut byte_len = 0_u32;
@@ -1014,6 +1054,20 @@ impl LagSwitchControl for WindowsLagSwitchBackend {
 
     fn is_initialized(&self) -> bool {
         lock_mutex(&self.inner.state).driver_enabled
+    }
+
+    fn initialization_failure(&self) -> LagSwitchInitializationFailure {
+        if !is_running_as_admin() {
+            return LagSwitchInitializationFailure::RequiresAdministrator;
+        }
+        let message = lock_mutex(&self.inner.state).last_error.clone();
+        if message.is_empty() {
+            LagSwitchInitializationFailure::Error(
+                "Lag switch backend could not be initialized.".to_owned(),
+            )
+        } else {
+            LagSwitchInitializationFailure::Error(message)
+        }
     }
 
     fn is_available(&self) -> bool {
