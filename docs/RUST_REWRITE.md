@@ -362,8 +362,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   completed. The unsigned multi-file bundle shape is frozen in rewrite CI, and `smu-updater` owns a
   platform-neutral Windows bundle validator/extractor that requires the single
   `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
-  encrypted/non-regular entries, excessive entry counts or expanded payloads, and verifies the required
-  executable/SDL/WinDivert/font runtime siblings before retaining a staging directory. The Windows updater
+  encrypted/non-regular entries, excessive entry counts or expanded payloads, unexpected top-level files,
+  and executable/script-bearing additions outside the frozen runtime set; only image/font assets and text
+  license extensions remain intentionally extensible. It also verifies the required executable/SDL/
+  WinDivert/font runtime siblings before retaining a staging directory. The Windows updater
   also now owns the C++ Authenticode trust primitives: WinTrust validates each executable's chain and
   revocation state, Crypt32 extracts the signer certificate SHA-256 fingerprint, and the public
   same-signer operation first verifies both executables before comparing their signer fingerprints.

@@ -15,6 +15,17 @@ const REQUIRED_FILES: &[&str] = &[
     "SMCWinDivert64.sys",
     "assets/LSANS.TTF",
 ];
+const ALLOWED_TOP_LEVEL_FILES: &[&str] = &[
+    "Spencer-Macro-Utilities.exe",
+    "SDL3.dll",
+    "SMCWinDivert.dll",
+    "SMCWinDivert64.sys",
+    "README.md",
+    "LICENSE",
+    "PRIVACY.md",
+    "THIRD_PARTY_NOTICES.md",
+];
+const ALLOWED_ASSET_EXTENSIONS: &[&str] = &["bmp", "icns", "jpeg", "jpg", "png", "ttf"];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WindowsBundleError(String);
@@ -64,6 +75,23 @@ fn entry_is_regular_file(mode: Option<u32>) -> bool {
     })
 }
 
+fn bundle_path_allowed(relative: &str) -> bool {
+    if ALLOWED_TOP_LEVEL_FILES.contains(&relative) {
+        return true;
+    }
+    if let Some(asset) = relative.strip_prefix("assets/") {
+        let extension = Path::new(asset)
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        return !asset.is_empty() && ALLOWED_ASSET_EXTENSIONS.contains(&extension.as_str());
+    }
+    relative
+        .strip_prefix("licenses/")
+        .is_some_and(|name| !name.is_empty() && name.to_ascii_lowercase().ends_with(".txt"))
+}
+
 fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBundleError> {
     let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| {
         WindowsBundleError::new("Downloaded Windows update was not a valid ZIP archive.")
@@ -94,6 +122,11 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
                 "Windows update bundle contains an invalid root entry.",
             ));
         };
+        if !bundle_path_allowed(&relative) {
+            return Err(WindowsBundleError::new(format!(
+                "Windows update bundle contains an unexpected file: {relative}"
+            )));
+        }
         if !files.insert(relative) {
             return Err(WindowsBundleError::new(
                 "Windows update bundle contains a duplicate file path.",
@@ -315,6 +348,35 @@ mod tests {
         let error = extract_windows_bundle(&bundle(&entries), &temporary.0.join("stage"))
             .expect_err("duplicate entry must be rejected");
         assert!(error.to_string().contains("duplicate file path"));
+    }
+
+    #[test]
+    fn unexpected_code_and_unknown_top_level_files_are_rejected() {
+        for unexpected in [
+            "Spencer-Macro-Utilities/version.dll",
+            "Spencer-Macro-Utilities/assets/helper.exe",
+            "Spencer-Macro-Utilities/update.cmd",
+            "Spencer-Macro-Utilities/unknown.dat",
+        ] {
+            let temporary = TestDirectory::new("unexpected");
+            let mut entries = valid_entries();
+            entries.push((unexpected, b"unexpected"));
+            let error = extract_windows_bundle(&bundle(&entries), &temporary.0.join("stage"))
+                .expect_err("unexpected file must be rejected");
+            assert!(error.to_string().contains("unexpected file"));
+        }
+    }
+
+    #[test]
+    fn safe_asset_and_license_extensions_remain_extensible() {
+        let temporary = TestDirectory::new("extensible");
+        let mut entries = valid_entries();
+        entries.push(("Spencer-Macro-Utilities/assets/new-tutorial.jpeg", b"image"));
+        entries.push(("Spencer-Macro-Utilities/licenses/Future-Dependency.txt", b"license"));
+        let root = extract_windows_bundle(&bundle(&entries), &temporary.0.join("stage"))
+            .expect("safe data extensions should remain allowed");
+        assert!(root.join("assets/new-tutorial.jpeg").is_file());
+        assert!(root.join("licenses/Future-Dependency.txt").is_file());
     }
 
     #[test]
