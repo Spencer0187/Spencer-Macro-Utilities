@@ -309,9 +309,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   the controller before tearing down WinDivert. Hotkey initialization still deliberately leaves the
   separate C++-compatibility enabled flag unchanged; manual UI initialization is the only newly wired
   path that claims that state in this slice. Script-side cold initialization still needs its separate
-  C++-parity handoff. Windows Rust packaging of `SMCWinDivert.dll` / `SMCWinDivert64.sys` is still
-  missing, and macOS still lacks its native Rust adapters. Those integrations plus Windows/macOS C++
-  entry-point removal remain the cross-platform rewrite gates.
+  C++-parity handoff. An isolated Windows Rust staging path now exists without touching the signed C++
+  release: `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
+  experimental directory containing `smu-app.exe`, Cargo's exact `SDL3.dll`, the full file-based
+  `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings. The rewrite CI has
+  a separate `windows-latest` job that runs Windows clippy, exercises that staging path, verifies the
+  required siblings, and uploads only an explicitly unsigned validation artifact. Production Windows
+  naming/subsystem/resources, elevation, updater compatibility, multi-file signing/release packaging,
+  and the script-side cold-initialization compatibility handoff remain separate cutover gates; macOS
+  still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

@@ -7,12 +7,16 @@ on:
     paths:
       - "rust/**"
       - "compat/**"
+      - "scripts/stage_rust_windows_app.py"
+      - "tests/test_rust_windows_staging.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
   pull_request:
     paths:
       - "rust/**"
       - "compat/**"
+      - "scripts/stage_rust_windows_app.py"
+      - "tests/test_rust_windows_staging.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
 
@@ -45,3 +49,44 @@ jobs:
         run: cargo install cargo-deny --locked --version 0.19.9
       - name: Dependency policy
         run: cargo deny check
+
+  windows-rust-app:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
+      - name: Select pinned Rust toolchain
+        run: rustup override set 1.98.0
+      - name: Windows Rust staging unit tests
+        run: python -m unittest tests.test_rust_windows_staging
+      - name: Clippy Windows Rust application
+        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app --all-targets -- -D warnings
+      - name: Stage experimental unsigned Windows Rust application
+        run: >-
+          python scripts/stage_rust_windows_app.py
+          --root .
+          --target-dir build/rust-windows-target
+          --stage-dir build/rust-windows-app
+          --profile release
+      - name: Validate staged runtime siblings
+        shell: pwsh
+        run: |
+          $required = @(
+            "build/rust-windows-app/smu-app.exe",
+            "build/rust-windows-app/SDL3.dll",
+            "build/rust-windows-app/SMCWinDivert.dll",
+            "build/rust-windows-app/SMCWinDivert64.sys",
+            "build/rust-windows-app/assets/LSANS.TTF"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Missing staged Rust Windows runtime file: $path"
+            }
+          }
+      - name: Upload unsigned Rust Windows validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-windows-app-unsigned
+          path: build/rust-windows-app
+          if-no-files-found: error
