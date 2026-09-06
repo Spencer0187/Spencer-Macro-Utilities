@@ -4,17 +4,16 @@ use std::{
     ffi::c_void,
     path::{Path, PathBuf},
     ptr,
+    sync::Arc,
 };
 
 #[cfg(target_os = "linux")]
 use std::sync::{
-    Arc, Mutex, MutexGuard,
+    Mutex, MutexGuard,
     atomic::{AtomicBool, Ordering},
 };
 #[cfg(target_os = "linux")]
 use std::thread::JoinHandle;
-#[cfg(target_os = "linux")]
-use std::time::{Duration, Instant};
 
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
@@ -26,6 +25,7 @@ use sdl3::{
 use serde_json::{Map, Value};
 use smu_profile::payload::PreservedProfilePayload;
 
+use process_status_service::ProcessStatusService;
 use script_app_service::ScriptAppServices;
 #[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
@@ -33,8 +33,6 @@ use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
 use smu_input::linux::EvdevUinputInputDevice;
 #[cfg(target_os = "linux")]
 use smu_network::{LagSwitchControl, linux::LinuxLagSwitchBackend};
-#[cfg(target_os = "linux")]
-use smu_process::ProcessDiscovery as _;
 #[cfg(target_os = "linux")]
 use smu_process::linux::{
     ProcCgroupProcessControl, ProcDiscovery, ProcForegroundProcess, UnixFreezeHelper,
@@ -93,6 +91,7 @@ mod parity;
 mod press_key;
 #[cfg(target_os = "linux")]
 mod press_key_runtime;
+mod process_status_service;
 mod profile_adapter;
 mod profile_browser;
 mod profile_service;
@@ -705,14 +704,6 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 #[cfg(target_os = "linux")]
-#[derive(Debug, Default)]
-struct ProcessStatusCache {
-    selector: String,
-    found: bool,
-    last_checked: Option<Instant>,
-}
-
-#[cfg(target_os = "linux")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WaylandSettingsTask {
     StartScreenCapture,
@@ -746,8 +737,7 @@ struct LinuxRuntimeServices {
     lag_switch_enabled: Arc<AtomicBool>,
     freeze_authorization: Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>,
     _process_control: Arc<ProcCgroupProcessControl>,
-    process_discovery: Arc<ProcDiscovery>,
-    process_status: Mutex<ProcessStatusCache>,
+    process_status: ProcessStatusService,
     parity: LinuxParityOptions,
     _display_service: Arc<LinuxDisplayCapture>,
     wayland_portal: Arc<WaylandPortalCapture>,
@@ -1096,6 +1086,36 @@ fn start_script_services(
     (manager, controller)
 }
 
+#[cfg(target_os = "linux")]
+fn linux_process_status(
+    discovery: &Arc<ProcDiscovery>,
+    parity: LinuxParityOptions,
+) -> ProcessStatusService {
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = discovery.clone();
+    ProcessStatusService::new(Some(discovery), parity.capture.then_some(parity.process_found))
+}
+
+#[cfg(target_os = "linux")]
+fn apply_linux_foreground_warning(shell_state: &mut shell::ShellState, parity_case: Option<&str>) {
+    if parity_case.is_none() && !smu_process::linux::foreground_detection_available() {
+        shell_state.push_warning(warning_toast::FOREGROUND_FALLBACK_WARNING);
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn start_portable_process_status() -> ProcessStatusService {
+    #[cfg(target_os = "windows")]
+    {
+        let backend: Arc<dyn smu_process::ProcessDiscovery> =
+            Arc::new(smu_process::windows::WindowsProcessBackend::new());
+        ProcessStatusService::new(Some(backend), None)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        ProcessStatusService::new(None, None)
+    }
+}
+
 #[cfg(not(target_os = "linux"))]
 fn start_portable_script_app(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
@@ -1206,13 +1226,13 @@ impl LinuxRuntimeServices {
             &platform.process_foreground,
             shell_state,
         );
+        let process_status = linux_process_status(&platform.process_discovery, parity);
         Self {
             lag_switch_backend,
             lag_switch_enabled,
             freeze_authorization,
             _process_control: platform.process_control,
-            process_discovery: platform.process_discovery,
-            process_status: Mutex::new(ProcessStatusCache::default()),
+            process_status,
             parity,
             _display_service: platform.display_service,
             wayland_portal: platform.wayland_portal,
@@ -1240,19 +1260,6 @@ impl LinuxRuntimeServices {
             walless_lhj_controller: Some(walless_lhj_controller),
             wallhop_controller: Some(wallhop_controller),
         }
-    }
-
-    fn process_found(&self, selector: &str) -> bool {
-        let mut cache = lock(&self.process_status);
-        let due = cache.selector != selector
-            || cache.last_checked.is_none_or(|checked| checked.elapsed() >= Duration::from_secs(1));
-        if due {
-            selector.clone_into(&mut cache.selector);
-            cache.found =
-                self.process_discovery.find_main_process(selector).ok().flatten().is_some();
-            cache.last_checked = Some(Instant::now());
-        }
-        cache.found
     }
 
     fn reap_wayland_settings_worker(&self) {
@@ -1318,13 +1325,6 @@ impl LinuxRuntimeServices {
             );
             shell_state.set_keybind_input(input);
         }
-        let selector = shell_state.process_selector();
-        let process_found = if self.parity.capture {
-            self.parity.process_found
-        } else {
-            self.process_found(&selector)
-        };
-        shell_state.set_process_found(process_found);
         shell_state.set_settings_platform_status(self.settings_platform_status());
         let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
         let updater_status = settings_menu::parity_update_status(parity_case.as_deref())
@@ -1569,6 +1569,10 @@ impl LinuxRuntimeServices {
 
     fn update_restart_requested(&self) -> bool {
         self.update_service.restart_requested()
+    }
+
+    const fn process_status(&self) -> &ProcessStatusService {
+        &self.process_status
     }
 
     const fn script_app(&self) -> &ScriptAppServices {
@@ -1849,6 +1853,7 @@ struct UiLoopContext<'a> {
     capture_path: Option<&'a std::path::Path>,
     shell_state: &'a mut shell::ShellState,
     profile_service: &'a mut profile_service::ProfileBrowserService,
+    process_status: &'a ProcessStatusService,
     script_app: &'a ScriptAppServices,
     #[cfg(target_os = "linux")]
     linux_services: &'a LinuxRuntimeServices,
@@ -1881,6 +1886,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         capture_path,
         shell_state,
         profile_service,
+        process_status,
         script_app,
         #[cfg(target_os = "linux")]
         linux_services,
@@ -1909,6 +1915,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(shell_state);
+        let selector = shell_state.process_selector();
+        shell_state.set_process_found(process_status.found(&selector));
         maybe_autosave_profile_selection(profile_service, shell_state, window, script_app);
         let shell_action = shell::render(ui, shell_state);
         if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
@@ -2020,9 +2028,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         LinuxParityOptions::from_case(parity_case.as_deref()),
     );
     #[cfg(target_os = "linux")]
-    if parity_case.is_none() && !smu_process::linux::foreground_detection_available() {
-        shell_state.push_warning(warning_toast::FOREGROUND_FALLBACK_WARNING);
-    }
+    apply_linux_foreground_warning(&mut shell_state, parity_case.as_deref());
+    #[cfg(target_os = "linux")]
+    let process_status = linux_services.process_status();
+    #[cfg(not(target_os = "linux"))]
+    let portable_process_status = start_portable_process_status();
+    #[cfg(not(target_os = "linux"))]
+    let process_status = &portable_process_status;
     #[cfg(target_os = "linux")]
     let script_app = linux_services.script_app();
     #[cfg(not(target_os = "linux"))]
@@ -2046,6 +2058,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         capture_path: capture_path.as_deref(),
         shell_state: &mut shell_state,
         profile_service: &mut profile_service,
+        process_status,
         script_app,
         linux_services: &linux_services,
     })?;
@@ -2059,6 +2072,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         capture_path: capture_path.as_deref(),
         shell_state: &mut shell_state,
         profile_service: &mut profile_service,
+        process_status,
         script_app,
     })?;
 

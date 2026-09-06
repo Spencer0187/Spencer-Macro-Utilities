@@ -137,6 +137,23 @@ class RustLinuxStagingTest(unittest.TestCase):
             shell,
         )
 
+    def test_smu_app_generic_loop_owns_process_status_on_windows_and_linux(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        service = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "process_status_service.rs"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("process_status: &'a ProcessStatusService,", main)
+        self.assertIn("fn start_portable_process_status() -> ProcessStatusService", main)
+        self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
+        self.assertIn("let process_status = linux_services.process_status();", main)
+        self.assertIn("shell_state.set_process_found(process_status.found(&selector));", main)
+        self.assertIn("Duration::from_secs(1)", service)
+        self.assertIn("discovery.find_main_process(selector)", service)
+        self.assertIn("parity_override", service)
+
     def test_smu_app_keeps_portable_script_profile_dependencies_outside_linux_cfg(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")

@@ -249,8 +249,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
   calls that require native backends therefore remain unavailable until composition attaches them.
   Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
-  discover matching processes and suspend/resume them with the native backend. Global process-status
-  polling, script hotkey runtime control, and Windows input/display/network adapters are still missing;
+  discover matching processes and suspend/resume them with the native backend. A platform-neutral
+  `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
+  its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
+  global process-status UI is native on both platforms. Script hotkey runtime control and Windows
+  input/display/network adapters are still missing;
   macOS still lacks its native Rust adapters. Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.
