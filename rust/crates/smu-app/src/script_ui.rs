@@ -62,7 +62,6 @@ pub struct ScriptUiState {
 }
 
 impl ScriptUiState {
-    #[cfg(target_os = "linux")]
     pub fn apply_import_preview_parity_reference(&mut self) {
         self.pending_import = Some(PathBuf::from("/tmp/smu-parity-preview.lua"));
         concat!(
@@ -79,7 +78,6 @@ impl ScriptUiState {
         self.import_notice.clear();
     }
 
-    #[cfg(target_os = "linux")]
     pub fn apply_import_preview_error_parity_reference(&mut self) {
         self.pending_import = Some(PathBuf::from("/tmp/smu-parity-preview.lua"));
         self.preview.clear();
@@ -90,7 +88,6 @@ impl ScriptUiState {
         self.import_notice.clear();
     }
 
-    #[cfg(target_os = "linux")]
     pub fn apply_parity_reference(&mut self) {
         self.snapshots = vec![ScriptRecordSnapshot {
             path: PathBuf::from("/tmp/smu-parity-script.lua"),

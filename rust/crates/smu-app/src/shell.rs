@@ -5,7 +5,8 @@ use serde_json::{Map, Value};
 use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
 
 #[cfg(target_os = "linux")]
-use crate::script_ui::{self, ScriptAction, ScriptUiState};
+use crate::script_ui::ScriptAction;
+use crate::script_ui::{self, ScriptUiState};
 use crate::{
     bunnyhop::{self, BunnyhopUiState},
     critical_modal::{self, CriticalModalState},
@@ -131,7 +132,6 @@ pub struct ShellState {
     theme: theme::ThemeState,
     tutorial_media: TutorialMedia,
     profile_browser: ProfileBrowserState,
-    #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
     #[cfg(target_os = "linux")]
     linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus,
@@ -650,12 +650,6 @@ impl ShellState {
     #[cfg(target_os = "linux")]
     pub const fn script_ui_mut(&mut self) -> &mut ScriptUiState {
         &mut self.script_ui
-    }
-
-    #[cfg(target_os = "linux")]
-    #[must_use]
-    pub const fn selected_script(&self) -> Option<usize> {
-        self.script_ui.selected()
     }
 
     #[cfg(target_os = "linux")]

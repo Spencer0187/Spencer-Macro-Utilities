@@ -17,6 +17,11 @@ impl ScriptProfileBridge {
     }
 
     #[must_use]
+    pub fn manager(&self) -> &ScriptManager {
+        self.manager.as_ref()
+    }
+
+    #[must_use]
     pub fn serialize_scripts(&self) -> Value {
         self.manager.serialize()
     }

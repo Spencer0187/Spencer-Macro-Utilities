@@ -61,6 +61,26 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertFalse(any(source.startswith("git+") for source in sources))
         self.assertTrue(any(source.startswith("registry+") for source in sources))
 
+    def test_smu_app_script_composition_modules_are_not_linux_cfg_gated(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("mod script_app_service;", main)
+        self.assertIn("mod script_profile_bridge;", main)
+        self.assertIn("mod script_ui;", main)
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\nmod script_ui;',
+            main,
+        )
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\nmod script_app_service;',
+            main,
+        )
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\nmod script_profile_bridge;',
+            main,
+        )
+
     def test_smu_app_keeps_portable_script_profile_dependencies_outside_linux_cfg(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")

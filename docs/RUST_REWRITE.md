@@ -229,12 +229,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
   asymmetries. Linux built-in execution, settings UI, and production entry-point cutover are complete.
-  The first cross-platform composition prerequisite is now in place too: `smu-core`, `smu-input`, and
-  `smu-scripting` are ordinary `smu-app` dependencies instead of Linux-only dependencies, and a
+  The first cross-platform composition prerequisites are now in place too: `smu-core`, `smu-input`, and
+  `smu-scripting` are ordinary `smu-app` dependencies instead of Linux-only dependencies; a
   platform-neutral `ScriptProfileBridge` owns imported-script serialization plus the live saved-setting
-  snapshot. Linux delegates its existing profile/script persistence through that bridge without changing
-  runtime behavior; Windows/macOS still need concrete input/display/process/network service adapters and
-  C++ entry-point removal as separate rewrite gates.
+  snapshot; and `ScriptAppServices` now owns script UI snapshot preparation, native-dialog/fallback
+  handoff, import/settings mutations, process-target propagation, and script shutdown around an injected
+  `ScriptManager`. Linux delegates its existing script/profile behavior through those shared services
+  without changing runtime behavior. The script model modules are no longer Linux-cfg-gated, but visible
+  imported-script controls remain Linux-gated until the non-Linux app loop owns a `ScriptAppServices`
+  instance; Windows/macOS still need concrete input/display/process/network adapters and C++ entry-point
+  removal as separate rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
