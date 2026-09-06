@@ -13,3 +13,10 @@ ashpd.workspace = true
 pipewire.workspace = true
 tokio.workspace = true
 x11rb.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }

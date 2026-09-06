@@ -1326,6 +1326,7 @@ dependencies = [
  "ashpd",
  "pipewire",
  "tokio",
+ "windows-sys",
  "x11rb",
 ]
 

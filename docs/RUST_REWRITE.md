@@ -259,10 +259,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   tagged `SendInput` scan-code keyboard events, mouse-button events, wheel input, current-key scans, and
   relative mouse motion, and Windows `ScriptServices.input` is populated with it. Relative motion uses
   the live C++ `display_scale` rule while `move_mouse_raw` stays unscaled, and tagged injections honor
-  the C++ foreground-GUI budget of 50 events per 16 ms using the SDL-provided HWND. Imported-script
-  `pressKey`, `clickMouse`, managed hold/release/state, `isKeyPressed`, `mouseWheel`, and relative
-  `moveMouse` therefore have native Windows input support. Absolute mouse/display/pixel capture, native wheel-binding
-  hooks, and Windows network integration are still missing; macOS still lacks its native Rust adapters.
+  the C++ foreground-GUI budget of 50 events per 16 ms using the SDL-provided HWND. `WindowsKeyState`
+  now also implements direct absolute positioning with the C++ virtual-desktop normalization rule, and
+  `smu-display::windows::WindowsDisplayCapture` supplies cursor position, active-monitor bounds/refresh
+  metadata, plus the legacy monitor-local cached DIB/`BitBlt` pixel sampler. Windows
+  `ScriptServices.display` is populated with that backend, so imported-script `moveMouseAbs`,
+  `getPixelColor`, and `getPixelRect` now use native Win32 display services alongside `pressKey`,
+  `clickMouse`, managed hold/release/state, `isKeyPressed`, `mouseWheel`, and relative `moveMouse`.
+  Native wheel-binding hooks and Windows network integration are still missing; macOS still lacks its
+  native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.

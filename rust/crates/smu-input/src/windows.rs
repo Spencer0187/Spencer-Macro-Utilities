@@ -1,6 +1,7 @@
 use crate::{
-    InputInjector, KeyState, windows_is_extended_virtual_key, windows_is_mouse_button_virtual_key,
-    windows_modifier_scan_code, windows_scale_relative_delta, windows_virtual_key,
+    InputError, InputInjector, KeyState, windows_is_extended_virtual_key,
+    windows_is_mouse_button_virtual_key, windows_modifier_scan_code,
+    windows_normalize_absolute_coordinate, windows_scale_relative_delta, windows_virtual_key,
 };
 use smu_core::KeyCode;
 use std::{
@@ -14,12 +15,15 @@ use windows_sys::Win32::UI::{
     Input::KeyboardAndMouse::{
         GetAsyncKeyState, GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
         KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC_EX,
-        MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
-        MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
-        MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, MapVirtualKeyExW, SendInput,
+        MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
+        MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
+        MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT,
+        MapVirtualKeyExW, SendInput,
     },
     WindowsAndMessaging::{
-        GA_ROOT, GetAncestor, GetForegroundWindow, GetWindowThreadProcessId, XBUTTON1, XBUTTON2,
+        GA_ROOT, GetAncestor, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId,
+        SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, XBUTTON1,
+        XBUTTON2,
     },
 };
 
@@ -235,6 +239,39 @@ impl InputInjector for WindowsKeyState {
 
     fn move_mouse_raw(&self, dx: i32, dy: i32) {
         dispatch(&mouse_input(MOUSEEVENTF_MOVE, 0, dx, dy));
+    }
+
+    fn move_mouse_absolute(&self, x: i32, y: i32) -> Result<(), InputError> {
+        // SAFETY: GetSystemMetrics reads process-global desktop metrics and retains no pointers.
+        let (left, top, width, height) = unsafe {
+            (
+                GetSystemMetrics(SM_XVIRTUALSCREEN),
+                GetSystemMetrics(SM_YVIRTUALSCREEN),
+                GetSystemMetrics(SM_CXVIRTUALSCREEN),
+                GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            )
+        };
+        let Some(normalized_x) = windows_normalize_absolute_coordinate(x, left, width) else {
+            return Err(InputError::new(
+                "virtual desktop bounds are not available in the current Windows session",
+            ));
+        };
+        let Some(normalized_y) = windows_normalize_absolute_coordinate(y, top, height) else {
+            return Err(InputError::new(
+                "virtual desktop bounds are not available in the current Windows session",
+            ));
+        };
+        dispatch(&mouse_input(
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+            0,
+            normalized_x,
+            normalized_y,
+        ));
+        Ok(())
+    }
+
+    fn prefers_direct_absolute_positioning(&self) -> bool {
+        true
     }
 
     fn mouse_wheel(&self, delta: i32) {

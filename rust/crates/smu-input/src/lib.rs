@@ -69,6 +69,23 @@ pub(crate) fn windows_scale_relative_delta(delta: i32, scale_percent: i32) -> i3
     }
 }
 
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_normalize_absolute_coordinate(
+    value: i32,
+    origin: i32,
+    extent: i32,
+) -> Option<i32> {
+    if extent <= 0 {
+        return None;
+    }
+    let maximum = i64::from(origin) + i64::from(extent) - 1;
+    let clamped = i64::from(value).clamp(i64::from(origin), maximum);
+    let denominator = i64::from((extent - 1).max(1));
+    let numerator = (clamped - i64::from(origin)) * 65_535;
+    let normalized = (numerator + denominator / 2) / denominator;
+    i32::try_from(normalized).ok()
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputError(String);
 
@@ -291,5 +308,15 @@ mod tests {
         assert_eq!(super::windows_scale_relative_delta(-9, 150), -13);
         assert_eq!(super::windows_scale_relative_delta(100, 1), 10);
         assert_eq!(super::windows_scale_relative_delta(100, 999), 500);
+    }
+
+    #[test]
+    fn windows_absolute_normalization_matches_virtual_desktop_sendinput_rule() {
+        assert_eq!(super::windows_normalize_absolute_coordinate(-1920, -1920, 1920), Some(0));
+        assert_eq!(super::windows_normalize_absolute_coordinate(-1, -1920, 1920), Some(65_535));
+        assert_eq!(super::windows_normalize_absolute_coordinate(-9999, -1920, 1920), Some(0));
+        assert_eq!(super::windows_normalize_absolute_coordinate(9999, -1920, 1920), Some(65_535));
+        assert_eq!(super::windows_normalize_absolute_coordinate(50, 50, 1), Some(0));
+        assert_eq!(super::windows_normalize_absolute_coordinate(0, 0, 0), None);
     }
 }

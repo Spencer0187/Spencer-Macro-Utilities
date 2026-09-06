@@ -1128,11 +1128,14 @@ fn start_portable_script_app(
         {
             let input: Arc<dyn smu_input::InputDevice> =
                 Arc::new(smu_input::windows::WindowsKeyState::new());
+            let display: Arc<dyn smu_display::DisplayCapture> =
+                Arc::new(smu_display::windows::WindowsDisplayCapture::new());
             let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
             let process_discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
             let process_control: Arc<dyn smu_process::ProcessControl> = backend;
             ScriptServices {
                 input: Some(input),
+                display: Some(display),
                 process_discovery: Some(process_discovery),
                 process_control: Some(process_control),
                 saved_settings: Some(saved_settings.clone()),

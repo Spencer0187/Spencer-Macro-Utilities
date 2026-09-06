@@ -7,6 +7,8 @@ use std::fmt;
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ScreenBounds {
@@ -21,6 +23,33 @@ impl ScreenBounds {
     pub const fn is_valid(self) -> bool {
         self.width > 0 && self.height > 0
     }
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_monitor_bounds(
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+) -> Option<ScreenBounds> {
+    let width = i64::from(right) - i64::from(left);
+    let height = i64::from(bottom) - i64::from(top);
+    if width <= 0 || height <= 0 || width > i64::from(i32::MAX) || height > i64::from(i32::MAX) {
+        return None;
+    }
+    Some(ScreenBounds {
+        x: left,
+        y: top,
+        width: i32::try_from(width).ok()?,
+        height: i32::try_from(height).ok()?,
+    })
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_refresh_interval(refresh_hz: Option<i32>) -> std::time::Duration {
+    let hz = refresh_hz.filter(|hz| *hz > 1).unwrap_or(60);
+    let micros = (1_000_000_i64 / i64::from(hz)).max(1);
+    std::time::Duration::from_micros(u64::try_from(micros).unwrap_or(16_666))
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -312,6 +341,18 @@ mod tests {
         assert!(BOUNDS.is_valid());
         assert!(!ScreenBounds { width: 0, ..BOUNDS }.is_valid());
         assert!(!ScreenBounds { height: -1, ..BOUNDS }.is_valid());
+    }
+
+    #[test]
+    fn windows_monitor_bounds_and_refresh_interval_match_cpp_rules() {
+        assert_eq!(
+            windows_monitor_bounds(-1920, 0, 0, 1080),
+            Some(ScreenBounds { x: -1920, y: 0, width: 1920, height: 1080 })
+        );
+        assert_eq!(windows_monitor_bounds(0, 0, 0, 1080), None);
+        assert_eq!(windows_refresh_interval(Some(120)), std::time::Duration::from_micros(8_333));
+        assert_eq!(windows_refresh_interval(Some(1)), std::time::Duration::from_micros(16_666));
+        assert_eq!(windows_refresh_interval(None), std::time::Duration::from_micros(16_666));
     }
 
     #[test]

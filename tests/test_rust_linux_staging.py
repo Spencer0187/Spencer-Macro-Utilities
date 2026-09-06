@@ -157,6 +157,25 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("set_gui_window_handle", input_backend)
         self.assertIn("impl KeyState for WindowsKeyState", input_backend)
         self.assertIn("impl InputInjector for WindowsKeyState", input_backend)
+        self.assertIn("fn move_mouse_absolute", input_backend)
+        self.assertIn("MOUSEEVENTF_ABSOLUTE", input_backend)
+        self.assertIn("MOUSEEVENTF_VIRTUALDESK", input_backend)
+
+        display_manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-display" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        display_dependencies = display_manifest["target"]["cfg(target_os = \"windows\")"][
+            "dependencies"
+        ]
+        self.assertIn("windows-sys", display_dependencies)
+        display_backend = (
+            ROOT / "rust" / "crates" / "smu-display" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("CreateDIBSection", display_backend)
+        self.assertIn("BitBlt", display_backend)
+        self.assertIn("GetMonitorInfoA", display_backend)
+        self.assertIn("GetCursorPos", display_backend)
+        self.assertIn("impl DisplayCapture for WindowsDisplayCapture", display_backend)
 
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
@@ -170,6 +189,8 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("fn start_portable_script_runtime(", main)
         self.assertIn("smu_input::windows::WindowsKeyState::new()", main)
         self.assertIn("input: Some(input)", main)
+        self.assertIn("smu_display::windows::WindowsDisplayCapture::new()", main)
+        self.assertIn("display: Some(display)", main)
         self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
         self.assertIn("input: Arc<dyn KeyState>", runtime)
         self.assertIn("discovery.find_all_processes(selector)", target_runtime)
@@ -200,9 +221,16 @@ class RustLinuxStagingTest(unittest.TestCase):
         )
         dependencies = manifest["dependencies"]
         linux_dependencies = manifest["target"]["cfg(target_os = \"linux\")"]["dependencies"]
-        for name in ("smu-core", "smu-input", "smu-process", "smu-profile", "smu-scripting"):
+        for name in (
+            "smu-core",
+            "smu-display",
+            "smu-input",
+            "smu-process",
+            "smu-profile",
+            "smu-scripting",
+        ):
             self.assertIn(name, dependencies)
-        for name in ("smu-core", "smu-input", "smu-process", "smu-scripting"):
+        for name in ("smu-core", "smu-display", "smu-input", "smu-process", "smu-scripting"):
             self.assertNotIn(name, linux_dependencies)
 
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:
