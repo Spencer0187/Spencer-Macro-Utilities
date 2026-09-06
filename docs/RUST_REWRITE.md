@@ -202,15 +202,19 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port;
   the non-Windows global header therefore forces its persisted toggle false each frame like C++.
 - Linux AppImage, Debian/RPM, and portable-folder packaging now ship the Rust `smu-app` entry point
-  instead of the C++ compatibility executable. A dedicated staging helper performs a locked release
-  Cargo build, copies the exact SDL3 shared library produced by that Cargo build, and links the app with
-  `$ORIGIN/lib` so the portable tree is self-contained for SDL. Runtime font lookup prefers assets next
-  to the executable and then AppDir locations before the source-tree fallback, so packaged Rust builds
-  no longer depend on the checkout layout. The Rust Wayland pointer path uses the desktop
-  RemoteDesktop portal directly, so release metadata and AppImage assembly no longer declare or bundle
-  `libei`. The C++ Linux target remains available for compatibility oracles/tests. Nix temporarily
-  selects that C++ install path explicitly with `SMU_PACKAGE_RUST_LINUX=OFF`; moving the Nix derivation
-  onto Cargo with an offline/reproducible Rust dependency setup remains a separate packaging gate.
+  instead of the C++ compatibility executable. The default Linux CMake `all` target now builds/stages
+  Rust and does not create the legacy C++ GUI target at all. `SMU_BUILD_CPP_LINUX_COMPAT_APP=ON`
+  explicitly adds that compatibility oracle alongside Rust, while `SMU_PACKAGE_RUST_LINUX=OFF` still
+  forces the C++ GUI path for legacy/Nix packaging. `lua_static` and `smu_platform_linux` are
+  `EXCLUDE_FROM_ALL` compatibility libraries and are pulled in only by C++ GUI/tests/oracles that need
+  them. A dedicated staging helper performs a locked release Cargo build, copies the exact SDL3 shared
+  library produced by that Cargo build, and links the app with `$ORIGIN/lib` so the portable tree is
+  self-contained for SDL. Runtime font lookup prefers assets next to the executable and then AppDir
+  locations before the source-tree fallback, so packaged Rust builds no longer depend on the checkout
+  layout. The Rust Wayland pointer path uses the desktop RemoteDesktop portal directly, so release
+  metadata and AppImage assembly no longer declare or bundle `libei`. Nix temporarily selects the C++
+  install path explicitly with `SMU_PACKAGE_RUST_LINUX=OFF`; moving the Nix derivation onto Cargo with
+  an offline/reproducible Rust dependency setup remains a separate packaging gate.
 - `smu-app` now owns the live Linux Item Unequip COM Offset and Laugh Clip slices, completing live
   Linux pane/controller cutover for all 16 built-in macro sections. Both use one shared macro-text
   path: `OpenChatForMacro` first tries native-layout `/` only when chat override is enabled and falls
@@ -220,9 +224,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   settings inside the worker, and preserves the custom-text early return plus three separate dropdown
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
-  asymmetries. This completes built-in macro execution cutover only; remaining Settings controls,
-  cross-platform app-service composition, and final C++ entry-point removal remain separate rewrite
-  gates.
+  asymmetries. Linux built-in execution, settings UI, and production entry-point cutover are complete;
+  cross-platform app-service composition plus Windows/macOS C++ entry-point removal remain separate
+  rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

@@ -12,6 +12,22 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RustLinuxStagingTest(unittest.TestCase):
+    def test_default_cmake_build_prefers_rust_linux_app(self) -> None:
+        cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn(
+            'option(SMU_BUILD_CPP_LINUX_COMPAT_APP "Build the legacy C++ Linux GUI compatibility app alongside Rust package builds." OFF)',
+            cmake,
+        )
+        self.assertIn(
+            "if(SMU_PACKAGE_RUST_LINUX AND NOT SMU_BUILD_CPP_LINUX_COMPAT_APP)\n"
+            "        set(SMU_BUILD_CPP_LINUX_APP OFF)",
+            cmake,
+        )
+        self.assertEqual(cmake.count("add_custom_target(smu_rust_linux_app ALL"), 2)
+        self.assertIn("if(SMU_BUILD_CPP_LINUX_APP)\n        add_executable(spencer_macro_utilities", cmake)
+        self.assertIn("add_library(lua_static STATIC EXCLUDE_FROM_ALL", cmake)
+        self.assertIn("add_library(smu_platform_linux STATIC EXCLUDE_FROM_ALL", cmake)
+
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:
         self.assertEqual(
             MODULE.rustflags_with_origin_runpath("-C target-cpu=x86-64-v2"),

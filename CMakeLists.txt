@@ -59,9 +59,10 @@ option(SMU_LINK_SDL3_STATIC "Link the Linux build against vendored SDL3 static l
 option(SMU_ENABLE_SOURCE_TREE_FALLBACK "Allow development builds to locate assets in this source checkout." ON)
 option(SMU_REQUIRE_WAYLAND_SCREENCAST "Fail Linux configuration when PipeWire ScreenCast support is unavailable." OFF)
 option(SMU_PACKAGE_RUST_LINUX "Use the Rust app for Linux install and portable package targets." ON)
+option(SMU_BUILD_CPP_LINUX_COMPAT_APP "Build the legacy C++ Linux GUI compatibility app alongside Rust package builds." OFF)
 option(SMU_BUILD_SLEEP_BENCHMARK "Build the optional Lua precise-sleep benchmark." OFF)
 
-add_library(lua_static STATIC
+add_library(lua_static STATIC EXCLUDE_FROM_ALL
     "${SMU_LUA_DIR}/src/lapi.c"
     "${SMU_LUA_DIR}/src/lauxlib.c"
     "${SMU_LUA_DIR}/src/lbaselib.c"
@@ -308,6 +309,12 @@ elseif(UNIX AND NOT APPLE)
     find_package(X11 QUIET)
     find_package(PkgConfig QUIET)
 
+    set(SMU_BUILD_CPP_LINUX_APP ON)
+    if(SMU_PACKAGE_RUST_LINUX AND NOT SMU_BUILD_CPP_LINUX_COMPAT_APP)
+        set(SMU_BUILD_CPP_LINUX_APP OFF)
+        message(STATUS "Rust Linux packaging is active; skipping the legacy C++ GUI compatibility app. Set SMU_BUILD_CPP_LINUX_COMPAT_APP=ON to build it explicitly.")
+    endif()
+
     if(SMU_PACKAGE_RUST_LINUX)
         find_program(SMU_CARGO_EXECUTABLE cargo)
         find_program(SMU_PYTHON3_EXECUTABLE python3)
@@ -321,7 +328,7 @@ elseif(UNIX AND NOT APPLE)
         endif()
 
         if(SMU_CARGO_EXECUTABLE AND SMU_PYTHON3_EXECUTABLE)
-            add_custom_target(smu_rust_linux_app
+            add_custom_target(smu_rust_linux_app ALL
                 COMMAND "${SMU_PYTHON3_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/scripts/stage_rust_linux_app.py"
                     --root "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -337,7 +344,7 @@ elseif(UNIX AND NOT APPLE)
                 VERBATIM
             )
         else()
-            add_custom_target(smu_rust_linux_app
+            add_custom_target(smu_rust_linux_app ALL
                 COMMAND "${CMAKE_COMMAND}" -E echo
                     "ERROR: Linux Rust packaging requires both cargo and python3 in PATH."
                 COMMAND "${CMAKE_COMMAND}" -E false
@@ -396,7 +403,7 @@ elseif(UNIX AND NOT APPLE)
         "${SMU_PLATFORM_LINUX_DIR}/wayland_screencast.cpp"
     )
 
-    add_library(smu_platform_linux STATIC ${SMU_LINUX_PLATFORM_SOURCES})
+    add_library(smu_platform_linux STATIC EXCLUDE_FROM_ALL ${SMU_LINUX_PLATFORM_SOURCES})
 
     target_include_directories(smu_platform_linux PRIVATE
         "${SMU_PLATFORM_DIR}"
@@ -505,21 +512,23 @@ elseif(UNIX AND NOT APPLE)
         add_test(NAME linux-updater COMMAND smu_linux_updater_test)
     endif()
 
-    add_executable(spencer_macro_utilities ${SMU_LINUX_APP_SOURCES})
-    set_target_properties(spencer_macro_utilities PROPERTIES OUTPUT_NAME "Spencer-Macro-Utilities")
+    if(SMU_BUILD_CPP_LINUX_APP)
+        add_executable(spencer_macro_utilities ${SMU_LINUX_APP_SOURCES})
+        set_target_properties(spencer_macro_utilities PROPERTIES OUTPUT_NAME "Spencer-Macro-Utilities")
 
-    target_include_directories(spencer_macro_utilities PRIVATE
-        "${SMU_APP_DIR}"
-        "${SMU_CORE_DIR}"
-        "${SMU_IMGUI_DIR}"
-        "${SMU_IMGUIFILEDIALOG_DIR}"
-        "${SMU_MINIZ_DIR}"
-        "${SMU_JSON_DIR}"
-    )
+        target_include_directories(spencer_macro_utilities PRIVATE
+            "${SMU_APP_DIR}"
+            "${SMU_CORE_DIR}"
+            "${SMU_IMGUI_DIR}"
+            "${SMU_IMGUIFILEDIALOG_DIR}"
+            "${SMU_MINIZ_DIR}"
+            "${SMU_JSON_DIR}"
+        )
 
-    target_compile_definitions(spencer_macro_utilities PRIVATE SMU_PORTABLE_GLOBALS=1)
-    if(SMU_ENABLE_SOURCE_TREE_FALLBACK)
-        target_compile_definitions(spencer_macro_utilities PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+        target_compile_definitions(spencer_macro_utilities PRIVATE SMU_PORTABLE_GLOBALS=1)
+        if(SMU_ENABLE_SOURCE_TREE_FALLBACK)
+            target_compile_definitions(spencer_macro_utilities PRIVATE "SMU_SOURCE_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+        endif()
     endif()
 
     if(SMU_LINK_SDL3_STATIC)
@@ -540,13 +549,15 @@ elseif(UNIX AND NOT APPLE)
         message(FATAL_ERROR "SDL3 package was found, but no usable SDL3 imported target is available.")
     endif()
 
-    target_link_libraries(spencer_macro_utilities PRIVATE
-        lua_static
-        smu_platform_linux
-        ${SMU_SDL3_TARGET}
-        OpenGL::GL
-        Threads::Threads
-    )
+    if(SMU_BUILD_CPP_LINUX_APP)
+        target_link_libraries(spencer_macro_utilities PRIVATE
+            lua_static
+            smu_platform_linux
+            ${SMU_SDL3_TARGET}
+            OpenGL::GL
+            Threads::Threads
+        )
+    endif()
 
     if(BUILD_TESTING)
         add_executable(smu_profile_persistence_test
@@ -598,7 +609,7 @@ elseif(UNIX AND NOT APPLE)
         )
     endif()
 
-    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+    if(SMU_BUILD_CPP_LINUX_APP AND SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
         set_target_properties(spencer_macro_utilities PROPERTIES
             BUILD_RPATH "$ORIGIN/lib"
             BUILD_WITH_INSTALL_RPATH TRUE
@@ -665,40 +676,44 @@ elseif(UNIX AND NOT APPLE)
             VERBATIM
         )
         add_custom_target(smu_linux_processhelper DEPENDS "${SMU_LINUX_PROCESSHELPER_BINARY}")
-        add_dependencies(spencer_macro_utilities smu_linux_nethelper smu_linux_processhelper)
+        if(SMU_BUILD_CPP_LINUX_APP)
+            add_dependencies(spencer_macro_utilities smu_linux_nethelper smu_linux_processhelper)
+        endif()
     else()
         message(WARNING "Go was not found; Linux lagswitch nethelper will not be built next to Spencer-Macro-Utilities.")
     endif()
 
-    add_custom_command(TARGET spencer_macro_utilities POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts"
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/LSANS.TTF"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/smu_icon.bmp"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/macro_tutorials"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LINUX_SETUP.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LICENSE"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/PRIVACY.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/THIRD_PARTY_NOTICES.md"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/SDL.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/AppImage-type2-runtime.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-LICENSE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-NOTICE.txt"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/WinDivert-LGPL-3.0.txt"
-        COMMAND chmod 755 "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
-        COMMENT "Copying Linux runtime assets next to Spencer-Macro-Utilities"
-    )
-
-    if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+    if(SMU_BUILD_CPP_LINUX_APP)
         add_custom_command(TARGET spencer_macro_utilities POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
-            COMMENT "Bundling SDL3 shared library next to Spencer-Macro-Utilities"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_FONT_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/LSANS.TTF"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LINUX_ICON_ASSET}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/smu_icon.bmp"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory "${SMU_MACRO_TUTORIAL_ASSETS_DIR}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/assets/macro_tutorials"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/scripts/install_linux_permissions.sh" "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/LINUX_SETUP.md" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LINUX_SETUP.md"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/LICENSE"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_PRIVACY_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/PRIVACY.md"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_THIRD_PARTY_NOTICES_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/THIRD_PARTY_NOTICES.md"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_SDL_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/SDL.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_APPIMAGE_RUNTIME_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/AppImage-type2-runtime.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-LICENSE.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_GO_IPTABLES_NOTICE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/go-iptables-NOTICE.txt"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${SMU_WINDIVERT_LICENSE_FILE}" "$<TARGET_FILE_DIR:spencer_macro_utilities>/licenses/WinDivert-LGPL-3.0.txt"
+            COMMAND chmod 755 "$<TARGET_FILE_DIR:spencer_macro_utilities>/scripts/install_linux_permissions.sh"
+            COMMENT "Copying Linux runtime assets next to Spencer-Macro-Utilities"
         )
+
+        if(SMU_BUNDLE_SDL3 AND NOT SMU_LINK_SDL3_STATIC)
+            add_custom_command(TARGET spencer_macro_utilities POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>"
+                COMMAND "${CMAKE_COMMAND}" -E rm -f "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
+                COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:${SMU_SDL3_TARGET}>" "$<TARGET_FILE_DIR:spencer_macro_utilities>/lib/$<TARGET_SONAME_FILE_NAME:${SMU_SDL3_TARGET}>"
+                COMMENT "Bundling SDL3 shared library next to Spencer-Macro-Utilities"
+            )
+        endif()
     endif()
 
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
