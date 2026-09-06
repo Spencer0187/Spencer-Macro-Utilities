@@ -132,10 +132,43 @@ class RustLinuxStagingTest(unittest.TestCase):
             '#[cfg(target_os = "linux")]\n            script_ui: ScriptUiState::default(),',
             shell,
         )
-        self.assertIn(
+        self.assertNotIn(
             '#[cfg(target_os = "linux")]\n    #[must_use]\n    pub fn script_runtime_settings',
             shell,
         )
+
+    def test_windows_script_hotkeys_use_native_key_state_and_process_foreground(self) -> None:
+        input_manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-input" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        windows_dependencies = input_manifest["target"]["cfg(target_os = \"windows\")"][
+            "dependencies"
+        ]
+        self.assertIn("windows-sys", windows_dependencies)
+
+        input_backend = (
+            ROOT / "rust" / "crates" / "smu-input" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("GetAsyncKeyState", input_backend)
+        self.assertIn("impl KeyState for WindowsKeyState", input_backend)
+
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "script_runtime.rs"
+        ).read_text(encoding="utf-8")
+        target_runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "target_runtime.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("fn start_portable_script_runtime(", main)
+        self.assertIn("smu_input::windows::WindowsKeyState::new()", main)
+        self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
+        self.assertIn("input: Arc<dyn KeyState>", runtime)
+        self.assertIn("discovery.find_all_processes(selector)", target_runtime)
+        self.assertIn("discovery.find_main_process(selector)", target_runtime)
+        for module in ("runtime_input", "script_runtime", "target_runtime"):
+            self.assertNotIn(f'#[cfg(target_os = "linux")]\nmod {module};', main)
 
     def test_smu_app_generic_loop_owns_process_status_on_windows_and_linux(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(

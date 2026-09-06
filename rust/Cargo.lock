@@ -1339,6 +1339,7 @@ dependencies = [
  "serde_json",
  "smu-core",
  "smu-display",
+ "windows-sys",
  "x11rb",
 ]
 

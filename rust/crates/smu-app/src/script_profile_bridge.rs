@@ -21,6 +21,12 @@ impl ScriptProfileBridge {
         self.manager.as_ref()
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub fn manager_arc(&self) -> Arc<ScriptManager> {
+        Arc::clone(&self.manager)
+    }
+
     #[must_use]
     pub fn serialize_scripts(&self) -> Value {
         self.manager.serialize()

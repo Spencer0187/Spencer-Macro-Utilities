@@ -252,9 +252,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   discover matching processes and suspend/resume them with the native backend. A platform-neutral
   `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
   its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
-  global process-status UI is native on both platforms. Script hotkey runtime control and Windows
-  input/display/network adapters are still missing;
-  macOS still lacks its native Rust adapters. Those integrations plus Windows/macOS C++ entry-point
+  global process-status UI is native on both platforms. Imported-script hotkey runtime control is now
+  native on Windows too: `WindowsKeyState` reads physical Win32 key/button state with
+  `GetAsyncKeyState`, the shared `ScriptRuntimeController` depends only on `KeyState`, and foreground
+  gating uses `WindowsProcessBackend`. Full Windows input injection/display/network adapters are still
+  missing, so script APIs that need those capabilities remain unavailable; macOS still lacks its native
+  Rust adapters. Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.

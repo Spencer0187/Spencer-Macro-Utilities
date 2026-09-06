@@ -95,11 +95,9 @@ mod process_status_service;
 mod profile_adapter;
 mod profile_browser;
 mod profile_service;
-#[cfg(target_os = "linux")]
 mod runtime_input;
 mod script_app_service;
 mod script_profile_bridge;
-#[cfg(target_os = "linux")]
 mod script_runtime;
 mod script_ui;
 mod settings_menu;
@@ -111,7 +109,6 @@ mod spam_key_runtime;
 mod speedglitch;
 #[cfg(target_os = "linux")]
 mod speedglitch_runtime;
-#[cfg(target_os = "linux")]
 mod target_runtime;
 mod theme;
 mod tutorial_media;
@@ -1073,7 +1070,7 @@ fn start_script_services(
     config.process_selector.clone_from(&selector);
     config.take_all_process_ids = take_all_process_ids;
     let manager = Arc::new(ScriptManager::new(config, services));
-    let input: Arc<dyn smu_input::InputDevice> = platform.input_service.clone();
+    let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
     let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process_discovery.clone();
     let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process_foreground.clone();
     let controller = Some(script_runtime::ScriptRuntimeController::start(
@@ -1152,6 +1149,33 @@ fn start_portable_script_app(
         saved_settings,
         parity_case == Some("imported-script-footer-user-reference"),
     )
+}
+
+#[cfg(not(target_os = "linux"))]
+fn start_portable_script_runtime(
+    script_app: &ScriptAppServices,
+    shell_state: &shell::ShellState,
+) -> Option<script_runtime::ScriptRuntimeController> {
+    #[cfg(target_os = "windows")]
+    {
+        let input: Arc<dyn smu_input::KeyState> =
+            Arc::new(smu_input::windows::WindowsKeyState::new());
+        let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = backend;
+        Some(script_runtime::ScriptRuntimeController::start(
+            input,
+            discovery,
+            foreground,
+            script_app.manager(),
+            shell_state.script_runtime_settings(),
+        ))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (script_app, shell_state);
+        None
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -1855,6 +1879,7 @@ struct UiLoopContext<'a> {
     profile_service: &'a mut profile_service::ProfileBrowserService,
     process_status: &'a ProcessStatusService,
     script_app: &'a ScriptAppServices,
+    portable_script_runtime: Option<&'a script_runtime::ScriptRuntimeController>,
     #[cfg(target_os = "linux")]
     linux_services: &'a LinuxRuntimeServices,
 }
@@ -1888,6 +1913,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         profile_service,
         process_status,
         script_app,
+        portable_script_runtime,
         #[cfg(target_os = "linux")]
         linux_services,
     } = context;
@@ -1944,6 +1970,9 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         apply_shell_window_style(window, shell_state);
         let (script_selector, script_take_all) = shell_state.script_process_target();
         script_app.set_process_target(script_selector, script_take_all);
+        if let Some(controller) = portable_script_runtime {
+            controller.update_settings(shell_state.script_runtime_settings());
+        }
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
         if let Some(shell::ShellAction::Script(script_action)) = shell_action.as_ref()
@@ -1977,6 +2006,23 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+fn initialize_imgui(
+    shell_state: &mut shell::ShellState,
+    parity_case: Option<&str>,
+) -> Result<Context, Box<dyn std::error::Error>> {
+    let mut imgui = Context::create();
+    imgui.set_ini_filename::<PathBuf>(None)?;
+    theme::load_fonts(&imgui)?;
+    shell_state.apply_theme_to_context(&mut imgui);
+    let (tutorial_media, tutorial_warnings) =
+        tutorial_media::TutorialMedia::load(&mut imgui, parity_case);
+    shell_state.set_tutorial_media(tutorial_media);
+    for warning in tutorial_warnings {
+        shell_state.push_warning(warning);
+    }
+    Ok(imgui)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     #[cfg(target_os = "linux")]
@@ -2005,16 +2051,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_or(ptr::null(), |function| (function as *const ()).cast::<c_void>())
     });
 
-    let mut imgui = Context::create();
-    imgui.set_ini_filename::<PathBuf>(None)?;
-    theme::load_fonts(&imgui)?;
-    shell_state.apply_theme_to_context(&mut imgui);
-    let (tutorial_media, tutorial_warnings) =
-        tutorial_media::TutorialMedia::load(&mut imgui, parity_case.as_deref());
-    shell_state.set_tutorial_media(tutorial_media);
-    for warning in tutorial_warnings {
-        shell_state.push_warning(warning);
-    }
+    let mut imgui = initialize_imgui(&mut shell_state, parity_case.as_deref())?;
 
     // SAFETY: `window` and `gl_context` are declared before `imgui`/backend and therefore outlive
     // the native Dear ImGui attachments that retain their pointers.
@@ -2048,6 +2085,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(payload) = profile_service.current_payload() {
         script_app.apply_profile(payload);
     }
+    #[cfg(not(target_os = "linux"))]
+    let portable_script_runtime = start_portable_script_runtime(script_app, &shell_state);
     #[cfg(target_os = "linux")]
     run_ui_loop(UiLoopContext {
         events: &mut events,
@@ -2060,6 +2099,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         profile_service: &mut profile_service,
         process_status,
         script_app,
+        portable_script_runtime: None,
         linux_services: &linux_services,
     })?;
     #[cfg(not(target_os = "linux"))]
@@ -2074,6 +2114,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         profile_service: &mut profile_service,
         process_status,
         script_app,
+        portable_script_runtime: portable_script_runtime.as_ref(),
     })?;
 
     save_profiles_before_shutdown(
@@ -2086,6 +2127,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(target_os = "linux")]
     linux_services.shutdown();
+    #[cfg(not(target_os = "linux"))]
+    if let Some(controller) = portable_script_runtime.as_ref() {
+        controller.stop();
+    }
     script_app.shutdown();
 
     Ok(())

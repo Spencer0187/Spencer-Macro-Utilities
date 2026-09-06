@@ -61,6 +61,12 @@ impl ScriptAppServices {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub fn manager(&self) -> Arc<ScriptManager> {
+        self.profile.manager_arc()
+    }
+
     #[must_use]
     pub fn serialize_scripts(&self) -> serde_json::Value {
         self.profile.serialize_scripts()

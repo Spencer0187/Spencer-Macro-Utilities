@@ -20,3 +20,6 @@ libc.workspace = true
 smu-display = { path = "../smu-display", version = "=0.0.0" }
 evdev.workspace = true
 x11rb.workspace = true
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_UI_Input_KeyboardAndMouse"] }

@@ -4,8 +4,7 @@
 //! most every 25 ms. Foreground matching always uses every matching target process, even when a
 //! macro's process-control action intentionally targets only the main/newest process.
 
-use smu_process::linux::foreground_detection_available;
-use smu_process::{ProcessDiscovery, ProcessForeground, select_all_processes, select_main_process};
+use smu_process::{ProcessDiscovery, ProcessForeground};
 use std::time::{Duration, Instant};
 
 const PROCESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
@@ -73,10 +72,11 @@ impl TargetProcessCache {
         if !disable_outside_target {
             return true;
         }
-        // Matches `PlatformCapabilities::canDetectForegroundProcess`: foreground gating requires a
-        // usable X11/EWMH active-window path. Wayland, unknown sessions, and X11 servers without
-        // the required atoms/root property deliberately fall back to always-active mode.
-        if !foreground_detection_available() {
+        // Linux matches `PlatformCapabilities::canDetectForegroundProcess`: foreground gating
+        // requires a usable X11/EWMH active-window path. Windows has a direct foreground-window PID
+        // query, so it does not need this fallback.
+        #[cfg(target_os = "linux")]
+        if !smu_process::linux::foreground_detection_available() {
             return true;
         }
 
@@ -112,14 +112,11 @@ pub fn discover_targets(
     take_all_process_ids: bool,
     discovery: &dyn ProcessDiscovery,
 ) -> (Vec<u32>, Vec<u32>) {
-    let Ok(records) = discovery.snapshot() else {
-        return (Vec::new(), Vec::new());
-    };
-    let all = select_all_processes(selector, &records);
+    let all = discovery.find_all_processes(selector).unwrap_or_default();
     let selected = if take_all_process_ids {
         all.clone()
     } else {
-        select_main_process(selector, &records).into_iter().collect()
+        discovery.find_main_process(selector).ok().flatten().into_iter().collect()
     };
     (selected, all)
 }

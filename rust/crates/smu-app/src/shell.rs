@@ -652,12 +652,10 @@ impl ShellState {
         self.global.process_selector()
     }
 
-    #[cfg(target_os = "linux")]
     pub const fn set_process_found(&mut self, found: bool) {
         self.global.set_process_found(found);
     }
 
-    #[cfg(target_os = "linux")]
     #[must_use]
     pub fn script_runtime_settings(&self) -> crate::script_runtime::ScriptRuntimeSettings {
         crate::script_runtime::ScriptRuntimeSettings {

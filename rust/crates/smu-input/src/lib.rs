@@ -9,6 +9,8 @@ use smu_core::{Hotkey, KeyCode};
 pub mod linux;
 #[cfg(target_os = "linux")]
 mod linux_permissions;
+#[cfg(target_os = "windows")]
+pub mod windows;
 #[cfg(target_os = "linux")]
 pub use linux_permissions::{LinuxInputPermissionStatus, linux_input_permission_status};
 pub mod state;
@@ -23,6 +25,16 @@ pub use text::{
 pub const NO_KEY: KeyCode = KeyCode::NONE;
 pub const MOUSE_WHEEL_UP: KeyCode = KeyCode::MOUSE_WHEEL_UP;
 pub const MOUSE_WHEEL_DOWN: KeyCode = KeyCode::MOUSE_WHEEL_DOWN;
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_virtual_key(key: KeyCode) -> Option<i32> {
+    let raw = key.raw();
+    if matches!(key, KeyCode::MOUSE_WHEEL_UP | KeyCode::MOUSE_WHEEL_DOWN) || raw > 0xFF {
+        None
+    } else {
+        Some(raw.cast_signed())
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputError(String);
@@ -207,5 +219,15 @@ mod tests {
     fn default_key_name_uses_core_compatibility_label() {
         assert_eq!(MinimalDevice.format_key_name(KeyCode::new(0x74)), "F5");
         assert_eq!(MinimalDevice.format_key_name(KeyCode::new(999)), "0x999");
+    }
+
+    #[test]
+    fn windows_virtual_key_rejects_wheel_and_out_of_range_values() {
+        assert_eq!(super::windows_virtual_key(KeyCode::A), Some(0x41));
+        assert_eq!(super::windows_virtual_key(KeyCode::LBUTTON), Some(0x01));
+        assert_eq!(super::windows_virtual_key(KeyCode::RBUTTON), Some(0x02));
+        assert_eq!(super::windows_virtual_key(KeyCode::MOUSE_WHEEL_UP), None);
+        assert_eq!(super::windows_virtual_key(KeyCode::MOUSE_WHEEL_DOWN), None);
+        assert_eq!(super::windows_virtual_key(KeyCode::new(0x1FF)), None);
     }
 }

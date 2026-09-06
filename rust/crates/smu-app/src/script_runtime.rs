@@ -1,9 +1,9 @@
-//! Live Linux imported-script hotkey controller.
+//! Live imported-script hotkey controller.
 //!
 //! The manager owns script workers and cancellation. This controller only owns C++ hotkey edge,
 //! global enable, target-foreground eligibility, and the per-record latch vector.
 
-use smu_input::InputDevice;
+use smu_input::KeyState;
 use smu_process::{ProcessDiscovery, ProcessForeground};
 use smu_scripting::{ScriptManager, ScriptRecordSnapshot};
 use std::fmt;
@@ -53,7 +53,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 impl ScriptRuntimeController {
     #[must_use]
     pub fn start(
-        input: Arc<dyn InputDevice>,
+        input: Arc<dyn KeyState>,
         discovery: Arc<dyn ProcessDiscovery>,
         foreground: Arc<dyn ProcessForeground>,
         manager: Arc<ScriptManager>,
@@ -100,7 +100,7 @@ impl Drop for ScriptRuntimeController {
 fn controller_loop(
     running: &AtomicBool,
     settings: &Mutex<ScriptRuntimeSettings>,
-    input: &dyn InputDevice,
+    input: &dyn KeyState,
     discovery: &dyn ProcessDiscovery,
     foreground: &dyn ProcessForeground,
     manager: &ScriptManager,
