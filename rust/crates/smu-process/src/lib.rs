@@ -204,12 +204,35 @@ pub fn select_main_process(selector: &str, records: &[ProcessRecord]) -> Option<
     pids.first().copied()
 }
 
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_process_name_matches(candidate: &str, target: &str) -> bool {
+    !target.is_empty() && candidate.eq_ignore_ascii_case(target)
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn newest_windows_process(entries: &[(u32, u64)]) -> Option<u32> {
+    let mut selected = None;
+    let mut newest_creation_time = 0_u64;
+    for &(pid, creation_time) in entries {
+        if selected.is_none() || creation_time > newest_creation_time {
+            selected = Some(pid);
+            newest_creation_time = creation_time;
+        }
+    }
+    selected
+}
+
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 #[cfg(test)]
 mod tests {
-    use super::{ProcessRecord, select_all_processes, select_main_process};
+    use super::{
+        ProcessRecord, newest_windows_process, select_all_processes, select_main_process,
+        windows_process_name_matches,
+    };
 
     fn record(
         pid: u32,
@@ -301,5 +324,19 @@ mod tests {
         ];
 
         assert_eq!(select_main_process("sober 20", &records), Some(20));
+    }
+
+    #[test]
+    fn windows_name_matching_is_case_insensitive_and_does_not_parse_selector_tokens() {
+        assert!(windows_process_name_matches("RobloxPlayerBeta.exe", "robloxplayerbeta.EXE"));
+        assert!(!windows_process_name_matches("RobloxPlayerBeta.exe", ""));
+        assert!(!windows_process_name_matches("RobloxPlayerBeta.exe", "RobloxPlayerBeta.exe 123"));
+    }
+
+    #[test]
+    fn windows_main_process_prefers_newest_creation_time_and_keeps_first_tie() {
+        assert_eq!(newest_windows_process(&[]), None);
+        assert_eq!(newest_windows_process(&[(10, 100), (11, 300), (12, 200)]), Some(11));
+        assert_eq!(newest_windows_process(&[(20, 500), (21, 500)]), Some(20));
     }
 }

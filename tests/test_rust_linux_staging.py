@@ -81,6 +81,29 @@ class RustLinuxStagingTest(unittest.TestCase):
             main,
         )
 
+    def test_smu_process_declares_windows_process_backend_with_locked_windows_sys(self) -> None:
+        workspace = tomllib.loads((ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8"))
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-process" / "Cargo.toml").read_text(
+                encoding="utf-8"
+            )
+        )
+        process_lib = (
+            ROOT / "rust" / "crates" / "smu-process" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8")
+        windows_backend = (
+            ROOT / "rust" / "crates" / "smu-process" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(workspace["workspace"]["dependencies"]["windows-sys"], "=0.61.2")
+        windows_dependencies = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"]
+        self.assertIn("windows-sys", windows_dependencies)
+        self.assertIn('#[cfg(target_os = "windows")]\npub mod windows;', process_lib)
+        self.assertIn("CreateToolhelp32Snapshot", windows_backend)
+        self.assertIn("NtSuspendProcess", windows_backend)
+        self.assertIn("NtResumeProcess", windows_backend)
+        self.assertIn("GetForegroundWindow", windows_backend)
+
     def test_smu_app_generic_loop_owns_script_services_on_all_platforms(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

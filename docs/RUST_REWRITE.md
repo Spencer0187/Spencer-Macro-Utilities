@@ -34,8 +34,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 
 ## Current Rust service slices
 
-- `smu-process` owns process discovery/selection plus Linux process-control and foreground
-  capabilities. Process control covers cgroup-v2 child freezing for safe app cgroups, ptrace-aware
+- `smu-process` owns process discovery/selection plus Linux and Windows native process backends.
+  The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
+  matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
+  queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
+  and foreground checks compare the active window PID directly. Fedora validation covers the portable
+  selection tests plus Windows-target Cargo metadata/API signatures; this machine does not have a
+  Windows Rust stdlib, so native Windows `cargo check` remains an external validation step. Linux
+  process control covers
+  cgroup-v2 child freezing for safe app cgroups, ptrace-aware
   SIGSTOP refusal, process-tree SIGSTOP/SIGCONT fallback ordering, and the existing root
   `processhelper` socket protocol behind an injected authorization gate. Foreground detection keeps
   Wayland/unknown sessions in the C++ false path and, like C++, treats X11 as capable only when the
@@ -239,9 +246,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   imported-script sidebar/detail/footer UI, native-dialog/fallback import, profile persistence, saved-value
   reads, process-target propagation, and script/settings mutations are all available there through a
   `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
-  calls that require input/display/process/network backends therefore remain unavailable until concrete
-  Windows/macOS adapters are attached; those adapters and C++ entry-point removal are the remaining
-  cross-platform rewrite gates.
+  calls that require native backends therefore remain unavailable until composition attaches them.
+  Windows now has the first native Rust adapter (`smu-process::windows`), but `smu-app` still needs to
+  inject it and still lacks Windows input/display/network adapters; macOS still lacks its native Rust
+  adapters. Those integrations plus Windows/macOS C++ entry-point removal remain the cross-platform
+  rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

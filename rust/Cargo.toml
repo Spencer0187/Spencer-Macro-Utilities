@@ -50,6 +50,7 @@ sha2 = "=0.10.9"
 thiserror = "2"
 toml = "0.9"
 tokio = { version = "=1.53.1", features = ["rt", "sync", "time"] }
+windows-sys = "=0.61.2"
 x11rb = { version = "=0.14.0", features = ["xinerama"] }
 zip = { version = "=7.2.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
