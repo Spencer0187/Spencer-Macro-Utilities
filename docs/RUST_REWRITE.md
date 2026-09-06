@@ -377,7 +377,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   rollback after a mid-update filesystem collision. `smu-updater` now also exposes one shared downloaded-
   asset verifier: it enforces the manifest-declared size and SHA-256 digest and can return the exact
   authenticated bytes read from disk. The Linux updater has been switched to that verifier, so future
-  Windows helper code will not duplicate package-integrity logic. Auto-apply remains off because the Rust
+  Windows helper code will not duplicate package-integrity logic. `UpdateChecker` can also re-fetch one
+  exact canonical GitHub release tag and requires the returned release version to match the requested
+  version, avoiding a race where `releases/latest` changes between confirmation and helper startup.
+  Auto-apply remains off because the Rust
   bundle contains side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned;
   production signing/publishing must establish a bundle-wide trust policy before the replacement launcher
   can be enabled. macOS still lacks its native Rust adapters.

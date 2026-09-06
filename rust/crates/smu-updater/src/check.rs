@@ -2,8 +2,8 @@
 
 use super::{
     MAXIMUM_MANIFEST_BYTES, ReleaseAsset, ReleaseInfo, UpdatePlatform, compare_versions,
-    is_updater_version_allowed, normalize_version, parse_release_metadata_summary,
-    parse_release_metadata_with_manifest, select_update_asset,
+    is_canonical_manifest_version, is_updater_version_allowed, normalize_version,
+    parse_release_metadata_summary, parse_release_metadata_with_manifest, select_update_asset,
 };
 use serde_json::Value;
 use std::cmp::Ordering;
@@ -11,6 +11,8 @@ use std::fmt;
 
 pub const LATEST_RELEASE_API_URL: &str =
     "https://api.github.com/repos/Spencer0187/Spencer-Macro-Utilities/releases/latest";
+const RELEASE_BY_TAG_API_PREFIX: &str =
+    "https://api.github.com/repos/Spencer0187/Spencer-Macro-Utilities/releases/tags/V";
 const TRUSTED_RELEASE_ASSET_PREFIX: &str =
     "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/download/";
 const UPDATE_MANIFEST_NAME: &str = "update-manifest.json";
@@ -175,6 +177,30 @@ impl<T: UpdateTransport> UpdateChecker<T> {
     pub fn fetch_latest_release(&mut self) -> Result<ReleaseInfo, UpdateCheckError> {
         let response = self.get_text(LATEST_RELEASE_API_URL)?;
         self.parse_release_contract_from_response(&response)
+    }
+
+    /// Fetch one exact canonical SMU release tag and validate its update manifest.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for non-canonical versions, transport failures, invalid release contracts, or a
+    /// GitHub response whose canonical release version does not match the requested version.
+    pub fn fetch_release_version(
+        &mut self,
+        version: &str,
+    ) -> Result<ReleaseInfo, UpdateCheckError> {
+        if !is_canonical_manifest_version(version) {
+            return Err(UpdateCheckError::new("Updater refused a non-canonical release version."));
+        }
+        let url = format!("{RELEASE_BY_TAG_API_PREFIX}{version}");
+        let response = self.get_text(&url)?;
+        let release = self.parse_release_contract_from_response(&response)?;
+        if release.version != version {
+            return Err(UpdateCheckError::new(
+                "GitHub release tag did not match the requested update version.",
+            ));
+        }
+        Ok(release)
     }
 
     /// Match C++ `CheckForUpdate`: a failed check is represented in the returned status.
@@ -364,6 +390,45 @@ mod tests {
             assert_eq!(status.message, message);
             assert_eq!(checker.transport().requests, [LATEST_RELEASE_API_URL]);
         }
+    }
+
+    #[test]
+    fn exact_release_version_fetches_tag_specific_contract_and_rejects_noncanonical_input() {
+        let fixture = contract_fixture("3.4.1", "3.4.0", "Spencer-Macro-Utilities-Windows.zip");
+        let release_url = format!("{RELEASE_BY_TAG_API_PREFIX}3.4.1");
+        let transport = FakeTransport::default()
+            .ok(&release_url, fixture.release)
+            .ok(&fixture.manifest_url, fixture.manifest);
+        let mut checker = UpdateChecker::new(transport, UpdatePlatform::Windows, false);
+        let release =
+            checker.fetch_release_version("3.4.1").expect("tagged release should validate");
+        assert_eq!(release.version, "3.4.1");
+        assert_eq!(checker.transport().requests, [release_url, fixture.manifest_url]);
+
+        let mut checker =
+            UpdateChecker::new(FakeTransport::default(), UpdatePlatform::Windows, false);
+        let error = checker
+            .fetch_release_version("V3.4.1")
+            .expect_err("non-canonical version must be rejected before transport");
+        assert_eq!(error.to_string(), "Updater refused a non-canonical release version.");
+        assert!(checker.transport().requests.is_empty());
+    }
+
+    #[test]
+    fn exact_release_version_rejects_mismatched_returned_tag() {
+        let fixture = contract_fixture("3.4.2", "3.4.0", "Spencer-Macro-Utilities-Windows.zip");
+        let release_url = format!("{RELEASE_BY_TAG_API_PREFIX}3.4.1");
+        let transport = FakeTransport::default()
+            .ok(&release_url, fixture.release)
+            .ok(&fixture.manifest_url, fixture.manifest);
+        let mut checker = UpdateChecker::new(transport, UpdatePlatform::Windows, false);
+        let error = checker
+            .fetch_release_version("3.4.1")
+            .expect_err("returned tag must equal requested version");
+        assert_eq!(
+            error.to_string(),
+            "GitHub release tag did not match the requested update version."
+        );
     }
 
     #[test]
