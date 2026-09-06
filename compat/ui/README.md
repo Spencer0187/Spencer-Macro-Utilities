@@ -74,6 +74,11 @@ advanced controls that Rust had rendered unconditionally instead of behind C++'s
 collapsing headers, a missing HHJ `Reference video coming soon!` line, and the hard-coded Bunnyhop
 title instead of C++'s `Smart Bunnyhop` catalog title. Speedglitch has one reviewed 1x1 text
 anti-aliasing delta at (738,467); the other module-body cases need only the standard footer seam.
+The 1280x800 theme matrix now gates Cyberpunk idle and real sidebar hover plus Default Dark and
+Sunset Orange. The hover case injects the same mouse position before Dear ImGui `NewFrame` on both
+apps, so it exercises the production `ButtonHovered` path; idle-to-hover changes the same
+(16,152)-(350,197) sidebar region on each implementation. Default Dark masks only three measured
+zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

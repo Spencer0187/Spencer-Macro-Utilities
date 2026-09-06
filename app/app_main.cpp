@@ -800,6 +800,10 @@ int RunSharedApp(AppContext& context, const AppMainConfig& config)
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
+        const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+        if (parityCase && std::strcmp(parityCase, "theme-cyberpunk-hover-user-reference") == 0) {
+            ImGui::GetIO().AddMousePosEvent(100.0f, 160.0f);
+        }
         ImGui::NewFrame();
         RenderAppUi(context);
 

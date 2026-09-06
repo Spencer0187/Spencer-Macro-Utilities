@@ -1976,6 +1976,15 @@ fn stabilize_parity_delta_time(imgui: &mut Context, capture_path: Option<&Path>)
     }
 }
 
+fn prepare_parity_frame(imgui: &mut Context, capture_path: Option<&Path>) {
+    if std::env::var("SMU_UI_PARITY_CASE").ok().as_deref()
+        == Some("theme-cyberpunk-hover-user-reference")
+    {
+        imgui.io_mut().add_mouse_pos_event([100.0, 160.0]);
+    }
+    stabilize_parity_delta_time(imgui, capture_path);
+}
+
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
         events,
@@ -2004,7 +2013,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
 
         shell_state.apply_theme_to_context(imgui);
         backend.new_frame(imgui)?;
-        stabilize_parity_delta_time(imgui, capture_path);
+        prepare_parity_frame(imgui, capture_path);
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         profile_service.prepare_shell(shell_state.profile_browser_mut());

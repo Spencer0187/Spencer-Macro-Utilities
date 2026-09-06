@@ -446,7 +446,11 @@ also gated directly. Those captures exposed HHJ and Floor Bounce advanced contro
 rendered unconditionally instead of using C++'s closed-by-default collapsing headers, the missing HHJ
 `Reference video coming soon!` tail line, and the hard-coded Bunnyhop title instead of the catalog's
 `Smart Bunnyhop`. Speedglitch differs at one isolated 1x1 text anti-aliasing pixel; all other default
-module-body gates need no masks beyond the shared footer seam. Exact RGBA equality is the default. Masks are
+module-body gates need no masks beyond the shared footer seam. The 1280x800 theme-shell matrix now
+gates Cyberpunk idle/hover, Default Dark, and Sunset Orange; the hover fixture injects the same mouse
+position before `NewFrame` on both apps and exercises the real sidebar hover path. Default Dark needs
+only three measured zero-rounding edge masks, while Sunset Orange needs four tiny rounded footer
+corner masks. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

@@ -136,6 +136,11 @@ void ApplyUiParityCaseIfRequested()
     const bool tutorialWallWalkReference = parityCase && std::strcmp(parityCase, "tutorial-wall-walk-user-reference") == 0;
     const bool tutorialSpamKeyReference = parityCase && std::strcmp(parityCase, "tutorial-spam-key-user-reference") == 0;
     const bool tutorialModuleReference = tutorialMediaReference || tutorialWallhopReference || tutorialItemClipReference || tutorialWallWalkReference || tutorialSpamKeyReference;
+    const bool themeCyberpunkIdleReference = parityCase && std::strcmp(parityCase, "theme-cyberpunk-idle-user-reference") == 0;
+    const bool themeCyberpunkHoverReference = parityCase && std::strcmp(parityCase, "theme-cyberpunk-hover-user-reference") == 0;
+    const bool themeDefaultDarkReference = parityCase && std::strcmp(parityCase, "theme-default-dark-user-reference") == 0;
+    const bool themeSunsetOrangeReference = parityCase && std::strcmp(parityCase, "theme-sunset-orange-user-reference") == 0;
+    const bool themeShellReference = themeCyberpunkIdleReference || themeCyberpunkHoverReference || themeDefaultDarkReference || themeSunsetOrangeReference;
     int moduleBodyReferenceSection = -1;
     if (parityCase) {
         if (std::strcmp(parityCase, "module-item-desync-user-reference") == 0) moduleBodyReferenceSection = 1;
@@ -149,7 +154,7 @@ void ApplyUiParityCaseIfRequested()
         else if (std::strcmp(parityCase, "module-floor-bounce-user-reference") == 0) moduleBodyReferenceSection = 14;
     }
     const bool moduleBodyReference = moduleBodyReferenceSection >= 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !moduleBodyReference) {
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !moduleBodyReference) {
         return;
     }
 
@@ -175,7 +180,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || moduleBodyReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || moduleBodyReference) {
         selected_section = moduleBodyReference ? moduleBodyReferenceSection :
             (builtinFooterReference ? 0 :
             (tutorialMediaReference ? 9 :
@@ -201,6 +206,13 @@ void ApplyUiParityCaseIfRequested()
         globalzoominreverse = false;
         doublepressafkkey = true;
         show_theme_menu = themeEditorReference;
+        if (themeDefaultDarkReference) {
+            current_theme_index = 0;
+        } else if (themeCyberpunkIdleReference || themeCyberpunkHoverReference) {
+            current_theme_index = 2;
+        } else if (themeSunsetOrangeReference) {
+            current_theme_index = 4;
+        }
         if (importedScriptFooterReference) {
             ScriptManager::Get().applyUiParityReference();
         }

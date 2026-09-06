@@ -198,6 +198,17 @@ impl Default for ShellState {
     }
 }
 
+fn parity_theme_name(case: Option<&str>) -> Option<&'static str> {
+    match case {
+        Some("theme-cyberpunk-idle-user-reference" | "theme-cyberpunk-hover-user-reference") => {
+            Some("Cyberpunk")
+        }
+        Some("theme-default-dark-user-reference") => Some("Default Dark"),
+        Some("theme-sunset-orange-user-reference") => Some("Sunset Orange"),
+        _ => None,
+    }
+}
+
 fn parity_module_body_section(case: Option<&str>) -> Option<i32> {
     match case {
         Some("module-item-desync-user-reference") => Some(1),
@@ -250,6 +261,9 @@ impl ShellState {
             state.selected_section = 11;
         } else if let Some(section) = parity_module_body_section(case) {
             state.selected_section = section;
+        }
+        if let Some(name) = parity_theme_name(case) {
+            state.theme.select_named_for_parity(name);
         }
         state
     }
@@ -1722,6 +1736,20 @@ mod profile_adapter_tests {
             ("module-floor-bounce-user-reference", 14),
         ] {
             assert_eq!(ShellState::for_parity_case(Some(case)).selected_section, section);
+        }
+    }
+
+    #[test]
+    fn theme_shell_parity_cases_select_expected_presets() {
+        for (case, theme_name) in [
+            ("theme-cyberpunk-idle-user-reference", "Cyberpunk"),
+            ("theme-cyberpunk-hover-user-reference", "Cyberpunk"),
+            ("theme-default-dark-user-reference", "Default Dark"),
+            ("theme-sunset-orange-user-reference", "Sunset Orange"),
+        ] {
+            let state = ShellState::for_parity_case(Some(case));
+            assert_eq!(state.theme.active().name, theme_name);
+            assert_eq!(state.selected_section, -1);
         }
     }
 
