@@ -457,7 +457,11 @@ Linux Input Setup Required. Rust now mirrors the C++ modal center/size constrain
 fixed-wrap unformatted details/action regions. The input-setup fixture uses deterministic in-memory
 permission summary/details text and bypasses only the live permission snapshot during parity capture;
 only measured rounded corners plus one stable 1x2 dimmed-text threshold fragment on Administrator
-Required are masked. Fractional-scale manifest rows remain manual OS/DPI
+Required are masked. The Update Available modal is now gated in both branches: deterministic
+`3.4.0 -> 9.9.9` fixtures cover auto-installable `Yes`/`No`/`Cancel` and manual-only `Open latest
+release`/`Not now`, without invoking updater transport, downloads, or browser launches. Rust now
+matches C++'s centered 520px `AlwaysAutoResize` modal and default-focus placement; only the measured
+rounded modal corners are masked. Fractional-scale manifest rows remain manual OS/DPI
 references because Xvfb plus SDL's X11 scaling override produced pixel-identical 1x/1.25x captures
 instead of exercising a real content-scale change. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;

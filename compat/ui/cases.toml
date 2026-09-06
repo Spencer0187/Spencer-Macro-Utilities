@@ -489,6 +489,52 @@ ignore = [
 ]
 
 [[case]]
+name = "modal-update-auto-linux-minimum"
+logical_width = 1180
+logical_height = 700
+scale = 1.0
+platform = "linux"
+parity_state = "modal-update-auto-user-reference"
+automated = true
+# Four measured rounded modal-corner halos plus the standard minimum-size footer seam.
+gate_tolerance = 13
+ignore = [
+    { x = 358, y = 250, width = 6, height = 6 },
+    { x = 815, y = 250, width = 6, height = 6 },
+    { x = 358, y = 444, width = 6, height = 6 },
+    { x = 815, y = 444, width = 6, height = 6 },
+    { x = 347, y = 657, width = 5, height = 5 },
+    { x = 1168, y = 657, width = 5, height = 5 },
+    { x = 347, y = 661, width = 1, height = 31 },
+    { x = 1172, y = 661, width = 1, height = 31 },
+    { x = 349, y = 661, width = 822, height = 1 },
+    { x = 347, y = 691, width = 826, height = 1 },
+]
+
+[[case]]
+name = "modal-update-manual-linux-minimum"
+logical_width = 1180
+logical_height = 700
+scale = 1.0
+platform = "linux"
+parity_state = "modal-update-manual-user-reference"
+automated = true
+# Four measured rounded modal-corner halos plus the standard minimum-size footer seam.
+gate_tolerance = 13
+ignore = [
+    { x = 331, y = 230, width = 6, height = 6 },
+    { x = 842, y = 230, width = 6, height = 6 },
+    { x = 331, y = 464, width = 6, height = 6 },
+    { x = 842, y = 464, width = 6, height = 6 },
+    { x = 347, y = 657, width = 5, height = 5 },
+    { x = 1168, y = 657, width = 5, height = 5 },
+    { x = 347, y = 661, width = 1, height = 31 },
+    { x = 1172, y = 661, width = 1, height = 31 },
+    { x = 349, y = 661, width = 822, height = 1 },
+    { x = 347, y = 691, width = 826, height = 1 },
+]
+
+[[case]]
 name = "warning-toast-linux-minimum"
 logical_width = 1180
 logical_height = 700

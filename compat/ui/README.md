@@ -78,7 +78,7 @@ The 1280x800 theme matrix now gates Cyberpunk idle and real sidebar hover plus D
 Sunset Orange. The hover case injects the same mouse position before Dear ImGui `NewFrame` on both
 apps, so it exercises the production `ButtonHovered` path; idle-to-hover changes the same
 (16,152)-(350,197) sidebar region on each implementation. Default Dark masks only three measured
-zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments. Four
+zero-rounding edge runs, and Sunset Orange masks four tiny rounded footer-corner fragments. Five
 Linux permission/policy modal cases now gate Administrator Required, Additional Freeze Permission
 Required, Wayland Screen Capture, Wayland Absolute Mouse Control, and Linux Input Setup Required
 through their real production modal renderers with helper/portal/installer side effects left
@@ -86,7 +86,12 @@ untouched. Rust now mirrors C++'s centering, window width/constraints, `AlwaysAu
 behavior, spacing, default focus, and the input-setup modal's 580px fixed-wrap unformatted detail
 regions. The input-setup case injects a deterministic in-memory permission summary/details fixture;
 modal cases mask only their measured rounded 6x6 corners, while Administrator Required also has one
-stable 1x2 dimmed-text threshold fragment at (173,119).
+stable 1x2 dimmed-text threshold fragment at (173,119). Two Update Available modal cases separately
+gate the auto-installable `Yes`/`No`/`Cancel` branch and the manual-only `Open latest release`/`Not
+now` branch using identical deterministic local/latest versions and package name, with updater
+network/download/browser actions left untouched. Rust now mirrors C++'s centered 520px
+`AlwaysAutoResize` modal and default-focus placement; only the four measured rounded corners are
+masked in each branch.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

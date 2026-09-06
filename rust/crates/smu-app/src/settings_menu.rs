@@ -1,5 +1,8 @@
 use crate::{global_settings::GlobalSettingsState, keybind, theme::ThemeDefinition};
-use dear_imgui_rs::{Condition, MouseCursor, TreeNodeFlags, Ui, WindowFlags};
+use dear_imgui_rs::{Condition, MouseCursor, TreeNodeFlags, Ui, WindowFlags, sys};
+
+pub const UPDATE_AUTO_PARITY_CASE: &str = "modal-update-auto-user-reference";
+pub const UPDATE_MANUAL_PARITY_CASE: &str = "modal-update-manual-user-reference";
 
 pub const SPONSOR_URL: &str = "https://github.com/sponsors/Spencer0187";
 
@@ -38,6 +41,29 @@ impl UpdaterPanelStatus {
     pub const fn user_outdated(&self) -> bool {
         self.checked_once && self.update_available
     }
+}
+
+#[must_use]
+pub fn parity_update_status(case: Option<&str>) -> Option<UpdaterPanelStatus> {
+    let auto_apply_supported = match case {
+        Some(UPDATE_AUTO_PARITY_CASE) => true,
+        Some(UPDATE_MANUAL_PARITY_CASE) => false,
+        _ => return None,
+    };
+    Some(UpdaterPanelStatus {
+        enabled: true,
+        checked_once: true,
+        update_confirm_open: true,
+        check_succeeded: true,
+        update_available: true,
+        auto_apply_supported,
+        local_version: "3.4.0".to_owned(),
+        latest_version: "9.9.9".to_owned(),
+        selected_package: "Spencer-Macro-Utilities-x86_64.AppImage".to_owned(),
+        status_message: "An update is available.".to_owned(),
+        action_message: "An update is available.".to_owned(),
+        ..UpdaterPanelStatus::default()
+    })
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -197,11 +223,32 @@ fn render_updater(
     crate::parity::separator(ui);
 }
 
+fn set_update_modal_layout(ui: &Ui) {
+    let viewport = ui.main_viewport();
+    let pos = viewport.pos();
+    let size = viewport.size();
+    let center = [size[0].mul_add(0.5, pos[0]), size[1].mul_add(0.5, pos[1])];
+    // SAFETY: these configure the immediately following modal Begin while `ui` owns the active
+    // Dear ImGui context for this frame.
+    unsafe {
+        sys::igSetNextWindowPos(
+            sys::ImVec2_c { x: center[0], y: center[1] },
+            Condition::Appearing as i32,
+            sys::ImVec2_c { x: 0.5, y: 0.5 },
+        );
+        sys::igSetNextWindowSize(sys::ImVec2_c { x: 520.0, y: 0.0 }, Condition::Appearing as i32);
+    }
+}
+
 pub fn render_update_confirmation(ui: &Ui, updater: &UpdaterPanelStatus) -> Option<SettingsAction> {
     if updater.update_confirm_open {
         let _ = ui.open_popup("Update Available");
     }
-    let _popup = ui.begin_modal_popup("Update Available")?;
+    set_update_modal_layout(ui);
+    let _popup = ui
+        .begin_modal_popup_config("Update Available")
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
 
     let latest =
         if updater.latest_version.is_empty() { "unknown" } else { &updater.latest_version };
@@ -241,7 +288,9 @@ pub fn render_update_confirmation(ui: &Ui, updater: &UpdaterPanelStatus) -> Opti
             return Some(SettingsAction::SkipUpdate);
         }
         ui.same_line();
-        if ui.button_with_size("Cancel", [90.0, 0.0]) {
+        let cancel = ui.button_with_size("Cancel", [90.0, 0.0]);
+        ui.set_item_default_focus();
+        if cancel {
             ui.close_current_popup();
             return Some(SettingsAction::CancelUpdate);
         }
@@ -253,7 +302,9 @@ pub fn render_update_confirmation(ui: &Ui, updater: &UpdaterPanelStatus) -> Opti
         return Some(SettingsAction::OpenLatestReleaseAndDismiss);
     }
     ui.same_line();
-    if ui.button_with_size("Not now", [100.0, 0.0]) {
+    let not_now = ui.button_with_size("Not now", [100.0, 0.0]);
+    ui.set_item_default_focus();
+    if not_now {
         ui.close_current_popup();
         return Some(SettingsAction::SkipUpdate);
     }
@@ -404,7 +455,10 @@ fn render_scalar_settings(
 
 #[cfg(test)]
 mod tests {
-    use super::{PlatformStatus, SPONSOR_URL, UpdaterPanelStatus, clamp_window_position};
+    use super::{
+        PlatformStatus, SPONSOR_URL, UPDATE_AUTO_PARITY_CASE, UPDATE_MANUAL_PARITY_CASE,
+        UpdaterPanelStatus, clamp_window_position, parity_update_status,
+    };
 
     fn assert_position_eq(actual: [f32; 2], expected: [f32; 2]) {
         assert_eq!(actual[0].to_bits(), expected[0].to_bits());
@@ -419,6 +473,21 @@ mod tests {
         assert!(!status.checking);
         assert!(!status.update_available);
         assert!(!status.user_outdated());
+    }
+
+    #[test]
+    fn update_modal_parity_statuses_share_versions_and_package() {
+        let auto = parity_update_status(Some(UPDATE_AUTO_PARITY_CASE)).unwrap_or_default();
+        let manual = parity_update_status(Some(UPDATE_MANUAL_PARITY_CASE)).unwrap_or_default();
+        assert!(auto.update_confirm_open && manual.update_confirm_open);
+        assert!(auto.auto_apply_supported);
+        assert!(!manual.auto_apply_supported);
+        assert_eq!(auto.local_version, "3.4.0");
+        assert_eq!(auto.latest_version, "9.9.9");
+        assert_eq!(auto.selected_package, "Spencer-Macro-Utilities-x86_64.AppImage");
+        assert_eq!(manual.local_version, auto.local_version);
+        assert_eq!(manual.latest_version, auto.latest_version);
+        assert_eq!(manual.selected_package, auto.selected_package);
     }
 
     #[test]

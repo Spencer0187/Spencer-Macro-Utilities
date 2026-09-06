@@ -146,6 +146,9 @@ void ApplyUiParityCaseIfRequested()
     const bool waylandScreenModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-screen-user-reference") == 0;
     const bool waylandMouseModalReference = parityCase && std::strcmp(parityCase, "modal-wayland-mouse-user-reference") == 0;
     const bool linuxInputSetupModalReference = parityCase && std::strcmp(parityCase, "modal-linux-input-setup-user-reference") == 0;
+    const bool updateAutoModalReference = parityCase && std::strcmp(parityCase, "modal-update-auto-user-reference") == 0;
+    const bool updateManualModalReference = parityCase && std::strcmp(parityCase, "modal-update-manual-user-reference") == 0;
+    const bool updateModalReference = updateAutoModalReference || updateManualModalReference;
     const bool linuxModalReference = adminModalReference || freezeModalReference || waylandScreenModalReference || waylandMouseModalReference || linuxInputSetupModalReference;
     int moduleBodyReferenceSection = -1;
     if (parityCase) {
@@ -160,7 +163,7 @@ void ApplyUiParityCaseIfRequested()
         else if (std::strcmp(parityCase, "module-floor-bounce-user-reference") == 0) moduleBodyReferenceSection = 14;
     }
     const bool moduleBodyReference = moduleBodyReferenceSection >= 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !linuxModalReference && !moduleBodyReference) {
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !linuxModalReference && !updateModalReference && !moduleBodyReference) {
         return;
     }
 
@@ -186,7 +189,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || linuxModalReference || moduleBodyReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || linuxModalReference || updateModalReference || moduleBodyReference) {
         selected_section = moduleBodyReference ? moduleBodyReferenceSection :
             (builtinFooterReference ? 0 :
             (tutorialMediaReference ? 9 :
@@ -826,7 +829,22 @@ void RenderUpdateConfirmationModal(AppContext& context)
     bool shouldOpen = false;
     bool isApplying = false;
 
-    {
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityAutoReference = parityCase && std::strcmp(parityCase, "modal-update-auto-user-reference") == 0;
+    const bool parityManualReference = parityCase && std::strcmp(parityCase, "modal-update-manual-user-reference") == 0;
+    if (parityAutoReference || parityManualReference) {
+        shouldOpen = true;
+        statusSnapshot.checkSucceeded = true;
+        statusSnapshot.updateAvailable = true;
+        statusSnapshot.autoApplySupported = parityAutoReference;
+        statusSnapshot.localVersion = "3.4.0";
+        statusSnapshot.latestVersion = "9.9.9";
+        statusSnapshot.selectedAsset = smu::updater::ReleaseAsset{
+            "Spencer-Macro-Utilities-x86_64.AppImage",
+            "https://example.invalid/Spencer-Macro-Utilities-x86_64.AppImage",
+            64,
+            std::string(64, '0')};
+    } else {
         std::lock_guard<std::mutex> lock(g_updateUiState.mutex);
         shouldOpen = g_updateUiState.updateConfirmOpen;
         isApplying = g_updateUiState.applying;
@@ -2369,8 +2387,11 @@ void RenderGlobalSettings(AppContext& context, ImVec2 displaySize)
         }
         RefreshProcessStatus(context);
     } else {
-        UserOutdated = false;
         const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+        const bool updateModalReference = parityCase &&
+            (std::strcmp(parityCase, "modal-update-auto-user-reference") == 0 ||
+             std::strcmp(parityCase, "modal-update-manual-user-reference") == 0);
+        UserOutdated = updateModalReference;
         const bool processFoundReference = parityCase && std::strcmp(parityCase, "process-found-user-reference") == 0;
         processFound = processFoundReference;
         context.detectedProcessCount = processFoundReference ? 1 : 0;
@@ -3998,6 +4019,8 @@ void RenderAppUi(AppContext& context)
             RenderWaylandRemoteDesktopPrompt(context);
         } else if (parityCase && std::strcmp(parityCase, "modal-linux-input-setup-user-reference") == 0) {
             RenderLinuxInputSetup(context);
+        } else if (parityCase && (std::strcmp(parityCase, "modal-update-auto-user-reference") == 0 || std::strcmp(parityCase, "modal-update-manual-user-reference") == 0)) {
+            RenderUpdateConfirmationModal(context);
         }
     }
 

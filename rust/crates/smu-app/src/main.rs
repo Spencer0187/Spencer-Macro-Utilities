@@ -1419,13 +1419,18 @@ impl LinuxRuntimeServices {
         };
         shell_state.set_process_found(process_found);
         shell_state.set_settings_platform_status(self.settings_platform_status());
-        let mut updater_status = self.update_service.prepare();
-        if self.parity.capture {
-            // C++ parity mode suppresses update work in StartUpdateCheck(), but the Settings panel
-            // still looks like an enabled, not-yet-checked updater. Keep the Rust oracle state
-            // visually identical without permitting network work.
-            updater_status.enabled = true;
-        }
+        let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+        let updater_status = settings_menu::parity_update_status(parity_case.as_deref())
+            .unwrap_or_else(|| {
+                let mut status = self.update_service.prepare();
+                if self.parity.capture {
+                    // C++ parity mode suppresses update work in StartUpdateCheck(), but the Settings panel
+                    // still looks like an enabled, not-yet-checked updater. Keep the Rust oracle state
+                    // visually identical without permitting network work.
+                    status.enabled = true;
+                }
+                status
+            });
         shell_state.set_settings_updater_status(updater_status);
 
         let available = self.lag_switch_backend.is_available();
