@@ -236,8 +236,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads. Laugh Clip keeps the same active guard and re-reads zoom mode, shift key, and S-movement state
   independently at action and release sites, so mid-worker setting drift retains the characterized
   asymmetries. Linux built-in execution, settings UI, and production entry-point cutover are complete.
-  The first cross-platform composition prerequisites are now in place too: `smu-core`, `smu-input`, and
-  `smu-scripting` are ordinary `smu-app` dependencies instead of Linux-only dependencies; a
+  The first cross-platform composition prerequisites are now in place too: `smu-core`, `smu-input`,
+  `smu-process`, and `smu-scripting` are ordinary `smu-app` dependencies instead of Linux-only
+  dependencies; a
   platform-neutral `ScriptProfileBridge` owns imported-script serialization plus the live saved-setting
   snapshot; and `ScriptAppServices` now owns script UI snapshot preparation, native-dialog/fallback
   handoff, import/settings mutations, process-target propagation, and script shutdown around an injected
@@ -247,9 +248,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   reads, process-target propagation, and script/settings mutations are all available there through a
   `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
   calls that require native backends therefore remain unavailable until composition attaches them.
-  Windows now has the first native Rust adapter (`smu-process::windows`), but `smu-app` still needs to
-  inject it and still lacks Windows input/display/network adapters; macOS still lacks its native Rust
-  adapters. Those integrations plus Windows/macOS C++ entry-point removal remain the cross-platform
+  Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
+  discover matching processes and suspend/resume them with the native backend. Global process-status
+  polling, script hotkey runtime control, and Windows input/display/network adapters are still missing;
+  macOS still lacks its native Rust adapters. Those integrations plus Windows/macOS C++ entry-point
+  removal remain the cross-platform
   rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,

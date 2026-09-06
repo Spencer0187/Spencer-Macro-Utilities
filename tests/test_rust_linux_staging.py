@@ -117,12 +117,23 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("script_app.set_process_target(script_selector, script_take_all);", main)
         self.assertIn("script_app.handle_action(script_action, shell_state.script_ui_mut(), window)", main)
         self.assertIn("script_app.shutdown();", main)
+        self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
+        self.assertIn("process_discovery: Some(process_discovery)", main)
+        self.assertIn("process_control: Some(process_control)", main)
         self.assertNotIn(
             '#[cfg(target_os = "linux")]\n    Script(ScriptAction),',
             shell,
         )
         self.assertNotIn(
             '#[cfg(target_os = "linux")]\n    script_ui: ScriptUiState,',
+            shell,
+        )
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\n            script_ui: ScriptUiState::default(),',
+            shell,
+        )
+        self.assertIn(
+            '#[cfg(target_os = "linux")]\n    #[must_use]\n    pub fn script_runtime_settings',
             shell,
         )
 
@@ -132,9 +143,9 @@ class RustLinuxStagingTest(unittest.TestCase):
         )
         dependencies = manifest["dependencies"]
         linux_dependencies = manifest["target"]["cfg(target_os = \"linux\")"]["dependencies"]
-        for name in ("smu-core", "smu-input", "smu-profile", "smu-scripting"):
+        for name in ("smu-core", "smu-input", "smu-process", "smu-profile", "smu-scripting"):
             self.assertIn(name, dependencies)
-        for name in ("smu-core", "smu-input", "smu-scripting"):
+        for name in ("smu-core", "smu-input", "smu-process", "smu-scripting"):
             self.assertNotIn(name, linux_dependencies)
 
     def test_rustflags_add_origin_runpath_without_dropping_existing_flags(self) -> None:

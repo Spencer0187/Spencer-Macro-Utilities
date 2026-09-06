@@ -171,7 +171,6 @@ impl Default for ShellState {
             theme: theme::ThemeState::default(),
             tutorial_media: TutorialMedia::default(),
             profile_browser: ProfileBrowserState::default(),
-            #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
             #[cfg(target_os = "linux")]
             linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus::default(),

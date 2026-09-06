@@ -1106,9 +1106,26 @@ fn start_portable_script_app(
     let mut config = ScriptManagerConfig::new(app_version());
     config.process_selector = selector;
     config.take_all_process_ids = take_all_process_ids;
-    let services = ScriptServices {
-        saved_settings: Some(saved_settings.clone()),
-        ..ScriptServices::default()
+    let services = {
+        #[cfg(target_os = "windows")]
+        {
+            let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
+            let process_discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
+            let process_control: Arc<dyn smu_process::ProcessControl> = backend;
+            ScriptServices {
+                process_discovery: Some(process_discovery),
+                process_control: Some(process_control),
+                saved_settings: Some(saved_settings.clone()),
+                ..ScriptServices::default()
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            ScriptServices {
+                saved_settings: Some(saved_settings.clone()),
+                ..ScriptServices::default()
+            }
+        }
     };
     ScriptAppServices::new(
         Arc::new(ScriptManager::new(config, services)),
