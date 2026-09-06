@@ -359,9 +359,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
   limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
   Automatic Windows apply deliberately remains disabled until the Authenticode-verified replacement and
-  relaunch path is ported. The unsigned multi-file bundle shape is now frozen in rewrite CI; production
-  signing/publishing of that bundle and the trusted apply path remain separate cutover gates. macOS still
-  lacks its native Rust adapters.
+  relaunch path is ported. The unsigned multi-file bundle shape is now frozen in rewrite CI, and
+  `smu-updater` owns a platform-neutral Windows bundle validator/extractor that requires the single
+  `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
+  encrypted/non-regular entries, excessive entry counts or expanded payloads, and verifies the required
+  executable/SDL/WinDivert/font runtime siblings before retaining a staging directory. Production
+  signing/publishing of that bundle and the Windows trust/replacement launcher remain separate cutover
+  gates. macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

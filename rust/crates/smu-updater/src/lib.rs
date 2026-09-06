@@ -11,6 +11,7 @@ mod linux;
 mod linux_install;
 #[cfg(target_os = "windows")]
 mod windows;
+mod windows_bundle;
 
 pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
@@ -28,6 +29,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 #[cfg(target_os = "windows")]
 pub use windows::WinInetUpdateTransport;
+pub use windows_bundle::{WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle};
 
 pub const LATEST_RELEASE_PAGE_URL: &str =
     "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest";
