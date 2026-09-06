@@ -1349,6 +1349,7 @@ name = "smu-network"
 version = "0.0.0"
 dependencies = [
  "libc",
+ "smu-process",
  "smu-roblox",
  "windows-sys",
 ]

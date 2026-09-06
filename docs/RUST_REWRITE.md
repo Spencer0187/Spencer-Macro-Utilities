@@ -296,9 +296,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   C++ holds `g_windivert_handle_mutex` across delayed reinjection. The delayed sender keeps one
   lifetime-long queue and resolves the current handle only when a packet becomes due, matching C++
   across restarts.
-  Dynamic Roblox IP/process-port refresh, the `LagSwitchControl` backend state/arbitration layer,
-  Windows Rust packaging of WinDivert assets, and `smu-app` backend wiring are still missing;
-  macOS still lacks its native Rust adapters.
+  `WindowsLagSwitchBackend` now owns the live `LagSwitchControl` state/arbitration layer too: it
+  initializes/probes WinDivert, starts the packet worker, tracks base/script policy state, refreshes
+  target-process UDP4/UDP6 owner ports and Roblox log-derived dynamic IP/RCC state on a one-second
+  worker, and rebuilds the live capture when those targets change. The process-port path uses the
+  shared Windows process backend and preserves C++'s main/all-PID selection, network-order port swap,
+  sorted/deduplicated port set, and Roblox-target precedence. WinDivert `ERROR_INVALID_PARAMETER`
+  recovery also mirrors C++ by dropping sticky dynamic Roblox IPs before retrying the filter. Windows
+  Rust packaging of WinDivert assets and `smu-app` backend wiring are still missing; macOS still lacks
+  its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.

@@ -1,31 +1,164 @@
 use crate::{
-    LagSwitchConfig, WindowsPacketAction, build_windows_windivert_filter,
+    LagSwitchConfig, LagSwitchControl, LagSwitchState, LagSwitchTargetMode,
+    WindowsDynamicTargetState, WindowsPacketAction, build_windows_windivert_filter,
     windows_delay::WindowsDelayedSender, windows_packet_decision, windows_payload_range,
+    windows_udp_ports_for_rows,
 };
+use smu_process::ProcessDiscovery;
+use smu_roblox::RobloxLogSource;
 use std::{
     env,
     ffi::{CString, c_void},
     os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, MutexGuard,
+        Arc, Condvar, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
     time::{Duration, Instant},
 };
 use windows_sys::Win32::{
-    Foundation::{FreeLibrary, GetLastError, HANDLE, HMODULE, INVALID_HANDLE_VALUE},
+    Foundation::{
+        ERROR_INSUFFICIENT_BUFFER, ERROR_INVALID_PARAMETER, FreeLibrary, GetLastError, HANDLE,
+        HMODULE, INVALID_HANDLE_VALUE, NO_ERROR,
+    },
+    NetworkManagement::IpHelper::{
+        GetExtendedUdpTable, MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
+    },
     System::LibraryLoader::{GetProcAddress, LoadLibraryW},
 };
 
 const WINDIVERT_LAYER_NETWORK: i32 = 0;
 const WINDIVERT_FLAG_SNIFF: u64 = 0x0001;
 const WINDIVERT_SHUTDOWN_BOTH: i32 = 0x3;
+const ADDRESS_FAMILY_INET: u32 = 2;
+const ADDRESS_FAMILY_INET6: u32 = 23;
+const DYNAMIC_TARGET_REFRESH: Duration = Duration::from_secs(1);
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+struct Udp6RowOwnerPid {
+    local_addr: [u8; 16],
+    local_scope_id: u32,
+    local_port: u32,
+    owning_pid: u32,
+}
 
 pub const WINDIVERT_MTU_MAX: usize = 40 + 0xFFFF;
 pub const WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll";
 pub const WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys";
+
+fn query_udp_table_buffer(address_family: u32) -> Option<(Vec<u32>, usize)> {
+    let mut byte_len = 0_u32;
+    // SAFETY: the first call intentionally passes a null table pointer to query the required size.
+    let first = unsafe {
+        GetExtendedUdpTable(
+            std::ptr::null_mut(),
+            &mut byte_len,
+            0,
+            address_family,
+            UDP_TABLE_OWNER_PID,
+            0,
+        )
+    };
+    if first != ERROR_INSUFFICIENT_BUFFER || byte_len < 4 {
+        return None;
+    }
+    let bytes = usize::try_from(byte_len).ok()?;
+    let words = bytes.checked_add(3)?.checked_div(4)?;
+    let mut buffer = vec![0_u32; words];
+    // SAFETY: `buffer` is writable and at least `byte_len` bytes long. DWORD storage provides the
+    // alignment required by both IPv4 and the compatibility IPv6 owner-table layouts.
+    let second = unsafe {
+        GetExtendedUdpTable(
+            buffer.as_mut_ptr().cast(),
+            &mut byte_len,
+            0,
+            address_family,
+            UDP_TABLE_OWNER_PID,
+            0,
+        )
+    };
+    (second == NO_ERROR).then_some((buffer, usize::try_from(byte_len).ok()?))
+}
+
+fn udp4_owner_rows() -> Vec<(u32, u32)> {
+    let Some((buffer, byte_len)) = query_udp_table_buffer(ADDRESS_FAMILY_INET) else {
+        return Vec::new();
+    };
+    let count = usize::try_from(buffer[0]).unwrap_or(0);
+    let header = std::mem::size_of::<u32>();
+    let row_size = std::mem::size_of::<MIB_UDPROW_OWNER_PID>();
+    let Some(required) = count.checked_mul(row_size).and_then(|size| size.checked_add(header))
+    else {
+        return Vec::new();
+    };
+    if required > byte_len {
+        return Vec::new();
+    }
+    let base = buffer.as_ptr().cast::<u8>();
+    (0..count)
+        .map(|index| {
+            // SAFETY: the table size was validated above and DWORD storage is suitably aligned.
+            let row =
+                unsafe { &*base.add(header + index * row_size).cast::<MIB_UDPROW_OWNER_PID>() };
+            (row.dwOwningPid, row.dwLocalPort)
+        })
+        .collect()
+}
+
+fn udp6_owner_rows() -> Vec<(u32, u32)> {
+    let Some((buffer, byte_len)) = query_udp_table_buffer(ADDRESS_FAMILY_INET6) else {
+        return Vec::new();
+    };
+    let count = usize::try_from(buffer[0]).unwrap_or(0);
+    let header = std::mem::size_of::<u32>();
+    let row_size = std::mem::size_of::<Udp6RowOwnerPid>();
+    let Some(required) = count.checked_mul(row_size).and_then(|size| size.checked_add(header))
+    else {
+        return Vec::new();
+    };
+    if required > byte_len {
+        return Vec::new();
+    }
+    let base = buffer.as_ptr().cast::<u8>();
+    (0..count)
+        .map(|index| {
+            // SAFETY: the table size was validated above and DWORD storage is suitably aligned.
+            let row = unsafe { &*base.add(header + index * row_size).cast::<Udp6RowOwnerPid>() };
+            (row.owning_pid, row.local_port)
+        })
+        .collect()
+}
+
+fn target_process_ids(
+    discovery: &dyn ProcessDiscovery,
+    selector: &str,
+    take_all: bool,
+) -> Vec<u32> {
+    if selector.is_empty() {
+        return Vec::new();
+    }
+    if take_all {
+        return discovery.find_all_processes(selector).unwrap_or_default();
+    }
+    discovery.find_main_process(selector).ok().flatten().into_iter().collect()
+}
+
+fn dynamic_process_targets(
+    discovery: &dyn ProcessDiscovery,
+    selector: &str,
+    take_all: bool,
+) -> (bool, Vec<i32>) {
+    let pids = target_process_ids(discovery, selector, take_all);
+    if pids.is_empty() {
+        return (false, Vec::new());
+    }
+    let mut rows = udp4_owner_rows();
+    rows.extend(udp6_owner_rows());
+    (true, windows_udp_ports_for_rows(&pids, &rows))
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -496,6 +629,7 @@ struct WinDivertPacketWorkerShared {
     running: AtomicBool,
     capture: Mutex<WinDivertCaptureSnapshot>,
     handle_slot: Arc<WinDivertHandleSlot>,
+    invalid_dynamic_ips_reset: AtomicBool,
 }
 
 pub(crate) struct WinDivertPacketWorker {
@@ -523,6 +657,7 @@ impl WinDivertPacketWorker {
             running: AtomicBool::new(true),
             capture: Mutex::new(initial),
             handle_slot,
+            invalid_dynamic_ips_reset: AtomicBool::new(false),
         });
         let worker_api = Arc::clone(&api);
         let worker_shared = Arc::clone(&shared);
@@ -545,6 +680,14 @@ impl WinDivertPacketWorker {
         }
     }
 
+    fn invalid_dynamic_ips_reset_pending(&self) -> bool {
+        self.shared.invalid_dynamic_ips_reset.load(Ordering::Acquire)
+    }
+
+    fn take_invalid_dynamic_ips_reset(&self) -> bool {
+        self.shared.invalid_dynamic_ips_reset.swap(false, Ordering::AcqRel)
+    }
+
     pub(crate) fn stop(&self) {
         self.shared.running.store(false, Ordering::Release);
         self.shared.handle_slot.shutdown_current();
@@ -562,6 +705,383 @@ impl Drop for WinDivertPacketWorker {
     }
 }
 
+#[derive(Debug, Default)]
+struct WindowsBackendState {
+    policy: LagSwitchState,
+    driver_enabled: bool,
+    last_error: String,
+    packet_worker: Option<Arc<WinDivertPacketWorker>>,
+    dynamic_targets: WindowsDynamicTargetState,
+    process_selector: String,
+    take_all_process_ids: bool,
+}
+
+struct WindowsBackendInner {
+    state: Mutex<WindowsBackendState>,
+    process_discovery: Arc<dyn ProcessDiscovery>,
+    roblox_log: Option<Arc<dyn RobloxLogSource>>,
+}
+
+impl std::fmt::Debug for WindowsBackendInner {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WindowsBackendInner")
+            .field("state", &*lock_mutex(&self.state))
+            .field("roblox_log", &self.roblox_log.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug, Default)]
+struct DynamicRefreshState {
+    stop: bool,
+}
+
+#[derive(Debug, Default)]
+struct DynamicRefreshControl {
+    state: Mutex<DynamicRefreshState>,
+    wake: Condvar,
+}
+
+pub struct WindowsLagSwitchBackend {
+    inner: Arc<WindowsBackendInner>,
+    refresh: Arc<DynamicRefreshControl>,
+    refresh_worker: Mutex<Option<JoinHandle<()>>>,
+}
+
+impl std::fmt::Debug for WindowsLagSwitchBackend {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WindowsLagSwitchBackend")
+            .field("inner", &self.inner)
+            .field("refresh_worker", &lock_mutex(&self.refresh_worker).is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl WindowsLagSwitchBackend {
+    #[must_use]
+    pub fn new(
+        process_discovery: Arc<dyn ProcessDiscovery>,
+        roblox_log: Option<Arc<dyn RobloxLogSource>>,
+    ) -> Self {
+        Self {
+            inner: Arc::new(WindowsBackendInner {
+                state: Mutex::new(WindowsBackendState::default()),
+                process_discovery,
+                roblox_log,
+            }),
+            refresh: Arc::new(DynamicRefreshControl::default()),
+            refresh_worker: Mutex::new(None),
+        }
+    }
+
+    pub fn init(&self) -> bool {
+        if lock_mutex(&self.inner.state).driver_enabled {
+            return true;
+        }
+        let paths = match WinDivertPaths::current() {
+            Ok(paths) => paths,
+            Err(error) => {
+                error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+                return false;
+            }
+        };
+        let api = match WinDivertApi::load(&paths) {
+            Ok(api) => Arc::new(api),
+            Err(error) => {
+                error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+                return false;
+            }
+        };
+        if let Err(error) = api.probe() {
+            error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+            return false;
+        }
+        let mut dynamic_targets = lock_mutex(&self.inner.state).dynamic_targets.clone();
+        refresh_dynamic_targets_values(self.inner.as_ref(), &mut dynamic_targets);
+        let initial = {
+            let state = lock_mutex(&self.inner.state);
+            capture_snapshot(&state, &dynamic_targets)
+        };
+        let packet_worker = Arc::new(WinDivertPacketWorker::start(api, initial));
+        {
+            let mut state = lock_mutex(&self.inner.state);
+            if state.driver_enabled {
+                drop(state);
+                packet_worker.stop();
+                return true;
+            }
+            state.dynamic_targets = dynamic_targets;
+            state.packet_worker = Some(packet_worker);
+            state.driver_enabled = true;
+            state.last_error.clear();
+            update_capture_locked(&state);
+        }
+        self.start_refresh_worker();
+        true
+    }
+
+    pub fn shutdown(&self) {
+        self.stop_refresh_worker();
+        let packet_worker = {
+            let mut state = lock_mutex(&self.inner.state);
+            state.driver_enabled = false;
+            state.policy.clear_blocking();
+            state.dynamic_targets.update_process_ports(false, []);
+            state.packet_worker.take()
+        };
+        if let Some(packet_worker) = packet_worker {
+            packet_worker.stop();
+        }
+    }
+
+    pub fn set_process_target(&self, selector: String, take_all_process_ids: bool) {
+        let changed = {
+            let mut state = lock_mutex(&self.inner.state);
+            if state.process_selector == selector
+                && state.take_all_process_ids == take_all_process_ids
+            {
+                false
+            } else {
+                state.process_selector = selector;
+                state.take_all_process_ids = take_all_process_ids;
+                true
+            }
+        };
+        if changed {
+            self.refresh_dynamic_targets_once();
+            self.refresh.wake.notify_all();
+        }
+    }
+
+    pub fn set_base_config(&self, config: LagSwitchConfig) {
+        {
+            let mut state = lock_mutex(&self.inner.state);
+            state.policy.set_base_config(config);
+            update_capture_locked(&state);
+        }
+        self.refresh.wake.notify_all();
+    }
+
+    pub fn set_base_blocking(&self, active: bool) {
+        let mut state = lock_mutex(&self.inner.state);
+        state.policy.set_base_blocking(active);
+        update_capture_locked(&state);
+    }
+
+    #[must_use]
+    pub fn driver_enabled(&self) -> bool {
+        lock_mutex(&self.inner.state).driver_enabled
+    }
+
+    pub fn refresh_dynamic_targets_once(&self) {
+        refresh_dynamic_targets(self.inner.as_ref());
+    }
+
+    fn start_refresh_worker(&self) {
+        let mut worker = lock_mutex(&self.refresh_worker);
+        if worker.is_some() {
+            return;
+        }
+        lock_mutex(&self.refresh.state).stop = false;
+        let inner = Arc::clone(&self.inner);
+        let refresh = Arc::clone(&self.refresh);
+        *worker = Some(std::thread::spawn(move || {
+            let mut refresh_state = lock_mutex(&refresh.state);
+            loop {
+                let waited = refresh.wake.wait_timeout(refresh_state, DYNAMIC_TARGET_REFRESH);
+                let (next_state, _) = match waited {
+                    Ok(value) => value,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                refresh_state = next_state;
+                if refresh_state.stop {
+                    break;
+                }
+                drop(refresh_state);
+                refresh_dynamic_targets(inner.as_ref());
+                refresh_state = lock_mutex(&refresh.state);
+            }
+        }));
+    }
+
+    fn stop_refresh_worker(&self) {
+        {
+            let mut state = lock_mutex(&self.refresh.state);
+            state.stop = true;
+        }
+        self.refresh.wake.notify_all();
+        if let Some(worker) = lock_mutex(&self.refresh_worker).take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+impl Drop for WindowsLagSwitchBackend {
+    fn drop(&mut self) {
+        self.stop_refresh_worker();
+    }
+}
+
+fn target_uses_roblox(config: &LagSwitchConfig) -> bool {
+    config.target_mode == LagSwitchTargetMode::Roblox
+        || (config.target_mode == LagSwitchTargetMode::Custom && config.include_roblox_dynamic_ips)
+}
+
+fn capture_snapshot(
+    state: &WindowsBackendState,
+    dynamic_targets: &WindowsDynamicTargetState,
+) -> WinDivertCaptureSnapshot {
+    let mut roblox_dynamic_ips = dynamic_targets.roblox_dynamic_ips.clone();
+    if state.packet_worker.as_ref().is_some_and(|worker| worker.invalid_dynamic_ips_reset_pending())
+    {
+        roblox_dynamic_ips.clear();
+    }
+    WinDivertCaptureSnapshot {
+        config: state.policy.effective_config(),
+        roblox_dynamic_ips,
+        process_udp_ports: dynamic_targets.process_udp_ports.clone(),
+        target_process_present: dynamic_targets.target_process_present,
+        is_rcc: dynamic_targets.is_rcc,
+    }
+}
+
+fn update_capture_locked(state: &WindowsBackendState) {
+    if let Some(worker) = state.packet_worker.as_ref() {
+        worker.update_capture(capture_snapshot(state, &state.dynamic_targets));
+    }
+}
+
+fn refresh_dynamic_targets_values(
+    inner: &WindowsBackendInner,
+    dynamic_targets: &mut WindowsDynamicTargetState,
+) {
+    let (config, selector, take_all) = {
+        let state = lock_mutex(&inner.state);
+        (
+            state.policy.effective_config(),
+            state.process_selector.clone(),
+            state.take_all_process_ids,
+        )
+    };
+    if !target_uses_roblox(&config) {
+        return;
+    }
+    if config.target_mode == LagSwitchTargetMode::Roblox {
+        let (present, ports) =
+            dynamic_process_targets(inner.process_discovery.as_ref(), &selector, take_all);
+        dynamic_targets.update_process_ports(present, ports);
+    }
+    if let Some(source) = inner.roblox_log.as_ref() {
+        let snapshot = source.read_log(true);
+        let _ = dynamic_targets.apply_log_snapshot(&snapshot);
+    }
+}
+
+fn refresh_dynamic_targets(inner: &WindowsBackendInner) {
+    let mut next = {
+        let mut state = lock_mutex(&inner.state);
+        if !state.driver_enabled || !target_uses_roblox(&state.policy.effective_config()) {
+            return;
+        }
+        let reset_dynamic_ips = state
+            .packet_worker
+            .as_ref()
+            .is_some_and(|worker| worker.take_invalid_dynamic_ips_reset());
+        if reset_dynamic_ips {
+            state.dynamic_targets.roblox_dynamic_ips.clear();
+            update_capture_locked(&state);
+            return;
+        }
+        state.dynamic_targets.clone()
+    };
+    refresh_dynamic_targets_values(inner, &mut next);
+    let mut state = lock_mutex(&inner.state);
+    if !state.driver_enabled || !target_uses_roblox(&state.policy.effective_config()) {
+        return;
+    }
+    if state.dynamic_targets != next {
+        state.dynamic_targets = next;
+        update_capture_locked(&state);
+    }
+}
+
+impl LagSwitchControl for WindowsLagSwitchBackend {
+    fn initialize(&self) -> bool {
+        self.init()
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+
+    fn effective_config(&self) -> LagSwitchConfig {
+        lock_mutex(&self.inner.state).policy.effective_config()
+    }
+
+    fn is_blocking_active(&self) -> bool {
+        self.effective_config().currently_blocking
+    }
+
+    fn is_base_blocking_active(&self) -> bool {
+        lock_mutex(&self.inner.state).policy.base_blocking()
+    }
+
+    fn set_base_blocking_active(&self, active: bool) {
+        WindowsLagSwitchBackend::set_base_blocking(self, active);
+    }
+
+    fn set_base_config(&self, config: LagSwitchConfig) {
+        WindowsLagSwitchBackend::set_base_config(self, config);
+    }
+
+    fn unsupported_reason(&self) -> String {
+        let state = lock_mutex(&self.inner.state);
+        if !state.last_error.is_empty() {
+            return state.last_error.clone();
+        }
+        if state.driver_enabled {
+            "WinDivert driver is running.".to_owned()
+        } else {
+            "WinDivert backend is available.".to_owned()
+        }
+    }
+
+    fn set_script_blocking_active(&self, owner_token: usize, active: bool) {
+        let mut state = lock_mutex(&self.inner.state);
+        state.policy.set_script_blocking(owner_token, active);
+        update_capture_locked(&state);
+    }
+
+    fn set_script_config_override(&self, owner_token: usize, config: LagSwitchConfig) {
+        {
+            let mut state = lock_mutex(&self.inner.state);
+            state.policy.set_script_config_override(owner_token, config);
+            update_capture_locked(&state);
+        }
+        self.refresh.wake.notify_all();
+    }
+
+    fn clear_script_config_override(&self, owner_token: usize) {
+        {
+            let mut state = lock_mutex(&self.inner.state);
+            state.policy.clear_script_config_override(owner_token);
+            update_capture_locked(&state);
+        }
+        self.refresh.wake.notify_all();
+    }
+
+    fn clear_script_state(&self, owner_token: usize) {
+        {
+            let mut state = lock_mutex(&self.inner.state);
+            state.policy.clear_script_state(owner_token);
+            update_capture_locked(&state);
+        }
+        self.refresh.wake.notify_all();
+    }
+}
+
 fn packet_worker_loop(
     api: Arc<WinDivertApi>,
     shared: Arc<WinDivertPacketWorkerShared>,
@@ -570,6 +1090,15 @@ fn packet_worker_loop(
     while shared.running.load(Ordering::Acquire) {
         let filter = lock_mutex(&shared.capture).filter();
         let Some(handle) = api.open_filter_shared(&filter).map(Arc::new) else {
+            // SAFETY: GetLastError has no preconditions and WinDivertOpen sets it on failure.
+            let win32_error = unsafe { GetLastError() };
+            if win32_error == ERROR_INVALID_PARAMETER {
+                let mut capture = lock_mutex(&shared.capture);
+                if !capture.roblox_dynamic_ips.is_empty() {
+                    capture.roblox_dynamic_ips.clear();
+                    shared.invalid_dynamic_ips_reset.store(true, Ordering::Release);
+                }
+            }
             std::thread::sleep(Duration::from_millis(500));
             continue;
         };

@@ -245,8 +245,13 @@ class RustLinuxStagingTest(unittest.TestCase):
         windows_dependencies = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"]
         self.assertEqual(
             windows_dependencies["windows-sys"]["features"],
-            ["Win32_Foundation", "Win32_System_LibraryLoader"],
+            [
+                "Win32_Foundation",
+                "Win32_NetworkManagement_IpHelper",
+                "Win32_System_LibraryLoader",
+            ],
         )
+        self.assertIn("smu-process", windows_dependencies)
         self.assertIn('#[cfg(target_os = "windows")]\npub mod windows;', network)
         self.assertIn(
             '#[cfg(any(target_os = "windows", test))]\npub(crate) mod windows_delay;', network
@@ -276,6 +281,14 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("windows_packet_decision(", windows)
         self.assertIn("WindowsPacketAction::DelayMs", windows)
         self.assertIn("handle_slot.shutdown_current()", windows)
+        self.assertIn("pub struct WindowsLagSwitchBackend", windows)
+        self.assertIn("impl LagSwitchControl for WindowsLagSwitchBackend", windows)
+        self.assertIn("GetExtendedUdpTable", windows)
+        self.assertIn("DYNAMIC_TARGET_REFRESH", windows)
+        self.assertIn("set_process_target", windows)
+        self.assertIn("invalid_dynamic_ips_reset", windows)
+        self.assertIn("ERROR_INVALID_PARAMETER", windows)
+        self.assertIn("WindowsDynamicTargetState", network)
         self.assertIn("assert_eq!(std::mem::size_of::<WinDivertAddress>(), 80);", windows)
         for export in (
             "WinDivertOpen",

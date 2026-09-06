@@ -12,8 +12,10 @@ smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
 libc.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
+smu-process = { path = "../smu-process", version = "=0.0.0" }
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
     "Win32_System_LibraryLoader",
 ] }
 

@@ -106,6 +106,11 @@ impl LagSwitchState {
         self.script_blocking = active;
     }
 
+    pub const fn clear_blocking(&mut self) {
+        self.base_blocking = false;
+        self.script_blocking = false;
+    }
+
     pub fn set_script_config_override(&mut self, owner_token: usize, config: LagSwitchConfig) {
         self.script_config_owner = owner_token;
         self.script_config = config;
@@ -332,6 +337,92 @@ pub fn build_windows_windivert_filter(
         }
     };
     format!("{direction} and {target} and {}", windows_protocol_filter(config))
+}
+
+#[cfg(any(target_os = "windows", test))]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct WindowsDynamicTargetState {
+    pub roblox_dynamic_ips: Vec<String>,
+    pub process_udp_ports: Vec<i32>,
+    pub target_process_present: bool,
+    pub is_rcc: bool,
+}
+
+#[cfg(any(target_os = "windows", test))]
+impl WindowsDynamicTargetState {
+    pub fn update_process_ports(
+        &mut self,
+        target_process_present: bool,
+        ports: impl IntoIterator<Item = i32>,
+    ) -> bool {
+        let mut ports =
+            ports.into_iter().filter(|port| (1..=65_535).contains(port)).collect::<Vec<_>>();
+        ports.sort_unstable();
+        ports.dedup();
+        let changed = self.target_process_present != target_process_present
+            || self.process_udp_ports != ports;
+        self.target_process_present = target_process_present;
+        self.process_udp_ports = ports;
+        changed
+    }
+
+    pub fn apply_log_snapshot(&mut self, snapshot: &smu_roblox::RobloxLogSnapshot) -> bool {
+        if snapshot.state != "in_game" {
+            return false;
+        }
+        let before = self.clone();
+        match snapshot.server.r#type.as_str() {
+            "udmux" => self.is_rcc = false,
+            "rcc" => self.is_rcc = true,
+            _ => {}
+        }
+        if snapshot.server.r#type == "udmux"
+            && windows_is_valid_roblox_ip(&snapshot.server.udmux_address)
+        {
+            self.roblox_dynamic_ips.push(snapshot.server.udmux_address.clone());
+        }
+        if windows_is_valid_roblox_ip(&snapshot.server.rcc_address) {
+            self.roblox_dynamic_ips.push(snapshot.server.rcc_address.clone());
+        }
+        self.roblox_dynamic_ips.sort_unstable();
+        self.roblox_dynamic_ips.dedup();
+        *self != before
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+#[must_use]
+pub(crate) fn windows_is_valid_roblox_ip(value: &str) -> bool {
+    !value.is_empty()
+        && !value.starts_with("127.")
+        && !value.starts_with("10.")
+        && !value.starts_with("192.168.")
+        && !value.starts_with("172.")
+        && value != "0.0.0.0"
+}
+
+#[cfg(any(target_os = "windows", test))]
+#[must_use]
+pub(crate) fn windows_udp_table_port_to_host_order(network_order_port: u32) -> i32 {
+    let port = network_order_port & 0xFFFF;
+    let host_order = ((port & 0x00FF) << 8) | ((port & 0xFF00) >> 8);
+    i32::try_from(host_order).unwrap_or_default()
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_udp_ports_for_rows(target_pids: &[u32], rows: &[(u32, u32)]) -> Vec<i32> {
+    let mut pids = target_pids.to_vec();
+    pids.sort_unstable();
+    pids.dedup();
+    let mut ports = rows
+        .iter()
+        .filter(|(pid, _)| pids.binary_search(pid).is_ok())
+        .map(|(_, port)| windows_udp_table_port_to_host_order(*port))
+        .filter(|port| (1..=65_535).contains(port))
+        .collect::<Vec<_>>();
+    ports.sort_unstable();
+    ports.dedup();
+    ports
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -649,6 +740,73 @@ mod tests {
             build_windows_windivert_filter(&config, &[], &[], false),
             "(inbound or outbound) and false and false"
         );
+    }
+
+    #[test]
+    fn windows_dynamic_ip_validation_matches_cpp_prefix_only_rule() {
+        assert!(!windows_is_valid_roblox_ip(""));
+        assert!(!windows_is_valid_roblox_ip("127.0.0.1"));
+        assert!(!windows_is_valid_roblox_ip("10.1.2.3"));
+        assert!(!windows_is_valid_roblox_ip("192.168.1.2"));
+        assert!(!windows_is_valid_roblox_ip("172.99.1.2"));
+        assert!(!windows_is_valid_roblox_ip("0.0.0.0"));
+        assert!(windows_is_valid_roblox_ip("128.116.1.2"));
+        assert!(windows_is_valid_roblox_ip("not-an-ip"));
+    }
+
+    #[test]
+    fn windows_dynamic_log_targets_keep_cpp_sticky_state_and_server_mode_rules() {
+        let mut state = WindowsDynamicTargetState::default();
+        let mut snapshot = smu_roblox::RobloxLogSnapshot {
+            state: "in_game".to_owned(),
+            ..smu_roblox::RobloxLogSnapshot::default()
+        };
+        snapshot.server.r#type = "udmux".to_owned();
+        snapshot.server.udmux_address = "128.116.10.1".to_owned();
+        snapshot.server.rcc_address = "128.116.10.2".to_owned();
+        assert!(state.apply_log_snapshot(&snapshot));
+        assert!(!state.is_rcc);
+        assert_eq!(state.roblox_dynamic_ips, ["128.116.10.1", "128.116.10.2"]);
+
+        snapshot.server.r#type = "rcc".to_owned();
+        snapshot.server.udmux_address = "128.116.10.3".to_owned();
+        snapshot.server.rcc_address = "128.116.10.4".to_owned();
+        assert!(state.apply_log_snapshot(&snapshot));
+        assert!(state.is_rcc);
+        assert_eq!(state.roblox_dynamic_ips, ["128.116.10.1", "128.116.10.2", "128.116.10.4"]);
+
+        snapshot.state = "offline".to_owned();
+        snapshot.server.r#type = "udmux".to_owned();
+        snapshot.server.udmux_address = "128.116.10.5".to_owned();
+        assert!(!state.apply_log_snapshot(&snapshot));
+        assert!(state.is_rcc);
+        assert!(!state.roblox_dynamic_ips.iter().any(|ip| ip == "128.116.10.5"));
+    }
+
+    #[test]
+    fn windows_udp_owner_rows_match_cpp_pid_filter_port_swap_and_set_order() {
+        assert_eq!(windows_udp_table_port_to_host_order(0xBB01), 443);
+        assert_eq!(windows_udp_table_port_to_host_order(0), 0);
+        assert_eq!(windows_udp_table_port_to_host_order(0xFFFF), 65_535);
+        assert_eq!(
+            windows_udp_ports_for_rows(
+                &[20, 10, 20],
+                &[(10, 0xBB01), (30, 0x901F), (20, 0x901F), (20, 0xBB01), (20, 0)],
+            ),
+            [443, 8080]
+        );
+    }
+
+    #[test]
+    fn windows_dynamic_process_targets_track_presence_and_sorted_ports() {
+        let mut state = WindowsDynamicTargetState::default();
+        assert!(state.update_process_ports(true, [8080, 443, 8080, 0, 70_000]));
+        assert!(state.target_process_present);
+        assert_eq!(state.process_udp_ports, [443, 8080]);
+        assert!(!state.update_process_ports(true, [443, 8080]));
+        assert!(state.update_process_ports(false, []));
+        assert!(!state.target_process_present);
+        assert!(state.process_udp_ports.is_empty());
     }
 
     #[test]
