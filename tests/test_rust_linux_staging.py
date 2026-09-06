@@ -81,6 +81,28 @@ class RustLinuxStagingTest(unittest.TestCase):
             main,
         )
 
+    def test_smu_app_generic_loop_owns_script_services_on_all_platforms(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("script_app: &'a ScriptAppServices,", main)
+        self.assertIn("fn start_portable_script_app(", main)
+        self.assertIn("script_app.prepare_ui(shell_state.script_ui_mut());", main)
+        self.assertIn("script_app.set_process_target(script_selector, script_take_all);", main)
+        self.assertIn("script_app.handle_action(script_action, shell_state.script_ui_mut(), window)", main)
+        self.assertIn("script_app.shutdown();", main)
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\n    Script(ScriptAction),',
+            shell,
+        )
+        self.assertNotIn(
+            '#[cfg(target_os = "linux")]\n    script_ui: ScriptUiState,',
+            shell,
+        )
+
     def test_smu_app_keeps_portable_script_profile_dependencies_outside_linux_cfg(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")

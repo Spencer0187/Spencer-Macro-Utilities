@@ -4,9 +4,7 @@ use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use serde_json::{Map, Value};
 use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
 
-#[cfg(target_os = "linux")]
-use crate::script_ui::ScriptAction;
-use crate::script_ui::{self, ScriptUiState};
+use crate::script_ui::{self, ScriptAction, ScriptUiState};
 use crate::{
     bunnyhop::{self, BunnyhopUiState},
     critical_modal::{self, CriticalModalState},
@@ -48,7 +46,6 @@ pub enum ShellAction {
     OpenSponsorFromSettings,
     OpenOfficialSource,
     Profile(ProfileAction),
-    #[cfg(target_os = "linux")]
     Script(ScriptAction),
     #[cfg(target_os = "linux")]
     InstallLinuxInputPermissionsGraphical,
@@ -642,12 +639,10 @@ impl ShellState {
         self.theme.apply_to_context(context);
     }
 
-    #[cfg(target_os = "linux")]
     pub const fn script_ui(&self) -> &ScriptUiState {
         &self.script_ui
     }
 
-    #[cfg(target_os = "linux")]
     pub const fn script_ui_mut(&mut self) -> &mut ScriptUiState {
         &mut self.script_ui
     }
@@ -672,7 +667,6 @@ impl ShellState {
         }
     }
 
-    #[cfg(target_os = "linux")]
     #[must_use]
     pub fn script_process_target(&self) -> (String, bool) {
         (self.global.process_selector(), self.freeze.take_all_process_ids)
@@ -1000,10 +994,8 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
         action = Some(setup_action);
     }
 
-    #[cfg(target_os = "linux")]
     script_ui::render_file_dialog_fallback(ui, &mut state.script_ui);
 
-    #[cfg(target_os = "linux")]
     if let Some(script_action) =
         script_ui::render_trust_modal(ui, &mut state.script_ui, &active_theme)
     {
@@ -1346,7 +1338,6 @@ fn render_macro_sidebar(
         },
     ];
     let mut sidebar_action = None;
-    #[cfg(target_os = "linux")]
     let mut script_action = None;
     ui.child_window(LEFT_SCROLL_CHILD)
         .size([left_panel_width, left_panel_height])
@@ -1364,14 +1355,10 @@ fn render_macro_sidebar(
                     theme,
                 },
             );
-            #[cfg(target_os = "linux")]
-            {
-                script_action =
-                    script_ui::render_sidebar(ui, &mut state.script_ui, left_panel_width, theme);
-            }
+            script_action =
+                script_ui::render_sidebar(ui, &mut state.script_ui, left_panel_width, theme);
         });
     if sidebar_action.is_some() {
-        #[cfg(target_os = "linux")]
         state.script_ui.clear_selection();
     }
     match sidebar_action {
@@ -1395,7 +1382,6 @@ fn render_macro_sidebar(
         }
         _ => {}
     }
-    #[cfg(target_os = "linux")]
     if let Some(action) = script_action {
         return Some(ShellAction::Script(action));
     }
@@ -1504,7 +1490,6 @@ fn render_right_section(
     let mut lag_action = None;
     let mut script_action = None;
     ui.child_window(RIGHT_SECTION_CHILD).size(size).border(true).build(ui, || {
-        #[cfg(target_os = "linux")]
         if state.script_ui.selected().is_some() {
             script_action =
                 script_ui::render_selected(ui, &state.script_ui, &mut state.keybind_capture, theme)
@@ -1629,7 +1614,6 @@ fn render_footer(
     nudge_footer_y(ui);
 
     let mut footer_action = None;
-    #[cfg(target_os = "linux")]
     if let Some(script) = state.script_ui.selected_snapshot().cloned() {
         let disabled = script.running.then(|| ui.begin_disabled());
         if ui.button("Revert Module")
@@ -1646,8 +1630,6 @@ fn render_footer(
     } else {
         render_builtin_revert_button(ui, state);
     }
-    #[cfg(not(target_os = "linux"))]
-    render_builtin_revert_button(ui, state);
 
     ui.same_line_with_pos(right_child_width - PROFILES_BUTTON_WIDTH);
     nudge_footer_y(ui);

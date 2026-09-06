@@ -235,10 +235,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   snapshot; and `ScriptAppServices` now owns script UI snapshot preparation, native-dialog/fallback
   handoff, import/settings mutations, process-target propagation, and script shutdown around an injected
   `ScriptManager`. Linux delegates its existing script/profile behavior through those shared services
-  without changing runtime behavior. The script model modules are no longer Linux-cfg-gated, but visible
-  imported-script controls remain Linux-gated until the non-Linux app loop owns a `ScriptAppServices`
-  instance; Windows/macOS still need concrete input/display/process/network adapters and C++ entry-point
-  removal as separate rewrite gates.
+  without changing runtime behavior. The generic app loop now also owns `ScriptAppServices` on non-Linux:
+  imported-script sidebar/detail/footer UI, native-dialog/fallback import, profile persistence, saved-value
+  reads, process-target propagation, and script/settings mutations are all available there through a
+  `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
+  calls that require input/display/process/network backends therefore remain unavailable until concrete
+  Windows/macOS adapters are attached; those adapters and C++ entry-point removal are the remaining
+  cross-platform rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

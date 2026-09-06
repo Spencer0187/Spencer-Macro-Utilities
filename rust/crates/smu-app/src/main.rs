@@ -26,7 +26,6 @@ use sdl3::{
 use serde_json::{Map, Value};
 use smu_profile::payload::PreservedProfilePayload;
 
-#[cfg(target_os = "linux")]
 use script_app_service::ScriptAppServices;
 #[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
@@ -42,7 +41,6 @@ use smu_process::linux::{
 };
 #[cfg(target_os = "linux")]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
-#[cfg(target_os = "linux")]
 use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
 
 mod bunnyhop;
@@ -307,7 +305,7 @@ fn save_before_privileged_shell_action(
     service: &mut profile_service::ProfileBrowserService,
     shell_state: &shell::ShellState,
     window: &Window,
-    linux_services: &LinuxRuntimeServices,
+    script_app: &ScriptAppServices,
 ) {
     if !matches!(
         action,
@@ -318,12 +316,7 @@ fn save_before_privileged_shell_action(
     ) {
         return;
     }
-    let _ = save_profiles_now(
-        service,
-        shell_state,
-        window,
-        Some(linux_services.profile_script_state()),
-    );
+    let _ = save_profiles_now(service, shell_state, window, Some(script_app.serialize_scripts()));
 }
 
 #[derive(Clone, Debug)]
@@ -1103,6 +1096,27 @@ fn start_script_services(
     (manager, controller)
 }
 
+#[cfg(not(target_os = "linux"))]
+fn start_portable_script_app(
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    shell_state: &shell::ShellState,
+    parity_case: Option<&str>,
+) -> ScriptAppServices {
+    let (selector, take_all_process_ids) = shell_state.script_process_target();
+    let mut config = ScriptManagerConfig::new(app_version());
+    config.process_selector = selector;
+    config.take_all_process_ids = take_all_process_ids;
+    let services = ScriptServices {
+        saved_settings: Some(saved_settings.clone()),
+        ..ScriptServices::default()
+    };
+    ScriptAppServices::new(
+        Arc::new(ScriptManager::new(config, services)),
+        saved_settings,
+        parity_case == Some("imported-script-footer-user-reference"),
+    )
+}
+
 #[cfg(target_os = "linux")]
 impl LinuxRuntimeServices {
     fn new(
@@ -1280,10 +1294,6 @@ impl LinuxRuntimeServices {
         {
             shell_state.set_linux_input_setup_status(self.input_setup.snapshot());
         }
-        self.script_app.prepare_ui(shell_state.script_ui_mut());
-        shell_state.set_external_input_capture(
-            self.script_app.input_capture_active(shell_state.script_ui()),
-        );
         if shell_state.keybind_input_poll_needed() {
             let input = keybind::InputSnapshot::capture(
                 self.input_service.as_ref(),
@@ -1341,7 +1351,6 @@ impl LinuxRuntimeServices {
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
         window: &sdl3::video::Window,
-        profile_service: &mut profile_service::ProfileBrowserService,
     ) {
         if let Some(controller) = self.bunnyhop_controller.as_ref() {
             controller.update_settings(shell_state.bunnyhop_controller_settings());
@@ -1352,8 +1361,6 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.floor_bounce_controller.as_ref() {
             controller.update_settings(shell_state.floor_bounce_controller_settings());
         }
-        let (script_selector, script_take_all) = shell_state.script_process_target();
-        self.script_app.set_process_target(script_selector, script_take_all);
         if let Some(controller) = self.script_runtime_controller.as_ref() {
             controller.update_settings(shell_state.script_runtime_settings());
         }
@@ -1396,19 +1403,7 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.wallhop_controller.as_ref() {
             controller.update_settings(shell_state.wallhop_controller_settings());
         }
-        if self.handle_action(action, shell_state, window) {
-            let scripts = self.profile_script_state();
-            if save_profiles_now(profile_service, shell_state, window, Some(scripts)) {
-                if let Some(payload) = profile_service.current_payload() {
-                    self.update_saved_settings(payload);
-                }
-                profile_service.refresh_selected(shell_state.profile_browser_mut(), None);
-            } else {
-                shell_state.script_ui_mut().set_import_error(
-                    "Script imported, but the settings file could not be updated.",
-                );
-            }
-        }
+        self.handle_action(action, shell_state, window);
     }
 
     fn handle_input_setup_action(
@@ -1457,8 +1452,7 @@ impl LinuxRuntimeServices {
         action: Option<&shell::ShellAction>,
         shell_state: &mut shell::ShellState,
         window: &sdl3::video::Window,
-    ) -> bool {
-        let mut imported = false;
+    ) {
         match action {
             Some(
                 action @ (shell::ShellAction::InstallLinuxInputPermissionsGraphical
@@ -1547,32 +1541,21 @@ impl LinuxRuntimeServices {
             Some(shell::ShellAction::DeclineWaylandRemoteDesktop) => {
                 self.wayland_portal.decline_remote_desktop_activation_request();
             }
-            Some(shell::ShellAction::Script(action)) => {
-                imported =
-                    self.script_app.handle_action(action, shell_state.script_ui_mut(), window);
-            }
             Some(
-                shell::ShellAction::PersistNotificationSuppression | shell::ShellAction::Profile(_),
+                shell::ShellAction::Script(_)
+                | shell::ShellAction::PersistNotificationSuppression
+                | shell::ShellAction::Profile(_),
             )
             | None => {}
         }
-        imported
     }
 
     fn update_restart_requested(&self) -> bool {
         self.update_service.restart_requested()
     }
 
-    fn profile_script_state(&self) -> serde_json::Value {
-        self.script_app.serialize_scripts()
-    }
-
-    fn apply_profile_script_state(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
-        self.script_app.apply_profile(payload);
-    }
-
-    fn update_saved_settings(&self, payload: &smu_profile::payload::PreservedProfilePayload) {
-        self.script_app.update_saved_settings(payload);
+    const fn script_app(&self) -> &ScriptAppServices {
+        &self.script_app
     }
 
     fn shutdown(&self) {
@@ -1580,7 +1563,6 @@ impl LinuxRuntimeServices {
         if let Some(controller) = self.script_runtime_controller.as_ref() {
             controller.stop();
         }
-        self.script_app.shutdown();
         if let Some(controller) = self.floor_bounce_controller.as_ref() {
             controller.stop();
         }
@@ -1703,7 +1685,6 @@ fn initialize_profile_state_with_service(
     (shell_state, profile_service)
 }
 
-#[cfg(target_os = "linux")]
 fn initial_saved_settings(
     profile_service: &profile_service::ProfileBrowserService,
 ) -> Arc<profile_adapter::LiveSavedSettings> {
@@ -1714,12 +1695,11 @@ fn initial_saved_settings(
     settings
 }
 
-#[cfg(target_os = "linux")]
 fn maybe_autosave_profile_selection(
     profile_service: &mut profile_service::ProfileBrowserService,
     shell_state: &mut shell::ShellState,
     window: &Window,
-    linux_services: &LinuxRuntimeServices,
+    script_app: &ScriptAppServices,
 ) {
     let should_save = shell_state
         .profile_browser_mut()
@@ -1735,57 +1715,45 @@ fn maybe_autosave_profile_selection(
         shell_state,
         window,
         &current_name,
-        Some(linux_services.profile_script_state()),
+        Some(script_app.serialize_scripts()),
     ) {
-        linux_services.update_saved_settings(&payload);
+        script_app.update_saved_settings(&payload);
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn maybe_autosave_profile_selection(
-    profile_service: &mut profile_service::ProfileBrowserService,
-    shell_state: &mut shell::ShellState,
-    window: &Window,
-) {
-    let should_save = shell_state
-        .profile_browser_mut()
-        .take_selection_autosave_request(profile_service.current_name());
-    if !should_save {
-        return;
-    }
-    let Some(current_name) = profile_service.current_name().map(str::to_owned) else {
-        return;
-    };
-    let _ = save_live_profile(profile_service, shell_state, window, &current_name, None);
-}
-
-#[cfg(target_os = "linux")]
 fn save_profiles_before_shutdown(
     parity_case: Option<&str>,
     profile_service: &mut profile_service::ProfileBrowserService,
     shell_state: &shell::ShellState,
     window: &Window,
-    linux_services: &LinuxRuntimeServices,
+    script_app: &ScriptAppServices,
 ) {
     if parity_case.is_none() {
         let _ = save_profiles_now(
             profile_service,
             shell_state,
             window,
-            Some(linux_services.profile_script_state()),
+            Some(script_app.serialize_scripts()),
         );
     }
 }
 
-#[cfg(not(target_os = "linux"))]
-fn save_profiles_before_shutdown(
-    parity_case: Option<&str>,
+fn persist_imported_script(
+    script_app: &ScriptAppServices,
     profile_service: &mut profile_service::ProfileBrowserService,
-    shell_state: &shell::ShellState,
+    shell_state: &mut shell::ShellState,
     window: &Window,
 ) {
-    if parity_case.is_none() {
-        let _ = save_profiles_now(profile_service, shell_state, window, None);
+    if save_profiles_now(profile_service, shell_state, window, Some(script_app.serialize_scripts()))
+    {
+        if let Some(payload) = profile_service.current_payload() {
+            script_app.update_saved_settings(payload);
+        }
+        profile_service.refresh_selected(shell_state.profile_browser_mut(), None);
+    } else {
+        shell_state
+            .script_ui_mut()
+            .set_import_error("Script imported, but the settings file could not be updated.");
     }
 }
 
@@ -1864,6 +1832,7 @@ struct UiLoopContext<'a> {
     capture_path: Option<&'a std::path::Path>,
     shell_state: &'a mut shell::ShellState,
     profile_service: &'a mut profile_service::ProfileBrowserService,
+    script_app: &'a ScriptAppServices,
     #[cfg(target_os = "linux")]
     linux_services: &'a LinuxRuntimeServices,
 }
@@ -1895,6 +1864,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         capture_path,
         shell_state,
         profile_service,
+        script_app,
         #[cfg(target_os = "linux")]
         linux_services,
     } = context;
@@ -1917,43 +1887,26 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         profile_service.prepare_shell(shell_state.profile_browser_mut());
+        script_app.prepare_ui(shell_state.script_ui_mut());
+        shell_state
+            .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(shell_state);
-        #[cfg(target_os = "linux")]
-        maybe_autosave_profile_selection(profile_service, shell_state, window, linux_services);
-        #[cfg(not(target_os = "linux"))]
-        maybe_autosave_profile_selection(profile_service, shell_state, window);
+        maybe_autosave_profile_selection(profile_service, shell_state, window, script_app);
         let shell_action = shell::render(ui, shell_state);
         if let Some(shell::ShellAction::Profile(profile_action)) = shell_action.as_ref() {
-            let imported_scripts = {
-                #[cfg(target_os = "linux")]
-                {
-                    Some(linux_services.profile_script_state())
-                }
-                #[cfg(not(target_os = "linux"))]
-                {
-                    None
-                }
-            };
             let outcome = handle_profile_action(
                 profile_action,
                 profile_service,
                 shell_state,
                 window,
-                imported_scripts,
+                Some(script_app.serialize_scripts()),
             );
-            #[cfg(target_os = "linux")]
             match outcome {
-                ProfileActionOutcome::Saved(payload) => {
-                    linux_services.update_saved_settings(&payload);
-                }
-                ProfileActionOutcome::Loaded(payload) => {
-                    linux_services.apply_profile_script_state(&payload);
-                }
+                ProfileActionOutcome::Saved(payload) => script_app.update_saved_settings(&payload),
+                ProfileActionOutcome::Loaded(payload) => script_app.apply_profile(&payload),
                 ProfileActionOutcome::None => {}
             }
-            #[cfg(not(target_os = "linux"))]
-            let _ = outcome;
         }
         #[cfg(target_os = "linux")]
         save_before_privileged_shell_action(
@@ -1961,17 +1914,22 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             profile_service,
             shell_state,
             window,
-            linux_services,
+            script_app,
         );
         apply_shell_window_style(window, shell_state);
+        let (script_selector, script_take_all) = shell_state.script_process_target();
+        script_app.set_process_target(script_selector, script_take_all);
         #[cfg(target_os = "linux")]
-        linux_services.finish_shell(shell_action.as_ref(), shell_state, window, profile_service);
+        linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        if let Some(shell::ShellAction::Script(script_action)) = shell_action.as_ref()
+            && script_app.handle_action(script_action, shell_state.script_ui_mut(), window)
+        {
+            persist_imported_script(script_app, profile_service, shell_state, window);
+        }
         #[cfg(target_os = "linux")]
         if linux_services.update_restart_requested() {
             break 'main;
         }
-        #[cfg(not(target_os = "linux"))]
-        let _ = shell_action;
 
         let prepared = backend.prepare(frame, || window.gl_make_current(gl_context))?;
         // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
@@ -2007,7 +1965,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let capture_path = std::env::var_os("SMU_UI_CAPTURE_PATH").map(PathBuf::from);
     let (mut shell_state, mut profile_service) = initial_profile_state(parity_case.as_deref());
-    #[cfg(target_os = "linux")]
     let saved_settings = initial_saved_settings(&profile_service);
 
     let (_sdl, video, mut events) = initialize_sdl()?;
@@ -2050,8 +2007,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         shell_state.push_warning(warning_toast::FOREGROUND_FALLBACK_WARNING);
     }
     #[cfg(target_os = "linux")]
+    let script_app = linux_services.script_app();
+    #[cfg(not(target_os = "linux"))]
+    let portable_script_app = start_portable_script_app(
+        Arc::clone(&saved_settings),
+        &shell_state,
+        parity_case.as_deref(),
+    );
+    #[cfg(not(target_os = "linux"))]
+    let script_app = &portable_script_app;
     if let Some(payload) = profile_service.current_payload() {
-        linux_services.apply_profile_script_state(payload);
+        script_app.apply_profile(payload);
     }
     #[cfg(target_os = "linux")]
     run_ui_loop(UiLoopContext {
@@ -2063,6 +2029,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         capture_path: capture_path.as_deref(),
         shell_state: &mut shell_state,
         profile_service: &mut profile_service,
+        script_app,
         linux_services: &linux_services,
     })?;
     #[cfg(not(target_os = "linux"))]
@@ -2075,26 +2042,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         capture_path: capture_path.as_deref(),
         shell_state: &mut shell_state,
         profile_service: &mut profile_service,
+        script_app,
     })?;
 
-    #[cfg(target_os = "linux")]
     save_profiles_before_shutdown(
         parity_case.as_deref(),
         &mut profile_service,
         &shell_state,
         &window,
-        &linux_services,
-    );
-    #[cfg(not(target_os = "linux"))]
-    save_profiles_before_shutdown(
-        parity_case.as_deref(),
-        &mut profile_service,
-        &shell_state,
-        &window,
+        script_app,
     );
 
     #[cfg(target_os = "linux")]
     linux_services.shutdown();
+    script_app.shutdown();
 
     Ok(())
 }
