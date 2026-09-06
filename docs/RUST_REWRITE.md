@@ -280,8 +280,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `Open("false", NETWORK, 0, SNIFF)` call. This Fedora toolchain has neither a Windows stdlib nor
   `rust-src`, so the Windows-only loader is validated here with rustfmt, locked `windows-sys` API
   signatures, Windows-target metadata, source guards, and the bundled DLL export table; native Windows
-  `cargo check` remains external. Packet capture/reinjection policy, fake-lag queues, dynamic target
-  refresh, Windows Rust packaging of those assets, and `smu-app` backend wiring are still missing;
+  `cargo check` remains external. The packet-decision core is now frozen in portable Rust as well:
+  hard-drop direction, the 9.5s/19.9s/290s prevent-disconnect pulse intervals, RCC pulse behavior, the
+  exact RakNet smart-drop byte signature, fake-lag direction/delay selection, and the C++ safety-clock
+  reset quirk all have host-executable tests. Live packet capture/reinjection threads, delayed-packet
+  queues, dynamic target refresh, Windows Rust packaging of those assets, and `smu-app` backend wiring
+  are still missing;
   macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform

@@ -332,6 +332,110 @@ pub fn build_windows_windivert_filter(
     format!("{direction} and {target} and {}", windows_protocol_filter(config))
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WindowsPacketAction {
+    Drop,
+    Send,
+    DelayMs(u64),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WindowsPacketDecision {
+    pub action: WindowsPacketAction,
+    pub safety_pulse_active: bool,
+    pub reset_safety_clock: bool,
+}
+
+#[must_use]
+pub const fn windows_safety_pulse_interval_ms(config: &LagSwitchConfig, is_rcc: bool) -> u64 {
+    if is_rcc {
+        9_500
+    } else if config.inbound_hard_block && config.outbound_hard_block {
+        19_900
+    } else if config.outbound_hard_block {
+        290_000
+    } else {
+        0
+    }
+}
+
+#[must_use]
+pub fn windows_packet_decision(
+    config: &LagSwitchConfig,
+    outbound: bool,
+    is_rcc: bool,
+    elapsed_since_safety_pulse_ms: u64,
+    safety_pulse_active: bool,
+    payload: Option<&[u8]>,
+) -> WindowsPacketDecision {
+    let send = |active, reset| WindowsPacketDecision {
+        action: WindowsPacketAction::Send,
+        safety_pulse_active: active,
+        reset_safety_clock: reset,
+    };
+    let drop_packet = |active, reset| WindowsPacketDecision {
+        action: WindowsPacketAction::Drop,
+        safety_pulse_active: active,
+        reset_safety_clock: reset,
+    };
+
+    if !config.currently_blocking {
+        return send(safety_pulse_active, true);
+    }
+
+    let hard_block = if outbound { config.outbound_hard_block } else { config.inbound_hard_block };
+    if hard_block {
+        if !config.prevent_disconnect {
+            return drop_packet(safety_pulse_active, false);
+        }
+
+        let interval = windows_safety_pulse_interval_ms(config, is_rcc);
+        let mut active =
+            safety_pulse_active || (interval > 0 && elapsed_since_safety_pulse_ms >= interval);
+        let mut reset_clock = false;
+        if interval > 0 && active {
+            if elapsed_since_safety_pulse_ms >= interval.saturating_add(250) {
+                active = false;
+                reset_clock = true;
+            } else if payload.is_some() {
+                return send(true, false);
+            }
+        }
+
+        if is_rcc {
+            return drop_packet(active, reset_clock);
+        }
+        if payload.is_some_and(|payload| windows_is_smart_drop_payload(payload, outbound)) {
+            return drop_packet(active, reset_clock);
+        }
+        return send(active, reset_clock);
+    }
+
+    let fake_lag_direction =
+        if outbound { config.outbound_fake_lag } else { config.inbound_fake_lag };
+    if config.fake_lag_enabled && fake_lag_direction && config.fake_lag_delay_ms > 0 {
+        let delay_ms = u64::try_from(config.fake_lag_delay_ms).unwrap_or_default();
+        return WindowsPacketDecision {
+            action: WindowsPacketAction::DelayMs(delay_ms),
+            safety_pulse_active,
+            reset_safety_clock: false,
+        };
+    }
+
+    send(safety_pulse_active, true)
+}
+
+#[must_use]
+pub const fn windows_is_smart_drop_payload(payload: &[u8], outbound: bool) -> bool {
+    payload.len() >= 90
+        && payload[0] == 0x01
+        && payload[1] == 0x00
+        && payload[2] == 0x00
+        && payload[4] == 0x01
+        && payload[5] == 0x11
+        && if outbound { payload[3] == 0x1F } else { payload[3] == 0x17 }
+}
+
 /// Build the Linux helper's `block ...` command using already-discovered Roblox server IPs.
 ///
 /// # Errors
@@ -532,6 +636,134 @@ mod tests {
         assert_eq!(
             build_windows_windivert_filter(&config, &[], &[], false),
             "(inbound or outbound) and false and false"
+        );
+    }
+
+    #[test]
+    fn windows_safety_pulse_intervals_match_cpp_modes() {
+        let both = LagSwitchConfig::default();
+        assert_eq!(windows_safety_pulse_interval_ms(&both, false), 19_900);
+        assert_eq!(windows_safety_pulse_interval_ms(&both, true), 9_500);
+
+        let outbound = LagSwitchConfig {
+            inbound_hard_block: false,
+            outbound_hard_block: true,
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(windows_safety_pulse_interval_ms(&outbound, false), 290_000);
+
+        let inbound = LagSwitchConfig {
+            inbound_hard_block: true,
+            outbound_hard_block: false,
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(windows_safety_pulse_interval_ms(&inbound, false), 0);
+    }
+
+    #[test]
+    fn windows_smart_drop_signature_matches_cpp_inbound_and_outbound_bytes() {
+        let mut payload = vec![0_u8; 90];
+        payload[0] = 0x01;
+        payload[1] = 0x00;
+        payload[2] = 0x00;
+        payload[4] = 0x01;
+        payload[5] = 0x11;
+
+        payload[3] = 0x17;
+        assert!(windows_is_smart_drop_payload(&payload, false));
+        assert!(!windows_is_smart_drop_payload(&payload, true));
+
+        payload[3] = 0x1F;
+        assert!(windows_is_smart_drop_payload(&payload, true));
+        assert!(!windows_is_smart_drop_payload(&payload, false));
+        assert!(!windows_is_smart_drop_payload(&payload[..89], false));
+    }
+
+    #[test]
+    fn windows_packet_decision_preserves_cpp_hard_block_and_rcc_pulse_rules() {
+        let config = LagSwitchConfig { currently_blocking: true, ..LagSwitchConfig::default() };
+        let payload = vec![0xAA; 90];
+
+        assert_eq!(
+            windows_packet_decision(&config, true, false, 19_899, false, Some(&payload)),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Send,
+                safety_pulse_active: false,
+                reset_safety_clock: false,
+            }
+        );
+        assert_eq!(
+            windows_packet_decision(&config, true, false, 19_900, false, Some(&payload)),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Send,
+                safety_pulse_active: true,
+                reset_safety_clock: false,
+            }
+        );
+        assert_eq!(
+            windows_packet_decision(&config, true, false, 20_150, true, Some(&payload)),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Send,
+                safety_pulse_active: false,
+                reset_safety_clock: true,
+            }
+        );
+
+        assert_eq!(
+            windows_packet_decision(&config, true, true, 9_499, false, Some(&payload)).action,
+            WindowsPacketAction::Drop
+        );
+        assert_eq!(
+            windows_packet_decision(&config, true, true, 9_500, false, Some(&payload)).action,
+            WindowsPacketAction::Send
+        );
+        assert_eq!(
+            windows_packet_decision(&config, true, true, 9_750, true, Some(&payload)),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Drop,
+                safety_pulse_active: false,
+                reset_safety_clock: true,
+            }
+        );
+    }
+
+    #[test]
+    fn windows_packet_decision_preserves_cpp_fake_lag_and_passthrough_clock_rules() {
+        let fake_lag = LagSwitchConfig {
+            currently_blocking: true,
+            inbound_hard_block: false,
+            outbound_hard_block: false,
+            fake_lag_enabled: true,
+            inbound_fake_lag: false,
+            outbound_fake_lag: true,
+            fake_lag_delay_ms: 321,
+            ..LagSwitchConfig::default()
+        };
+        assert_eq!(
+            windows_packet_decision(&fake_lag, true, false, 123, true, None),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::DelayMs(321),
+                safety_pulse_active: true,
+                reset_safety_clock: false,
+            }
+        );
+        assert_eq!(
+            windows_packet_decision(&fake_lag, false, false, 123, true, None),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Send,
+                safety_pulse_active: true,
+                reset_safety_clock: true,
+            }
+        );
+
+        let inactive = LagSwitchConfig { currently_blocking: false, ..fake_lag };
+        assert_eq!(
+            windows_packet_decision(&inactive, true, false, 123, true, None),
+            WindowsPacketDecision {
+                action: WindowsPacketAction::Send,
+                safety_pulse_active: true,
+                reset_safety_clock: true,
+            }
         );
     }
 
