@@ -66,7 +66,7 @@ struct DelayedSenderShared<T> {
     wake: Condvar,
 }
 
-struct WindowsDelayedSender<T> {
+pub struct WindowsDelayedSender<T> {
     shared: Arc<DelayedSenderShared<T>>,
     worker: Mutex<Option<JoinHandle<()>>>,
 }
@@ -78,7 +78,7 @@ impl<T> fmt::Debug for WindowsDelayedSender<T> {
 }
 
 impl<T: Send + 'static> WindowsDelayedSender<T> {
-    fn start(send: impl Fn(T) + Send + Sync + 'static) -> Self {
+    pub fn start(send: impl Fn(T) + Send + Sync + 'static) -> Self {
         let shared = Arc::new(DelayedSenderShared {
             state: Mutex::new(DelayedSenderState::default()),
             wake: Condvar::new(),
@@ -89,7 +89,7 @@ impl<T: Send + 'static> WindowsDelayedSender<T> {
         Self { shared, worker: Mutex::new(Some(worker)) }
     }
 
-    fn enqueue(&self, value: T, delay: Duration) -> bool {
+    pub fn enqueue(&self, value: T, delay: Duration) -> bool {
         let mut state = lock(&self.shared.state);
         if !state.running {
             return false;
@@ -101,7 +101,7 @@ impl<T: Send + 'static> WindowsDelayedSender<T> {
         true
     }
 
-    fn stop(&self) {
+    pub fn stop(&self) {
         let mut state = lock(&self.shared.state);
         state.running = false;
         drop(state);

@@ -7,8 +7,8 @@
 pub mod linux;
 #[cfg(target_os = "windows")]
 pub mod windows;
-#[cfg(test)]
-mod windows_delay;
+#[cfg(any(target_os = "windows", test))]
+pub(crate) mod windows_delay;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum LagSwitchTargetMode {

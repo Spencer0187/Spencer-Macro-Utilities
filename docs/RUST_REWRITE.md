@@ -286,7 +286,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   exact RakNet smart-drop byte signature, fake-lag direction/delay selection, and the C++ safety-clock
   reset quirk all have host-executable tests. The fake-lag sender's FIFO/deadline and shutdown semantics
   are frozen in a host-tested queue worker too, including C++'s front-of-deque behavior when a later
-  packet has an earlier deadline. Live WinDivert handle wiring for that sender, packet capture/
+  packet has an earlier deadline. That queue worker now compiles on Windows as a crate-internal
+  production primitive with `start`/`enqueue`/`stop`; live WinDivert handle wiring for that sender,
+  packet capture/
   reinjection threads, dynamic target refresh, Windows Rust packaging of those assets, and `smu-app` backend wiring
   are still missing;
   macOS still lacks its native Rust adapters.

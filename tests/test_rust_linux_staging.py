@@ -248,9 +248,19 @@ class RustLinuxStagingTest(unittest.TestCase):
             ["Win32_Foundation", "Win32_System_LibraryLoader"],
         )
         self.assertIn('#[cfg(target_os = "windows")]\npub mod windows;', network)
+        self.assertIn(
+            '#[cfg(any(target_os = "windows", test))]\npub(crate) mod windows_delay;', network
+        )
         self.assertIn('WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll"', windows)
         self.assertIn('WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys"', windows)
         self.assertIn("pub struct WinDivertAddress", windows)
+        delayed = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "windows_delay.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("pub struct WindowsDelayedSender", delayed)
+        self.assertIn("pub fn start", delayed)
+        self.assertIn("pub fn enqueue", delayed)
+        self.assertIn("pub fn stop", delayed)
         self.assertIn("assert_eq!(std::mem::size_of::<WinDivertAddress>(), 80);", windows)
         for export in (
             "WinDivertOpen",
