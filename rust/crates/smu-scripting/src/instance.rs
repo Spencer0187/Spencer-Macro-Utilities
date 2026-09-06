@@ -605,6 +605,10 @@ mod tests {
     }
 
     impl LagSwitchControl for FakeNetwork {
+        fn initialize(&self) -> bool {
+            true
+        }
+
         fn is_available(&self) -> bool {
             true
         }
@@ -619,6 +623,14 @@ mod tests {
 
         fn is_base_blocking_active(&self) -> bool {
             self.state().base_blocking()
+        }
+
+        fn set_base_blocking_active(&self, active: bool) {
+            self.state().set_base_blocking(active);
+        }
+
+        fn set_base_config(&self, config: LagSwitchConfig) {
+            self.state().set_base_config(config);
         }
 
         fn unsupported_reason(&self) -> String {

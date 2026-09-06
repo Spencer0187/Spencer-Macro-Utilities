@@ -229,6 +229,24 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("LagSwitchTargetMode::Custom", network)
         self.assertIn("LagSwitchTargetMode::All", network)
 
+    def test_lag_switch_controller_uses_shared_network_contract(self) -> None:
+        runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch_runtime.rs"
+        ).read_text(encoding="utf-8")
+        network = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Arc<dyn LagSwitchControl>", runtime)
+        self.assertNotIn("LinuxLagSwitchBackend", runtime)
+        self.assertNotIn("LagSwitchBackendPort", runtime)
+        for method in (
+            "fn initialize(&self) -> bool;",
+            "fn set_base_blocking_active(&self, active: bool);",
+            "fn set_base_config(&self, config: LagSwitchConfig);",
+        ):
+            self.assertIn(method, network)
+
     def test_smu_app_generic_loop_owns_process_status_on_windows_and_linux(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

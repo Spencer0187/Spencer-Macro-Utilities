@@ -6,7 +6,7 @@
 
 use smu_core::Hotkey;
 use smu_input::KeyState;
-use smu_network::{LagSwitchConfig, linux::LinuxLagSwitchBackend};
+use smu_network::{LagSwitchConfig, LagSwitchControl};
 use smu_runtime::lag_switch::{LagSwitchStepContext, LagSwitchStepInput, execute_lag_switch_step};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,31 +38,6 @@ impl Default for LagSwitchControllerSettings {
     }
 }
 
-trait LagSwitchBackendPort: Send + Sync {
-    fn initialize(&self) -> bool;
-    fn is_base_blocking(&self) -> bool;
-    fn set_base_blocking(&self, active: bool);
-    fn set_base_config(&self, config: LagSwitchConfig);
-}
-
-impl LagSwitchBackendPort for LinuxLagSwitchBackend {
-    fn initialize(&self) -> bool {
-        self.init()
-    }
-
-    fn is_base_blocking(&self) -> bool {
-        smu_network::LagSwitchControl::is_base_blocking_active(self)
-    }
-
-    fn set_base_blocking(&self, active: bool) {
-        self.set_base_blocking(active);
-    }
-
-    fn set_base_config(&self, config: LagSwitchConfig) {
-        self.set_base_config(config);
-    }
-}
-
 #[derive(Debug)]
 struct ControllerState {
     was_pressed: bool,
@@ -77,7 +52,7 @@ impl Default for ControllerState {
 }
 
 struct StepContext<'a> {
-    backend: &'a dyn LagSwitchBackendPort,
+    backend: &'a dyn LagSwitchControl,
     current_config: &'a LagSwitchConfig,
     last_config: &'a Option<LagSwitchConfig>,
     helper_prompt_requested: &'a AtomicBool,
@@ -104,11 +79,11 @@ impl LagSwitchStepContext for StepContext<'_> {
     }
 
     fn is_base_blocking(&self) -> bool {
-        self.backend.is_base_blocking()
+        self.backend.is_base_blocking_active()
     }
 
     fn set_blocking(&mut self, active: bool) {
-        self.backend.set_base_blocking(active);
+        self.backend.set_base_blocking_active(active);
     }
 
     fn reset_start(&mut self) {
@@ -150,16 +125,7 @@ impl LagSwitchController {
     #[must_use]
     pub fn start(
         input: Arc<dyn KeyState>,
-        backend: Arc<LinuxLagSwitchBackend>,
-        backend_enabled: Arc<AtomicBool>,
-        initial_settings: LagSwitchControllerSettings,
-    ) -> Self {
-        Self::start_with_backend(input, backend, backend_enabled, initial_settings)
-    }
-
-    fn start_with_backend(
-        input: Arc<dyn KeyState>,
-        backend: Arc<dyn LagSwitchBackendPort>,
+        backend: Arc<dyn LagSwitchControl>,
         backend_enabled: Arc<AtomicBool>,
         initial_settings: LagSwitchControllerSettings,
     ) -> Self {
@@ -217,7 +183,7 @@ fn controller_loop(
     running: &AtomicBool,
     settings: &Mutex<LagSwitchControllerSettings>,
     input: &dyn KeyState,
-    backend: &dyn LagSwitchBackendPort,
+    backend: &dyn LagSwitchControl,
     backend_enabled: &AtomicBool,
     helper_prompt_requested: &AtomicBool,
 ) {
@@ -241,7 +207,7 @@ fn controller_loop(
 fn process_step(
     settings: &LagSwitchControllerSettings,
     input: &dyn KeyState,
-    backend: &dyn LagSwitchBackendPort,
+    backend: &dyn LagSwitchControl,
     backend_enabled: &AtomicBool,
     helper_prompt_requested: &AtomicBool,
     state: &mut ControllerState,
@@ -333,7 +299,7 @@ mod tests {
         configs: Mutex<Vec<LagSwitchConfig>>,
     }
 
-    impl LagSwitchBackendPort for FakeBackend {
+    impl LagSwitchControl for FakeBackend {
         fn initialize(&self) -> bool {
             self.init_calls.fetch_add(1, Ordering::AcqRel);
             let success = self.init_success.load(Ordering::Acquire);
@@ -343,17 +309,41 @@ mod tests {
             success
         }
 
-        fn is_base_blocking(&self) -> bool {
+        fn is_available(&self) -> bool {
+            self.available.load(Ordering::Acquire)
+        }
+
+        fn effective_config(&self) -> LagSwitchConfig {
+            let mut config = lock(&self.configs).last().cloned().unwrap_or_default();
+            config.currently_blocking = self.base_blocking.load(Ordering::Acquire);
+            config
+        }
+
+        fn is_blocking_active(&self) -> bool {
             self.base_blocking.load(Ordering::Acquire)
         }
 
-        fn set_base_blocking(&self, active: bool) {
+        fn is_base_blocking_active(&self) -> bool {
+            self.base_blocking.load(Ordering::Acquire)
+        }
+
+        fn set_base_blocking_active(&self, active: bool) {
             self.base_blocking.store(active, Ordering::Release);
         }
 
         fn set_base_config(&self, config: LagSwitchConfig) {
             lock(&self.configs).push(config);
         }
+
+        fn unsupported_reason(&self) -> String {
+            String::new()
+        }
+
+        fn set_script_blocking_active(&self, _owner_token: usize, _active: bool) {}
+
+        fn set_script_config_override(&self, _owner_token: usize, _config: LagSwitchConfig) {}
+
+        fn clear_script_config_override(&self, _owner_token: usize) {}
     }
 
     #[test]
@@ -391,7 +381,7 @@ mod tests {
         process_step(&settings, &input, &backend, &backend_enabled, &prompt, &mut state);
         assert!(backend.available.load(Ordering::Acquire));
         assert!(!backend_enabled.load(Ordering::Acquire));
-        assert!(backend.is_base_blocking());
+        assert!(backend.is_base_blocking_active());
         assert_eq!(backend.init_calls.load(Ordering::Acquire), 1);
         assert_eq!(lock(&backend.configs).len(), 1);
         assert!(!prompt.load(Ordering::Acquire));
@@ -417,12 +407,12 @@ mod tests {
         backend.available.store(true, Ordering::Release);
         backend.init_success.store(true, Ordering::Release);
         process_step(&settings, &input, &backend, &backend_enabled, &prompt, &mut state);
-        assert!(!backend.is_base_blocking());
+        assert!(!backend.is_base_blocking_active());
         input.set(KeyCode::new(0xBB), false);
         process_step(&settings, &input, &backend, &backend_enabled, &prompt, &mut state);
         input.set(KeyCode::new(0xBB), true);
         process_step(&settings, &input, &backend, &backend_enabled, &prompt, &mut state);
-        assert!(backend.is_base_blocking());
+        assert!(backend.is_base_blocking_active());
     }
 
     #[test]

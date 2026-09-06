@@ -827,9 +827,10 @@ fn start_lag_switch_controller(
     shell_state: &shell::ShellState,
 ) -> lag_switch_runtime::LagSwitchController {
     let input: Arc<dyn smu_input::KeyState> = platform.input_service.clone();
+    let backend: Arc<dyn LagSwitchControl> = lag_switch_backend.clone();
     lag_switch_runtime::LagSwitchController::start(
         input,
-        Arc::clone(lag_switch_backend),
+        backend,
         Arc::clone(lag_switch_enabled),
         shell_state.lag_switch_controller_settings(),
     )

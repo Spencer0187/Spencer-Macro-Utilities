@@ -375,6 +375,10 @@ fn apply_locked(inner: &Inner, state: &mut LinuxState) {
 
 #[allow(clippy::significant_drop_tightening)]
 impl LagSwitchControl for LinuxLagSwitchBackend {
+    fn initialize(&self) -> bool {
+        self.init()
+    }
+
     fn is_available(&self) -> bool {
         lock(&self.inner.state).available
     }
@@ -389,6 +393,14 @@ impl LagSwitchControl for LinuxLagSwitchBackend {
 
     fn is_base_blocking_active(&self) -> bool {
         lock(&self.inner.state).policy.base_blocking()
+    }
+
+    fn set_base_blocking_active(&self, active: bool) {
+        Self::set_base_blocking(self, active);
+    }
+
+    fn set_base_config(&self, config: LagSwitchConfig) {
+        Self::set_base_config(self, config);
     }
 
     fn unsupported_reason(&self) -> String {

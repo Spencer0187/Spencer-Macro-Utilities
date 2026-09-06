@@ -516,6 +516,10 @@ mod tests {
     }
 
     impl LagSwitchControl for FakeBackend {
+        fn initialize(&self) -> bool {
+            self.available
+        }
+
         fn is_available(&self) -> bool {
             self.available
         }
@@ -530,6 +534,14 @@ mod tests {
 
         fn is_base_blocking_active(&self) -> bool {
             self.state().base_blocking()
+        }
+
+        fn set_base_blocking_active(&self, active: bool) {
+            self.state().set_base_blocking(active);
+        }
+
+        fn set_base_config(&self, config: LagSwitchConfig) {
+            self.state().set_base_config(config);
         }
 
         fn unsupported_reason(&self) -> String {

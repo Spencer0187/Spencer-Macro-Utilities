@@ -271,7 +271,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   in the same single transient slot as C++, and shuts down when the last input owner drops. Windows
   network migration has started at the deterministic boundary: `smu-network` now builds the exact C++
   WinDivert direction/protocol/Roblox/custom filter grammar, including process UDP-port precedence and
-  dynamic-IP set ordering. Dynamic DLL loading, packet capture/reinjection, fake-lag queues, and target
+  dynamic-IP set ordering. The shared `LagSwitchControl` contract now also owns backend initialization,
+  base config, and base blocking, so `LagSwitchController` no longer depends on the Linux concrete
+  backend and can drive a Windows transport through the same runtime path. Dynamic DLL loading, packet
+  capture/reinjection, fake-lag queues, and target
   refresh workers are still missing; macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
