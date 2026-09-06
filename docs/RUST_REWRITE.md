@@ -349,9 +349,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   embedded as icon resource 102, and company/description/internal/original filename/product/copyright
   fields mirror the C++ resource script. Windows CI inspects the staged executable's version metadata so
   resource compilation is validated on a real Windows host. Embedded legacy RCDATA is intentionally not
-  reused because the Rust runtime owns file-based assets/WinDivert siblings. Updater compatibility and
-  multi-file signing/release packaging remain separate cutover gates; macOS still lacks its native Rust
-  adapters.
+  reused because the Rust runtime owns file-based assets/WinDivert siblings. Windows update checking is
+  now native Rust too: `smu-updater` has a WinINet transport with the C++ updater headers, HTTPS-only
+  policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
+  limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
+  Automatic Windows apply deliberately remains disabled until the Authenticode-verified replacement and
+  relaunch path is ported. That trusted apply path plus multi-file signing/release packaging remain
+  separate cutover gates; macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

@@ -60,10 +60,10 @@ jobs:
         run: rustup override set 1.98.0
       - name: Windows Rust staging unit tests
         run: python -m unittest tests.test_rust_windows_staging
-      - name: Test Windows Rust application
-        run: cargo test --manifest-path rust/Cargo.toml -p smu-app
-      - name: Clippy Windows Rust application
-        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app --all-targets -- -D warnings
+      - name: Test Windows Rust application and updater
+        run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater
+      - name: Clippy Windows Rust application and updater
+        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater --all-targets -- -D warnings
       - name: Stage experimental unsigned Windows Rust application
         run: >-
           python scripts/stage_rust_windows_app.py

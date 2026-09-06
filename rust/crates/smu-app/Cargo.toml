@@ -33,6 +33,7 @@ libc.workspace = true
 smu-network = { path = "../smu-network", version = "=0.0.0" }
 smu-roblox = { path = "../smu-roblox", version = "=0.0.0" }
 smu-runtime = { path = "../smu-runtime", version = "=0.0.0" }
+smu-updater = { path = "../smu-updater", version = "=0.0.0" }
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_System_Registry",

@@ -235,10 +235,11 @@ class RustLinuxStagingTest(unittest.TestCase):
         for expected in (
             "struct WindowsMacroPlatformServices",
             "struct WindowsBuiltinRuntimeServices",
-            "WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform)",
+            "WindowsBuiltinRuntimeServices::new(",
+            "&windows_platform,",
             "ProcessStatusService::new(Some(Arc::clone(&windows_platform.discovery)), None)",
             "windows_builtin_runtime.prepare_shell(shell_state);",
-            "windows_builtin_runtime.finish_shell(shell_state);",
+            "windows_builtin_runtime.finish_shell(shell_action.as_ref(), shell_state);",
             "builtin_runtime.shutdown();",
             "start_portable_script_runtime(script_app, &shell_state, &windows_platform)",
         ):

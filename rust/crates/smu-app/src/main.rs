@@ -119,7 +119,7 @@ mod speedglitch_runtime;
 mod target_runtime;
 mod theme;
 mod tutorial_media;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 mod updater_service;
 mod wall_walk;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -758,7 +758,7 @@ struct LinuxRuntimeServices {
     input_setup: linux_input_setup_service::LinuxInputSetupService,
     input_service: Arc<EvdevUinputInputDevice>,
     script_app: ScriptAppServices,
-    update_service: updater_service::LinuxUpdateService,
+    update_service: updater_service::UpdateService,
     script_runtime_controller: Option<script_runtime::ScriptRuntimeController>,
     lag_switch_controller: Option<lag_switch_runtime::LagSwitchController>,
     bunnyhop_controller: Option<bunnyhop_runtime::BunnyhopController>,
@@ -1391,12 +1391,18 @@ struct WindowsBuiltinRuntimeServices {
     wall_walk_controller: wall_walk_runtime::WallWalkController,
     walless_lhj_controller: walless_lhj_runtime::WallessLhjController,
     wallhop_controller: wallhop_runtime::WallhopController,
+    update_service: updater_service::UpdateService,
 }
 
 #[cfg(target_os = "windows")]
 impl WindowsBuiltinRuntimeServices {
-    fn new(shell_state: &shell::ShellState, platform: &WindowsMacroPlatformServices) -> Self {
+    fn new(
+        shell_state: &shell::ShellState,
+        platform: &WindowsMacroPlatformServices,
+        updates_enabled: bool,
+    ) -> Self {
         let platform = platform.clone();
+        let update_service = updater_service::UpdateService::new(app_version(), updates_enabled);
         let hhj_active = Arc::new(AtomicBool::new(false));
         let anti_afk_controller = anti_afk_runtime::AntiAfkController::start(
             Arc::clone(&platform.input),
@@ -1520,6 +1526,7 @@ impl WindowsBuiltinRuntimeServices {
             wall_walk_controller,
             walless_lhj_controller,
             wallhop_controller,
+            update_service,
         }
     }
 
@@ -1539,9 +1546,19 @@ impl WindowsBuiltinRuntimeServices {
                 "Windows input backend failed to install its low-level keyboard hook. Anti-AFK may not reset on physical keyboard activity.",
             );
         }
+        let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+        let updater_status = settings_menu::parity_update_status(parity_case.as_deref())
+            .unwrap_or_else(|| {
+                let mut status = self.update_service.prepare();
+                if parity_case.is_some() {
+                    status.enabled = true;
+                }
+                status
+            });
+        shell_state.set_settings_updater_status(updater_status);
     }
 
-    fn finish_shell(&self, shell_state: &shell::ShellState) {
+    fn finish_shell(&self, action: Option<&shell::ShellAction>, shell_state: &shell::ShellState) {
         self.anti_afk_controller.update_settings(shell_state.anti_afk_controller_settings());
         self.bunnyhop_controller.update_settings(shell_state.bunnyhop_controller_settings());
         self.hhj_controller.update_settings(shell_state.hhj_controller_settings());
@@ -1561,9 +1578,42 @@ impl WindowsBuiltinRuntimeServices {
         self.wall_walk_controller.update_settings(shell_state.wall_walk_controller_settings());
         self.walless_lhj_controller.update_settings(shell_state.walless_lhj_controller_settings());
         self.wallhop_controller.update_settings(shell_state.wallhop_controller_settings());
+        self.handle_action(action);
+    }
+
+    fn handle_action(&self, action: Option<&shell::ShellAction>) {
+        match action {
+            Some(shell::ShellAction::CheckUpdatesFromSettings) => {
+                self.update_service.start_check(true)
+            }
+            Some(shell::ShellAction::RequestInstallUpdateFromSettings) => {
+                self.update_service.request_apply();
+            }
+            Some(shell::ShellAction::ConfirmInstallUpdate) => self.update_service.confirm_apply(),
+            Some(shell::ShellAction::SkipUpdate) => {
+                self.update_service.dismiss_update("Update skipped.")
+            }
+            Some(shell::ShellAction::CancelUpdate) => {
+                self.update_service.dismiss_update("Update cancelled.");
+            }
+            Some(shell::ShellAction::OpenLatestReleaseFromSettings) => {
+                self.update_service.open_latest_release();
+            }
+            Some(shell::ShellAction::OpenLatestReleaseAndDismiss) => {
+                self.update_service.open_latest_release_and_dismiss();
+            }
+            Some(shell::ShellAction::OpenSponsorFromSettings) => {
+                let _ = sdl3::url::open_url(settings_menu::SPONSOR_URL);
+            }
+            Some(shell::ShellAction::OpenOfficialSource) => {
+                let _ = sdl3::url::open_url(global_settings::OFFICIAL_SOURCE_URL);
+            }
+            _ => {}
+        }
     }
 
     fn shutdown(&self) {
+        self.update_service.shutdown();
         self.anti_afk_controller.stop();
         self.floor_bounce_controller.stop();
         self.hhj_controller.stop();
@@ -1623,8 +1673,7 @@ impl LinuxRuntimeServices {
             Arc::clone(&platform.input_service),
             updates_enabled,
         );
-        let update_service =
-            updater_service::LinuxUpdateService::new(app_version(), updates_enabled);
+        let update_service = updater_service::UpdateService::new(app_version(), updates_enabled);
         let (script_manager, script_runtime_controller) = start_script_services(
             &platform,
             &lag_switch_backend,
@@ -2530,7 +2579,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
         #[cfg(target_os = "windows")]
-        windows_builtin_runtime.finish_shell(shell_state);
+        windows_builtin_runtime.finish_shell(shell_action.as_ref(), shell_state);
         #[cfg(target_os = "windows")]
         windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);
         handle_script_shell_action(
@@ -2693,7 +2742,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let windows_lag_switch = WindowsLagSwitchServices::new(&shell_state, &windows_platform);
     #[cfg(target_os = "windows")]
     let windows_builtin_runtime =
-        WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform);
+        WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform, parity_case.is_none());
     #[cfg(target_os = "windows")]
     let portable_script_app = start_windows_script_app(
         Arc::clone(&saved_settings),

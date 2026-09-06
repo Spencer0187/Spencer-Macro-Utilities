@@ -256,13 +256,70 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_updater_uses_wininet_checks_without_enabling_auto_apply(self) -> None:
+        updater = (ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows.rs").read_text(
+            encoding="utf-8"
+        )
+        updater_lib = (ROOT / "rust" / "crates" / "smu-updater" / "src" / "lib.rs").read_text(
+            encoding="utf-8"
+        )
+        updater_service = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
+        ).read_text(encoding="utf-8")
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        updater_manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-updater" / "Cargo.toml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertIn('mod windows;', updater_lib)
+        self.assertIn('pub use windows::WinInetUpdateTransport;', updater_lib)
+        for expected in (
+            "InternetOpenW",
+            "InternetOpenUrlW",
+            "HttpQueryInfoW",
+            "InternetReadFile",
+            "INTERNET_OPTION_CONNECT_TIMEOUT",
+            "INTERNET_OPTION_RECEIVE_TIMEOUT",
+            'url.starts_with("https://")',
+            "MAXIMUM_UPDATE_BYTES",
+            "if data.is_empty()",
+            "Spencer-Macro-Utilities-Updater",
+            "application/vnd.github+json",
+        ):
+            self.assertIn(expected, updater)
+        windows_sys = updater_manifest["target"]["cfg(target_os = \"windows\")"][
+            "dependencies"
+        ]["windows-sys"]
+        self.assertIn("Win32_Networking_WinInet", windows_sys["features"])
+        self.assertIn("UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)", updater_service)
+        for expected in (
+            "update_service: updater_service::UpdateService",
+            "self.update_service.prepare()",
+            "self.update_service.start_check(true)",
+            "self.update_service.request_apply()",
+            "self.update_service.open_latest_release()",
+            "self.update_service.shutdown()",
+        ):
+            self.assertIn(expected, main)
+
     def test_rewrite_workflow_has_isolated_unsigned_windows_rust_validation(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("windows-rust-app:", workflow)
         self.assertIn("runs-on: windows-latest", workflow)
-        self.assertIn("cargo test --manifest-path rust/Cargo.toml -p smu-app", workflow)
+        self.assertIn(
+            "cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater",
+            workflow,
+        )
+        self.assertIn(
+            "cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater --all-targets -- -D warnings",
+            workflow,
+        )
         self.assertIn("scripts/stage_rust_windows_app.py", workflow)
         self.assertIn("rust-windows-app-unsigned", workflow)
         self.assertNotIn("SignPath", workflow)

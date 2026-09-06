@@ -9,6 +9,8 @@ mod check;
 mod linux;
 #[cfg(target_os = "linux")]
 mod linux_install;
+#[cfg(target_os = "windows")]
+mod windows;
 
 pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
@@ -24,6 +26,8 @@ use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt;
+#[cfg(target_os = "windows")]
+pub use windows::WinInetUpdateTransport;
 
 pub const LATEST_RELEASE_PAGE_URL: &str =
     "https://github.com/Spencer0187/Spencer-Macro-Utilities/releases/latest";

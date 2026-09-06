@@ -1,13 +1,14 @@
-//! Linux update-check composition for the Settings window.
+//! Platform update-check composition for the Settings window.
 //!
-//! Release-contract validation and Linux `AppImage` staging live in `smu-updater`. This layer owns
-//! background check/apply workers plus the C++-compatible confirmation and restart handoff state.
+//! Release-contract validation and platform transports/installers live in `smu-updater`. This layer
+//! owns background check/apply workers plus the C++-compatible confirmation/restart UI state.
 
 use crate::settings_menu::UpdaterPanelStatus;
-use smu_updater::{
-    CurlUpdateTransport, LATEST_RELEASE_PAGE_URL, UpdateChecker, UpdaterStatus, apply_linux_update,
-    current_platform, linux_auto_apply_supported,
-};
+#[cfg(target_os = "windows")]
+use smu_updater::WinInetUpdateTransport;
+#[cfg(target_os = "linux")]
+use smu_updater::{CurlUpdateTransport, apply_linux_update, linux_auto_apply_supported};
+use smu_updater::{LATEST_RELEASE_PAGE_URL, UpdateChecker, UpdaterStatus, current_platform};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 
@@ -26,7 +27,7 @@ struct UpdateUiState {
 }
 
 #[derive(Debug)]
-pub struct LinuxUpdateService {
+pub struct UpdateService {
     enabled: bool,
     local_version: String,
     state: Arc<Mutex<UpdateUiState>>,
@@ -40,7 +41,23 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     }
 }
 
-impl LinuxUpdateService {
+#[cfg(target_os = "linux")]
+fn check_for_updates(local_version: &str) -> UpdaterStatus {
+    let mut checker = UpdateChecker::new(
+        CurlUpdateTransport::default(),
+        current_platform(),
+        linux_auto_apply_supported(),
+    );
+    checker.check_for_update(local_version)
+}
+
+#[cfg(target_os = "windows")]
+fn check_for_updates(local_version: &str) -> UpdaterStatus {
+    let mut checker = UpdateChecker::new(WinInetUpdateTransport, current_platform(), false);
+    checker.check_for_update(local_version)
+}
+
+impl UpdateService {
     #[must_use]
     pub fn new(local_version: String, enabled: bool) -> Self {
         Self {
@@ -85,13 +102,7 @@ impl LinuxUpdateService {
         let local_version = self.local_version.clone();
         let state = Arc::clone(&self.state);
         let worker = std::thread::spawn(move || {
-            let auto_apply_supported = linux_auto_apply_supported();
-            let mut checker = UpdateChecker::new(
-                CurlUpdateTransport::default(),
-                current_platform(),
-                auto_apply_supported,
-            );
-            let status = checker.check_for_update(&local_version);
+            let status = check_for_updates(&local_version);
             let should_open = status.check_succeeded
                 && status.update_available
                 && status.latest_release.is_some();
@@ -133,6 +144,7 @@ impl LinuxUpdateService {
         state.update_confirm_open = true;
     }
 
+    #[cfg(target_os = "linux")]
     pub fn confirm_apply(&self) {
         self.reap_finished_worker();
         let release = {
@@ -169,6 +181,15 @@ impl LinuxUpdateService {
             }
         });
         *lock(&self.worker) = Some(worker);
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn confirm_apply(&self) {
+        let mut state = lock(&self.state);
+        state.update_confirm_open = false;
+        state.update_prompt_dismissed = true;
+        "An update is available, but automatic installation is not supported in this launch mode."
+            .clone_into(&mut state.action_message);
     }
 
     pub fn dismiss_update(&self, message: &str) {
@@ -280,7 +301,7 @@ mod tests {
 
     #[test]
     fn disabled_service_never_starts_network_work() {
-        let service = LinuxUpdateService::new("3.4.0".to_owned(), false);
+        let service = UpdateService::new("3.4.0".to_owned(), false);
         let status = service.prepare();
         assert!(!status.enabled);
         assert!(!status.checking);
@@ -291,7 +312,7 @@ mod tests {
 
     #[test]
     fn apply_request_without_available_release_keeps_prompt_closed() {
-        let service = LinuxUpdateService::new("3.4.0".to_owned(), false);
+        let service = UpdateService::new("3.4.0".to_owned(), false);
         service.request_apply();
         let state = lock(&service.state);
         assert!(!state.update_confirm_open);
@@ -300,7 +321,7 @@ mod tests {
 
     #[test]
     fn eligible_apply_request_opens_confirmation_without_starting_worker() {
-        let service = LinuxUpdateService::new("3.4.0".to_owned(), false);
+        let service = UpdateService::new("3.4.0".to_owned(), false);
         lock(&service.state).status = eligible_status();
         service.request_apply();
         let state = lock(&service.state);
@@ -312,7 +333,7 @@ mod tests {
 
     #[test]
     fn dismiss_update_closes_prompt_and_records_cpp_message() {
-        let service = LinuxUpdateService::new("3.4.0".to_owned(), false);
+        let service = UpdateService::new("3.4.0".to_owned(), false);
         {
             let mut state = lock(&service.state);
             state.status = eligible_status();
@@ -329,7 +350,7 @@ mod tests {
 
     #[test]
     fn automatic_check_is_needed_at_startup_without_settings_gate() {
-        let service = LinuxUpdateService::new("3.4.0".to_owned(), true);
+        let service = UpdateService::new("3.4.0".to_owned(), true);
         assert!(service.automatic_check_needed());
         let mut state = lock(&service.state);
         state.checking = true;
