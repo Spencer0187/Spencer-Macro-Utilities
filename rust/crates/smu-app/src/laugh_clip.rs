@@ -79,6 +79,7 @@ pub fn render(
     state: &mut LaughClipUiState,
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
+    media: crate::tutorial_media::TutorialMedia,
 ) {
     ui.text_wrapped("Settings for Laugh Clip");
     crate::parity::separator(ui);
@@ -121,7 +122,9 @@ pub fn render(
     ui.new_line();
     ui.text_wrapped("This macro allows you to clip through walls of 1+ studs of thickness.");
     ui.text_wrapped("MUST BE ABOVE 60 FPS AND IN R6.");
-    ui.text_wrapped("After setup, trigger the macro. It types /e laugh using the Item Unequip COM Offset chat settings. Higher FPS is better.");
+    ui.text_wrapped("Set yourself and the camera up like this:");
+    media.render_centered(ui, crate::tutorial_media::TutorialImage::LaughClip, 248.0, 140.0);
+    ui.text_wrapped("After this, trigger the macro. It will type /e laugh using the settings from Item Unequip COM Offset. Higher FPS is better.");
 }
 
 #[cfg(test)]

@@ -24,6 +24,7 @@ use crate::{
     spam_key::{self, SpamKeyUiState},
     speedglitch::{self, SpeedglitchUiState},
     theme,
+    tutorial_media::TutorialMedia,
     wall_walk::{self, WallWalkUiState},
     walless_lhj::{self, WallessLhjGlobals, WallessLhjUiState},
     wallhop::{self, WallhopUiState},
@@ -124,6 +125,7 @@ pub struct ShellState {
     notifications: NotificationSuppressionState,
     warning_toast: WarningToastState,
     theme: theme::ThemeState,
+    tutorial_media: TutorialMedia,
     profile_browser: ProfileBrowserState,
     #[cfg(target_os = "linux")]
     script_ui: ScriptUiState,
@@ -165,6 +167,7 @@ impl Default for ShellState {
             notifications: NotificationSuppressionState::default(),
             warning_toast: WarningToastState::default(),
             theme: theme::ThemeState::default(),
+            tutorial_media: TutorialMedia::default(),
             profile_browser: ProfileBrowserState::default(),
             #[cfg(target_os = "linux")]
             script_ui: ScriptUiState::default(),
@@ -218,6 +221,8 @@ impl ShellState {
             state.script_ui.apply_import_preview_parity_reference();
         } else if case == Some("warning-toast-user-reference") {
             state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
+        } else if case == Some("tutorial-media-user-reference") {
+            state.selected_section = 9;
         }
         state
     }
@@ -527,6 +532,10 @@ impl ShellState {
 
     pub fn push_warning(&mut self, message: impl Into<String>) {
         self.warning_toast.push(message);
+    }
+
+    pub const fn set_tutorial_media(&mut self, media: TutorialMedia) {
+        self.tutorial_media = media;
     }
 
     pub const fn profile_browser_mut(&mut self) -> &mut ProfileBrowserState {
@@ -1379,10 +1388,23 @@ fn render_right_section(
                 state.global.cam_fix_enabled(),
                 &mut state.keybind_capture,
                 theme,
+                state.tutorial_media,
             ),
             7 => walless_lhj::render(ui, &mut state.walless_lhj, &mut state.keybind_capture, theme),
-            8 => item_clip::render(ui, &mut state.item_clip, &mut state.keybind_capture, theme),
-            9 => laugh_clip::render(ui, &mut state.laugh_clip, &mut state.keybind_capture, theme),
+            8 => item_clip::render(
+                ui,
+                &mut state.item_clip,
+                &mut state.keybind_capture,
+                theme,
+                state.tutorial_media,
+            ),
+            9 => laugh_clip::render(
+                ui,
+                &mut state.laugh_clip,
+                &mut state.keybind_capture,
+                theme,
+                state.tutorial_media,
+            ),
             10 => wall_walk::render(
                 ui,
                 &mut state.wall_walk,
@@ -1390,8 +1412,15 @@ fn render_right_section(
                 state.global.cam_fix_enabled(),
                 &mut state.keybind_capture,
                 theme,
+                state.tutorial_media,
             ),
-            11 => spam_key::render(ui, &mut state.spam_key, &mut state.keybind_capture, theme),
+            11 => spam_key::render(
+                ui,
+                &mut state.spam_key,
+                &mut state.keybind_capture,
+                theme,
+                state.tutorial_media,
+            ),
             12 => {
                 ledge_bounce::render(
                     ui,

@@ -54,7 +54,13 @@ message field, and Dismiss control. Its deterministic fixture is deliberately on
 rewrote punctuation-aware word breaking between 1.92.5 and 1.92.9, so this case isolates the toast
 surface instead of treating that upstream wrapping algorithm as application behavior. Rust's live
 Linux path also queues the foreground-detection fallback warning through this same FIFO. Only the
-four measured 6x6 toast-window corner halos are additionally masked.
+four measured 6x6 toast-window corner halos are additionally masked. `tutorial-media-linux-minimum`
+selects Laugh Clip and replaces only the tutorial JPEG with the same centered 248x140 deterministic
+placeholder on both apps, so the oracle gates the real media slot, surrounding tutorial text, and
+module layout without depending on JPEG decoder output. Production Rust loads the same four tutorial
+JPEGs as C++ through managed ImGui textures, with packaged/AppDir/source-tree asset resolution and
+missing-asset warnings routed through the warning FIFO. The tutorial-media case needs no masks beyond
+the standard minimum-size footer seam.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

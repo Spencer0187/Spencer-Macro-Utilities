@@ -134,6 +134,7 @@ pub fn render(
     cam_fix: bool,
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
+    media: crate::tutorial_media::TutorialMedia,
 ) {
     ui.text_wrapped("Settings for Wall-Walk");
     crate::parity::separator(ui);
@@ -207,6 +208,7 @@ pub fn render(
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("This macro allows you to walk inside wall seams when there are two parts stacked above each other.");
+    media.render_centered(ui, crate::tutorial_media::TutorialImage::WallWalk, 248.0, 140.0);
     ui.text_wrapped("Walk up to the seam at a slight angle, then trigger the macro while holding W and D or W and A depending on the selected flick side.");
 }
 

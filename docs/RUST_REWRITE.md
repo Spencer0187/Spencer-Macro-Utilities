@@ -430,8 +430,12 @@ the C++ 60 FPS oracle. A warning-toast capture now gates a real Rust warning FIF
 top-right selectable/Dismiss surface; Linux startup feeds the existing foreground-detection fallback
 warning through that queue. The deterministic toast fixture stays single-line because Dear ImGui
 rewrote punctuation-aware word wrapping between 1.92.5 and 1.92.9, and the oracle should gate the
-application surface rather than an upstream line-break implementation. Exact RGBA equality is the
-default. Masks are
+application surface rather than an upstream line-break implementation. Tutorial media now uses the
+same four JPEG assets as C++ through managed ImGui textures, with packaged/AppDir/source-tree lookup,
+centered aspect-preserving sizing, and warning-FIFO fallback when an asset cannot be loaded. The
+Laugh Clip tutorial-media oracle swaps only the JPEG for an identical 248x140 placeholder on both
+sides, so image-slot/layout parity is deterministic without comparing decoder output. Exact RGBA
+equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

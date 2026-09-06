@@ -91,6 +91,7 @@ pub fn render(
     state: &mut ItemClipUiState,
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
+    media: crate::tutorial_media::TutorialMedia,
 ) {
     ui.text_wrapped("Settings for Item Clip");
     crate::parity::separator(ui);
@@ -153,6 +154,7 @@ pub fn render(
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("This macro allows you to clip through thin walls using item equip timing.");
+    media.render_centered(ui, crate::tutorial_media::TutorialImage::GearClip, 248.0, 140.0);
     ui.text_wrapped("To use this macro, shiftlock near the wall, jump, hold W, and let the macro equip and unequip the selected item using your delay. This can be RNG; lower FPS may help.");
     ui.text_wrapped("If 'Disable outside of Target Application' is enabled, item clip only runs while tabbed into the target application.");
 }

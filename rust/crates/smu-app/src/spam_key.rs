@@ -231,6 +231,7 @@ pub fn render(
     state: &mut SpamKeyUiState,
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
+    media: crate::tutorial_media::TutorialMedia,
 ) {
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
@@ -248,7 +249,8 @@ pub fn render(
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("This macro allows you to spam a key very fast while the macro is active. You can use it for gear clipping, autoclicking, or general key-spam.");
-    ui.text_wrapped("For gear clipping, set up near the wall, trigger the macro, and hold W. This can be RNG, but lower FPS often helps.");
+    media.render_centered(ui, crate::tutorial_media::TutorialImage::GearClip, 248.0, 140.0);
+    ui.text_wrapped("For gear clipping, set up near the wall like above, trigger the macro, and hold W. This can be RNG, but lower FPS often helps.");
 }
 
 fn render_header(

@@ -113,6 +113,7 @@ mod speedglitch_runtime;
 #[cfg(target_os = "linux")]
 mod target_runtime;
 mod theme;
+mod tutorial_media;
 #[cfg(target_os = "linux")]
 mod updater_service;
 mod wall_walk;
@@ -2117,6 +2118,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     imgui.set_ini_filename::<PathBuf>(None)?;
     theme::load_fonts(&imgui)?;
     shell_state.apply_theme_to_context(&mut imgui);
+    let (tutorial_media, tutorial_warnings) =
+        tutorial_media::TutorialMedia::load(&mut imgui, parity_case.as_deref());
+    shell_state.set_tutorial_media(tutorial_media);
+    for warning in tutorial_warnings {
+        shell_state.push_warning(warning);
+    }
 
     // SAFETY: `window` and `gl_context` are declared before `imgui`/backend and therefore outlive
     // the native Dear ImGui attachments that retain their pointers.

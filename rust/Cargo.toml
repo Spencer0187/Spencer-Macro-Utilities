@@ -38,7 +38,7 @@ evdev = "=0.13.2"
 dear-imgui-rs = "0.17"
 dear-imgui-sdl3 = { version = "0.17", features = ["opengl3-renderer"] }
 gl = "0.14"
-image = { version = "0.25", default-features = false, features = ["png", "pnm"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "pnm"] }
 libc = "=0.2.189"
 mlua = { version = "=0.12.1", features = ["lua54", "send", "vendored"] }
 pipewire = "=0.10.1"

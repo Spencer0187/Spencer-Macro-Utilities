@@ -371,6 +371,7 @@ pub fn render(
     cam_fix: bool,
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
+    media: crate::tutorial_media::TutorialMedia,
 ) {
     let count = state.instances.instances().len();
     let selected = state.instances.selected_index();
@@ -388,7 +389,9 @@ pub fn render(
     crate::parity::separator(ui);
     ui.text_wrapped("Explanation:");
     ui.new_line();
-    ui.text_wrapped("This macro automates the camera flick, optional jump, and flick-back timing used for wallhops. Each instance has independent settings and a trigger key.");
+    ui.text_wrapped("This macro allows you to double jump on stacked wall parts by flicking and jumping automatically.");
+    media.render_centered(ui, crate::tutorial_media::TutorialImage::Wallhop, 248.0, 140.0);
+    ui.text_wrapped("Set your Roblox sensitivity and flick angle first. After this, line up on a wall seam and trigger the macro. You can tune left/right flicking, jumping, and flick-back per instance.");
 }
 
 fn render_instance_header(

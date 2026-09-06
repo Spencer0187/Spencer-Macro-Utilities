@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -50,6 +52,38 @@ std::array<TutorialTexture, 4> g_textures = {{
     {"macro_tutorials/wallhop.jpg", 0, 0, 0},
     {"macro_tutorials/wallwalk.jpg", 0, 0, 0},
 }};
+
+bool RenderParityPlaceholder(float displayWidth, float displayHeight)
+{
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    if (!parityCase || std::strcmp(parityCase, "tutorial-media-user-reference") != 0) {
+        return false;
+    }
+
+    const float availableWidth = ImGui::GetContentRegionAvail().x;
+    float width = std::max(displayWidth, 1.0f);
+    float height = std::max(displayHeight, 1.0f);
+    if (availableWidth > 0.0f && width > availableWidth) {
+        const float scale = availableWidth / width;
+        width *= scale;
+        height *= scale;
+    }
+    const float offset = std::max(0.0f, (availableWidth - width) * 0.5f);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offset);
+
+    const ImVec2 topLeft = ImGui::GetCursorScreenPos();
+    const ImVec2 bottomRight(topLeft.x + width, topLeft.y + height);
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    drawList->AddRect(topLeft, bottomRight, ImGui::GetColorU32(ImGuiCol_Border));
+    constexpr const char* label = "Tutorial image";
+    const ImVec2 labelSize = ImGui::CalcTextSize(label);
+    const ImVec2 labelPos(
+        topLeft.x + (width - labelSize.x) * 0.5f,
+        topLeft.y + (height - labelSize.y) * 0.5f);
+    drawList->AddText(labelPos, ImGui::GetColorU32(ImGuiCol_TextDisabled), label);
+    ImGui::Dummy(ImVec2(width, height));
+    return true;
+}
 
 bool LoadTexture(TutorialTexture& texture)
 {
@@ -154,6 +188,10 @@ void UnloadMacroTutorialTextures()
 
 void RenderCenteredMacroTutorialImage(MacroTutorialImage image, float displayWidth, float displayHeight)
 {
+    if (RenderParityPlaceholder(displayWidth, displayHeight)) {
+        return;
+    }
+
     const std::size_t index = ImageIndex(image);
     if (index >= g_textures.size()) {
         return;

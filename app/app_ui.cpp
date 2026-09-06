@@ -129,7 +129,8 @@ void ApplyUiParityCaseIfRequested()
     const bool importedScriptFooterReference = parityCase && std::strcmp(parityCase, "imported-script-footer-user-reference") == 0;
     const bool importPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
     const bool warningToastReference = parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !warningToastReference) {
+    const bool tutorialMediaReference = parityCase && std::strcmp(parityCase, "tutorial-media-user-reference") == 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !warningToastReference && !tutorialMediaReference) {
         return;
     }
 
@@ -155,8 +156,8 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || warningToastReference) {
-        selected_section = builtinFooterReference ? 0 : -1;
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || warningToastReference || tutorialMediaReference) {
+        selected_section = builtinFooterReference ? 0 : (tutorialMediaReference ? 9 : -1);
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");
