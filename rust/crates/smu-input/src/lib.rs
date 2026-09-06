@@ -70,6 +70,17 @@ pub(crate) fn windows_scale_relative_delta(delta: i32, scale_percent: i32) -> i3
 }
 
 #[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_wheel_direction(delta: i16) -> Option<KeyCode> {
+    if delta > 0 {
+        Some(KeyCode::MOUSE_WHEEL_UP)
+    } else if delta < 0 {
+        Some(KeyCode::MOUSE_WHEEL_DOWN)
+    } else {
+        None
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
 pub(crate) fn windows_normalize_absolute_coordinate(
     value: i32,
     origin: i32,
@@ -308,6 +319,13 @@ mod tests {
         assert_eq!(super::windows_scale_relative_delta(-9, 150), -13);
         assert_eq!(super::windows_scale_relative_delta(100, 1), 10);
         assert_eq!(super::windows_scale_relative_delta(100, 999), 500);
+    }
+
+    #[test]
+    fn windows_wheel_direction_matches_cpp_transient_binding_codes() {
+        assert_eq!(super::windows_wheel_direction(120), Some(KeyCode::MOUSE_WHEEL_UP));
+        assert_eq!(super::windows_wheel_direction(-120), Some(KeyCode::MOUSE_WHEEL_DOWN));
+        assert_eq!(super::windows_wheel_direction(0), None);
     }
 
     #[test]

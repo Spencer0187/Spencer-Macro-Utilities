@@ -145,6 +145,15 @@ class RustLinuxStagingTest(unittest.TestCase):
             "dependencies"
         ]
         self.assertIn("windows-sys", windows_dependencies)
+        input_windows_features = windows_dependencies["windows-sys"]["features"]
+        for feature in (
+            "Win32_Foundation",
+            "Win32_System_LibraryLoader",
+            "Win32_System_Threading",
+            "Win32_UI_Input_KeyboardAndMouse",
+            "Win32_UI_WindowsAndMessaging",
+        ):
+            self.assertIn(feature, input_windows_features)
 
         input_backend = (
             ROOT / "rust" / "crates" / "smu-input" / "src" / "windows.rs"
@@ -160,6 +169,14 @@ class RustLinuxStagingTest(unittest.TestCase):
         self.assertIn("fn move_mouse_absolute", input_backend)
         self.assertIn("MOUSEEVENTF_ABSOLUTE", input_backend)
         self.assertIn("MOUSEEVENTF_VIRTUALDESK", input_backend)
+        self.assertIn("SetWindowsHookExW", input_backend)
+        self.assertIn("WH_MOUSE_LL", input_backend)
+        self.assertIn("WM_MOUSEWHEEL", input_backend)
+        self.assertIn("LLMHF_INJECTED", input_backend)
+        self.assertIn("LLMHF_LOWER_IL_INJECTED", input_backend)
+        self.assertIn("PENDING_BINDING_INPUT", input_backend)
+        self.assertIn("fn consume_next_transient_input", input_backend)
+        self.assertIn("PostThreadMessageW", input_backend)
 
         display_manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-display" / "Cargo.toml").read_text(encoding="utf-8")

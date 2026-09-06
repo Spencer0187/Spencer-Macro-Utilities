@@ -266,8 +266,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `ScriptServices.display` is populated with that backend, so imported-script `moveMouseAbs`,
   `getPixelColor`, and `getPixelRect` now use native Win32 display services alongside `pressKey`,
   `clickMouse`, managed hold/release/state, `isKeyPressed`, `mouseWheel`, and relative `moveMouse`.
-  Native wheel-binding hooks and Windows network integration are still missing; macOS still lacks its
-  native Rust adapters.
+  Physical wheel bindings are native too: a reference-counted `WH_MOUSE_LL` hook is shared by both
+  `WindowsKeyState` owners, ignores Win32/SMU-tagged injected events, stores the latest wheel direction
+  in the same single transient slot as C++, and shuts down when the last input owner drops. Windows
+  network integration is still missing; macOS still lacks its native Rust adapters.
   Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.

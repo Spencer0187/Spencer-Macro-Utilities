@@ -2,28 +2,37 @@ use crate::{
     InputError, InputInjector, KeyState, windows_is_extended_virtual_key,
     windows_is_mouse_button_virtual_key, windows_modifier_scan_code,
     windows_normalize_absolute_coordinate, windows_scale_relative_delta, windows_virtual_key,
+    windows_wheel_direction,
 };
 use smu_core::KeyCode;
 use std::{
     sync::{
         Mutex, OnceLock,
-        atomic::{AtomicI32, AtomicIsize, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicIsize, AtomicU32, Ordering},
     },
+    thread::JoinHandle,
     time::{Duration, Instant},
 };
-use windows_sys::Win32::UI::{
-    Input::KeyboardAndMouse::{
-        GetAsyncKeyState, GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
-        KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC_EX,
-        MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
-        MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP,
-        MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT,
-        MapVirtualKeyExW, SendInput,
-    },
-    WindowsAndMessaging::{
-        GA_ROOT, GetAncestor, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId,
-        SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, XBUTTON1,
-        XBUTTON2,
+use windows_sys::Win32::{
+    Foundation::{LPARAM, LRESULT, WPARAM},
+    System::{LibraryLoader::GetModuleHandleW, Threading::GetCurrentThreadId},
+    UI::{
+        Input::KeyboardAndMouse::{
+            GetAsyncKeyState, GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
+            KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE,
+            MAPVK_VK_TO_VSC_EX, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+            MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+            MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN,
+            MOUSEEVENTF_XUP, MOUSEINPUT, MapVirtualKeyExW, SendInput,
+        },
+        WindowsAndMessaging::{
+            CallNextHookEx, DispatchMessageW, GA_ROOT, GetAncestor, GetForegroundWindow,
+            GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, HC_ACTION, HHOOK,
+            LLMHF_INJECTED, LLMHF_LOWER_IL_INJECTED, MSG, MSLLHOOKSTRUCT, PM_NOREMOVE,
+            PeekMessageW, PostThreadMessageW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+            SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetWindowsHookExW, TranslateMessage,
+            UnhookWindowsHookEx, WH_MOUSE_LL, WM_MOUSEWHEEL, WM_QUIT, WM_USER, XBUTTON1, XBUTTON2,
+        },
     },
 };
 
@@ -33,6 +42,18 @@ const GUI_INPUT_BUDGET_SLICE: Duration = Duration::from_millis(16);
 static DISPLAY_SCALE_PERCENT: AtomicI32 = AtomicI32::new(100);
 static GUI_WINDOW_HANDLE: AtomicIsize = AtomicIsize::new(0);
 static INPUT_BUDGET_STATE: OnceLock<Mutex<InputBudgetState>> = OnceLock::new();
+static WHEEL_HOOK_LIFECYCLE: OnceLock<Mutex<WheelHookLifecycle>> = OnceLock::new();
+static WHEEL_HOOK_RUNNING: AtomicBool = AtomicBool::new(false);
+static WHEEL_HOOK_READY: AtomicBool = AtomicBool::new(false);
+static WHEEL_HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
+static WHEEL_HOOK_HANDLE: AtomicIsize = AtomicIsize::new(0);
+static PENDING_BINDING_INPUT: AtomicU32 = AtomicU32::new(KeyCode::NONE.raw());
+
+#[derive(Default)]
+struct WheelHookLifecycle {
+    users: usize,
+    thread: Option<JoinHandle<()>>,
+}
 
 struct InputBudgetState {
     reset_time: Instant,
@@ -95,13 +116,135 @@ fn scale_relative_delta(delta: i32) -> i32 {
     windows_scale_relative_delta(delta, DISPLAY_SCALE_PERCENT.load(Ordering::Acquire))
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct WindowsKeyState;
+fn wheel_hook_lifecycle() -> &'static Mutex<WheelHookLifecycle> {
+    WHEEL_HOOK_LIFECYCLE.get_or_init(|| Mutex::new(WheelHookLifecycle::default()))
+}
+
+fn lock_lifecycle() -> std::sync::MutexGuard<'static, WheelHookLifecycle> {
+    match wheel_hook_lifecycle().lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+fn mouse_event_is_injected(event: &MSLLHOOKSTRUCT) -> bool {
+    event.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED) != 0
+        || event.dwExtraInfo == INJECTED_INPUT_TAG
+}
+
+unsafe extern "system" fn binding_mouse_wheel_hook(
+    code: i32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if code == HC_ACTION as i32 && wparam == WM_MOUSEWHEEL as usize && lparam != 0 {
+        // SAFETY: WH_MOUSE_LL supplies an MSLLHOOKSTRUCT pointer for HC_ACTION mouse messages.
+        let event = unsafe { &*(lparam as *const MSLLHOOKSTRUCT) };
+        if !mouse_event_is_injected(event) {
+            let delta = ((event.mouseData >> 16) as u16) as i16;
+            if let Some(key) = windows_wheel_direction(delta) {
+                PENDING_BINDING_INPUT.store(key.raw(), Ordering::Release);
+            }
+        }
+    }
+    let hook = WHEEL_HOOK_HANDLE.load(Ordering::Acquire) as HHOOK;
+    // SAFETY: forwarding the hook event is required by the Win32 low-level hook contract.
+    unsafe { CallNextHookEx(hook, code, wparam, lparam) }
+}
+
+fn wheel_hook_thread() {
+    // SAFETY: these APIs operate on the current thread's Win32 message queue and retain no Rust refs.
+    unsafe {
+        WHEEL_HOOK_THREAD_ID.store(GetCurrentThreadId(), Ordering::Release);
+        let mut message = MSG::default();
+        let _ = PeekMessageW(&mut message, std::ptr::null_mut(), WM_USER, WM_USER, PM_NOREMOVE);
+        let module = GetModuleHandleW(std::ptr::null());
+        let hook = SetWindowsHookExW(WH_MOUSE_LL, Some(binding_mouse_wheel_hook), module, 0);
+        WHEEL_HOOK_HANDLE.store(hook as isize, Ordering::Release);
+        WHEEL_HOOK_READY.store(true, Ordering::Release);
+
+        while WHEEL_HOOK_RUNNING.load(Ordering::Acquire) {
+            let result = GetMessageW(&mut message, std::ptr::null_mut(), 0, 0);
+            if result <= 0 {
+                break;
+            }
+            let _ = TranslateMessage(&message);
+            let _ = DispatchMessageW(&message);
+        }
+
+        if !hook.is_null() {
+            let _ = UnhookWindowsHookEx(hook);
+        }
+    }
+    WHEEL_HOOK_HANDLE.store(0, Ordering::Release);
+    WHEEL_HOOK_THREAD_ID.store(0, Ordering::Release);
+    WHEEL_HOOK_READY.store(false, Ordering::Release);
+}
+
+fn acquire_wheel_hook() {
+    let mut lifecycle = lock_lifecycle();
+    if lifecycle.users == 0 {
+        PENDING_BINDING_INPUT.store(KeyCode::NONE.raw(), Ordering::Release);
+        WHEEL_HOOK_READY.store(false, Ordering::Release);
+        WHEEL_HOOK_THREAD_ID.store(0, Ordering::Release);
+        WHEEL_HOOK_RUNNING.store(true, Ordering::Release);
+        lifecycle.thread = Some(std::thread::spawn(wheel_hook_thread));
+        for _ in 0..250 {
+            if WHEEL_HOOK_READY.load(Ordering::Acquire) {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+    lifecycle.users = lifecycle.users.saturating_add(1);
+}
+
+fn release_wheel_hook() {
+    let mut lifecycle = lock_lifecycle();
+    if lifecycle.users == 0 {
+        return;
+    }
+    lifecycle.users -= 1;
+    if lifecycle.users != 0 {
+        return;
+    }
+
+    WHEEL_HOOK_RUNNING.store(false, Ordering::Release);
+    let thread_id = WHEEL_HOOK_THREAD_ID.load(Ordering::Acquire);
+    if thread_id != 0 {
+        // SAFETY: thread_id belongs to the hook thread and WM_QUIT carries no pointer payload.
+        unsafe {
+            let _ = PostThreadMessageW(thread_id, WM_QUIT, 0, 0);
+        }
+    }
+    if let Some(thread) = lifecycle.thread.take() {
+        let _ = thread.join();
+    }
+    PENDING_BINDING_INPUT.store(KeyCode::NONE.raw(), Ordering::Release);
+}
+
+#[derive(Debug)]
+pub struct WindowsKeyState {
+    _hook_lease: (),
+}
 
 impl WindowsKeyState {
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub fn new() -> Self {
+        acquire_wheel_hook();
+        Self { _hook_lease: () }
+    }
+}
+
+impl Default for WindowsKeyState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for WindowsKeyState {
+    fn drop(&mut self) {
+        release_wheel_hook();
     }
 }
 
@@ -221,6 +364,11 @@ impl KeyState for WindowsKeyState {
         (1_u32..KeyCode::MOUSE_WHEEL_UP.raw())
             .find(|&raw| self.is_pressed(KeyCode::new(raw)))
             .map(KeyCode::new)
+    }
+
+    fn consume_next_transient_input(&self) -> Option<KeyCode> {
+        let raw = PENDING_BINDING_INPUT.swap(KeyCode::NONE.raw(), Ordering::AcqRel);
+        (raw != KeyCode::NONE.raw()).then(|| KeyCode::new(raw))
     }
 }
 
