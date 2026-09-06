@@ -150,7 +150,13 @@ class RustLinuxStagingTest(unittest.TestCase):
             ROOT / "rust" / "crates" / "smu-input" / "src" / "windows.rs"
         ).read_text(encoding="utf-8")
         self.assertIn("GetAsyncKeyState", input_backend)
+        self.assertIn("SendInput", input_backend)
+        self.assertIn("GUI_INPUT_BUDGET", input_backend)
+        self.assertIn("GetAncestor", input_backend)
+        self.assertIn("set_display_scale_percent", input_backend)
+        self.assertIn("set_gui_window_handle", input_backend)
         self.assertIn("impl KeyState for WindowsKeyState", input_backend)
+        self.assertIn("impl InputInjector for WindowsKeyState", input_backend)
 
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
@@ -163,6 +169,7 @@ class RustLinuxStagingTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("fn start_portable_script_runtime(", main)
         self.assertIn("smu_input::windows::WindowsKeyState::new()", main)
+        self.assertIn("input: Some(input)", main)
         self.assertIn("smu_process::windows::WindowsProcessBackend::new()", main)
         self.assertIn("input: Arc<dyn KeyState>", runtime)
         self.assertIn("discovery.find_all_processes(selector)", target_runtime)

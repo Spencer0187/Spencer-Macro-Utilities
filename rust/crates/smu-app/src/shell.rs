@@ -611,6 +611,12 @@ impl ShellState {
         &mut self.profile_browser
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn display_scale(&self) -> i32 {
+        self.global.display_scale()
+    }
+
     pub fn apply_profile_metadata(&mut self, metadata: &Map<String, Value>) {
         self.global.apply_metadata(metadata);
         self.notifications.apply_metadata(metadata);

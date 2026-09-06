@@ -195,6 +195,12 @@ impl GlobalSettingsState {
         Map::from_iter([("shortdescriptions".to_owned(), json!(self.short_descriptions))])
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn display_scale(&self) -> i32 {
+        self.display_scale
+    }
+
     pub const fn display_scale_mut(&mut self) -> &mut i32 {
         &mut self.display_scale
     }

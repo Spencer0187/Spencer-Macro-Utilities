@@ -1126,10 +1126,13 @@ fn start_portable_script_app(
     let services = {
         #[cfg(target_os = "windows")]
         {
+            let input: Arc<dyn smu_input::InputDevice> =
+                Arc::new(smu_input::windows::WindowsKeyState::new());
             let backend = Arc::new(smu_process::windows::WindowsProcessBackend::new());
             let process_discovery: Arc<dyn smu_process::ProcessDiscovery> = backend.clone();
             let process_control: Arc<dyn smu_process::ProcessControl> = backend;
             ScriptServices {
+                input: Some(input),
                 process_discovery: Some(process_discovery),
                 process_control: Some(process_control),
                 saved_settings: Some(saved_settings.clone()),
@@ -1838,6 +1841,21 @@ fn initialize_sdl()
     Ok((sdl, video, events))
 }
 
+#[cfg(target_os = "windows")]
+fn register_windows_input_window(window: &Window) {
+    // SAFETY: SDL owns the window and its property group for at least this call. The returned pointer
+    // is the HWND associated with this live SDL window and is only stored as an opaque Win32 handle.
+    let hwnd = unsafe {
+        let properties = sdl3::sys::video::SDL_GetWindowProperties(window.raw());
+        sdl3::sys::properties::SDL_GetPointerProperty(
+            properties,
+            sdl3::sys::video::SDL_PROP_WINDOW_WIN32_HWND_POINTER,
+            std::ptr::null_mut(),
+        )
+    };
+    smu_input::windows::set_gui_window_handle(hwnd);
+}
+
 fn create_initial_window(
     video: &sdl3::VideoSubsystem,
     parity_case: Option<&str>,
@@ -1865,6 +1883,8 @@ fn create_initial_window(
         apply_profile_window_position(&mut window, payload);
     }
     apply_shell_window_style(&mut window, shell_state);
+    #[cfg(target_os = "windows")]
+    register_windows_input_window(&window);
     Ok(window)
 }
 
@@ -1936,6 +1956,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         let frame = imgui.begin_frame();
         let ui = frame.ui();
         profile_service.prepare_shell(shell_state.profile_browser_mut());
+        #[cfg(target_os = "windows")]
+        smu_input::windows::set_display_scale_percent(shell_state.display_scale());
         script_app.prepare_ui(shell_state.script_ui_mut());
         shell_state
             .set_external_input_capture(script_app.input_capture_active(shell_state.script_ui()));

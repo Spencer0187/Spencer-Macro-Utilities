@@ -22,4 +22,7 @@ evdev.workspace = true
 x11rb.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_UI_Input_KeyboardAndMouse"] }
+windows-sys = { workspace = true, features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }

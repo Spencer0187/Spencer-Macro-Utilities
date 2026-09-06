@@ -255,9 +255,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   global process-status UI is native on both platforms. Imported-script hotkey runtime control is now
   native on Windows too: `WindowsKeyState` reads physical Win32 key/button state with
   `GetAsyncKeyState`, the shared `ScriptRuntimeController` depends only on `KeyState`, and foreground
-  gating uses `WindowsProcessBackend`. Full Windows input injection/display/network adapters are still
-  missing, so script APIs that need those capabilities remain unavailable; macOS still lacks its native
-  Rust adapters. Those integrations plus Windows/macOS C++ entry-point
+  gating uses `WindowsProcessBackend`. That same Win32 device now implements `InputInjector` with
+  tagged `SendInput` scan-code keyboard events, mouse-button events, wheel input, current-key scans, and
+  relative mouse motion, and Windows `ScriptServices.input` is populated with it. Relative motion uses
+  the live C++ `display_scale` rule while `move_mouse_raw` stays unscaled, and tagged injections honor
+  the C++ foreground-GUI budget of 50 events per 16 ms using the SDL-provided HWND. Imported-script
+  `pressKey`, `clickMouse`, managed hold/release/state, `isKeyPressed`, `mouseWheel`, and relative
+  `moveMouse` therefore have native Windows input support. Absolute mouse/display/pixel capture, native wheel-binding
+  hooks, and Windows network integration are still missing; macOS still lacks its native Rust adapters.
+  Those integrations plus Windows/macOS C++ entry-point
   removal remain the cross-platform
   rewrite gates.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.

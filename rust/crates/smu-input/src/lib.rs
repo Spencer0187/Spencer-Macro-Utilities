@@ -36,6 +36,39 @@ pub(crate) const fn windows_virtual_key(key: KeyCode) -> Option<i32> {
     }
 }
 
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_is_mouse_button_virtual_key(vk: u16) -> bool {
+    vk >= 0x01 && vk <= 0x06
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_is_extended_virtual_key(vk: u16) -> bool {
+    matches!(
+        vk,
+        0xA3 | 0xA5 | 0x2D | 0x2E | 0x24 | 0x23 | 0x21 | 0x22 | 0x25 | 0x26 | 0x27 | 0x28 | 0x90
+    )
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) const fn windows_modifier_scan_code(vk: u16) -> Option<u16> {
+    match vk {
+        0x10 | 0xA0 => Some(0x2A),
+        0xA1 => Some(0x36),
+        0x11 | 0xA2 | 0xA3 => Some(0x1D),
+        0x12 | 0xA4 | 0xA5 => Some(0x38),
+        _ => None,
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+pub(crate) fn windows_scale_relative_delta(delta: i32, scale_percent: i32) -> i32 {
+    let scaled = i64::from(delta) * i64::from(scale_percent.clamp(10, 500)) / 100;
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        scaled as i32
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputError(String);
 
@@ -229,5 +262,34 @@ mod tests {
         assert_eq!(super::windows_virtual_key(KeyCode::MOUSE_WHEEL_UP), None);
         assert_eq!(super::windows_virtual_key(KeyCode::MOUSE_WHEEL_DOWN), None);
         assert_eq!(super::windows_virtual_key(KeyCode::new(0x1FF)), None);
+    }
+
+    #[test]
+    fn windows_sendinput_key_classification_matches_cpp_backend() {
+        assert!(super::windows_is_mouse_button_virtual_key(0x01));
+        assert!(super::windows_is_mouse_button_virtual_key(0x03));
+        assert!(super::windows_is_mouse_button_virtual_key(0x06));
+        assert!(!super::windows_is_mouse_button_virtual_key(0x07));
+
+        assert!(super::windows_is_extended_virtual_key(0xA3));
+        assert!(super::windows_is_extended_virtual_key(0x25));
+        assert!(super::windows_is_extended_virtual_key(0x90));
+        assert!(!super::windows_is_extended_virtual_key(0xA2));
+        assert!(!super::windows_is_extended_virtual_key(0x41));
+
+        assert_eq!(super::windows_modifier_scan_code(0x10), Some(0x2A));
+        assert_eq!(super::windows_modifier_scan_code(0xA1), Some(0x36));
+        assert_eq!(super::windows_modifier_scan_code(0xA3), Some(0x1D));
+        assert_eq!(super::windows_modifier_scan_code(0xA5), Some(0x38));
+        assert_eq!(super::windows_modifier_scan_code(0x41), None);
+    }
+
+    #[test]
+    fn windows_relative_mouse_scaling_matches_cpp_display_scale_rule() {
+        assert_eq!(super::windows_scale_relative_delta(100, 100), 100);
+        assert_eq!(super::windows_scale_relative_delta(100, 250), 250);
+        assert_eq!(super::windows_scale_relative_delta(-9, 150), -13);
+        assert_eq!(super::windows_scale_relative_delta(100, 1), 10);
+        assert_eq!(super::windows_scale_relative_delta(100, 999), 500);
     }
 }
