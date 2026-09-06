@@ -28,7 +28,10 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt;
 #[cfg(target_os = "windows")]
-pub use windows::WinInetUpdateTransport;
+pub use windows::{
+    WinInetUpdateTransport, WindowsUpdateTrustError, authenticode_signer_sha256,
+    require_matching_authenticode_signer, verify_authenticode_signature,
+};
 pub use windows_bundle::{WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle};
 
 pub const LATEST_RELEASE_PAGE_URL: &str =

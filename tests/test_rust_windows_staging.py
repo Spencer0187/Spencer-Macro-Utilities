@@ -314,7 +314,10 @@ class RustWindowsStagingTest(unittest.TestCase):
         )
 
         self.assertIn('mod windows;', updater_lib)
-        self.assertIn('pub use windows::WinInetUpdateTransport;', updater_lib)
+        self.assertIn('WinInetUpdateTransport', updater_lib)
+        self.assertIn('verify_authenticode_signature', updater_lib)
+        self.assertIn('authenticode_signer_sha256', updater_lib)
+        self.assertIn('require_matching_authenticode_signer', updater_lib)
         for expected in (
             "InternetOpenW",
             "InternetOpenUrlW",
@@ -327,12 +330,29 @@ class RustWindowsStagingTest(unittest.TestCase):
             "if data.is_empty()",
             "Spencer-Macro-Utilities-Updater",
             "application/vnd.github+json",
+            "WinVerifyTrust",
+            "WINTRUST_ACTION_GENERIC_VERIFY_V2",
+            "WTD_REVOKE_WHOLECHAIN",
+            "WTD_REVOCATION_CHECK_CHAIN",
+            "CryptQueryObject",
+            "CryptMsgGetParam",
+            "CertFindCertificateInStore",
+            "CERT_SHA256_HASH_PROP_ID",
+            "Downloaded update was signed by a different certificate",
+            "verify_authenticode_signature(current_executable)?;",
+            "verify_authenticode_signature(downloaded_executable)?;",
         ):
             self.assertIn(expected, updater)
         windows_sys = updater_manifest["target"]["cfg(target_os = \"windows\")"][
             "dependencies"
         ]["windows-sys"]
-        self.assertIn("Win32_Networking_WinInet", windows_sys["features"])
+        for feature in (
+            "Win32_Foundation",
+            "Win32_Networking_WinInet",
+            "Win32_Security_Cryptography",
+            "Win32_Security_WinTrust",
+        ):
+            self.assertIn(feature, windows_sys["features"])
         self.assertIn("UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)", updater_service)
         for expected in (
             "update_service: updater_service::UpdateService",

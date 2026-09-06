@@ -358,14 +358,18 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   now native Rust too: `smu-updater` has a WinINet transport with the C++ updater headers, HTTPS-only
   policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
   limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
-  Automatic Windows apply deliberately remains disabled until the Authenticode-verified replacement and
-  relaunch path is ported. The unsigned multi-file bundle shape is now frozen in rewrite CI, and
-  `smu-updater` owns a platform-neutral Windows bundle validator/extractor that requires the single
+  Automatic Windows apply deliberately remains disabled while the trusted multi-file replacement path is
+  completed. The unsigned multi-file bundle shape is frozen in rewrite CI, and `smu-updater` owns a
+  platform-neutral Windows bundle validator/extractor that requires the single
   `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
   encrypted/non-regular entries, excessive entry counts or expanded payloads, and verifies the required
-  executable/SDL/WinDivert/font runtime siblings before retaining a staging directory. Production
-  signing/publishing of that bundle and the Windows trust/replacement launcher remain separate cutover
-  gates. macOS still lacks its native Rust adapters.
+  executable/SDL/WinDivert/font runtime siblings before retaining a staging directory. The Windows updater
+  also now owns the C++ Authenticode trust primitives: WinTrust validates each executable's chain and
+  revocation state, Crypt32 extracts the signer certificate SHA-256 fingerprint, and the public
+  same-signer operation first verifies both executables before comparing their signer fingerprints.
+  Auto-apply remains off because the Rust bundle contains side-loaded runtime siblings and the repository
+  `SMCWinDivert.dll` is currently unsigned; production signing/publishing must establish a bundle-wide
+  trust policy before the replacement launcher can be enabled. macOS still lacks its native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
