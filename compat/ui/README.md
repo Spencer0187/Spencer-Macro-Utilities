@@ -91,7 +91,10 @@ gate the auto-installable `Yes`/`No`/`Cancel` branch and the manual-only `Open l
 now` branch using identical deterministic local/latest versions and package name, with updater
 network/download/browser actions left untouched. Rust now mirrors C++'s centered 520px
 `AlwaysAutoResize` modal and default-focus placement; only the four measured rounded corners are
-masked in each branch.
+masked in each branch. Critical Platform Error is also gated directly with the production FIFO modal
+and support text. Rust now has a real critical-notification queue instead of warning-only UI, and
+in-session profile-save failures enqueue that modal; the parity fixture uses one deterministic
+critical message and masks only its four measured rounded corners.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

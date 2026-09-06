@@ -8,6 +8,7 @@ use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
 use crate::script_ui::{self, ScriptAction, ScriptUiState};
 use crate::{
     bunnyhop::{self, BunnyhopUiState},
+    critical_modal::{self, CriticalModalState},
     floor_bounce::{self, FloorBounceUiState},
     freeze::{self, FreezeUiState},
     global_settings::{self, GlobalSettingsAction, GlobalSettingsState},
@@ -125,6 +126,7 @@ pub struct ShellState {
     settings_platform: settings_menu::PlatformStatus,
     settings_updater: settings_menu::UpdaterPanelStatus,
     notifications: NotificationSuppressionState,
+    critical_modal: CriticalModalState,
     warning_toast: WarningToastState,
     theme: theme::ThemeState,
     tutorial_media: TutorialMedia,
@@ -167,6 +169,7 @@ impl Default for ShellState {
             settings_platform: settings_menu::PlatformStatus::default(),
             settings_updater: settings_menu::UpdaterPanelStatus::default(),
             notifications: NotificationSuppressionState::default(),
+            critical_modal: CriticalModalState::default(),
             warning_toast: WarningToastState::default(),
             theme: theme::ThemeState::default(),
             tutorial_media: TutorialMedia::default(),
@@ -262,6 +265,8 @@ impl ShellState {
             state.script_ui.apply_import_preview_error_parity_reference();
         } else if case == Some("warning-toast-user-reference") {
             state.warning_toast.push(warning_toast::PARITY_WARNING_MESSAGE);
+        } else if case == Some(critical_modal::PARITY_CASE) {
+            state.critical_modal.push(critical_modal::PARITY_MESSAGE);
         } else if case == Some("tutorial-media-user-reference") {
             state.selected_section = 9;
         } else if case == Some("tutorial-wallhop-user-reference") {
@@ -594,6 +599,10 @@ impl ShellState {
 
     pub fn push_warning(&mut self, message: impl Into<String>) {
         self.warning_toast.push(message);
+    }
+
+    pub fn push_critical(&mut self, message: impl Into<String>) {
+        self.critical_modal.push(message);
     }
 
     pub const fn set_tutorial_media(&mut self, media: TutorialMedia) {
@@ -978,6 +987,7 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
             action = render_contents(ui, state, display_size, &active_theme);
         });
 
+    critical_modal::render(ui, &mut state.critical_modal);
     warning_toast::render(ui, &mut state.warning_toast);
 
     #[cfg(target_os = "linux")]
@@ -1669,7 +1679,7 @@ mod profile_adapter_tests {
     #[cfg(target_os = "linux")]
     use super::LinuxModal;
     use super::ShellState;
-    use crate::warning_toast;
+    use crate::{critical_modal, warning_toast};
     use serde_json::{Map, json};
     use smu_profile::payload::PreservedProfilePayload;
 
@@ -1810,6 +1820,16 @@ mod profile_adapter_tests {
         let state = ShellState::for_parity_case(Some("warning-toast-user-reference"));
         assert_eq!(state.warning_toast.front(), Some(warning_toast::PARITY_WARNING_MESSAGE));
         assert_eq!(state.warning_toast.len(), 1);
+    }
+
+    #[test]
+    fn critical_modal_parity_case_queues_reference_failure() {
+        let state = ShellState::for_parity_case(Some(critical_modal::PARITY_CASE));
+        assert_eq!(state.critical_modal.len(), 1);
+        let expected =
+            format!("{}\n\n{}", critical_modal::PARITY_MESSAGE, critical_modal::SUPPORT_TEXT);
+        assert_eq!(state.critical_modal.front(), Some(expected.as_str()));
+        assert_eq!(state.selected_section, -1);
     }
 
     #[test]

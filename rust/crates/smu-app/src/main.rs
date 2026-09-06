@@ -47,6 +47,7 @@ mod bunnyhop;
 #[cfg(target_os = "linux")]
 mod bunnyhop_runtime;
 mod capture;
+mod critical_modal;
 mod floor_bounce;
 #[cfg(target_os = "linux")]
 mod floor_bounce_runtime;
@@ -337,6 +338,7 @@ fn handle_profile_action(
             let Some(payload) =
                 save_live_profile(service, shell_state, window, name, imported_scripts)
             else {
+                shell_state.push_critical(format!("Failed to save settings profile '{name}'."));
                 return ProfileActionOutcome::None;
             };
             service.refresh_selected(shell_state.profile_browser_mut(), Some(name));

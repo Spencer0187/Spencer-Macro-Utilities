@@ -130,6 +130,7 @@ void ApplyUiParityCaseIfRequested()
     const bool importPreviewReference = parityCase && std::strcmp(parityCase, "import-preview-user-reference") == 0;
     const bool importPreviewErrorReference = parityCase && std::strcmp(parityCase, "import-preview-error-user-reference") == 0;
     const bool warningToastReference = parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0;
+    const bool criticalModalReference = parityCase && std::strcmp(parityCase, "critical-platform-error-user-reference") == 0;
     const bool tutorialMediaReference = parityCase && std::strcmp(parityCase, "tutorial-media-user-reference") == 0;
     const bool tutorialWallhopReference = parityCase && std::strcmp(parityCase, "tutorial-wallhop-user-reference") == 0;
     const bool tutorialItemClipReference = parityCase && std::strcmp(parityCase, "tutorial-item-clip-user-reference") == 0;
@@ -163,7 +164,7 @@ void ApplyUiParityCaseIfRequested()
         else if (std::strcmp(parityCase, "module-floor-bounce-user-reference") == 0) moduleBodyReferenceSection = 14;
     }
     const bool moduleBodyReference = moduleBodyReferenceSection >= 0;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !themeShellReference && !linuxModalReference && !updateModalReference && !moduleBodyReference) {
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !criticalModalReference && !tutorialModuleReference && !themeShellReference && !linuxModalReference && !updateModalReference && !moduleBodyReference) {
         return;
     }
 
@@ -189,7 +190,7 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || themeShellReference || linuxModalReference || updateModalReference || moduleBodyReference) {
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || criticalModalReference || tutorialModuleReference || themeShellReference || linuxModalReference || updateModalReference || moduleBodyReference) {
         selected_section = moduleBodyReference ? moduleBodyReferenceSection :
             (builtinFooterReference ? 0 :
             (tutorialMediaReference ? 9 :
@@ -3831,6 +3832,15 @@ void RenderPlatformCriticalNotifications()
     static std::vector<smu::log::LogEntry> activeNotifications;
     auto newNotifications = smu::log::DrainCriticalNotifications();
     activeNotifications.insert(activeNotifications.end(), newNotifications.begin(), newNotifications.end());
+    const char* parityCase = std::getenv("SMU_UI_PARITY_CASE");
+    const bool parityReference =
+        parityCase && std::strcmp(parityCase, "critical-platform-error-user-reference") == 0;
+    if (activeNotifications.empty() && parityReference) {
+        smu::log::LogEntry entry;
+        entry.level = smu::log::LogLevel::Critical;
+        entry.message = std::string("Parity critical platform failure.\n\n") + smu::log::kCriticalSupportText;
+        activeNotifications.push_back(std::move(entry));
+    }
     if (activeNotifications.empty()) {
         return;
     }
@@ -4009,6 +4019,8 @@ void RenderAppUi(AppContext& context)
             RenderImportTrustModal();
         } else if (parityCase && std::strcmp(parityCase, "warning-toast-user-reference") == 0) {
             RenderPlatformWarningNotifications();
+        } else if (parityCase && std::strcmp(parityCase, "critical-platform-error-user-reference") == 0) {
+            RenderPlatformCriticalNotifications();
         } else if (parityCase && std::strcmp(parityCase, "modal-admin-user-reference") == 0) {
             RenderAdministratorRequiredPopup();
         } else if (parityCase && std::strcmp(parityCase, "modal-freeze-helper-user-reference") == 0) {

@@ -461,7 +461,10 @@ Required are masked. The Update Available modal is now gated in both branches: d
 `3.4.0 -> 9.9.9` fixtures cover auto-installable `Yes`/`No`/`Cancel` and manual-only `Open latest
 release`/`Not now`, without invoking updater transport, downloads, or browser launches. Rust now
 matches C++'s centered 520px `AlwaysAutoResize` modal and default-focus placement; only the measured
-rounded modal corners are masked. Fractional-scale manifest rows remain manual OS/DPI
+rounded modal corners are masked. Critical Platform Error is also gated through the production FIFO
+modal/support text. Rust now has a real critical-notification queue, and profile-save failures enqueue
+it instead of being silently dropped; the parity fixture uses one deterministic critical message and
+only the four measured rounded modal corners are masked. Fractional-scale manifest rows remain manual OS/DPI
 references because Xvfb plus SDL's X11 scaling override produced pixel-identical 1x/1.25x captures
 instead of exercising a real content-scale change. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
