@@ -198,6 +198,21 @@ impl Default for ShellState {
     }
 }
 
+fn parity_module_body_section(case: Option<&str>) -> Option<i32> {
+    match case {
+        Some("module-item-desync-user-reference") => Some(1),
+        Some("module-hhj-user-reference") => Some(2),
+        Some("module-speedglitch-user-reference") => Some(3),
+        Some("module-item-unequip-user-reference") => Some(4),
+        Some("module-press-key-user-reference") => Some(5),
+        Some("module-walless-lhj-user-reference") => Some(7),
+        Some("module-ledge-bounce-user-reference") => Some(12),
+        Some("module-bunnyhop-user-reference") => Some(13),
+        Some("module-floor-bounce-user-reference") => Some(14),
+        _ => None,
+    }
+}
+
 impl ShellState {
     #[must_use]
     pub fn for_parity_case(case: Option<&str>) -> Self {
@@ -233,6 +248,8 @@ impl ShellState {
             state.selected_section = 10;
         } else if case == Some("tutorial-spam-key-user-reference") {
             state.selected_section = 11;
+        } else if let Some(section) = parity_module_body_section(case) {
+            state.selected_section = section;
         }
         state
     }
@@ -1689,6 +1706,23 @@ mod profile_adapter_tests {
         let state = ShellState::for_parity_case(Some("warning-toast-user-reference"));
         assert_eq!(state.warning_toast.front(), Some(warning_toast::PARITY_WARNING_MESSAGE));
         assert_eq!(state.warning_toast.len(), 1);
+    }
+
+    #[test]
+    fn module_body_parity_cases_select_expected_builtin_sections() {
+        for (case, section) in [
+            ("module-item-desync-user-reference", 1),
+            ("module-hhj-user-reference", 2),
+            ("module-speedglitch-user-reference", 3),
+            ("module-item-unequip-user-reference", 4),
+            ("module-press-key-user-reference", 5),
+            ("module-walless-lhj-user-reference", 7),
+            ("module-ledge-bounce-user-reference", 12),
+            ("module-bunnyhop-user-reference", 13),
+            ("module-floor-bounce-user-reference", 14),
+        ] {
+            assert_eq!(ShellState::for_parity_case(Some(case)).selected_section, section);
+        }
     }
 
     #[test]

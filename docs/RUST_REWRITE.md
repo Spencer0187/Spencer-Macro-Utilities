@@ -441,7 +441,12 @@ module body. Wallhop parity exposed three Rust production drifts: the missing IM
 note, an auto-sized Jump Key reset button instead of C++'s fixed 25px control, and a first-frame
 sensitivity sync that converted the canonical default 300px flick to 600px from stale 150-degree
 text. Rust now treats startup/profile sensitivity as already applied and only recalibrates Wallhop
-pixels after an actual sensitivity edit, matching C++. Exact RGBA equality is the default. Masks are
+pixels after an actual sensitivity edit, matching C++. The remaining nine built-in module bodies are
+also gated directly. Those captures exposed HHJ and Floor Bounce advanced controls that Rust had
+rendered unconditionally instead of using C++'s closed-by-default collapsing headers, the missing HHJ
+`Reference video coming soon!` tail line, and the hard-coded Bunnyhop title instead of the catalog's
+`Smart Bunnyhop`. Speedglitch differs at one isolated 1x1 text anti-aliasing pixel; all other default
+module-body gates need no masks beyond the shared footer seam. Exact RGBA equality is the default. Masks are
 permitted only for explicitly documented regions where the oracle itself is intentionally excluded;
 a mask must be narrow and reviewed.
 

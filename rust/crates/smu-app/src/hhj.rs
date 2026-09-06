@@ -1,5 +1,5 @@
 use crate::theme::ThemeDefinition;
-use dear_imgui_rs::{StyleColor, Ui};
+use dear_imgui_rs::{StyleColor, TreeNodeFlags, Ui};
 use serde_json::{Map, Value};
 use smu_core::{Hotkey, KeyCode};
 use smu_profile::payload::PreservedProfilePayload;
@@ -251,47 +251,10 @@ pub fn render(
         &mut state.length_ms,
         &mut state.length_text,
         243,
+        52.0,
     );
 
-    crate::parity::separator(ui);
-    ui.text_wrapped("Advanced HHJ Options");
-    render_reset_i32(
-        ui,
-        "R##HHJFreezeDelayOverride",
-        "Set freeze delay (ms):",
-        &mut state.freeze_delay_override_ms,
-        &mut state.freeze_delay_text,
-        500,
-    );
-    ui.same_line();
-    ui.checkbox("Apply##HHJFreezeDelayApply", &mut state.freeze_delay_apply);
-    render_reset_i32(
-        ui,
-        "R##HHJDelay1",
-        "Delay after freezing before shiftlock is held (ms):",
-        &mut state.delay1_ms,
-        &mut state.delay1_text,
-        9,
-    );
-    render_reset_i32(
-        ui,
-        "R##HHJDelay2",
-        "Time shiftlock is held before spinning (ms):",
-        &mut state.delay2_ms,
-        &mut state.delay2_text,
-        17,
-    );
-    render_reset_i32(
-        ui,
-        "R##HHJDelay3",
-        "Time shiftlock is held after freezing (ms):",
-        &mut state.delay3_ms,
-        &mut state.delay3_text,
-        16,
-    );
-
-    crate::parity::separator(ui);
-    render_auto_hhj_controls(ui, state, capture);
+    render_advanced_hhj_controls(ui, state, capture);
 
     crate::parity::separator(ui);
     ui.text_wrapped("This macro allows you to jump very high when used properly. It uses COM offset, angular velocity, and Roblox's center-of-mass behavior to launch you upward.");
@@ -302,6 +265,71 @@ pub fn render(
     ui.text_wrapped("Explanation:");
     ui.new_line();
     ui.text_wrapped("First create COM offset, usually with Item Unequip COM Offset. Then align your back near the wall, rotate slightly left, turn your camera toward the wall, hold W, and trigger the macro.");
+    ui.text_wrapped("Reference video coming soon!");
+}
+
+fn render_advanced_hhj_controls(
+    ui: &Ui,
+    state: &mut HhjUiState,
+    capture: &mut crate::keybind::CaptureState,
+) {
+    if ui.collapsing_header("Advanced HHJ Options", TreeNodeFlags::NONE) {
+        ui.spacing();
+        ui.indent();
+        if ui.button_with_size("R##HHJFreezeDelayOverride", [25.0, 0.0]) {
+            state.freeze_delay_override_ms = 500;
+            "500".clone_into(&mut state.freeze_delay_text);
+            state.freeze_delay_apply = false;
+        }
+        ui.same_line();
+        ui.text_wrapped("Set freeze delay (ms): ");
+        ui.same_line();
+        ui.set_next_item_width(50.0);
+        if ui
+            .input_text("##HHJFreezeDelayOverride", &mut state.freeze_delay_text)
+            .chars_decimal(true)
+            .chars_no_blank(true)
+            .build()
+            && let Ok(parsed) = state.freeze_delay_text.parse::<i32>()
+        {
+            state.freeze_delay_override_ms = parsed;
+        }
+        ui.same_line();
+        ui.checkbox("Apply##HHJFreezeDelayApply", &mut state.freeze_delay_apply);
+        ui.unindent();
+
+        for (reset_id, label, value, text, default_value) in [
+            (
+                "R##HHJDelay1",
+                "Delay after freezing before shiftlock is held (ms): ",
+                &mut state.delay1_ms,
+                &mut state.delay1_text,
+                9,
+            ),
+            (
+                "R##HHJDelay2",
+                "Time shiftlock is held before spinning (ms): ",
+                &mut state.delay2_ms,
+                &mut state.delay2_text,
+                17,
+            ),
+            (
+                "R##HHJDelay3",
+                "Time shiftlock is held after freezing (ms): ",
+                &mut state.delay3_ms,
+                &mut state.delay3_text,
+                16,
+            ),
+        ] {
+            ui.indent();
+            render_reset_i32(ui, reset_id, label, value, text, default_value, 50.0);
+            ui.unindent();
+        }
+    }
+
+    if ui.collapsing_header("Customize Automatic HHJ", TreeNodeFlags::NONE) {
+        render_auto_hhj_controls(ui, state, capture);
+    }
 }
 
 fn render_auto_hhj_controls(
@@ -309,7 +337,7 @@ fn render_auto_hhj_controls(
     state: &mut HhjUiState,
     capture: &mut crate::keybind::CaptureState,
 ) {
-    ui.text_wrapped("Customize Automatic HHJ");
+    ui.spacing();
     ui.text_wrapped("First Key Press:");
     ui.indent();
     if ui.button_with_size("R##AutoHHJKey1Reset", [25.0, 0.0]) {
@@ -328,12 +356,14 @@ fn render_auto_hhj_controls(
     render_reset_i32(
         ui,
         "R##AutoHHJKey1Time",
-        "Hold time (ms):",
+        "Hold time (ms): ",
         &mut state.auto_key1_time_ms,
         &mut state.auto_key1_time_text,
         550,
+        50.0,
     );
     ui.unindent();
+    ui.spacing();
     ui.text_wrapped("Second Key Press:");
     ui.indent();
     if ui.button_with_size("R##AutoHHJKey2Reset", [25.0, 0.0]) {
@@ -352,10 +382,11 @@ fn render_auto_hhj_controls(
     render_reset_i32(
         ui,
         "R##AutoHHJKey2Time",
-        "Hold time (ms):",
+        "Hold time (ms): ",
         &mut state.auto_key2_time_ms,
         &mut state.auto_key2_time_text,
         68,
+        50.0,
     );
     ui.unindent();
 }
@@ -367,6 +398,7 @@ fn render_reset_i32(
     value: &mut i32,
     text: &mut String,
     default_value: i32,
+    width: f32,
 ) {
     if ui.button_with_size(reset_id, [25.0, 0.0]) {
         *value = default_value;
@@ -375,7 +407,7 @@ fn render_reset_i32(
     ui.same_line();
     ui.text_wrapped(label);
     ui.same_line();
-    ui.set_next_item_width(52.0);
+    ui.set_next_item_width(width);
     if ui.input_text(format!("##{reset_id}"), text).chars_decimal(true).chars_no_blank(true).build()
         && let Ok(parsed) = text.parse::<i32>()
     {

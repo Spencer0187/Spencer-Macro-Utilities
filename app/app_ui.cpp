@@ -136,7 +136,20 @@ void ApplyUiParityCaseIfRequested()
     const bool tutorialWallWalkReference = parityCase && std::strcmp(parityCase, "tutorial-wall-walk-user-reference") == 0;
     const bool tutorialSpamKeyReference = parityCase && std::strcmp(parityCase, "tutorial-spam-key-user-reference") == 0;
     const bool tutorialModuleReference = tutorialMediaReference || tutorialWallhopReference || tutorialItemClipReference || tutorialWallWalkReference || tutorialSpamKeyReference;
-    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference) {
+    int moduleBodyReferenceSection = -1;
+    if (parityCase) {
+        if (std::strcmp(parityCase, "module-item-desync-user-reference") == 0) moduleBodyReferenceSection = 1;
+        else if (std::strcmp(parityCase, "module-hhj-user-reference") == 0) moduleBodyReferenceSection = 2;
+        else if (std::strcmp(parityCase, "module-speedglitch-user-reference") == 0) moduleBodyReferenceSection = 3;
+        else if (std::strcmp(parityCase, "module-item-unequip-user-reference") == 0) moduleBodyReferenceSection = 4;
+        else if (std::strcmp(parityCase, "module-press-key-user-reference") == 0) moduleBodyReferenceSection = 5;
+        else if (std::strcmp(parityCase, "module-walless-lhj-user-reference") == 0) moduleBodyReferenceSection = 7;
+        else if (std::strcmp(parityCase, "module-ledge-bounce-user-reference") == 0) moduleBodyReferenceSection = 12;
+        else if (std::strcmp(parityCase, "module-bunnyhop-user-reference") == 0) moduleBodyReferenceSection = 13;
+        else if (std::strcmp(parityCase, "module-floor-bounce-user-reference") == 0) moduleBodyReferenceSection = 14;
+    }
+    const bool moduleBodyReference = moduleBodyReferenceSection >= 0;
+    if (!lagSwitchReference && !settingsReference && !themeEditorReference && !profileMenuReference && !sidebarNoScrollReference && !processFoundReference && !processNotFoundReference && !builtinFooterReference && !importedScriptFooterReference && !importPreviewReference && !importPreviewErrorReference && !warningToastReference && !tutorialModuleReference && !moduleBodyReference) {
         return;
     }
 
@@ -162,13 +175,14 @@ void ApplyUiParityCaseIfRequested()
     macrotoggled = true;
     shortdescriptions = false;
 
-    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference) {
-        selected_section = builtinFooterReference ? 0 :
+    if (settingsReference || themeEditorReference || profileMenuReference || sidebarNoScrollReference || processFoundReference || processNotFoundReference || builtinFooterReference || importedScriptFooterReference || importPreviewReference || importPreviewErrorReference || warningToastReference || tutorialModuleReference || moduleBodyReference) {
+        selected_section = moduleBodyReference ? moduleBodyReferenceSection :
+            (builtinFooterReference ? 0 :
             (tutorialMediaReference ? 9 :
             (tutorialWallhopReference ? 6 :
             (tutorialItemClipReference ? 8 :
             (tutorialWallWalkReference ? 10 :
-            (tutorialSpamKeyReference ? 11 : -1)))));
+            (tutorialSpamKeyReference ? 11 : -1))))));
         section_toggles[0] = true;
         shortdescriptions = sidebarNoScrollReference;
         std::snprintf(RobloxSensValue, sizeof(RobloxSensValue), "%s", "0.5");

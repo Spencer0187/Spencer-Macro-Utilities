@@ -78,7 +78,7 @@ pub fn render(
     capture: &mut crate::keybind::CaptureState,
     theme: &ThemeDefinition,
 ) {
-    ui.text_wrapped("Settings for Bunnyhop");
+    ui.text_wrapped("Settings for Smart Bunnyhop");
     crate::parity::separator(ui);
     ui.new_line();
 

@@ -67,7 +67,13 @@ Rust was missing C++'s IMPORTANT sensitivity note, auto-sized the 25px Jump Key 
 incorrectly treated initial/profile sensitivity as a user edit, recalibrating the default 300px
 flick to 600px before first render. Startup/profile state now preserves pixels like C++, while a real
 sensitivity edit still triggers recalibration. These tutorial cases need no masks beyond the standard
-minimum-size footer seam.
+minimum-size footer seam. Nine additional module-body cases select the remaining built-in sections
+(Item Desync, HHJ, Speedglitch, Item Unequip COM Offset, Press a Button, Walless LHJ, Ledge Bounce,
+Smart Bunnyhop, and Floor Bounce) without mutating runtime state. They caught HHJ/Floor Bounce
+advanced controls that Rust had rendered unconditionally instead of behind C++'s closed-by-default
+collapsing headers, a missing HHJ `Reference video coming soon!` line, and the hard-coded Bunnyhop
+title instead of C++'s `Smart Bunnyhop` catalog title. Speedglitch has one reviewed 1x1 text
+anti-aliasing delta at (738,467); the other module-body cases need only the standard footer seam.
 
 That lets the Rust UI replace the old draw-list workaround while still proving it landed at the same
 place and produced the same visible structure.

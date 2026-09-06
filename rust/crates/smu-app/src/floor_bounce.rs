@@ -1,5 +1,5 @@
 use crate::theme::ThemeDefinition;
-use dear_imgui_rs::{StyleColor, Ui};
+use dear_imgui_rs::{StyleColor, TreeNodeFlags, Ui};
 use serde_json::{Map, Value};
 use smu_core::Hotkey;
 use smu_profile::payload::PreservedProfilePayload;
@@ -141,33 +141,34 @@ pub fn render(
         "Attempt to HHJ for potentially slightly more height (EXPERIMENTAL, NOT RECOMMENDED)",
         &mut state.hhj_enabled,
     );
-    crate::parity::separator(ui);
-    ui.text_wrapped("Advanced Floor Bounce HHJ Options");
-    render_delay(
-        ui,
-        "R##FloorBounceDelay1",
-        "Delay (Milliseconds) after unfreezing and before shiftlocking",
-        &mut state.delay1_ms,
-        &mut state.delay1_text,
-        5,
-    );
-    render_delay(
-        ui,
-        "R##FloorBounceDelay2",
-        "Delay (Milliseconds) before enabling helicoptering",
-        &mut state.delay2_ms,
-        &mut state.delay2_text,
-        8,
-    );
-    render_delay(
-        ui,
-        "R##FloorBounceDelay3",
-        "Time (Milliseconds) spent helicoptering",
-        &mut state.delay3_ms,
-        &mut state.delay3_text,
-        100,
-    );
-    crate::parity::separator(ui);
+    if ui.collapsing_header("Advanced Floor Bounce HHJ Options", TreeNodeFlags::NONE) {
+        ui.spacing();
+        render_delay(
+            ui,
+            "R##FloorBounceDelay1",
+            "Delay (Milliseconds) after unfreezing and before shiftlocking",
+            &mut state.delay1_ms,
+            &mut state.delay1_text,
+            5,
+        );
+        render_delay(
+            ui,
+            "R##FloorBounceDelay2",
+            "Delay (Milliseconds) before enabling helicoptering",
+            &mut state.delay2_ms,
+            &mut state.delay2_text,
+            8,
+        );
+        render_delay(
+            ui,
+            "R##FloorBounceDelay3",
+            "Time (Milliseconds) spent helicoptering",
+            &mut state.delay3_ms,
+            &mut state.delay3_text,
+            100,
+        );
+        ui.spacing();
+    }
     ui.text_wrapped("IMPORTANT:");
     ui.text_wrapped("This module only works at default Roblox gravity. Only works in R6 for now. FPS must be set to 160 or more to function properly. Higher is better.");
     crate::parity::separator(ui);
