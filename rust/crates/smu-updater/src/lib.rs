@@ -5,10 +5,12 @@
 //! operation is attempted and keeps HTTP transport replaceable.
 
 mod check;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 mod linux;
 #[cfg(target_os = "linux")]
 mod linux_install;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 mod windows_bundle;
@@ -20,11 +22,16 @@ pub use check::{
     LATEST_RELEASE_API_URL, UpdateCheckError, UpdateChecker, UpdateTransport, UpdateTransportError,
     UpdaterStatus,
 };
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub use linux::CurlUpdateTransport;
 #[cfg(target_os = "linux")]
 pub use linux_install::{
     LinuxUpdateError, LinuxUpdateLaunch, apply_linux_update, linux_auto_apply_supported,
+};
+#[cfg(target_os = "macos")]
+pub use macos::{
+    MacosUpdateError, macos_auto_apply_supported, macos_auto_apply_unavailable_reason,
+    macos_update_bundle_if_replaceable,
 };
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};

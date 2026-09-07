@@ -4,11 +4,13 @@
 //! owns background check/apply workers plus the C++-compatible confirmation/restart UI state.
 
 use crate::settings_menu::UpdaterPanelStatus;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use smu_updater::CurlUpdateTransport;
 #[cfg(target_os = "windows")]
 use smu_updater::WinInetUpdateTransport;
-#[cfg(target_os = "linux")]
-use smu_updater::{CurlUpdateTransport, apply_linux_update, linux_auto_apply_supported};
 use smu_updater::{LATEST_RELEASE_PAGE_URL, UpdateChecker, UpdaterStatus, current_platform};
+#[cfg(target_os = "linux")]
+use smu_updater::{apply_linux_update, linux_auto_apply_supported};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 
@@ -54,6 +56,14 @@ fn check_for_updates(local_version: &str) -> UpdaterStatus {
 #[cfg(target_os = "windows")]
 fn check_for_updates(local_version: &str) -> UpdaterStatus {
     let mut checker = UpdateChecker::new(WinInetUpdateTransport, current_platform(), false);
+    checker.check_for_update(local_version)
+}
+
+#[cfg(target_os = "macos")]
+fn check_for_updates(local_version: &str) -> UpdaterStatus {
+    // Replacement remains deliberately disabled until the Rust .app transaction is ported; this
+    // still gives macOS the native signed-manifest update check and manual-install prompt.
+    let mut checker = UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false);
     checker.check_for_update(local_version)
 }
 
@@ -183,7 +193,7 @@ impl UpdateService {
         *lock(&self.worker) = Some(worker);
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn confirm_apply(&self) {
         let mut state = lock(&self.state);
         state.update_confirm_open = false;

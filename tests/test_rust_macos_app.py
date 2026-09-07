@@ -132,7 +132,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             shell,
         )
 
-    def test_macos_app_keeps_network_updater_and_windows_only_runtime_unavailable(self) -> None:
+    def test_macos_app_keeps_network_backend_and_windows_only_runtime_unavailable(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(
                 encoding="utf-8"
@@ -142,7 +142,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         dependencies = macos.get("dependencies", {})
         self.assertIn("smu-network", dependencies)
         self.assertIn("smu-runtime", dependencies)
-        self.assertNotIn("smu-updater", dependencies)
+        self.assertIn("smu-updater", dependencies)
         self.assertNotIn("smu-roblox", dependencies)
 
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
@@ -158,11 +158,11 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         )
         self.assertIn("tests.test_rust_macos_app", workflow)
         self.assertIn(
-            "cargo test -p smu-process -p smu-input -p smu-display -p smu-app",
+            "cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app",
             workflow,
         )
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-app --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app --all-targets -- -D warnings",
             workflow,
         )
 

@@ -1499,6 +1499,7 @@ dependencies = [
 name = "smu-updater"
 version = "0.0.0"
 dependencies = [
+ "libc",
  "serde_json",
  "sha2",
  "windows-sys",

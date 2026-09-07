@@ -41,8 +41,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Studio, results are sorted/deduplicated and cached for 250 ms, `findMain` prefers a matching frontmost app,
   suspend/resume use `SIGSTOP`/`SIGCONT` while refusing the current process, and foreground checks compare the
   frontmost PID. AppKit objects stay inside autorelease pools and only plain Rust PID/cache data is retained.
-  A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input/display crates;
-  those adapters are not wired into `smu-app` yet while final macOS app composition is still missing. The
+  A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input/display/updater
+  crates plus `smu-app`; those native adapters are now composed into the Rust application. The
   Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
   matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
   queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
@@ -85,8 +85,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Option/Shift+Option with `UCKeyTranslate` and dead-key generation disabled, posts Option before Shift and
   unwinds modifiers in reverse order, and falls back to tagged Unicode CoreGraphics key events when no active-
   layout physical key combination resolves the requested byte. The Carbon ABI shim is deliberately minimal and
-  macOS-only; `CFData` lifetime is bounded by the retained TIS input source. These adapters remain unwired from
-  `smu-app` until final macOS service composition. Linux character
+  macOS-only; `CFData` lifetime is bounded by the retained TIS input source. These adapters are now composed into
+  `smu-app` behind the macOS privacy-permission gate. Linux character
   injection queries the current X11 keyboard/modifier maps and mirrors the C++
   six-state `XLookupString` search (`none`, Shift, Mod1, Mod5, Shift+Mod1, Shift+Mod5), including the
   first-key-per-modifier and X11-keycode-minus-8 evdev rules; synthetic-map tests freeze plain Shift
@@ -125,7 +125,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   and renders it through a 1x1 device-RGB premultiplied-last/32-bit-big-endian bitmap context. Retained
   CoreGraphics objects own image/color/context lifetimes, and the deprecated synchronous display capture call is
   intentionally localized for the same macOS 10.15 compatibility as C++; ScreenCaptureKit remains a later
-  deployment-target migration. The backend remains unwired until final macOS app composition. Linux has native X11/XWayland
+  deployment-target migration. The backend is now composed into the macOS app. Linux has native X11/XWayland
   cursor/Xinerama/root-window pixel support plus a native Wayland portal service using ScreenCast,
   RemoteDesktop, and PipeWire. The Wayland service keeps portal/PipeWire objects on an owned worker,
   converts BGRx/BGRA/RGBx/RGBA frames into immutable RGB snapshots, maps captured pixels back to the
@@ -142,10 +142,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `robloxLog.onLine` callbacks and `listenUntilCancelled`; callback limits, reentrancy guards,
   cancellation, and a representative ECMAScript regex corpus are checked against the C++ path.
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
-  cross-platform update-asset scoring. Linux now has the production `curl` transport matching the C++
-  HTTPS-only redirect policy, 60-second timeout, 512 MiB limit, and GitHub updater headers. HTTP remains
-  injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted metadata
-  is validated before install-side effects are possible.
+  cross-platform update-asset scoring. Linux has the production `curl` transport matching the C++ HTTPS-only
+  redirect policy, 60-second timeout, 512 MiB limit, and GitHub updater headers. macOS now reuses that hardened
+  transport with the legacy 15-second metadata / 120-second file timeout profile and can perform the same
+  manifest-driven update check from `smu-app`. A read-only macOS install-eligibility slice also resolves the
+  enclosing `.app`, rejects mounted-DMG/symlink launches, requires `codesign --verify --deep --strict` plus a
+  non-empty extracted leaf certificate, enforces the sticky-directory ownership rule, and proves sibling
+  staging writability with a create/remove probe. Rust macOS auto-apply is still deliberately advertised as
+  false until the signed `.app` replacement/rollback transaction itself is ported. HTTP remains injected behind
+  `UpdateTransport`, and platform replacement remains separate, so untrusted metadata is validated before
+  install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
   `ScriptManager` remains the sole owner of Lua instances, cancellation, and named per-record workers;
   the app controller owns only global macro enable, target-foreground eligibility, and C++-compatible
@@ -480,7 +486,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
-  packet interception/Lag Switch and updating remain intentionally unwired pending native support/cutover decisions.
+  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired, but
+  automatic `.app` replacement remains intentionally disabled until the Rust signed-bundle transaction is ported.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

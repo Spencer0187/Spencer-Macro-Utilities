@@ -91,10 +91,10 @@ class RustMacosDisplayTests(unittest.TestCase):
         self.assertIn("macos-native-adapters:", workflow)
         self.assertIn("runs-on: macos-latest", workflow)
         self.assertIn(
-            "cargo test -p smu-process -p smu-input -p smu-display -p smu-app", workflow
+            "cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app", workflow
         )
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-app --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app --all-targets -- -D warnings",
             workflow,
         )
 
