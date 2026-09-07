@@ -13,6 +13,8 @@ mod linux_install;
 mod macos;
 #[cfg(any(target_os = "macos", test))]
 mod macos_bundle;
+#[cfg(target_os = "macos")]
+mod macos_launch;
 #[cfg(any(target_os = "macos", test))]
 mod macos_replace;
 #[cfg(target_os = "windows")]
@@ -40,6 +42,8 @@ pub use macos::{
     prepare_macos_replacement_for_bundle, require_matching_macos_release_signer,
     stage_verified_macos_update_asset, stage_verified_macos_update_asset_for_bundle,
 };
+#[cfg(target_os = "macos")]
+pub use macos_launch::{MacosUpdateLaunch, MacosUpdateLaunchError, launch_macos_update_helper};
 #[cfg(target_os = "macos")]
 pub use macos_replace::{
     MacosReplaceError, MacosReplacementTransaction, PreparedMacosReplacement,

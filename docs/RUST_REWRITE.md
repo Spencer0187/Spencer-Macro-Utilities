@@ -186,9 +186,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   PID with `kqueue(EVFILT_PROC/NOTE_EXIT)` and confirms `proc_pidpath` matches the installed SMU executable, then
   re-fetches the exact requested GitHub tag, checks helper-version compatibility, re-downloads the selected macOS
   asset through the hardened curl transport, and re-runs manifest ZIP/signer/version staging against the explicit
-  installed bundle. Only after all of those network/trust/staging checks succeed does it atomically create a
-  0600 `ready` marker beside the detached helper; a future parent launcher must wait for that marker before
-  exiting, so the old app cannot disappear before process pinning and staging are complete. Once the registered
+  installed bundle. Only after all of those network/trust/staging checks succeed does it write its PID to the
+  inherited readiness-pipe capability supplied by the parent; the parent waits for that exact four-byte PID signal
+  before allowing restart, so same-UID processes cannot spoof readiness with a filesystem entry and the old app
+  cannot disappear before process pinning and staging are complete. Once the registered
   old process exits, the helper activates the descriptor-pinned transaction, clears quarantine, creates the
   legacy permission-repair marker, launches the updated `.app` with `/usr/bin/open -n`, and uses the phaseful
   rollback/recovery transaction if LaunchServices rejects the new app or if commit-time identity checks fail;
@@ -197,9 +198,26 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   with `lipo`, stages the Rust-specific runtime asset layout into a real `.app`, signs it with an ephemeral
   certificate-backed test identity, verifies app/helper leaf-signer equality plus Mach-O/rpath/plist/runtime
   layout, and packages the exact `macos-universal` updater ZIP/manifest contract. That artifact is validation-only:
-  the legacy signed production `build.yml` remains untouched, and the helper is still not copied or launched by
-  `smu-app`. Rust macOS auto-apply therefore remains deliberately advertised as false until production Rust `.app`
-  signing/publishing and the parent-side detached-helper launcher/ready handshake are wired.
+  the legacy signed production `build.yml` remains untouched. `smu-updater` now also contains the dormant
+  parent-side handoff primitive: it requires a canonical target, revalidates the installed `.app`, opens/pins the
+  embedded helper, proves its leaf signer, copies the exact helper bytes into a fresh current-user 0700/no-ACL
+  temp child, rehashes and revalidates the detached helper signer/identity, creates a private inherited readiness
+  pipe, and launches the exact `--apply-update <version> <bundle> <old-pid> <ready-fd>` contract. The pipe read end
+  is close-on-exec, only the helper inherits the write end, and the parent accepts exactly the spawned helper PID
+  encoded as four native-endian bytes after all network/trust/staging work completes; it then requires the helper
+  to remain alive through a short handoff-survival window before reporting success. Helper creation/failure cleanup
+  is `openat`/`unlinkat` relative to a pinned launch-directory descriptor, and the launch-directory pathname is
+  rechecked against its pinned `(st_dev, st_ino)` before signer validation and process spawn. The child independently
+  requires the exact `SMU-Update-Helper` executable name and `smu-update-launch-<old-pid>-...` directory directly
+  under canonical macOS temp, pins that same directory object through signer validation, verifies the inherited FD
+  is a live write-only FIFO, and only then uses it as the handoff capability. Failed/timeout handshakes terminate
+  the child before returning; the child removes its detached executable through the pinned directory FD on exit.
+  The now-empty private root is intentionally retained because macOS has no safe unlink-by-directory-handle primitive.
+  The remaining same-UID race is the final pathname resolution performed by macOS process spawn between the last
+  detached-file identity check and `exec`; no descriptor-exec primitive is available in the targeted libc surface,
+  so this residual is documented rather than overstated as eliminated. This launcher remains deliberately
+  unused by `smu-app`, so Rust macOS auto-apply stays false until production Rust `.app` signing/publishing and the
+  app-side restart request are enabled and reviewed.
   HTTP remains injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted
   metadata is validated before install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
@@ -541,7 +559,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper are dormant in the Rust
   workspace. Rewrite CI now produces a certificate-backed signed universal Rust `.app`/ZIP validation artifact,
   but automatic `.app` replacement remains intentionally disabled until that packaging is promoted into the
-  production release path and the parent-side detached-helper launcher/readiness handshake are wired and reviewed.
+  production release path and the already-dormant parent-side launcher is wired into an app restart request and reviewed.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

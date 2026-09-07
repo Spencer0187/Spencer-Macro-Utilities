@@ -145,7 +145,7 @@ fn certificate_backed_release_signature(bundle: &Path) -> Result<(), MacosUpdate
     release_leaf_certificate(bundle).map(|_| ())
 }
 
-fn parent_has_extended_acl(parent: &Path) -> Result<bool, MacosUpdateError> {
+pub(crate) fn path_has_extended_acl(parent: &Path) -> Result<bool, MacosUpdateError> {
     let output = Command::new("/bin/ls")
         .env("LC_ALL", "C")
         .args(["-l", "-d", "-e"])
@@ -190,7 +190,7 @@ fn replacement_parent_is_safe(bundle: &Path) -> Result<(), MacosUpdateError> {
             "Automatic updates are unavailable from a group- or world-writable containing folder.",
         ));
     }
-    if parent_has_extended_acl(parent)? {
+    if path_has_extended_acl(parent)? {
         return Err(MacosUpdateError::new(
             "Automatic updates are unavailable from a containing folder with an extended ACL.",
         ));

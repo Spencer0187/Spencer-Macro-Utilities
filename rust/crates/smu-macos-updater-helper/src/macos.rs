@@ -6,12 +6,14 @@ use smu_updater::{
     stage_verified_macos_update_asset_for_bundle,
 };
 use std::cmp::Ordering;
-use std::ffi::{OsStr, OsString};
-use std::fs;
+use std::ffi::{CString, OsStr, OsString};
+use std::fs::{self, File, OpenOptions};
 use std::io::Write as _;
 use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
 use std::os::unix::ffi::OsStringExt as _;
-use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, OpenOptionsExt as _};
+use std::os::unix::fs::{
+    DirBuilderExt as _, FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _,
+};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
@@ -20,6 +22,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const APPLY_UPDATE_FLAG: &str = "--apply-update";
 const APP_VERSION_TEXT: &str = include_str!("../../../../version");
 const PRODUCT_EXECUTABLE: &str = "Spencer-Macro-Utilities";
+const HELPER_NAME: &str = "SMU-Update-Helper";
 const OLD_PROCESS_WAIT_POLLS: usize = 150;
 const OLD_PROCESS_POLL_NANOS: libc::c_long = 100_000_000;
 const TEMP_ATTEMPTS: usize = 128;
@@ -30,7 +33,7 @@ struct ApplyUpdateArgs {
     target_version: String,
     installed_bundle: PathBuf,
     old_pid: libc::pid_t,
-    ready_path: PathBuf,
+    ready_fd: libc::c_int,
 }
 
 fn helper_version() -> &'static str {
@@ -62,8 +65,15 @@ where
     if old_pid <= 0 || old_pid == own_pid {
         return Err("Rust macOS update helper received an invalid process id.".to_owned());
     }
-    let ready_path = PathBuf::from(&args[5]);
-    Ok(ApplyUpdateArgs { target_version, installed_bundle, old_pid, ready_path })
+    let ready_fd = args[5]
+        .to_str()
+        .ok_or_else(|| "Rust macOS update helper received a non-UTF-8 readiness fd.".to_owned())?
+        .parse::<libc::c_int>()
+        .map_err(|_| "Rust macOS update helper received an invalid readiness fd.".to_owned())?;
+    if ready_fd < 3 {
+        return Err("Rust macOS update helper received an invalid readiness fd.".to_owned());
+    }
+    Ok(ApplyUpdateArgs { target_version, installed_bundle, old_pid, ready_fd })
 }
 
 fn canonical_regular_file(path: &Path, label: &str) -> Result<PathBuf, String> {
@@ -100,74 +110,143 @@ fn path_has_extended_acl(path: &Path) -> Result<bool, String> {
     }))
 }
 
-fn detached_current_helper(installed_bundle: &Path) -> Result<PathBuf, String> {
+#[derive(Debug)]
+struct DetachedCurrentHelper {
+    path: PathBuf,
+    directory: File,
+}
+
+fn detached_current_helper(
+    installed_bundle: &Path,
+    old_pid: libc::pid_t,
+) -> Result<DetachedCurrentHelper, String> {
     let helper = canonical_regular_file(
         &std::env::current_exe()
             .map_err(|error| format!("Could not resolve macOS update helper: {error}"))?,
         "macOS update helper",
     )?;
+    if helper.file_name() != Some(OsStr::new(HELPER_NAME)) {
+        return Err("Rust macOS update helper refused an unexpected executable name.".to_owned());
+    }
     if helper.starts_with(installed_bundle) {
-        return Err(
-            "Rust macOS update helper must run from a detached path outside the installed app bundle."
-                .to_owned(),
-        );
+        return Err("Rust macOS update helper must run from a detached path outside the installed app bundle.".to_owned());
     }
     let helper_parent = helper.parent().ok_or_else(|| {
         "Rust macOS update helper could not resolve its detached directory.".to_owned()
     })?;
+    let temp_root = fs::canonicalize(std::env::temp_dir())
+        .map_err(|error| format!("Could not resolve the macOS temporary directory: {error}"))?;
+    if helper_parent.parent() != Some(temp_root.as_path()) {
+        return Err("Rust macOS update helper refused a detached directory outside the macOS temporary root.".to_owned());
+    }
+    let expected_prefix = format!("smu-update-launch-{old_pid}-");
+    let directory_name =
+        helper_parent.file_name().and_then(|value| value.to_str()).ok_or_else(|| {
+            "Rust macOS update helper received an invalid detached directory name.".to_owned()
+        })?;
+    if !directory_name.starts_with(&expected_prefix) {
+        return Err(
+            "Rust macOS update helper refused an unexpected detached launch directory.".to_owned()
+        );
+    }
     let parent_metadata = fs::symlink_metadata(helper_parent)
         .map_err(|error| format!("Could not inspect detached macOS helper directory: {error}"))?;
     if parent_metadata.file_type().is_symlink() || !parent_metadata.is_dir() {
         return Err("Rust macOS update helper refused a non-directory detached parent.".to_owned());
     }
-    if parent_metadata.uid() != unsafe { libc::geteuid() } || parent_metadata.mode() & 0o077 != 0 {
-        return Err(
-            "Rust macOS update helper requires a private detached directory owned by the current user."
-                .to_owned(),
-        );
+    if parent_metadata.uid() != unsafe { libc::geteuid() }
+        || parent_metadata.mode() & 0o777 != 0o700
+    {
+        return Err("Rust macOS update helper requires a private detached directory owned by the current user.".to_owned());
     }
     if path_has_extended_acl(helper_parent)? {
         return Err("Rust macOS update helper refuses a detached directory with an extended ACL."
             .to_owned());
     }
+    let directory = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(helper_parent)
+        .map_err(|error| format!("Could not pin detached macOS helper directory: {error}"))?;
+    let pinned_metadata = directory.metadata().map_err(|error| {
+        format!("Could not inspect pinned detached macOS helper directory: {error}")
+    })?;
+    if !pinned_metadata.is_dir()
+        || pinned_metadata.dev() != parent_metadata.dev()
+        || pinned_metadata.ino() != parent_metadata.ino()
+    {
+        return Err(
+            "Rust macOS update helper refused a detached directory that changed identity while opening."
+                .to_owned(),
+        );
+    }
     require_matching_macos_release_signer(installed_bundle, &helper)
         .map_err(|error| error.to_string())?;
-    Ok(helper)
+    let current_parent = fs::symlink_metadata(helper_parent).map_err(|error| {
+        format!("Could not re-inspect detached macOS helper directory: {error}")
+    })?;
+    if current_parent.dev() != pinned_metadata.dev()
+        || current_parent.ino() != pinned_metadata.ino()
+    {
+        return Err(
+            "Rust macOS update helper refused a detached directory that changed identity during signer validation."
+                .to_owned(),
+        );
+    }
+    Ok(DetachedCurrentHelper { path: helper, directory })
 }
 
 #[derive(Debug)]
-struct ReadyMarker(PathBuf);
+struct DetachedCleanup {
+    directory: File,
+}
 
-impl ReadyMarker {
-    fn create(helper: &Path, ready_path: &Path) -> Result<Self, String> {
-        let helper_parent = helper.parent().ok_or_else(|| {
-            "Rust macOS update helper could not resolve its detached directory.".to_owned()
-        })?;
-        if ready_path.parent() != Some(helper_parent)
-            || ready_path.file_name() != Some(OsStr::new("ready"))
-        {
-            return Err(
-                "Rust macOS update helper refused a readiness marker outside its detached directory."
-                    .to_owned(),
-            );
-        }
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(ready_path)
-            .map_err(|error| format!("Could not create macOS updater readiness marker: {error}"))?;
-        file.write_all(std::process::id().to_string().as_bytes())
-            .map_err(|error| format!("Could not write macOS updater readiness marker: {error}"))?;
-        file.sync_all()
-            .map_err(|error| format!("Could not sync macOS updater readiness marker: {error}"))?;
-        Ok(Self(ready_path.to_path_buf()))
+impl Drop for DetachedCleanup {
+    fn drop(&mut self) {
+        let Ok(name) = CString::new(HELPER_NAME) else {
+            return;
+        };
+        // SAFETY: directory remains live and name is the fixed NUL-terminated helper child name.
+        let _ = unsafe { libc::unlinkat(self.directory.as_raw_fd(), name.as_ptr(), 0) };
     }
 }
 
-impl Drop for ReadyMarker {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+#[derive(Debug)]
+struct ReadySignal {
+    file: File,
+}
+
+impl ReadySignal {
+    fn from_inherited_fd(fd: libc::c_int) -> Result<Self, String> {
+        // SAFETY: F_GETFD validates that the inherited descriptor is live without taking ownership.
+        if unsafe { libc::fcntl(fd, libc::F_GETFD) } < 0 {
+            return Err(
+                "Rust macOS update helper received a closed readiness descriptor.".to_owned()
+            );
+        }
+        // SAFETY: the descriptor was just proven live and is owned by this child after exec.
+        let file = unsafe { File::from_raw_fd(fd) };
+        let metadata = file
+            .metadata()
+            .map_err(|error| format!("Could not inspect macOS updater readiness pipe: {error}"))?;
+        if !metadata.file_type().is_fifo() {
+            return Err(
+                "Rust macOS update helper refused a non-pipe readiness descriptor.".to_owned()
+            );
+        }
+        // SAFETY: F_GETFL inspects flags for the live inherited descriptor.
+        let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+        if flags < 0 || flags & libc::O_ACCMODE != libc::O_WRONLY {
+            return Err("Rust macOS update helper refused a non-write-only readiness descriptor."
+                .to_owned());
+        }
+        Ok(Self { file })
+    }
+
+    fn send(mut self) -> Result<(), String> {
+        self.file
+            .write_all(&std::process::id().to_ne_bytes())
+            .map_err(|error| format!("Could not signal macOS updater readiness: {error}"))
     }
 }
 
@@ -535,9 +614,12 @@ fn rollback_after_launch_failure(
 
 pub fn run() -> Result<(), String> {
     let args = parse_apply_update_args(std::env::args_os())?;
+    let ready_signal = ReadySignal::from_inherited_fd(args.ready_fd)?;
     let installed_bundle = macos_update_bundle_if_replaceable_at(&args.installed_bundle)
         .map_err(|error| error.to_string())?;
-    let helper = detached_current_helper(&installed_bundle)?;
+    let helper = detached_current_helper(&installed_bundle, args.old_pid)?;
+    let DetachedCurrentHelper { path: _, directory } = helper;
+    let _cleanup = DetachedCleanup { directory };
     let installed_executable = installed_executable(&installed_bundle)?;
     let old_process = PinnedOldProcess::register(args.old_pid, &installed_executable)?;
 
@@ -554,9 +636,9 @@ pub fn run() -> Result<(), String> {
     let prepared = prepare_macos_replacement_for_bundle(&staged, &installed_bundle)
         .map_err(|error| error.to_string())?;
 
-    // The parent must not exit until every network/trust/staging check has completed. The readiness marker is
-    // therefore the final handoff signal immediately before waiting on the already-registered process object.
-    let _ready = ReadyMarker::create(&helper, &args.ready_path)?;
+    // The parent must not exit until every network/trust/staging check has completed. The inherited pipe is
+    // therefore the final capability-bound handoff signal immediately before waiting on the registered process.
+    ready_signal.send()?;
     if let Err(error) = old_process.wait_for_exit() {
         if old_process_is_gone_or_reused(args.old_pid, &installed_executable) {
             let _ = launch_bundle(&installed_bundle);
@@ -587,7 +669,7 @@ mod tests {
             OsString::from("3.4.0"),
             OsString::from("/Applications/Spencer Macro Utilities.app"),
             OsString::from("4242"),
-            OsString::from("/tmp/smu-helper/ready"),
+            OsString::from("7"),
         ]);
         assert!(parsed.is_ok());
         assert!(
@@ -597,7 +679,7 @@ mod tests {
                 OsString::from("v3.4.0"),
                 OsString::from("/Applications/SMU.app"),
                 OsString::from("4242"),
-                OsString::from("/tmp/smu-helper/ready"),
+                OsString::from("7"),
             ])
             .is_err()
         );
@@ -608,7 +690,7 @@ mod tests {
                 OsString::from("3.4.0"),
                 OsString::from("/Applications/SMU.app"),
                 OsString::from("0"),
-                OsString::from("/tmp/smu-helper/ready"),
+                OsString::from("7"),
             ])
             .is_err()
         );

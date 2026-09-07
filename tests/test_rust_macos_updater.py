@@ -65,7 +65,7 @@ class RustMacosUpdaterTests(unittest.TestCase):
             "libc::geteuid()",
             "effective_user != parent_metadata.uid()",
             "parent_metadata.mode() & 0o022 != 0",
-            "parent_has_extended_acl(parent)?",
+            "path_has_extended_acl(parent)?",
             'Command::new("/bin/ls")',
             '.env("LC_ALL", "C")',
             'args(["-l", "-d", "-e"])',
@@ -247,9 +247,14 @@ class RustMacosUpdaterTests(unittest.TestCase):
             "include_str!(\"../../../../version\")",
             "is_canonical_manifest_version",
             "detached_current_helper",
+            "struct DetachedCurrentHelper",
+            "directory: File",
+            "pinned_metadata.dev() != parent_metadata.dev()",
+            "pinned_metadata.ino() != parent_metadata.ino()",
+            "current_parent.dev() != pinned_metadata.dev()",
             "helper.starts_with(installed_bundle)",
             "parent_metadata.uid() != unsafe { libc::geteuid() }",
-            "parent_metadata.mode() & 0o077 != 0",
+            "parent_metadata.mode() & 0o777 != 0o700",
             "path_has_extended_acl(helper_parent)?",
             "detached directory with an extended ACL",
             "require_matching_macos_release_signer(installed_bundle, &helper)",
@@ -263,12 +268,16 @@ class RustMacosUpdaterTests(unittest.TestCase):
             ".position(|byte| *byte == 0)",
             "macOS process executable path was empty",
             "actual_executable != expected_executable",
-            "struct ReadyMarker",
-            "create_new(true)",
-            ".mode(0o600)",
-            "ready_path.parent() != Some(helper_parent)",
-            'ready_path.file_name() != Some(OsStr::new("ready"))',
-            "let _ready = ReadyMarker::create(&helper, &args.ready_path)?",
+            "struct ReadySignal",
+            "ReadySignal::from_inherited_fd(args.ready_fd)",
+            "libc::F_GETFD",
+            "metadata.file_type().is_fifo()",
+            "libc::F_GETFL",
+            "libc::O_ACCMODE != libc::O_WRONLY",
+            "write_all(&std::process::id().to_ne_bytes())",
+            "struct DetachedCleanup",
+            "libc::unlinkat",
+            "ready_signal.send()?",
             "UpdateChecker::new(CurlUpdateTransport::macos(), UpdatePlatform::MacOs, false)",
             "fetch_release_version(target_version)",
             "is_updater_version_allowed(&release, helper_version())",
@@ -302,16 +311,115 @@ class RustMacosUpdaterTests(unittest.TestCase):
         run_block = helper.split("pub fn run()", 1)[1]
         self.assertLess(
             run_block.index("prepare_macos_replacement_for_bundle"),
-            run_block.index("ReadyMarker::create"),
+            run_block.index("ready_signal.send"),
         )
         self.assertLess(
-            run_block.index("ReadyMarker::create"),
+            run_block.index("ready_signal.send"),
             run_block.index("old_process.wait_for_exit"),
         )
 
         self.assertNotIn("smu_macos_updater_helper", app_sources)
         self.assertNotIn("smu-macos-updater-helper", app_sources)
         self.assertNotIn("launch_macos_update_helper", app_sources)
+
+    def test_dormant_parent_launcher_copies_signed_helper_and_waits_for_ready(self) -> None:
+        launcher = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "macos_launch.rs"
+        ).read_text(encoding="utf-8")
+        helper = (
+            ROOT
+            / "rust"
+            / "crates"
+            / "smu-macos-updater-helper"
+            / "src"
+            / "macos.rs"
+        ).read_text(encoding="utf-8")
+        exports = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "lib.rs"
+        ).read_text(encoding="utf-8")
+        app_sources = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "rust" / "crates" / "smu-app" / "src").glob("*.rs")
+        )
+
+        for expected in (
+            'const HELPER_NAME: &str = "SMU-Update-Helper"',
+            "MAXIMUM_HELPER_BYTES",
+            "READY_TIMEOUT",
+            "is_canonical_manifest_version(target_version)",
+            "macos_update_bundle_if_replaceable()",
+            'installed_bundle.join("Contents/MacOS").join(HELPER_NAME)',
+            "libc::pid_t::try_from(std::process::id())",
+            'format!("smu-update-launch-{old_pid}-{epoch}-{counter}")',
+            ".mode(0o700)",
+            "libc::fchmod(file.as_raw_fd(), 0o700)",
+            'Command::new("/bin/chmod")',
+            '.arg("-N")',
+            "path_has_extended_acl(path)",
+            "libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC",
+            "metadata.mode() & 0o777 != 0o700",
+            "require_matching_macos_release_signer(installed_bundle, installed_helper)",
+            "path_identity(installed_helper)? != installed_identity",
+            "Sha256::digest(&installed_bytes)",
+            "libc::openat(",
+            "libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC",
+            "0o500",
+            "libc::fchmod(file.as_raw_fd(), 0o500)",
+            "libc::unlinkat",
+            "require_directory_path_identity",
+            "detached_digest != installed_digest",
+            "require_matching_macos_release_signer(installed_bundle, &detached)",
+            "path_identity(&detached)? != detached_identity",
+            "drop(detached_file)",
+            "changed identity while reopening read-only",
+            "changed bytes after signer validation",
+            "create_readiness_pipe",
+            "libc::pipe(fds.as_mut_ptr())",
+            "libc::FD_CLOEXEC",
+            "set_close_on_exec(write.as_raw_fd(), false)",
+            "libc::pollfd",
+            "libc::poll(&raw mut descriptor, 1, READY_POLL_MS)",
+            "read.read_exact(&mut bytes)",
+            "u32::from_ne_bytes(bytes)",
+            "helper_pid != child.id()",
+            "HANDOFF_SURVIVAL",
+            "did not survive the handoff window",
+            "Command::new(&detached_helper)",
+            '.arg("--apply-update")',
+            ".arg(target_version)",
+            ".arg(&installed_bundle)",
+            ".arg(old_pid.to_string())",
+            ".arg(readiness_fd.to_string())",
+            "drop(readiness_write)",
+            "wait_for_ready(&mut child, &mut readiness_read)",
+            "stop_child(&mut child)",
+            "launch_directory.retain()",
+            "pub fn launch_macos_update_helper",
+        ):
+            self.assertIn(expected, launcher)
+
+        for expected in (
+            'const HELPER_NAME: &str = "SMU-Update-Helper"',
+            "detached_current_helper(&installed_bundle, args.old_pid)",
+            "helper.file_name() != Some(OsStr::new(HELPER_NAME))",
+            "fs::canonicalize(std::env::temp_dir())",
+            "helper_parent.parent() != Some(temp_root.as_path())",
+            'format!("smu-update-launch-{old_pid}-")',
+            "directory_name.starts_with(&expected_prefix)",
+            "ready_fd: libc::c_int",
+            "struct ReadySignal",
+            "libc::F_GETFD",
+            "metadata.file_type().is_fifo()",
+            "write_all(&std::process::id().to_ne_bytes())",
+        ):
+            self.assertIn(expected, helper)
+
+        self.assertNotIn("READY_NAME", launcher)
+        self.assertNotIn("ReadyMarker", helper)
+        self.assertIn("mod macos_launch;", exports)
+        self.assertIn("launch_macos_update_helper", exports)
+        self.assertNotIn("launch_macos_update_helper", app_sources)
+        self.assertNotIn("MacosUpdateLaunch", app_sources)
 
     def test_explicit_bundle_updater_apis_support_detached_helper_without_enabling_app_apply(self) -> None:
         source = (
