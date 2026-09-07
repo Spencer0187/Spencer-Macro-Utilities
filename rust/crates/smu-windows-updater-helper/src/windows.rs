@@ -1,25 +1,30 @@
 use smu_updater::{
     UpdateChecker, UpdatePlatform, WinInetUpdateTransport, WindowsFileVersion,
-    extract_windows_bundle, is_canonical_manifest_version, is_updater_version_allowed,
-    prepare_windows_bundle_tree, read_verified_update_asset, replace_windows_bundle_tree,
-    require_matching_authenticode_signer, select_update_asset, windows_bundle_file_sha256,
-    windows_file_version,
+    WindowsReplacementTransaction, extract_windows_bundle, is_canonical_manifest_version,
+    is_updater_version_allowed, prepare_windows_bundle_tree, read_verified_update_asset,
+    replace_windows_bundle_tree, require_matching_authenticode_signer, select_update_asset,
+    windows_bundle_file_sha256, windows_file_version,
 };
 use std::ffi::{OsStr, OsString};
 use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+use std::os::windows::fs::MetadataExt as _;
 use std::os::windows::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use windows_sys::Win32::{
-    Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0, WAIT_TIMEOUT},
+    Foundation::{
+        CloseHandle, DUPLICATE_SAME_ACCESS, DuplicateHandle, ERROR_INVALID_PARAMETER, HANDLE,
+        WAIT_OBJECT_0, WAIT_TIMEOUT,
+    },
     Storage::FileSystem::{FILE_ATTRIBUTE_REPARSE_POINT, MOVEFILE_DELAY_UNTIL_REBOOT, MoveFileExW},
     System::{
         SystemInformation::GetSystemDirectoryW,
         Threading::{
-            CREATE_NO_WINDOW, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
-            QueryFullProcessImageNameW, WaitForSingleObject,
+            CREATE_NO_WINDOW, GetCurrentProcess, OpenProcess, PROCESS_DUP_HANDLE,
+            PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, QueryFullProcessImageNameW,
+            ResetEvent, SetEvent, WaitForSingleObject,
         },
     },
     UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW},
@@ -36,6 +41,80 @@ static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug)]
 struct ProcessHandle(*mut core::ffi::c_void);
+
+#[derive(Debug)]
+struct ReadyEvent(HANDLE);
+
+impl ReadyEvent {
+    fn duplicate_from_parent(process: &ProcessHandle, value: usize) -> Result<Self, String> {
+        if value == 0 || value == usize::MAX {
+            return Err(
+                "Rust Windows update helper received an invalid readiness handle.".to_owned()
+            );
+        }
+        let source = value as HANDLE;
+        let mut duplicate: HANDLE = std::ptr::null_mut();
+        // SAFETY: process is the validated parent process handle with PROCESS_DUP_HANDLE; source is interpreted
+        // in that process, and GetCurrentProcess returns the documented pseudo-handle for this helper process.
+        if unsafe {
+            DuplicateHandle(
+                process.0,
+                source,
+                GetCurrentProcess(),
+                &raw mut duplicate,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
+        } == 0
+        {
+            return Err(format!(
+                "Rust Windows update helper could not duplicate its readiness event: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        if duplicate.is_null() {
+            return Err(
+                "Rust Windows update helper received an empty duplicated readiness handle."
+                    .to_owned(),
+            );
+        }
+        // ResetEvent validates that the duplicated kernel object is an event and ensures it is unsignaled before
+        // any network/staging work begins; the parent created this private event unsignaled.
+        // SAFETY: duplicate is a newly owned handle returned by DuplicateHandle.
+        if unsafe { ResetEvent(duplicate) } == 0 {
+            let error = std::io::Error::last_os_error();
+            // SAFETY: duplicate is newly owned by this helper on the success path above.
+            unsafe {
+                let _ = CloseHandle(duplicate);
+            }
+            return Err(format!(
+                "Rust Windows update helper refused a non-event readiness handle: {error}"
+            ));
+        }
+        Ok(Self(duplicate))
+    }
+
+    fn signal(&self) -> Result<(), String> {
+        // SAFETY: the duplicated handle was validated as an event by ResetEvent.
+        if unsafe { SetEvent(self.0) } == 0 {
+            return Err(format!(
+                "Rust Windows update helper could not signal readiness: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for ReadyEvent {
+    fn drop(&mut self) {
+        // SAFETY: this wrapper uniquely owns the duplicated readiness event handle.
+        unsafe {
+            let _ = CloseHandle(self.0);
+        }
+    }
+}
 
 impl Drop for ProcessHandle {
     fn drop(&mut self) {
@@ -145,6 +224,7 @@ struct ApplyUpdateArgs {
     package_path: PathBuf,
     install_root: PathBuf,
     old_pid: u32,
+    readiness_handle: usize,
 }
 
 fn helper_version() -> &'static str {
@@ -156,7 +236,7 @@ where
     I: IntoIterator<Item = OsString>,
 {
     let args = args.into_iter().collect::<Vec<_>>();
-    if args.get(1).and_then(|value| value.to_str()) != Some(APPLY_UPDATE_FLAG) || args.len() != 6 {
+    if args.get(1).and_then(|value| value.to_str()) != Some(APPLY_UPDATE_FLAG) || args.len() != 7 {
         return Err("Rust Windows update helper received invalid arguments.".to_owned());
     }
     let target_version = args[2]
@@ -178,7 +258,19 @@ where
     if old_pid == 0 || old_pid == std::process::id() {
         return Err("Rust Windows update helper received an invalid process id.".to_owned());
     }
-    Ok(ApplyUpdateArgs { target_version, package_path, install_root, old_pid })
+    let readiness_handle = args[6]
+        .to_str()
+        .ok_or_else(|| {
+            "Rust Windows update helper received a non-UTF-8 readiness handle.".to_owned()
+        })?
+        .parse::<usize>()
+        .map_err(|_| {
+            "Rust Windows update helper received an invalid readiness handle.".to_owned()
+        })?;
+    if readiness_handle == 0 || readiness_handle == usize::MAX {
+        return Err("Rust Windows update helper received an invalid readiness handle.".to_owned());
+    }
+    Ok(ApplyUpdateArgs { target_version, package_path, install_root, old_pid, readiness_handle })
 }
 
 fn canonical_directory(path: &Path, label: &str) -> Result<PathBuf, String> {
@@ -211,21 +303,20 @@ fn canonical_file(path: &Path, label: &str) -> Result<PathBuf, String> {
 
 fn target_file_version(version: &str) -> Result<WindowsFileVersion, String> {
     let parts =
-        version.split('.').map(|part| part.parse::<u16>()).collect::<Result<Vec<_>, _>>().map_err(
-            |_| "Target release version did not fit Windows FILEVERSION fields.".to_owned(),
-        )?;
+        version.split('.').map(str::parse::<u16>).collect::<Result<Vec<_>, _>>().map_err(|_| {
+            "Target release version did not fit Windows FILEVERSION fields.".to_owned()
+        })?;
     let [major, minor, patch] = parts.as_slice() else {
         return Err("Target release version was not MAJOR.MINOR.PATCH.".to_owned());
     };
     Ok(WindowsFileVersion { major: *major, minor: *minor, patch: *patch, revision: 0 })
 }
 
-fn fresh_staging_directory() -> Result<PathBuf, String> {
-    let base = std::env::temp_dir();
+fn fresh_staging_directory(base: &Path) -> Result<PathBuf, String> {
     let epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos();
     for _ in 0..TEMP_ATTEMPTS {
         let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = base.join(format!("smu-update-stage-{}-{epoch}-{counter}", std::process::id()));
+        let path = base.join(format!("stage-{}-{epoch}-{counter}", std::process::id()));
         if !path.exists() {
             return Ok(path);
         }
@@ -312,7 +403,7 @@ fn validate_versions_and_signers(
     let staged_app = canonical_file(&staged_root.join(PRODUCT_EXE), "the staged SMU executable")?;
     let staged_helper = canonical_file(&staged_root.join(HELPER_EXE), "the staged update helper")?;
 
-    require_matching_authenticode_signer(&installed_app, &current_helper)
+    require_matching_authenticode_signer(&installed_app, current_helper)
         .map_err(|error| error.to_string())?;
     require_matching_authenticode_signer(&installed_app, &staged_app)
         .map_err(|error| error.to_string())?;
@@ -342,11 +433,16 @@ fn open_expected_old_process(
     installed_app: &Path,
 ) -> Result<Option<ProcessHandle>, String> {
     // SAFETY: OpenProcess receives only value arguments and returns an owned kernel handle on success.
-    let process =
-        unsafe { OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    let process = unsafe {
+        OpenProcess(
+            PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_DUP_HANDLE,
+            0,
+            pid,
+        )
+    };
     if process.is_null() {
         let error = std::io::Error::last_os_error();
-        if error.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+        if error.raw_os_error() == Some(ERROR_INVALID_PARAMETER.cast_signed()) {
             return Ok(None);
         }
         return Err(format!(
@@ -358,7 +454,7 @@ fn open_expected_old_process(
     let mut image_length = u32::try_from(image_buffer.len()).unwrap_or(u32::MAX);
     // SAFETY: the process handle is live, the UTF-16 buffer is writable, and image_length describes it.
     if unsafe {
-        QueryFullProcessImageNameW(process.0, 0, image_buffer.as_mut_ptr(), &mut image_length)
+        QueryFullProcessImageNameW(process.0, 0, image_buffer.as_mut_ptr(), &raw mut image_length)
     } == 0
     {
         return Err(format!(
@@ -407,7 +503,33 @@ fn require_startup_survival(child: &mut Child) -> Result<(), String> {
     }
 }
 
-fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
+fn rollback_and_relaunch_previous(
+    transaction: WindowsReplacementTransaction,
+    install_root: &Path,
+    primary_error: String,
+) -> String {
+    if let Err(rollback) = transaction.rollback() {
+        return format!("{primary_error} Rollback also failed: {rollback}");
+    }
+    let mut restored = match launch_updated_app(install_root) {
+        Ok(child) => child,
+        Err(error) => {
+            return format!(
+                "{primary_error} The previous SMU version was restored, but could not be relaunched: {error}"
+            );
+        }
+    };
+    match require_startup_survival(&mut restored) {
+        Ok(()) => format!(
+            "{primary_error} The previous SMU version was restored and relaunched successfully."
+        ),
+        Err(error) => format!(
+            "{primary_error} The previous SMU version was restored, but its relaunch failed: {error}"
+        ),
+    }
+}
+
+fn apply(args: &ApplyUpdateArgs) -> Result<(), String> {
     let (current_helper, detached_directory) = detached_current_helper(args.old_pid)?;
     let mut cleanup = DetachedArtifactsCleanup {
         helper: current_helper.clone(),
@@ -424,20 +546,32 @@ fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
     let installed_app =
         canonical_file(&install_root.join(PRODUCT_EXE), "the installed SMU executable")?;
     let old_process = open_expected_old_process(args.old_pid, &installed_app)?;
-    let package_path = detached_package_path(&args, &current_helper)?;
+    let old_process_for_readiness = old_process.as_ref().ok_or_else(|| {
+        "Rust Windows update helper lost the parent process before duplicating readiness."
+            .to_owned()
+    })?;
+    let readiness =
+        ReadyEvent::duplicate_from_parent(old_process_for_readiness, args.readiness_handle)?;
+    let package_path = detached_package_path(args, &current_helper)?;
     cleanup.set_package(package_path.clone());
-    let package_result = fetch_and_authenticate_package(&args, &package_path);
+    let package_result = fetch_and_authenticate_package(args, &package_path);
     let _ = std::fs::remove_file(&package_path);
     let package = package_result?;
     let authenticated_hashes =
         windows_bundle_file_sha256(&package).map_err(|error| error.to_string())?;
-    let staging = fresh_staging_directory()?;
+    // Keep staging under the parent-owned detached launch directory. If the parent times out before
+    // readiness and terminates this helper, its DetachedLaunchDirectory drop can remove the entire
+    // launch tree even though forced termination skips this process's Rust destructors.
+    let staging = fresh_staging_directory(&cleanup.directory)?;
     let staged_root =
         extract_windows_bundle(&package, &staging).map_err(|error| error.to_string())?;
     let result = (|| {
         let mut prepared = prepare_windows_bundle_tree(&staged_root, &authenticated_hashes)
             .map_err(|error| error.to_string())?;
         validate_versions_and_signers(&args, prepared.root(), &install_root, &current_helper)?;
+        // Final parent handoff boundary: the old process object is already pinned and every authenticated
+        // package/staging/signer/version check is complete. Only now may the parent safely exit.
+        readiness.signal()?;
         wait_for_old_process(old_process.as_ref(), args.old_pid)?;
         let backup = install_root.join(format!(".smu-update-backup-{}", std::process::id()));
         let transaction = replace_windows_bundle_tree(&mut prepared, &install_root, &backup)
@@ -445,19 +579,14 @@ fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
         let mut child = match launch_updated_app(&install_root) {
             Ok(child) => child,
             Err(error) => {
-                let rollback = transaction.rollback().map_err(|rollback| rollback.to_string());
-                return rollback.map_or_else(
-                    |rollback| Err(format!("{error} Rollback also failed: {rollback}")),
-                    |()| Err(error),
-                );
+                return Err(rollback_and_relaunch_previous(transaction, &install_root, error));
             }
         };
         if let Err(error) = require_startup_survival(&mut child) {
-            let rollback = transaction.rollback().map_err(|rollback| rollback.to_string());
-            return rollback.map_or_else(
-                |rollback| Err(format!("{error} Rollback also failed: {rollback}")),
-                |()| Err(error),
-            );
+            // If try_wait itself failed, the new process may still be live; stop it before restoring files.
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(rollback_and_relaunch_previous(transaction, &install_root, error));
         }
         transaction.commit().map_err(|error| error.to_string())
     })();
@@ -467,7 +596,7 @@ fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
 
 pub fn run() -> Result<(), String> {
     let args = parse_apply_update_args(std::env::args_os())?;
-    apply(args)
+    apply(&args)
 }
 
 #[cfg(test)]
@@ -489,10 +618,12 @@ mod tests {
             "C:/Temp/update.zip",
             "C:/SMU",
             "42",
+            "12345",
         ]))
         .expect("valid helper arguments should parse");
         assert_eq!(parsed.target_version, "3.5.0");
         assert_eq!(parsed.old_pid, 42);
+        assert_eq!(parsed.readiness_handle, 12_345);
         assert!(parse_apply_update_args(args(&["helper.exe"])).is_err());
         assert!(
             parse_apply_update_args(args(&[
@@ -502,6 +633,7 @@ mod tests {
                 "update.zip",
                 "C:/SMU",
                 "42",
+                "12345",
             ]))
             .is_err()
         );

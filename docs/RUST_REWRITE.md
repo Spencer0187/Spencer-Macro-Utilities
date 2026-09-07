@@ -487,8 +487,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   now native Rust too: `smu-updater` has a WinINet transport with the C++ updater headers, HTTPS-only
   policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
   limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
-  Automatic Windows apply deliberately remains disabled while the trusted multi-file replacement path is
-  completed. The unsigned multi-file bundle shape is frozen in rewrite CI, and `smu-updater` owns a
+  Automatic Windows apply deliberately remains disabled until production bundle-wide signing/trust is promoted;
+  the multi-file replacement and parent/helper readiness paths are now implemented behind that false capability. The unsigned multi-file bundle shape is frozen in rewrite CI, and `smu-updater` owns a
   platform-neutral Windows bundle validator/extractor that requires the single
   `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
   encrypted/non-regular entries, excessive entry counts or expanded payloads, unexpected top-level files,
@@ -514,21 +514,24 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `VS_FIXEDFILEINFO`, providing a caller-independent downgrade guard against the installed executable.
   A dedicated `smu-windows-updater-helper` binary now composes those primitives without SDL or the main GUI
   dependency chain. Rewrite CI builds and stages it as `SMU-Update-Helper.exe`, embeds matching Windows
-  product/version resources, and includes it in the experimental release ZIP. Its dormant apply path
+  product/version resources, and includes it in the experimental release ZIP. Its guarded apply path
   re-fetches the exact requested release tag, re-verifies the caller-downloaded ZIP against the official
   manifest size/SHA-256, derives one SHA-256 per validated ZIP entry from those authenticated bytes,
-  extracts only into a fresh staging directory, opens every staged file once and verifies it against the
+  extracts only into a fresh staging directory nested under the parent-owned detached launch directory (so a
+  pre-readiness timeout/kill lets the parent remove the whole launch tree), opens every staged file once and verifies it against the
   authenticated per-file digest set, and on Windows keeps those read handles open without write/delete
   sharing through signer/version validation, the old-process wait, and replacement. The copy path hashes
   the bytes read from those same handles again before activation, so staged pathname swaps or post-validation
   mutations fail closed. It also requires the running helper plus staged app/helper to share the installed
   app's valid Authenticode signer, enforces staged PE `FILEVERSION` equality with the target plus a strict
   installed-version upgrade, waits for the old process, performs the transactional multi-file replacement,
-  and rolls back if relaunch fails or exits during the startup check.
+  and if the new app cannot launch or exits during the startup check, stops any surviving failed child, rolls the
+  transaction back, relaunches the restored previous app, and verifies that restored app through the same two-second
+  startup-survival check before surfacing the update failure.
   The main staged app is deliberately not used as that helper because its pre-main SDL DLL load would widen
   the trust boundary before bundle revalidation. The helper also refuses to run from inside the installation
-  directory, making the future launcher responsible for copying the installed signed helper to a detached
-  location before replacement so Windows never has to overwrite the running helper image in place. The
+  directory; the wired guarded launcher now copies the installed signed helper to a detached location before
+  replacement so Windows never has to overwrite the running helper image in place. The
   replacement transaction now rejects symlink/reparse-point target ancestors and, on Windows, opens the
   install/rollback directory chain with `FILE_FLAG_OPEN_REPARSE_POINT` while allowing only read sharing; those
   handles remain live through activation and rollback restoration so writable/delete-sharing handles cannot
@@ -539,13 +542,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   backup pathname. The helper also opens the old PID before
   network/staging work with synchronization plus query rights, verifies that handle's
   image path is the installed SMU executable, and keeps the handle alive through the wait so PID reuse cannot
-  redirect synchronization to an unrelated process. `smu-updater` also now has the dormant parent-side handoff
-  primitive that a future enabled UI path can call: it derives the local updater version from the running
+  redirect synchronization to an unrelated process. `smu-updater` also owns the guarded parent-side handoff
+  primitive already composed by `smu-app`: it derives the local updater version from the running
   executable's numeric PE `FILEVERSION`, re-fetches the exact release, downloads and validates the
   manifest-bound Windows package, creates and pins a fresh detached temp directory, copies the installed
   helper from a pinned non-reparse handle, requires the copied bytes, Authenticode signer, and PE version to
   match the installed helper/current app, pins the detached helper against mutation, and launches it with the
-  exact target/package/install-root/current-PID arguments. The helper accepts the package only when it is a
+  exact target/package/install-root/current-PID/readiness-handle arguments. The helper accepts the package only when it is a
   regular non-reparse sibling in that detached launch directory. On startup it first proves its own canonical
   helper name and `smu-update-launch-<old-pid>-...` directory under the Windows temp root, establishes cleanup
   ownership before validating the install/package paths, and deletes the ZIP immediately after its
@@ -553,14 +556,29 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   without a console to retry deleting only the detached package/helper and then remove the now-empty launch
   directory; reboot-delayed deletion remains a best-effort fallback when available. Helper failures are also
   surfaced through a native Windows error dialog and return a nonzero process exit status, avoiding silent
-  failure from the GUI-subsystem helper. `smu-app` now composes the launcher in its Windows apply worker and normal
-  restart exit path, but both `request_apply` and the Windows `confirm_apply` worker recheck the updater capability
-  and the Windows checker still advertises `auto_apply=false`, so production UI cannot enter that path. Windows
-  cutover has two additional hard gates beyond compiled wiring: production signing/publishing must establish and
-  sign the helper/bundle-wide trust policy (the side-loaded runtime siblings include the repository
-  `SMCWinDivert.dll`, which is currently unsigned), and the parent/helper handoff must gain a readiness barrier so
-  the app does not exit until the helper has pinned/validated the old process. The signed legacy C++ `build.yml` /
-  SignPath release path remains untouched until those gates are deliberately promoted. macOS now composes its
+  failure from the GUI-subsystem helper. The parent/helper handoff now uses a private unnamed, non-inheritable
+  readiness event with no process-wide inherit-bit window: the parent keeps that event open, passes only its
+  process-local numeric handle value to the helper, and polls it while also checking helper liveness. The event is
+  a synchronization primitive rather than an authorization secret; release authorization still comes from the
+  pinned parent identity plus manifest, Authenticode, digest, and version checks. A hostile peer already able to
+  open SMU for `PROCESS_DUP_HANDLE` or comparable same-user process-manipulation rights is outside this updater's
+  local-adversary boundary: such a peer can spoof the handoff and force premature shutdown, but cannot bypass the
+  helper's package/signature/version validation. The helper
+  first opens and validates the original SMU process with
+  `PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | PROCESS_DUP_HANDLE`, proving the PID still names the
+  installed executable; it then uses `DuplicateHandle(..., DUPLICATE_SAME_ACCESS)` to copy that exact event from
+  the pinned parent process into itself, uses `ResetEvent` to validate/reset the duplicate as an event,
+  authenticates/extracts/prepares the exact release bundle, validates staged signer/version state, and only then
+  calls `SetEvent` immediately before waiting on the same pinned old-process handle. The updater-triggered restart
+  path uses a three-minute timeout plus a short post-signal survival window and kills the helper on timeout/wait or
+  child-inspection failure before allowing the app to exit; an explicit user-requested app close still preserves the
+  legacy detached-worker shutdown behavior. `smu-app` composes
+  the launcher in its Windows apply worker and normal restart exit path, but both `request_apply` and the Windows
+  `confirm_apply` worker recheck the updater capability and the Windows checker still advertises
+  `auto_apply=false`, so production UI cannot enter that path. The remaining Windows cutover gate is production
+  signing/publishing of the helper/bundle-wide trust policy: the side-loaded runtime siblings still include the
+  repository `SMCWinDivert.dll`, which is currently unsigned. The signed legacy C++ `build.yml` / SignPath release
+  path remains untouched until that trust gate is deliberately promoted. macOS now composes its
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while

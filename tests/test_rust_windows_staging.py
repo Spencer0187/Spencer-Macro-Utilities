@@ -461,9 +461,18 @@ class RustWindowsStagingTest(unittest.TestCase):
             "current_version.revision != 0",
             "Sha256::digest",
             "stage_detached_helper",
+            "struct ReadinessEvent",
+            "CreateEventW(std::ptr::null(), 1, 0, std::ptr::null())",
             "Command::new(&detached_helper)",
             '.arg("--apply-update")',
             ".arg(std::process::id().to_string())",
+            ".arg((readiness.raw() as usize).to_string())",
+            "WaitForSingleObject",
+            "READINESS_TIMEOUT",
+            "READINESS_POLL",
+            "READINESS_SURVIVAL",
+            "stop_child",
+            "wait_for_helper_readiness",
         ):
             self.assertIn(expected, launcher)
         self.assertNotIn("FILE_SHARE_WRITE", launcher)
@@ -479,7 +488,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("launch_windows_update_helper", updater_service)
         self.assertIn("if !state.status.auto_apply_supported", updater_service)
 
-    def test_windows_cutover_requires_production_rust_signing_and_helper_readiness(self) -> None:
+    def test_windows_cutover_requires_production_rust_bundle_signing(self) -> None:
         production = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
         rewrite = (ROOT / ".github/workflows/rust-rewrite.yml").read_text(encoding="utf-8")
         updater_service = (
@@ -495,6 +504,11 @@ class RustWindowsStagingTest(unittest.TestCase):
             ROOT / "rust" / "crates" / "smu-app" / "src" / "settings_menu.rs"
         ).read_text(encoding="utf-8")
         roadmap = (ROOT / "docs" / "RUST_REWRITE.md").read_text(encoding="utf-8")
+        updater_manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-updater" / "Cargo.toml").read_text(
+                encoding="utf-8"
+            )
+        )
 
         self.assertIn(
             "cmake --build build/windows --config Release --target spencer_macro_utilities --parallel",
@@ -514,15 +528,48 @@ class RustWindowsStagingTest(unittest.TestCase):
         )
         self.assertIn("launch_windows_update_helper(&target_version)", updater_service)
         self.assertIn("if !state.status.auto_apply_supported", updater_service)
-        for absent in ("CreateEventW", "SetEvent(", "ready_handle", "readiness_fd"):
-            self.assertNotIn(absent, launcher + helper)
+        for expected in (
+            "CreateEventW",
+            "Command::new(&detached_helper)",
+            "WaitForSingleObject",
+            "PROCESS_DUP_HANDLE",
+            "DuplicateHandle",
+            "DUPLICATE_SAME_ACCESS",
+            "GetCurrentProcess",
+            "SetEvent(self.0)",
+            "readiness.signal()?",
+        ):
+            self.assertIn(expected, launcher + helper)
+        apply_block = helper[
+            helper.index("fn apply(args: &ApplyUpdateArgs)") : helper.index("pub fn run()")
+        ]
+        self.assertLess(
+            apply_block.index("prepare_windows_bundle_tree"),
+            apply_block.index("readiness.signal()?"),
+        )
+        self.assertLess(
+            apply_block.index("validate_versions_and_signers"),
+            apply_block.index("readiness.signal()?"),
+        )
+        self.assertLess(
+            apply_block.index("readiness.signal()?"),
+            apply_block.index("wait_for_old_process"),
+        )
+        windows_features = updater_manifest["target"]['cfg(target_os = "windows")'][
+            "dependencies"
+        ]["windows-sys"]["features"]
+        self.assertIn("Win32_Security", windows_features)
+        self.assertIn("Win32_System_Threading", windows_features)
         self.assertIn(
             "Automatic installation is not yet enabled for the Rust Windows app.",
             settings,
         )
         for expected in (
             "bundle-wide trust",
-            "readiness barrier",
+            "private unnamed, non-inheritable",
+            "readiness event",
+            "PROCESS_DUP_HANDLE",
+            "local-adversary boundary",
             "SMCWinDivert.dll",
             "auto_apply=false",
         ):
@@ -566,6 +613,17 @@ class RustWindowsStagingTest(unittest.TestCase):
             "current_helper.starts_with(&install_root)",
             "detached_package_path",
             "package.parent() != Some(helper_directory)",
+            "struct ReadyEvent",
+            "PROCESS_DUP_HANDLE",
+            "DuplicateHandle",
+            "DUPLICATE_SAME_ACCESS",
+            "GetCurrentProcess",
+            "ResetEvent(duplicate)",
+            "SetEvent(self.0)",
+            "readiness_handle: usize",
+            "args.len() != 7",
+            "ReadyEvent::duplicate_from_parent(old_process_for_readiness, args.readiness_handle)",
+            "readiness.signal()?",
             "DetachedArtifactsCleanup",
             "MessageBoxW",
             "Spencer Macro Utilities Update Failed",
@@ -580,6 +638,7 @@ class RustWindowsStagingTest(unittest.TestCase):
             "MoveFileExW",
             "MOVEFILE_DELAY_UNTIL_REBOOT",
             "std::fs::remove_file(&package_path)",
+            "fresh_staging_directory(&cleanup.directory)",
             "OpenProcess",
             "PROCESS_QUERY_LIMITED_INFORMATION",
             "QueryFullProcessImageNameW",
@@ -587,10 +646,21 @@ class RustWindowsStagingTest(unittest.TestCase):
             "WaitForSingleObject",
             "replace_windows_bundle_tree",
             ".rollback()",
+            "rollback_and_relaunch_previous",
+            "The previous SMU version was restored and relaunched successfully.",
+            "let _ = child.kill()",
+            "let _ = child.wait()",
             ".commit()",
             "Command::new(install_root.join(PRODUCT_EXE))",
         ):
             self.assertIn(expected, windows)
+        staging_function = windows[
+            windows.index("fn fresh_staging_directory(base: &Path)") : windows.index(
+                "fn fetch_and_authenticate_package"
+            )
+        ]
+        self.assertIn("base.join", staging_function)
+        self.assertNotIn("std::env::temp_dir()", staging_function)
         for expected in (
             '"FileDescription", "Spencer Macro Utilities Update Helper"',
             '"InternalName", "SMU-Update-Helper.exe"',

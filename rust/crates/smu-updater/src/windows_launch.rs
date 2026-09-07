@@ -10,17 +10,24 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 use std::os::windows::fs::{MetadataExt as _, OpenOptionsExt as _};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-use windows_sys::Win32::Storage::FileSystem::{
-    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_SHARE_READ,
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use windows_sys::Win32::{
+    Foundation::{CloseHandle, HANDLE, WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT},
+    Storage::FileSystem::{
+        FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_SHARE_READ,
+    },
+    System::Threading::{CreateEventW, WaitForSingleObject},
 };
 
 const HELPER_EXE: &str = "SMU-Update-Helper.exe";
 const TEMP_ATTEMPTS: usize = 128;
 const MAXIMUM_HELPER_BYTES: u64 = 64 * 1024 * 1024;
+const READINESS_TIMEOUT: Duration = Duration::from_secs(180);
+const READINESS_POLL: Duration = Duration::from_millis(50);
+const READINESS_SURVIVAL: Duration = Duration::from_millis(100);
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -43,6 +50,120 @@ impl std::error::Error for WindowsUpdateLaunchError {}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WindowsUpdateLaunch {
     pub helper_pid: u32,
+}
+
+#[derive(Debug)]
+struct ReadinessEvent(HANDLE);
+
+impl ReadinessEvent {
+    fn create() -> Result<Self, WindowsUpdateLaunchError> {
+        // SAFETY: null security/name pointers create a private unnamed, manual-reset, initially unsignaled event.
+        let handle = unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) };
+        if handle.is_null() {
+            return Err(WindowsUpdateLaunchError::new(format!(
+                "Could not create the Windows helper readiness event: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        Ok(Self(handle))
+    }
+
+    const fn raw(&self) -> HANDLE {
+        self.0
+    }
+}
+
+impl Drop for ReadinessEvent {
+    fn drop(&mut self) {
+        // SAFETY: this wrapper uniquely owns the event handle created above.
+        unsafe {
+            let _ = CloseHandle(self.0);
+        }
+    }
+}
+
+fn stop_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn wait_for_helper_readiness(
+    event: &ReadinessEvent,
+    child: &mut Child,
+) -> Result<(), WindowsUpdateLaunchError> {
+    let deadline = Instant::now() + READINESS_TIMEOUT;
+    let poll_ms = u32::try_from(READINESS_POLL.as_millis()).unwrap_or(u32::MAX);
+    loop {
+        // SAFETY: event remains live and this is a bounded wait.
+        match unsafe { WaitForSingleObject(event.raw(), poll_ms) } {
+            WAIT_OBJECT_0 => {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        return Err(WindowsUpdateLaunchError::new(format!(
+                            "Windows update helper exited after signaling readiness with status {status}."
+                        )));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        stop_child(child);
+                        return Err(WindowsUpdateLaunchError::new(format!(
+                            "Could not inspect the Windows update helper after readiness: {error}"
+                        )));
+                    }
+                }
+                std::thread::sleep(READINESS_SURVIVAL);
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        return Err(WindowsUpdateLaunchError::new(format!(
+                            "Windows update helper did not survive the handoff window: {status}."
+                        )));
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        stop_child(child);
+                        return Err(WindowsUpdateLaunchError::new(format!(
+                            "Could not inspect the Windows update helper after the handoff window: {error}"
+                        )));
+                    }
+                }
+                return Ok(());
+            }
+            WAIT_TIMEOUT => {}
+            WAIT_FAILED => {
+                let error = std::io::Error::last_os_error();
+                stop_child(child);
+                return Err(WindowsUpdateLaunchError::new(format!(
+                    "Could not wait for the Windows update helper readiness handshake: {error}"
+                )));
+            }
+            other => {
+                stop_child(child);
+                return Err(WindowsUpdateLaunchError::new(format!(
+                    "Unexpected Windows update helper readiness wait result: {other}."
+                )));
+            }
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return Err(WindowsUpdateLaunchError::new(format!(
+                    "Windows update helper exited before signaling readiness with status {status}."
+                )));
+            }
+            Ok(None) => {}
+            Err(error) => {
+                stop_child(child);
+                return Err(WindowsUpdateLaunchError::new(format!(
+                    "Could not inspect the Windows update helper before readiness: {error}"
+                )));
+            }
+        }
+        if Instant::now() >= deadline {
+            stop_child(child);
+            return Err(WindowsUpdateLaunchError::new(
+                "Timed out waiting for the Windows update helper readiness handshake.",
+            ));
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -253,7 +374,8 @@ fn stage_detached_helper(
 
 /// Download the exact official Windows package and launch a detached, pinned copy of the installed
 /// signed update helper. The app composes this primitive behind an updater capability that remains false until
-/// production bundle-wide signing and a parent/helper readiness handoff are deliberately promoted.
+/// production bundle-wide signing/trust is deliberately promoted; the parent/helper readiness handoff is already
+/// implemented by duplicating a private unnamed event from the validated parent process.
 ///
 /// # Errors
 ///
@@ -326,12 +448,14 @@ pub fn launch_windows_update_helper(
     let (detached_helper, _helper_guard) =
         stage_detached_helper(&current_app, &installed_helper, &launch_directory.path)?;
 
-    let child = Command::new(&detached_helper)
+    let readiness = ReadinessEvent::create()?;
+    let mut child = Command::new(&detached_helper)
         .arg("--apply-update")
         .arg(target_version)
         .arg(&package_path)
         .arg(install_root)
         .arg(std::process::id().to_string())
+        .arg((readiness.raw() as usize).to_string())
         .current_dir(install_root)
         .spawn()
         .map_err(|error| {
@@ -339,6 +463,7 @@ pub fn launch_windows_update_helper(
                 "Could not launch the detached Windows update helper: {error}"
             ))
         })?;
+    wait_for_helper_readiness(&readiness, &mut child)?;
     launch_directory.retain();
     Ok(WindowsUpdateLaunch { helper_pid: child.id() })
 }
