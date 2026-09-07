@@ -192,10 +192,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   old process exits, the helper activates the descriptor-pinned transaction, clears quarantine, creates the
   legacy permission-repair marker, launches the updated `.app` with `/usr/bin/open -n`, and uses the phaseful
   rollback/recovery transaction if LaunchServices rejects the new app or if commit-time identity checks fail;
-  non-recoverable commit errors are treated only as post-commit rollback-cleanup failures. This helper is
-  CI-compiled but is not yet
-  packaged, copied, or launched by `smu-app`; Rust macOS auto-apply therefore remains deliberately advertised as
-  false until signed Rust `.app` packaging and the parent-side detached-helper launcher/ready handshake are wired.
+  non-recoverable commit errors are treated only as post-commit rollback-cleanup failures. Rewrite CI now also
+  builds `smu-app`, the SDL-free helper, and Cargo-built SDL3 separately for `arm64` and `x86_64`, merges all three
+  with `lipo`, stages the Rust-specific runtime asset layout into a real `.app`, signs it with an ephemeral
+  certificate-backed test identity, verifies app/helper leaf-signer equality plus Mach-O/rpath/plist/runtime
+  layout, and packages the exact `macos-universal` updater ZIP/manifest contract. That artifact is validation-only:
+  the legacy signed production `build.yml` remains untouched, and the helper is still not copied or launched by
+  `smu-app`. Rust macOS auto-apply therefore remains deliberately advertised as false until production Rust `.app`
+  signing/publishing and the parent-side detached-helper launcher/ready handshake are wired.
   HTTP remains injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted
   metadata is validated before install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
@@ -535,8 +539,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
   packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired, and the
   signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper are dormant in the Rust
-  workspace; automatic `.app` replacement remains intentionally disabled until signed Rust `.app` packaging and
-  the parent-side detached-helper launcher/readiness handshake are wired and reviewed.
+  workspace. Rewrite CI now produces a certificate-backed signed universal Rust `.app`/ZIP validation artifact,
+  but automatic `.app` replacement remains intentionally disabled until that packaging is promoted into the
+  production release path and the parent-side detached-helper launcher/readiness handshake are wired and reviewed.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

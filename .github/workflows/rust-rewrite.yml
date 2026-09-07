@@ -7,10 +7,19 @@ on:
     paths:
       - "rust/**"
       - "compat/**"
+      - "assets/**"
+      - "version"
+      - "LICENSE"
+      - "PRIVACY.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "third_party/**"
+      - "scripts/create_macos_release_certificate.sh"
       - "scripts/stage_rust_windows_app.py"
+      - "scripts/stage_rust_macos_app.py"
       - "scripts/package_rust_windows_bundle.py"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_macos_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
       - "tests/test_rust_macos_display.py"
@@ -23,10 +32,19 @@ on:
     paths:
       - "rust/**"
       - "compat/**"
+      - "assets/**"
+      - "version"
+      - "LICENSE"
+      - "PRIVACY.md"
+      - "THIRD_PARTY_NOTICES.md"
+      - "third_party/**"
+      - "scripts/create_macos_release_certificate.sh"
       - "scripts/stage_rust_windows_app.py"
+      - "scripts/stage_rust_macos_app.py"
       - "scripts/package_rust_windows_bundle.py"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_macos_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
       - "tests/test_rust_macos_display.py"
@@ -80,10 +98,143 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
+      - name: Install universal Apple Rust targets
+        run: rustup target add --toolchain 1.98.0 aarch64-apple-darwin x86_64-apple-darwin
+      - name: Test Rust macOS staging contract
+        working-directory: .
+        run: python3 -m unittest tests.test_rust_macos_staging tests.test_rust_macos_updater
       - name: Test native macOS process/input/display/updater adapters, helper, and app composition
         run: cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app
       - name: Clippy native macOS process/input/display/updater adapters, helper, and app composition
         run: cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app --all-targets -- -D warnings
+      - name: Configure certificate-backed Rust macOS test signing identity
+        working-directory: .
+        shell: bash
+        env:
+          SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD: rust-rewrite-test-password
+          SMU_MACOS_RELEASE_SIGN_IDENTITY: SMU Rust Rewrite Test
+        run: |
+          cert_dir="$RUNNER_TEMP/smu-rust-macos-cert"
+          keychain_path="$RUNNER_TEMP/smu-rust-rewrite.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          bash scripts/create_macos_release_certificate.sh "$cert_dir"
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$cert_dir/smu-macos-release.p12" \
+            -k "$keychain_path" \
+            -P "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security list-keychains -d user -s "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+          echo "SMU_RUST_MACOS_SIGN_IDENTITY=$SMU_MACOS_RELEASE_SIGN_IDENTITY" >> "$GITHUB_ENV"
+      - name: Stage certificate-signed universal Rust macOS app
+        working-directory: .
+        shell: bash
+        run: |
+          python3 scripts/stage_rust_macos_app.py \
+            --root . \
+            --target-dir build/rust-macos-target \
+            --bundle "build/rust-macos-app/Spencer Macro Utilities.app" \
+            --profile release \
+            --sign-identity "$SMU_RUST_MACOS_SIGN_IDENTITY"
+      - name: Validate universal Rust macOS app signer and runtime layout
+        working-directory: .
+        shell: bash
+        run: |
+          app="build/rust-macos-app/Spencer Macro Utilities.app"
+          binary="$app/Contents/MacOS/Spencer-Macro-Utilities"
+          helper="$app/Contents/MacOS/SMU-Update-Helper"
+          sdl="$(find "$app/Contents/Frameworks" -maxdepth 1 -type f -name 'libSDL3*.dylib' -print -quit)"
+          test -n "$sdl"
+          for code in "$binary" "$helper" "$sdl"; do
+            architectures="$(lipo -archs "$code")"
+            grep -qw arm64 <<<"$architectures"
+            grep -qw x86_64 <<<"$architectures"
+          done
+          codesign --verify --deep --strict --verbose=2 "$app"
+          plist="$app/Contents/Info.plist"
+          version="$(tr -d '\r\n' < version)"
+          [[ "$(plutil -extract CFBundleExecutable raw -o - "$plist")" == "Spencer-Macro-Utilities" ]]
+          [[ "$(plutil -extract CFBundleIdentifier raw -o - "$plist")" == "com.spencer0187.smu" ]]
+          [[ "$(plutil -extract CFBundleIconFile raw -o - "$plist")" == "smu_icon.icns" ]]
+          [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$plist")" == "$version" ]]
+          [[ "$(plutil -extract CFBundleVersion raw -o - "$plist")" == "$version" ]]
+          [[ "$(plutil -extract LSMinimumSystemVersion raw -o - "$plist")" == "10.15" ]]
+          otool -L "$binary" | grep -F -q '@rpath/libSDL3'
+          if otool -L "$helper" | grep -F -q 'libSDL3'; then
+            echo "Rust macOS update helper unexpectedly links SDL3." >&2
+            exit 1
+          fi
+          otool -l "$binary" | grep -A3 'cmd LC_RPATH' | grep -F -q '@executable_path/../Frameworks'
+          test -f "$app/Contents/MacOS/assets/LSANS.TTF"
+          test -f "$app/Contents/MacOS/assets/macro_tutorials/wallhop.jpg"
+          test -f "$app/Contents/Resources/smu_icon.icns"
+          test -f "$app/Contents/Resources/LICENSE"
+          test -f "$app/Contents/Resources/PRIVACY.md"
+          test -f "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
+          cert_dir="$RUNNER_TEMP/smu-rust-macos-signers"
+          rm -rf "$cert_dir"
+          mkdir -p "$cert_dir"
+          codesign -d --extract-certificates="$cert_dir/app-" "$app"
+          codesign -d --extract-certificates="$cert_dir/helper-" "$helper"
+          codesign -d --extract-certificates="$cert_dir/sdl-" "$sdl"
+          test -s "$cert_dir/app-0"
+          test -s "$cert_dir/helper-0"
+          test -s "$cert_dir/sdl-0"
+          cmp "$cert_dir/app-0" "$cert_dir/helper-0"
+          cmp "$cert_dir/app-0" "$cert_dir/sdl-0"
+      - name: Package Rust macOS updater ZIP and validation manifest
+        working-directory: .
+        shell: bash
+        run: |
+          version="$(tr -d '\r\n' < version)"
+          asset="$(python3 - "$version" <<'PY'
+          import sys
+          from scripts.generate_update_manifest import official_update_assets
+          print(official_update_assets(sys.argv[1])["macos-universal"])
+          PY
+          )"
+          release_dir="build/rust-macos-release"
+          mkdir -p "$release_dir"
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/rust-macos-app/Spencer Macro Utilities.app" \
+            "$release_dir/$asset"
+          python3 scripts/generate_update_manifest.py \
+            --release-dir "$release_dir" \
+            --version "$version" \
+            --output "$release_dir/update-manifest.json" \
+            --only-platform macos-universal
+          python3 - "$release_dir/update-manifest.json" "$asset" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+          manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          artifact = manifest["artifacts"]["macos-universal"]
+          assert artifact["asset"] == sys.argv[2]
+          assert artifact["size"] > 0
+          assert len(artifact["sha256"]) == 64
+          PY
+          unzip -t "$release_dir/$asset"
+          unzip -Z1 "$release_dir/$asset" | grep -F -q 'Spencer Macro Utilities.app/Contents/Info.plist'
+      - name: Upload signed Rust macOS validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-macos-universal-test-signed
+          path: |
+            build/rust-macos-release/Spencer-Macro-Utilities-V*-macOS-universal.*
+            build/rust-macos-release/update-manifest.json
+          if-no-files-found: error
+      - name: Remove Rust macOS test keychain
+        if: always()
+        working-directory: .
+        shell: bash
+        run: security delete-keychain "$RUNNER_TEMP/smu-rust-rewrite.keychain-db" 2>/dev/null || true
 
   windows-rust-app:
     runs-on: windows-latest
