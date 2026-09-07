@@ -8,7 +8,9 @@ pub const SPONSOR_URL: &str = "https://github.com/sponsors/Spencer0187";
 
 #[cfg(target_os = "macos")]
 const MANUAL_UPDATE_GUIDANCE: &str = "Automatic installation is not yet enabled for the Rust macOS app. Open the official release, download the macOS package, and replace this app manually.";
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+const MANUAL_UPDATE_GUIDANCE: &str = "Automatic installation is not yet enabled for the Rust Windows app. Open the official release, download the Windows package, and replace this installation manually.";
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 const MANUAL_UPDATE_GUIDANCE: &str = "This Linux package cannot replace itself. Download the release and reinstall it with the same AppImage, Debian, RPM, portable, or Nix method you used before.";
 
 #[allow(clippy::struct_excessive_bools)]

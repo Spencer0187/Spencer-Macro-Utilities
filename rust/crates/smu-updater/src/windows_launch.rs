@@ -252,7 +252,8 @@ fn stage_detached_helper(
 }
 
 /// Download the exact official Windows package and launch a detached, pinned copy of the installed
-/// signed update helper. This primitive is intentionally not wired to automatic apply yet.
+/// signed update helper. The app composes this primitive behind an updater capability that remains false until
+/// production bundle-wide signing and a parent/helper readiness handoff are deliberately promoted.
 ///
 /// # Errors
 ///

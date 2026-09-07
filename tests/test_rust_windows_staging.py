@@ -378,10 +378,27 @@ class RustWindowsStagingTest(unittest.TestCase):
             "self.update_service.prepare()",
             "self.update_service.start_check(true)",
             "self.update_service.request_apply()",
+            "self.update_service.confirm_apply()",
             "self.update_service.open_latest_release()",
             "self.update_service.shutdown()",
+            "fn update_restart_requested(&self) -> bool",
+            "if windows_builtin_runtime.update_restart_requested()",
         ):
             self.assertIn(expected, main)
+        for expected in (
+            "use smu_updater::{WinInetUpdateTransport, launch_windows_update_helper}",
+            '#[cfg(target_os = "windows")]\n    pub fn confirm_apply',
+            "if !state.status.auto_apply_supported",
+            "state.status.selected_asset.is_none()",
+            "launch_windows_update_helper(&target_version)",
+            "ui.restart_requested = true",
+            "Signed Windows update helper launched. The app will restart shortly.",
+        ):
+            self.assertIn(expected, updater_service)
+        self.assertLess(
+            updater_service.index("if !state.status.auto_apply_supported"),
+            updater_service.index("launch_windows_update_helper(&target_version)"),
+        )
 
     def test_windows_replacement_pins_authenticated_files_and_target_directories(self) -> None:
         replacement = (
@@ -419,7 +436,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertNotIn("FILE_SHARE_WRITE", replacement)
         self.assertNotIn("FILE_SHARE_DELETE", replacement)
 
-    def test_windows_update_launcher_is_trust_pinned_and_stays_dormant(self) -> None:
+    def test_windows_update_launcher_is_trust_pinned_wired_and_capability_gated(self) -> None:
         launcher = (
             ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_launch.rs"
         ).read_text(encoding="utf-8")
@@ -459,7 +476,57 @@ class RustWindowsStagingTest(unittest.TestCase):
             '"An update is available, but automatic installation is not supported in this launch mode."',
             updater_service,
         )
-        self.assertNotIn("launch_windows_update_helper", updater_service)
+        self.assertIn("launch_windows_update_helper", updater_service)
+        self.assertIn("if !state.status.auto_apply_supported", updater_service)
+
+    def test_windows_cutover_requires_production_rust_signing_and_helper_readiness(self) -> None:
+        production = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+        rewrite = (ROOT / ".github/workflows/rust-rewrite.yml").read_text(encoding="utf-8")
+        updater_service = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
+        ).read_text(encoding="utf-8")
+        launcher = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_launch.rs"
+        ).read_text(encoding="utf-8")
+        helper = (
+            ROOT / "rust" / "crates" / "smu-windows-updater-helper" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+        settings = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "settings_menu.rs"
+        ).read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs" / "RUST_REWRITE.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "cmake --build build/windows --config Release --target spencer_macro_utilities --parallel",
+            production,
+        )
+        self.assertIn("Sign executable with SignPath", production)
+        self.assertNotIn("scripts/stage_rust_windows_app.py", production)
+        self.assertNotIn("scripts/package_rust_windows_bundle.py", production)
+        self.assertIn("scripts/stage_rust_windows_app.py", rewrite)
+        self.assertIn("scripts/package_rust_windows_bundle.py", rewrite)
+        self.assertIn("rust-windows-release-contract-unsigned", rewrite)
+        self.assertNotIn("SignPath", rewrite)
+
+        self.assertIn(
+            "UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)",
+            updater_service,
+        )
+        self.assertIn("launch_windows_update_helper(&target_version)", updater_service)
+        self.assertIn("if !state.status.auto_apply_supported", updater_service)
+        for absent in ("CreateEventW", "SetEvent(", "ready_handle", "readiness_fd"):
+            self.assertNotIn(absent, launcher + helper)
+        self.assertIn(
+            "Automatic installation is not yet enabled for the Rust Windows app.",
+            settings,
+        )
+        for expected in (
+            "bundle-wide trust",
+            "readiness barrier",
+            "SMCWinDivert.dll",
+            "auto_apply=false",
+        ):
+            self.assertIn(expected, roadmap)
 
     def test_windows_update_helper_is_minimal_authenticated_and_dormant(self) -> None:
         helper_root = ROOT / "rust" / "crates" / "smu-windows-updater-helper"

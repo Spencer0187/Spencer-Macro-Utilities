@@ -553,11 +553,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   without a console to retry deleting only the detached package/helper and then remove the now-empty launch
   directory; reboot-delayed deletion remains a best-effort fallback when available. Helper failures are also
   surfaced through a native Windows error dialog and return a nonzero process exit status, avoiding silent
-  failure from the GUI-subsystem helper. The launcher remains intentionally unwired from `smu-app`; Windows
-  auto-apply therefore remains off because the Rust bundle has side-loaded runtime siblings and the repository
-  `SMCWinDivert.dll` is currently unsigned; production
-  signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
-  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS now composes its
+  failure from the GUI-subsystem helper. `smu-app` now composes the launcher in its Windows apply worker and normal
+  restart exit path, but both `request_apply` and the Windows `confirm_apply` worker recheck the updater capability
+  and the Windows checker still advertises `auto_apply=false`, so production UI cannot enter that path. Windows
+  cutover has two additional hard gates beyond compiled wiring: production signing/publishing must establish and
+  sign the helper/bundle-wide trust policy (the side-loaded runtime siblings include the repository
+  `SMCWinDivert.dll`, which is currently unsigned), and the parent/helper handoff must gain a readiness barrier so
+  the app does not exit until the helper has pinned/validated the old process. The signed legacy C++ `build.yml` /
+  SignPath release path remains untouched until those gates are deliberately promoted. macOS now composes its
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
