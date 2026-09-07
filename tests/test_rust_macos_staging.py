@@ -250,6 +250,37 @@ class RustMacosStagingTest(unittest.TestCase):
             workflow,
         )
 
+    def test_macos_cutover_switches_remain_explicit_until_production_promotion(self) -> None:
+        production = (ROOT / ".github/workflows/build.yml").read_text(encoding="utf-8")
+        draft_release = (ROOT / ".github/workflows/draft-release.yml").read_text(encoding="utf-8")
+        rewrite = (ROOT / ".github/workflows/rust-rewrite.yml").read_text(encoding="utf-8")
+        updater = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("run: bash scripts/package_macos.sh", production)
+        self.assertNotIn("scripts/stage_rust_macos_app.py", production)
+        self.assertIn("scripts/stage_rust_macos_app.py", rewrite)
+        self.assertIn(
+            "UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false)",
+            updater,
+        )
+        self.assertNotIn(
+            "UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), true)",
+            updater,
+        )
+        self.assertIn("launch_macos_update_helper(&target_version)", updater)
+        self.assertIn("if !state.status.auto_apply_supported", updater)
+
+        for expected in (
+            "Apply V3.4.0 legacy ZIP casing",
+            'Spencer-Macro-Utilities-V${version}-macOS-universal.zip',
+            'Spencer-Macro-Utilities-V${version}-macOS-universal.ZIP',
+            "python3 scripts/generate_update_manifest.py",
+            "Verify V3.2 legacy updater asset visibility",
+        ):
+            self.assertIn(expected, draft_release)
+
     def test_source_contract_builds_and_lipos_both_architectures(self) -> None:
         source = SCRIPT.read_text(encoding="utf-8")
         for expected in (
