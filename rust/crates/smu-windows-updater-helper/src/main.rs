@@ -4,9 +4,11 @@
 mod windows;
 
 #[cfg(target_os = "windows")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    windows::run().map_err(std::io::Error::other)?;
-    Ok(())
+fn main() {
+    if let Err(error) = windows::run() {
+        windows::show_error(&error);
+        std::process::exit(1);
+    }
 }
 
 #[cfg(not(target_os = "windows"))]

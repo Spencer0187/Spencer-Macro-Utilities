@@ -22,6 +22,7 @@ use windows_sys::Win32::{
             QueryFullProcessImageNameW, WaitForSingleObject,
         },
     },
+    UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW},
 };
 
 const APPLY_UPDATE_FLAG: &str = "--apply-update";
@@ -47,6 +48,16 @@ impl Drop for ProcessHandle {
 
 fn wide_null(value: &OsStr) -> Vec<u16> {
     value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+pub fn show_error(message: &str) {
+    let title = wide_null(OsStr::new("Spencer Macro Utilities Update Failed"));
+    let body = wide_null(OsStr::new(message));
+    // SAFETY: title and body are NUL-terminated UTF-16 strings and no owner window is required.
+    unsafe {
+        let _ =
+            MessageBoxW(std::ptr::null_mut(), body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR);
+    }
 }
 
 fn schedule_delete_on_reboot(path: &Path) {

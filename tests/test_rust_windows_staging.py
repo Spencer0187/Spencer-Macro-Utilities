@@ -473,6 +473,8 @@ class RustWindowsStagingTest(unittest.TestCase):
             '#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]',
             main,
         )
+        self.assertIn("windows::show_error(&error)", main)
+        self.assertIn("std::process::exit(1)", main)
         self.assertEqual(manifest["build-dependencies"]["winres"], "=0.1.12")
         windows_sys = manifest["target"]['cfg(target_os = "windows")']["dependencies"][
             "windows-sys"
@@ -480,6 +482,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("Win32_Storage_FileSystem", windows_sys["features"])
         self.assertIn("Win32_System_SystemInformation", windows_sys["features"])
         self.assertIn("Win32_System_Threading", windows_sys["features"])
+        self.assertIn("Win32_UI_WindowsAndMessaging", windows_sys["features"])
         for expected in (
             'const APPLY_UPDATE_FLAG: &str = "--apply-update"',
             "UpdateChecker::new(WinInetUpdateTransport, UpdatePlatform::Windows, false)",
@@ -497,6 +500,8 @@ class RustWindowsStagingTest(unittest.TestCase):
             "detached_package_path",
             "package.parent() != Some(helper_directory)",
             "DetachedArtifactsCleanup",
+            "MessageBoxW",
+            "Spencer Macro Utilities Update Failed",
             "GetSystemDirectoryW",
             "spawn_cleanup_process",
             'system_executable_path("ping.exe", "the Windows system cleanup delay utility")',

@@ -422,8 +422,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   ownership before validating the install/package paths, and deletes the ZIP immediately after its
   authenticated bytes are loaded. On every later exit path it launches the canonical System32 `cmd.exe`
   without a console to retry deleting only the detached package/helper and then remove the now-empty launch
-  directory; reboot-delayed deletion remains a best-effort fallback when available. The launcher remains
-  intentionally unwired from `smu-app`; Windows
+  directory; reboot-delayed deletion remains a best-effort fallback when available. Helper failures are also
+  surfaced through a native Windows error dialog and return a nonzero process exit status, avoiding silent
+  failure from the GUI-subsystem helper. The launcher remains intentionally unwired from `smu-app`; Windows
   auto-apply therefore remains off because the Rust bundle has side-loaded runtime siblings and the repository
   `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
