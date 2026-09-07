@@ -144,8 +144,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-updater` owns release/version contract validation, update-check orchestration, and
   cross-platform update-asset scoring. Linux has the production `curl` transport matching the C++ HTTPS-only
   redirect policy, 60-second timeout, 512 MiB limit, and GitHub updater headers. macOS now reuses that hardened
-  transport with the legacy 15-second metadata / 120-second file timeout profile and can perform the same
-  manifest-driven update check from `smu-app`. A read-only macOS install-eligibility slice also resolves the
+  transport with the legacy 15-second metadata / 120-second file timeout profile; `smu-app` now composes that
+  manifest-driven check in its always-present macOS platform service, so update status/manual-release actions work
+  even when Accessibility or Screen Recording permission keeps macro input disabled. A read-only macOS install-eligibility slice also resolves the
   enclosing `.app`, rejects mounted-DMG/symlink launches, requires `codesign --verify --deep --strict` plus a
   non-empty extracted leaf certificate, requires the app's containing folder to be owned by the current user,
   rejects group/world-writable mode bits and any macOS extended ACL on that folder (with the sticky-directory
@@ -369,9 +370,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   the C++ `MacroRuntime`—Freeze, Item Desync, Press Key, Wallhop, Walless LHJ, Speedglitch, HHJ, Floor Bounce,
   Item Unequip, Item Clip, Laugh Clip, Wall Walk, Spam Key, Ledge Bounce, and Bunnyhop—and updates their settings
   from the live shell each frame. Anti-AFK remains omitted because the C++ implementation is Windows-only, while
-  Lag Switch remains unavailable because the macOS network backend is null. macOS update checking is composed,
-  but its signed replacement helper remains deliberately unwired from the app until Rust `.app` packaging is
-  production-ready. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
+  Lag Switch remains unavailable because the macOS network backend is null. macOS update checking, settings status,
+  manual release-page actions, and updater shutdown are now composed in the app-level platform service independently
+  of macro-input readiness. Automatic installation remains false and the signed replacement launcher has no app call
+  site until production Rust `.app` signing/publishing is ready. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
   discover matching processes and suspend/resume them with the native backend. A platform-neutral
   `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
   its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
@@ -555,9 +557,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
-  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired, and the
-  signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper are dormant in the Rust
-  workspace. Rewrite CI now produces a certificate-backed signed universal Rust `.app`/ZIP validation artifact,
+  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired through the
+  always-present platform service (including Settings/manual release actions even without macro permissions), while
+  the signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper remain dormant in the
+  Rust workspace. Rewrite CI now produces a certificate-backed signed universal Rust `.app`/ZIP validation artifact,
   but automatic `.app` replacement remains intentionally disabled until that packaging is promoted into the
   production release path and the already-dormant parent-side launcher is wired into an app restart request and reviewed.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.

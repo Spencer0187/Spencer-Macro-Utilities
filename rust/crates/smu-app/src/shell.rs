@@ -607,7 +607,7 @@ impl ShellState {
         self.linux_input_setup = status;
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     pub fn set_settings_updater_status(&mut self, status: settings_menu::UpdaterPanelStatus) {
         self.settings_updater = status;
     }

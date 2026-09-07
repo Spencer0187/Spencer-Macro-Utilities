@@ -61,8 +61,8 @@ fn check_for_updates(local_version: &str) -> UpdaterStatus {
 
 #[cfg(target_os = "macos")]
 fn check_for_updates(local_version: &str) -> UpdaterStatus {
-    // Replacement remains deliberately disabled until the Rust .app transaction is ported; this
-    // still gives macOS the native signed-manifest update check and manual-install prompt.
+    // Replacement remains deliberately disabled until Rust .app packaging is promoted to the production
+    // release path and the app-side restart handoff is enabled; signed-manifest checks remain fully composed.
     let mut checker = UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false);
     checker.check_for_update(local_version)
 }

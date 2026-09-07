@@ -125,7 +125,7 @@ mod speedglitch_runtime;
 mod target_runtime;
 mod theme;
 mod tutorial_media;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod updater_service;
 mod wall_walk;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -710,11 +710,12 @@ struct MacosPlatformServices {
     input_ready: bool,
     display: Arc<MacosDisplayCapture>,
     process: Arc<MacosProcessService>,
+    update_service: updater_service::UpdateService,
 }
 
 #[cfg(target_os = "macos")]
 impl MacosPlatformServices {
-    fn new(shell_state: &mut shell::ShellState) -> Self {
+    fn new(shell_state: &mut shell::ShellState, updates_enabled: bool) -> Self {
         let input = Arc::new(MacosInputDevice::new());
         let display = Arc::new(MacosDisplayCapture::new());
         let process = Arc::new(MacosProcessService::new());
@@ -743,7 +744,8 @@ impl MacosPlatformServices {
             ));
             false
         };
-        Self { input, input_ready, display, process }
+        let update_service = updater_service::UpdateService::new(app_version(), updates_enabled);
+        Self { input, input_ready, display, process, update_service }
     }
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
@@ -754,9 +756,51 @@ impl MacosPlatformServices {
             );
             shell_state.set_keybind_input(input);
         }
+        let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
+        let updater_status = settings_menu::parity_update_status(parity_case.as_deref())
+            .unwrap_or_else(|| {
+                let mut status = self.update_service.prepare();
+                if parity_case.is_some() {
+                    status.enabled = true;
+                }
+                status
+            });
+        shell_state.set_settings_updater_status(updater_status);
+    }
+
+    fn finish_shell(&self, action: Option<&shell::ShellAction>) {
+        match action {
+            Some(shell::ShellAction::CheckUpdatesFromSettings) => {
+                self.update_service.start_check(true)
+            }
+            Some(shell::ShellAction::RequestInstallUpdateFromSettings) => {
+                self.update_service.request_apply();
+            }
+            Some(shell::ShellAction::ConfirmInstallUpdate) => self.update_service.confirm_apply(),
+            Some(shell::ShellAction::SkipUpdate) => {
+                self.update_service.dismiss_update("Update skipped.")
+            }
+            Some(shell::ShellAction::CancelUpdate) => {
+                self.update_service.dismiss_update("Update cancelled.");
+            }
+            Some(shell::ShellAction::OpenLatestReleaseFromSettings) => {
+                self.update_service.open_latest_release();
+            }
+            Some(shell::ShellAction::OpenLatestReleaseAndDismiss) => {
+                self.update_service.open_latest_release_and_dismiss();
+            }
+            Some(shell::ShellAction::OpenSponsorFromSettings) => {
+                let _ = sdl3::url::open_url(settings_menu::SPONSOR_URL);
+            }
+            Some(shell::ShellAction::OpenOfficialSource) => {
+                let _ = sdl3::url::open_url(global_settings::OFFICIAL_SOURCE_URL);
+            }
+            _ => {}
+        }
     }
 
     fn shutdown(&self) {
+        self.update_service.shutdown();
         self.input.shutdown();
     }
 }
@@ -1190,7 +1234,7 @@ fn start_macos_app_services(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     parity_case: Option<&str>,
 ) -> (MacosPlatformServices, ProcessStatusService, ScriptAppServices) {
-    let platform = MacosPlatformServices::new(shell_state);
+    let platform = MacosPlatformServices::new(shell_state, parity_case.is_none());
     let process_status = macos_process_status(&platform);
     let script_app = start_macos_script_app(saved_settings, shell_state, parity_case, &platform);
     (platform, process_status, script_app)
@@ -2900,8 +2944,11 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
         #[cfg(target_os = "macos")]
-        if let Some(runtime) = macos_builtin_runtime {
-            runtime.finish_shell(shell_state);
+        {
+            macos_platform.finish_shell(shell_action.as_ref());
+            if let Some(runtime) = macos_builtin_runtime {
+                runtime.finish_shell(shell_state);
+            }
         }
         #[cfg(target_os = "windows")]
         windows_builtin_runtime.finish_shell(shell_action.as_ref(), shell_state);

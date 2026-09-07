@@ -152,6 +152,52 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         self.assertNotIn("start_lag_switch_controller(&macos", main)
         self.assertNotIn("WindowsBuiltinRuntimeServices::new(&shell_state, &macos", main)
 
+    def test_macos_update_checks_are_composed_but_auto_apply_launcher_remains_unwired(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        updater = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
+        ).read_text(encoding="utf-8")
+        settings = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "settings_menu.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]\nmod updater_service;',
+            "update_service: updater_service::UpdateService",
+            "MacosPlatformServices::new(shell_state, parity_case.is_none())",
+            "updater_service::UpdateService::new(app_version(), updates_enabled)",
+            "let mut status = self.update_service.prepare()",
+            "shell_state.set_settings_updater_status(updater_status)",
+            "self.update_service.start_check(true)",
+            "self.update_service.request_apply()",
+            "self.update_service.confirm_apply()",
+            "self.update_service.open_latest_release()",
+            "self.update_service.open_latest_release_and_dismiss()",
+            "self.update_service.shutdown()",
+            "macos_platform.finish_shell(shell_action.as_ref())",
+        ):
+            self.assertIn(expected, main)
+
+        self.assertIn(
+            '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]\n    pub fn set_settings_updater_status',
+            shell,
+        )
+        self.assertIn(
+            "UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false)",
+            updater,
+        )
+        self.assertIn(
+            "Automatic installation is not yet enabled for the Rust macOS app.",
+            settings,
+        )
+        self.assertNotIn("launch_macos_update_helper", main)
+        self.assertNotIn("MacosUpdateLaunch", main)
+
     def test_rewrite_workflow_compiles_full_macos_app_composition(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"

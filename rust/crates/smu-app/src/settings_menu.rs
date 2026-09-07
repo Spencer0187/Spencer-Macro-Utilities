@@ -6,6 +6,11 @@ pub const UPDATE_MANUAL_PARITY_CASE: &str = "modal-update-manual-user-reference"
 
 pub const SPONSOR_URL: &str = "https://github.com/sponsors/Spencer0187";
 
+#[cfg(target_os = "macos")]
+const MANUAL_UPDATE_GUIDANCE: &str = "Automatic installation is not yet enabled for the Rust macOS app. Open the official release, download the macOS package, and replace this app manually.";
+#[cfg(not(target_os = "macos"))]
+const MANUAL_UPDATE_GUIDANCE: &str = "This Linux package cannot replace itself. Download the release and reinstall it with the same AppImage, Debian, RPM, portable, or Nix method you used before.";
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PlatformStatus {
@@ -208,10 +213,7 @@ fn render_updater(
     drop(apply_disabled);
 
     if updater.checked_once && updater.update_available && !updater.auto_apply_supported {
-        ui.text_colored(
-            theme.warning_color,
-            "This Linux package cannot replace itself. Download the release and reinstall it with the same AppImage, Debian, RPM, portable, or Nix method you used before.",
-        );
+        ui.text_colored(theme.warning_color, MANUAL_UPDATE_GUIDANCE);
     }
 
     if ui.button("Open latest release") {
@@ -267,9 +269,7 @@ pub fn render_update_confirmation(ui: &Ui, updater: &UpdaterPanelStatus) -> Opti
     if can_auto_apply {
         ui.text_wrapped("Do you want to download and install this update now?");
     } else {
-        ui.text_wrapped(
-            "This Linux installation cannot safely replace itself. Open the official release and update with the same AppImage, Debian, RPM, portable, or Nix method you used before.",
-        );
+        ui.text_wrapped(MANUAL_UPDATE_GUIDANCE);
     }
     crate::parity::separator(ui);
 
