@@ -1,7 +1,4 @@
-//! Native macOS CoreGraphics input injection.
-//!
-//! This checkpoint intentionally covers output only. Physical key/button state and active-layout text
-//! translation still belong to the later event-tap/Text Input Services port.
+//! Native macOS CoreGraphics input injection, physical input state, and active-layout text entry.
 
 use crate::{
     InputError, InputInjector, KeyState, MACOS_MOUSE_LEFT, MACOS_MOUSE_MIDDLE, MACOS_MOUSE_RIGHT,
@@ -9,7 +6,8 @@ use crate::{
 };
 use objc2_application_services::AXIsProcessTrusted;
 use objc2_core_foundation::{
-    CFMachPort, CFRunLoop, CGPoint, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
+    CFData, CFMachPort, CFRetained, CFRunLoop, CFType, CGPoint, kCFRunLoopCommonModes,
+    kCFRunLoopDefaultMode,
 };
 use objc2_core_graphics::{
     CGEvent, CGEventField, CGEventFlags, CGEventTapLocation, CGEventTapOptions,
@@ -21,8 +19,52 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 const INJECTED_EVENT_TAG: i64 = 0x534D_554D_4143_4F53;
+const MINIMUM_UC_KEYBOARD_LAYOUT_BYTES: usize = 40;
+const SHIFT_KEY: u32 = 1 << 9;
+const OPTION_KEY: u32 = 1 << 11;
+const UC_KEY_ACTION_DOWN: u16 = 0;
+const UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK: u32 = 1;
+const MAC_KEY_SHIFT: u16 = 0x38;
+const MAC_KEY_OPTION: u16 = 0x3A;
+
+#[repr(C)]
+struct UcKeyboardLayout {
+    _opaque: [u8; 0],
+}
+
+#[link(name = "Carbon", kind = "framework")]
+unsafe extern "C" {
+    static kTISPropertyUnicodeKeyLayoutData: *const c_void;
+
+    fn TISCopyCurrentKeyboardLayoutInputSource() -> *mut c_void;
+    fn TISGetInputSourceProperty(
+        input_source: *const c_void,
+        property_key: *const c_void,
+    ) -> *const c_void;
+    fn UCKeyTranslate(
+        key_layout: *const UcKeyboardLayout,
+        virtual_key_code: u16,
+        key_action: u16,
+        modifier_key_state: u32,
+        keyboard_type: u32,
+        key_translate_options: u32,
+        dead_key_state: *mut u32,
+        max_string_length: usize,
+        actual_string_length: *mut usize,
+        unicode_string: *mut u16,
+    ) -> i32;
+    fn LMGetKbdType() -> u8;
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MacCharacterKey {
+    key_code: u16,
+    shift: bool,
+    option: bool,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct MouseButtonDescription {
@@ -85,6 +127,77 @@ fn post_tagged_event(event: &CGEvent) {
         INJECTED_EVENT_TAG,
     );
     CGEvent::post(CGEventTapLocation::HIDEventTap, Some(event));
+}
+
+fn post_raw_keyboard_event(key_code: u16, down: bool) -> bool {
+    let Some(event) = CGEvent::new_keyboard_event(None, key_code, down) else {
+        return false;
+    };
+    post_tagged_event(&event);
+    true
+}
+
+fn resolve_character_key(character: u8) -> Option<MacCharacterKey> {
+    let input_source = NonNull::new(unsafe { TISCopyCurrentKeyboardLayoutInputSource() })?;
+    // SAFETY: TISCopyCurrentKeyboardLayoutInputSource follows the CoreFoundation Copy rule and returns +1.
+    let input_source = unsafe { CFRetained::<CFType>::from_raw(input_source.cast::<CFType>()) };
+    // SAFETY: this is an immutable process-lifetime Carbon property-key constant.
+    let property_key = unsafe { kTISPropertyUnicodeKeyLayoutData };
+    if property_key.is_null() {
+        return None;
+    }
+    // SAFETY: the retained input source remains alive for the returned property reference's use below.
+    let layout_data = unsafe {
+        TISGetInputSourceProperty(
+            CFRetained::as_ptr(&input_source).as_ptr().cast::<c_void>(),
+            property_key,
+        )
+    };
+    let layout_data = NonNull::new(layout_data.cast_mut())?;
+    // SAFETY: kTISPropertyUnicodeKeyLayoutData is documented to return a CFDataRef when present.
+    let layout_data = unsafe { layout_data.cast::<CFData>().as_ref() };
+    if layout_data.len() < MINIMUM_UC_KEYBOARD_LAYOUT_BYTES {
+        return None;
+    }
+    // SAFETY: the CFData is immutable for the retained input source lifetime and non-empty after the size check.
+    let layout_bytes = unsafe { layout_data.as_bytes_unchecked() };
+    let layout = layout_bytes.as_ptr().cast::<UcKeyboardLayout>();
+    let modifier_states = [0, SHIFT_KEY, OPTION_KEY, SHIFT_KEY | OPTION_KEY];
+    let wanted = u16::from(character);
+    // SAFETY: LMGetKbdType has no arguments and returns the current physical keyboard type identifier.
+    let keyboard_type = u32::from(unsafe { LMGetKbdType() });
+
+    for key_code in 0_u16..128 {
+        for modifier_state in modifier_states {
+            let mut dead_key_state = 0_u32;
+            let mut output = [0_u16; 4];
+            let mut output_length = 0_usize;
+            // SAFETY: layout points into immutable CFData retained by input_source; all output pointers are valid
+            // for their declared sizes, and the no-dead-keys option prevents persistent dead-key state.
+            let result = unsafe {
+                UCKeyTranslate(
+                    layout,
+                    key_code,
+                    UC_KEY_ACTION_DOWN,
+                    (modifier_state >> 8) & 0xFF,
+                    keyboard_type,
+                    UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK,
+                    &mut dead_key_state,
+                    output.len(),
+                    &mut output_length,
+                    output.as_mut_ptr(),
+                )
+            };
+            if result == 0 && output_length == 1 && output[0] == wanted {
+                return Some(MacCharacterKey {
+                    key_code,
+                    shift: modifier_state & SHIFT_KEY != 0,
+                    option: modifier_state & OPTION_KEY != 0,
+                });
+            }
+        }
+    }
+    None
 }
 
 const fn event_mask(event_type: CGEventType) -> u64 {
@@ -469,6 +582,68 @@ impl MacosInputInjector {
         self.direct_cursor_movement.load(Ordering::Acquire)
     }
 
+    fn post_unicode_character(&self, character: u8, delay_ms: i32) -> bool {
+        if !self.output_allowed() {
+            return false;
+        }
+        let unicode_character = u16::from(character);
+        let Some(key_down) = CGEvent::new_keyboard_event(None, 0, true) else {
+            return false;
+        };
+        // SAFETY: unicode_character points to one valid UTF-16 code unit for the duration of the call.
+        unsafe {
+            CGEvent::keyboard_set_unicode_string(Some(&key_down), 1, &unicode_character);
+        }
+        post_tagged_event(&key_down);
+
+        thread::sleep(Duration::from_millis(u64::try_from(delay_ms.max(0)).unwrap_or(0)));
+
+        let Some(key_up) = CGEvent::new_keyboard_event(None, 0, false) else {
+            return false;
+        };
+        // SAFETY: unicode_character points to one valid UTF-16 code unit for the duration of the call.
+        unsafe {
+            CGEvent::keyboard_set_unicode_string(Some(&key_up), 1, &unicode_character);
+        }
+        post_tagged_event(&key_up);
+        true
+    }
+
+    fn press_character_with_active_layout(&self, character: u8, delay_ms: i32) -> bool {
+        if !self.output_allowed() {
+            return false;
+        }
+        let Some(resolved) = resolve_character_key(character) else {
+            return self.post_unicode_character(character, delay_ms);
+        };
+
+        let option_held = resolved.option && post_raw_keyboard_event(MAC_KEY_OPTION, true);
+        let shift_held = resolved.shift
+            && (!resolved.option || option_held)
+            && post_raw_keyboard_event(MAC_KEY_SHIFT, true);
+        let modifiers_ready = (!resolved.option || option_held) && (!resolved.shift || shift_held);
+        let key_down = modifiers_ready && post_raw_keyboard_event(resolved.key_code, true);
+        if !key_down {
+            if shift_held {
+                let _ = post_raw_keyboard_event(MAC_KEY_SHIFT, false);
+            }
+            if option_held {
+                let _ = post_raw_keyboard_event(MAC_KEY_OPTION, false);
+            }
+            return self.post_unicode_character(character, delay_ms);
+        }
+
+        thread::sleep(Duration::from_millis(u64::try_from(delay_ms.max(0)).unwrap_or(0)));
+        let _ = post_raw_keyboard_event(resolved.key_code, false);
+        if shift_held {
+            let _ = post_raw_keyboard_event(MAC_KEY_SHIFT, false);
+        }
+        if option_held {
+            let _ = post_raw_keyboard_event(MAC_KEY_OPTION, false);
+        }
+        true
+    }
+
     fn post_keyboard(&self, key: KeyCode, down: bool) -> bool {
         if !self.output_allowed() {
             return false;
@@ -606,5 +781,9 @@ impl InputInjector for MacosInputInjector {
             return;
         };
         post_tagged_event(&event);
+    }
+
+    fn press_character(&self, character: u8, delay_ms: i32) -> bool {
+        self.press_character_with_active_layout(character, delay_ms)
     }
 }

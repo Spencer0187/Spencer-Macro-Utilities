@@ -25,7 +25,7 @@ class RustMacosInputTests(unittest.TestCase):
         workspace = tomllib.loads((ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8"))
         core_foundation = workspace["workspace"]["dependencies"]["objc2-core-foundation"]
         self.assertFalse(core_foundation["default-features"])
-        for feature in ("std", "CFDate", "CFMachPort", "CFRunLoop"):
+        for feature in ("std", "CFData", "CFDate", "CFMachPort", "CFRunLoop"):
             self.assertIn(feature, core_foundation["features"])
 
     def test_virtual_key_map_matches_cpp_table(self) -> None:
@@ -77,7 +77,33 @@ class RustMacosInputTests(unittest.TestCase):
             "prefers_direct_absolute_positioning",
         ):
             self.assertIn(expected, source)
-        self.assertNotIn("TISCopyCurrentKeyboardLayoutInputSource", source)
+
+    def test_active_layout_text_preserves_tis_uckeytranslate_contract(self) -> None:
+        source = (ROOT / "rust" / "crates" / "smu-input" / "src" / "macos.rs").read_text(
+            encoding="utf-8"
+        )
+        for expected in (
+            '#[link(name = "Carbon", kind = "framework")]',
+            "TISCopyCurrentKeyboardLayoutInputSource",
+            "TISGetInputSourceProperty",
+            "kTISPropertyUnicodeKeyLayoutData",
+            "CFRetained::<CFType>::from_raw",
+            "MINIMUM_UC_KEYBOARD_LAYOUT_BYTES",
+            "UCKeyTranslate",
+            "UC_KEY_ACTION_DOWN",
+            "UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK",
+            "LMGetKbdType",
+            "[0, SHIFT_KEY, OPTION_KEY, SHIFT_KEY | OPTION_KEY]",
+            "(modifier_state >> 8) & 0xFF",
+            "output_length == 1 && output[0] == wanted",
+            "MAC_KEY_OPTION",
+            "MAC_KEY_SHIFT",
+            "CGEvent::keyboard_set_unicode_string",
+            "post_unicode_character",
+            "press_character_with_active_layout",
+            "fn press_character(&self, character: u8, delay_ms: i32) -> bool",
+        ):
+            self.assertIn(expected, source)
 
     def test_coregraphics_state_reader_preserves_cpp_event_tap_contract(self) -> None:
         source = (ROOT / "rust" / "crates" / "smu-input" / "src" / "macos.rs").read_text(

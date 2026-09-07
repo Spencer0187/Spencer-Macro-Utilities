@@ -41,9 +41,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Studio, results are sorted/deduplicated and cached for 250 ms, `findMain` prefers a matching frontmost app,
   suspend/resume use `SIGSTOP`/`SIGCONT` while refusing the current process, and foreground checks compare the
   frontmost PID. AppKit objects stay inside autorelease pools and only plain Rust PID/cache data is retained.
-  A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input crates; the
-  adapters are not wired into `smu-app` yet while macOS physical-input state, native-layout text, and display
-  services are still missing. The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
+  A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input crates; those
+  adapters are not wired into `smu-app` yet while the native macOS display service and final app composition
+  are still missing. The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
   matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
   queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
   and foreground checks compare the active window PID directly. Fedora validation covers the portable
@@ -80,8 +80,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   binding input, exposes the same first-pressed-key scan, and clears state on deterministic shutdown. The
   callback owns only an `Arc` of atomic Rust state; CoreFoundation tap/run-loop objects stay on the reader
   thread, which runs in short default-mode slices so shutdown does not retain a cross-thread run-loop pointer.
-  Active-layout Text Input Services character resolution remains the next macOS input checkpoint, so these
-  adapters remain unwired from `smu-app`. Linux character
+  Native text entry now mirrors the Objective-C++ Text Input Services path too: it retains the current keyboard
+  layout input source, requires a valid Unicode-layout `CFData`, scans all 128 macOS keycodes across none/Shift/
+  Option/Shift+Option with `UCKeyTranslate` and dead-key generation disabled, posts Option before Shift and
+  unwinds modifiers in reverse order, and falls back to tagged Unicode CoreGraphics key events when no active-
+  layout physical key combination resolves the requested byte. The Carbon ABI shim is deliberately minimal and
+  macOS-only; `CFData` lifetime is bounded by the retained TIS input source. These adapters remain unwired from
+  `smu-app` while the native display slice is still missing. Linux character
   injection queries the current X11 keyboard/modifier maps and mirrors the C++
   six-state `XLookupString` search (`none`, Shift, Mod1, Mod5, Shift+Mod1, Shift+Mod5), including the
   first-key-per-modifier and X11-keycode-minus-8 evdev rules; synthetic-map tests freeze plain Shift
@@ -451,8 +456,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   auto-apply therefore remains off because the Rust bundle has side-loaded runtime siblings and the repository
   `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
-  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS still lacks its
-  native Rust physical-input state/text/display adapters and app-level composition.
+  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS now has native
+  Rust process and input adapters; the remaining native platform gap is display plus app-level composition.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
