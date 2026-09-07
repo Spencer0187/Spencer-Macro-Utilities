@@ -72,6 +72,46 @@ class RustMacosUpdaterTests(unittest.TestCase):
         self.assertNotIn('Command::new("/bin/mv")', source)
         self.assertNotIn("apply-update.sh", source)
 
+    def test_dormant_macos_staging_binds_authenticated_zip_to_same_signer_app(self) -> None:
+        updater = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "macos.rs"
+        ).read_text(encoding="utf-8")
+        bundle = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "macos_bundle.rs"
+        ).read_text(encoding="utf-8")
+        for expected in (
+            "stage_verified_macos_update_asset",
+            "read_verified_update_asset(asset, downloaded_path)",
+            "validate_macos_bundle_archive(&authenticated_bytes)",
+            'unique_directory(Path::new("/tmp"), "smu-macos-updater")',
+            'work_dir.join("update.zip")',
+            'Command::new("/usr/bin/ditto")',
+            '.args(["-x", "-k"])',
+            "release_leaf_certificate(installed_bundle)",
+            "release_leaf_certificate(staged_bundle)",
+            "installed_certificate != staged_certificate",
+            "pub struct StagedMacosBundle",
+            "impl Drop for StagedMacosBundle",
+            "fs::remove_dir_all(&self.work_dir)",
+        ):
+            self.assertIn(expected, updater)
+        for expected in (
+            "MAXIMUM_MACOS_BUNDLE_ENTRIES",
+            "MAXIMUM_UPDATE_BYTES",
+            'parts.first() == Some(&"__MACOSX")',
+            'strip_prefix("._")',
+            "entry.encrypted()",
+            "entry.unix_mode()",
+            "entry_is_supported_file",
+            "BTreeSet",
+            'format!("{root_app}/Contents/Info.plist")',
+            'format!("{root_app}/Contents/MacOS/")',
+        ):
+            self.assertIn(expected, bundle)
+        self.assertNotIn('Command::new("/bin/mv")', updater)
+        self.assertNotIn("rename(&installed", updater)
+        self.assertNotIn("macos_auto_apply_supported() -> bool {\n    true", updater)
+
     def test_macos_ci_runs_updater_and_source_contract(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"

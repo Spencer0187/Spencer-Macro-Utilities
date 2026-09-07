@@ -3,6 +3,8 @@
 //! This module deliberately stops before replacement. It establishes the same preconditions used by the
 //! legacy updater so update checks can distinguish a valid installed `.app` from DMG/manual-only launches.
 
+use crate::macos_bundle::validate_macos_bundle_archive;
+use crate::{ReleaseAsset, read_verified_update_asset};
 use std::fmt;
 use std::fs;
 use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _};
@@ -88,10 +90,10 @@ fn command_succeeded(program: &str, arguments: &[&str], path: &Path) -> bool {
     Command::new(program).args(arguments).arg(path).status().is_ok_and(|status| status.success())
 }
 
-fn certificate_backed_release_signature(bundle: &Path) -> Result<(), MacosUpdateError> {
+fn release_leaf_certificate(bundle: &Path) -> Result<Vec<u8>, MacosUpdateError> {
     if !command_succeeded("/usr/bin/codesign", &["--verify", "--deep", "--strict"], bundle) {
         return Err(MacosUpdateError::new(
-            "Automatic updates require an installed SMU app with a valid release signature.",
+            "Automatic updates require an SMU app with a valid release signature.",
         ));
     }
 
@@ -104,17 +106,22 @@ fn certificate_backed_release_signature(bundle: &Path) -> Result<(), MacosUpdate
         .status()
         .is_ok_and(|status| status.success());
     let leaf_certificate = signer_dir.join("signer-0");
-    let has_leaf = extracted
-        && fs::metadata(&leaf_certificate)
-            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0);
+    let certificate = if extracted {
+        fs::read(&leaf_certificate).ok().filter(|bytes| !bytes.is_empty())
+    } else {
+        None
+    };
     let _ = fs::remove_dir_all(&signer_dir);
 
-    if !has_leaf {
-        return Err(MacosUpdateError::new(
+    certificate.ok_or_else(|| {
+        MacosUpdateError::new(
             "Automatic updates require the official certificate-signed SMU app. This build must be updated manually.",
-        ));
-    }
-    Ok(())
+        )
+    })
+}
+
+fn certificate_backed_release_signature(bundle: &Path) -> Result<(), MacosUpdateError> {
+    release_leaf_certificate(bundle).map(|_| ())
 }
 
 fn replacement_parent_is_safe(bundle: &Path) -> Result<(), MacosUpdateError> {
@@ -166,6 +173,109 @@ pub fn macos_update_bundle_if_replaceable() -> Result<PathBuf, MacosUpdateError>
     certificate_backed_release_signature(&bundle)?;
     replacement_parent_is_safe(&bundle)?;
     Ok(bundle)
+}
+
+#[derive(Debug)]
+pub struct StagedMacosBundle {
+    work_dir: PathBuf,
+    app_path: PathBuf,
+}
+
+impl StagedMacosBundle {
+    #[must_use]
+    pub fn app_path(&self) -> &Path {
+        &self.app_path
+    }
+}
+
+impl Drop for StagedMacosBundle {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.work_dir);
+    }
+}
+
+fn validate_staged_bundle_signer(
+    installed_bundle: &Path,
+    staged_bundle: &Path,
+) -> Result<(), MacosUpdateError> {
+    let installed_certificate = release_leaf_certificate(installed_bundle)?;
+    let staged_certificate = release_leaf_certificate(staged_bundle).map_err(|_| {
+        MacosUpdateError::new("Downloaded macOS app failed code-signature validation.")
+    })?;
+    if installed_certificate != staged_certificate {
+        return Err(MacosUpdateError::new(
+            "Downloaded macOS app was not signed by the same release certificate.",
+        ));
+    }
+    Ok(())
+}
+
+/// Stage one manifest-authenticated macOS ZIP into a private temporary directory and require a single,
+/// valid `.app` signed by the same leaf release certificate as the installed bundle.
+///
+/// This function is intentionally dormant: it prepares and validates a bundle but never mutates the installed
+/// application or launches a replacement helper.
+///
+/// # Errors
+///
+/// Returns an error when the asset contract, ZIP layout, `ditto` extraction, staged bundle type, or signature
+/// identity check fails.
+pub fn stage_verified_macos_update_asset(
+    asset: &ReleaseAsset,
+    downloaded_path: &Path,
+) -> Result<StagedMacosBundle, MacosUpdateError> {
+    if !asset
+        .name
+        .rsplit_once('.')
+        .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("zip"))
+    {
+        return Err(MacosUpdateError::new(
+            "macOS auto-update only supports ZIP release assets containing a .app bundle.",
+        ));
+    }
+    let installed_bundle = macos_update_bundle_if_replaceable()?;
+    let authenticated_bytes = read_verified_update_asset(asset, downloaded_path)
+        .map_err(|error| MacosUpdateError::new(error.to_string()))?;
+    let app_name = validate_macos_bundle_archive(&authenticated_bytes)
+        .map_err(|error| MacosUpdateError::new(error.to_string()))?;
+
+    let work_dir = unique_directory(Path::new("/tmp"), "smu-macos-updater")?;
+    let staging = (|| {
+        let zip_path = work_dir.join("update.zip");
+        fs::write(&zip_path, &authenticated_bytes).map_err(|error| {
+            MacosUpdateError::new(format!(
+                "Could not write authenticated macOS update ZIP: {error}"
+            ))
+        })?;
+        let extracted = unique_directory(&work_dir, "extracted")?;
+        let status = Command::new("/usr/bin/ditto")
+            .args(["-x", "-k"])
+            .arg(&zip_path)
+            .arg(&extracted)
+            .status()
+            .map_err(|error| {
+                MacosUpdateError::new(format!("Could not launch macOS ZIP extraction: {error}"))
+            })?;
+        if !status.success() {
+            return Err(MacosUpdateError::new("Downloaded macOS update could not be extracted."));
+        }
+        let _ = fs::remove_file(&zip_path);
+        let app_path = extracted.join(app_name);
+        let metadata = fs::symlink_metadata(&app_path).map_err(|error| {
+            MacosUpdateError::new(format!("Downloaded macOS app bundle was missing: {error}"))
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(MacosUpdateError::new(
+                "Downloaded macOS update did not contain a regular app bundle directory.",
+            ));
+        }
+        validate_staged_bundle_signer(&installed_bundle, &app_path)?;
+        Ok(StagedMacosBundle { work_dir: work_dir.clone(), app_path })
+    })();
+    if staging.is_err() {
+        let _ = fs::remove_dir_all(&work_dir);
+    }
+    staging
 }
 
 #[must_use]

@@ -148,8 +148,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   manifest-driven update check from `smu-app`. A read-only macOS install-eligibility slice also resolves the
   enclosing `.app`, rejects mounted-DMG/symlink launches, requires `codesign --verify --deep --strict` plus a
   non-empty extracted leaf certificate, enforces the sticky-directory ownership rule, and proves sibling
-  staging writability with a create/remove probe. Rust macOS auto-apply is still deliberately advertised as
-  false until the signed `.app` replacement/rollback transaction itself is ported. HTTP remains injected behind
+  staging writability with a create/remove probe. The next dormant slice now stages only manifest-authenticated
+  ZIP bytes: a Rust validator requires one `.app` root, tolerates matching `__MACOSX`/AppleDouble metadata from
+  `ditto --sequesterRsrc --keepParent`, rejects traversal/backslash, encrypted, duplicate, special-file, excessive-
+  entry/expanded-size, outside-root, and incomplete app payloads, then writes those exact authenticated bytes to
+  a private 0700 temp directory for `/usr/bin/ditto -x -k` extraction. The staged bundle must be a real directory,
+  pass `codesign --verify --deep --strict`, and carry the exact same extracted leaf signing certificate bytes as
+  the installed app; its staging tree is RAII-cleaned. This API remains dormant and never mutates the installed
+  bundle. Rust macOS auto-apply is still deliberately advertised as false until the signed `.app`
+  replacement/rollback transaction itself is ported. HTTP remains injected behind
   `UpdateTransport`, and platform replacement remains separate, so untrusted metadata is validated before
   install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.

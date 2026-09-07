@@ -11,6 +11,8 @@ mod linux;
 mod linux_install;
 #[cfg(target_os = "macos")]
 mod macos;
+#[cfg(any(target_os = "macos", test))]
+mod macos_bundle;
 #[cfg(target_os = "windows")]
 mod windows;
 mod windows_bundle;
@@ -30,8 +32,9 @@ pub use linux_install::{
 };
 #[cfg(target_os = "macos")]
 pub use macos::{
-    MacosUpdateError, macos_auto_apply_supported, macos_auto_apply_unavailable_reason,
-    macos_update_bundle_if_replaceable,
+    MacosUpdateError, StagedMacosBundle, macos_auto_apply_supported,
+    macos_auto_apply_unavailable_reason, macos_update_bundle_if_replaceable,
+    stage_verified_macos_update_asset,
 };
 use serde_json::Value;
 use sha2::{Digest as _, Sha256};
