@@ -12,6 +12,8 @@ mod linux_install;
 #[cfg(target_os = "windows")]
 mod windows;
 mod windows_bundle;
+#[cfg(target_os = "windows")]
+mod windows_launch;
 mod windows_replace;
 
 pub use check::{
@@ -40,6 +42,10 @@ pub use windows::{
 };
 pub use windows_bundle::{
     WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle, windows_bundle_file_sha256,
+};
+#[cfg(target_os = "windows")]
+pub use windows_launch::{
+    WindowsUpdateLaunch, WindowsUpdateLaunchError, launch_windows_update_helper,
 };
 pub use windows_replace::{
     PreparedWindowsBundle, WindowsReplacementError, WindowsReplacementTransaction,

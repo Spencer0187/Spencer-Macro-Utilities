@@ -419,6 +419,48 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertNotIn("FILE_SHARE_WRITE", replacement)
         self.assertNotIn("FILE_SHARE_DELETE", replacement)
 
+    def test_windows_update_launcher_is_trust_pinned_and_stays_dormant(self) -> None:
+        launcher = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_launch.rs"
+        ).read_text(encoding="utf-8")
+        updater_service = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "launch_windows_update_helper",
+            "fetch_release_version(target_version)",
+            "verify_downloaded_asset_bytes",
+            "is_safe_windows_leaf_name",
+            "unsafe release asset filename",
+            "DetachedLaunchDirectory::create()",
+            "fs::create_dir(&path)",
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "FILE_FLAG_BACKUP_SEMANTICS",
+            ".share_mode(FILE_SHARE_READ)",
+            ".create_new(true)",
+            "require_matching_authenticode_signer",
+            "windows_file_version(&current_app)",
+            "current_version.revision != 0",
+            "Sha256::digest",
+            "stage_detached_helper",
+            "Command::new(&detached_helper)",
+            '.arg("--apply-update")',
+            ".arg(std::process::id().to_string())",
+        ):
+            self.assertIn(expected, launcher)
+        self.assertNotIn("FILE_SHARE_WRITE", launcher)
+        self.assertNotIn("FILE_SHARE_DELETE", launcher)
+        self.assertIn(
+            "UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)",
+            updater_service,
+        )
+        self.assertIn(
+            '"An update is available, but automatic installation is not supported in this launch mode."',
+            updater_service,
+        )
+        self.assertNotIn("launch_windows_update_helper", updater_service)
+
     def test_windows_update_helper_is_minimal_authenticated_and_dormant(self) -> None:
         helper_root = ROOT / "rust" / "crates" / "smu-windows-updater-helper"
         manifest = tomllib.loads((helper_root / "Cargo.toml").read_text(encoding="utf-8"))
@@ -435,6 +477,8 @@ class RustWindowsStagingTest(unittest.TestCase):
         windows_sys = manifest["target"]['cfg(target_os = "windows")']["dependencies"][
             "windows-sys"
         ]
+        self.assertIn("Win32_Storage_FileSystem", windows_sys["features"])
+        self.assertIn("Win32_System_SystemInformation", windows_sys["features"])
         self.assertIn("Win32_System_Threading", windows_sys["features"])
         for expected in (
             'const APPLY_UPDATE_FLAG: &str = "--apply-update"',
@@ -447,7 +491,23 @@ class RustWindowsStagingTest(unittest.TestCase):
             "require_matching_authenticode_signer",
             "windows_file_version",
             "detached_current_helper",
-            "current_helper.starts_with(install_root)",
+            'format!("smu-update-launch-{old_pid}-")',
+            "helper_directory.starts_with(&temp_root)",
+            "current_helper.starts_with(&install_root)",
+            "detached_package_path",
+            "package.parent() != Some(helper_directory)",
+            "DetachedArtifactsCleanup",
+            "GetSystemDirectoryW",
+            "spawn_cleanup_process",
+            'system_executable_path("ping.exe", "the Windows system cleanup delay utility")',
+            'env("SMU_CLEANUP_DELAY", cleanup_delay)',
+            "CREATE_NO_WINDOW",
+            '"/E:ON"',
+            '"/V:OFF"',
+            '"rd /Q \\"%SMU_CLEANUP_DIR%\\"',
+            "MoveFileExW",
+            "MOVEFILE_DELAY_UNTIL_REBOOT",
+            "std::fs::remove_file(&package_path)",
             "OpenProcess",
             "PROCESS_QUERY_LIMITED_INFORMATION",
             "QueryFullProcessImageNameW",

@@ -410,8 +410,22 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   backup pathname. The helper also opens the old PID before
   network/staging work with synchronization plus query rights, verifies that handle's
   image path is the installed SMU executable, and keeps the handle alive through the wait so PID reuse cannot
-  redirect synchronization to an unrelated process. Windows auto-apply remains off because the Rust bundle has
-  side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned; production
+  redirect synchronization to an unrelated process. `smu-updater` also now has the dormant parent-side handoff
+  primitive that a future enabled UI path can call: it derives the local updater version from the running
+  executable's numeric PE `FILEVERSION`, re-fetches the exact release, downloads and validates the
+  manifest-bound Windows package, creates and pins a fresh detached temp directory, copies the installed
+  helper from a pinned non-reparse handle, requires the copied bytes, Authenticode signer, and PE version to
+  match the installed helper/current app, pins the detached helper against mutation, and launches it with the
+  exact target/package/install-root/current-PID arguments. The helper accepts the package only when it is a
+  regular non-reparse sibling in that detached launch directory. On startup it first proves its own canonical
+  helper name and `smu-update-launch-<old-pid>-...` directory under the Windows temp root, establishes cleanup
+  ownership before validating the install/package paths, and deletes the ZIP immediately after its
+  authenticated bytes are loaded. On every later exit path it launches the canonical System32 `cmd.exe`
+  without a console to retry deleting only the detached package/helper and then remove the now-empty launch
+  directory; reboot-delayed deletion remains a best-effort fallback when available. The launcher remains
+  intentionally unwired from `smu-app`; Windows
+  auto-apply therefore remains off because the Rust bundle has side-loaded runtime siblings and the repository
+  `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
   enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS still lacks its
   native Rust adapters.

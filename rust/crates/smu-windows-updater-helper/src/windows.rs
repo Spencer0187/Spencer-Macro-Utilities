@@ -5,17 +5,22 @@ use smu_updater::{
     require_matching_authenticode_signer, select_update_asset, windows_bundle_file_sha256,
     windows_file_version,
 };
-use std::ffi::OsString;
-use std::os::windows::ffi::OsStringExt as _;
+use std::ffi::{OsStr, OsString};
+use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+use std::os::windows::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0, WAIT_TIMEOUT},
-    System::Threading::{
-        OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
-        QueryFullProcessImageNameW, WaitForSingleObject,
+    Storage::FileSystem::{FILE_ATTRIBUTE_REPARSE_POINT, MOVEFILE_DELAY_UNTIL_REBOOT, MoveFileExW},
+    System::{
+        SystemInformation::GetSystemDirectoryW,
+        Threading::{
+            CREATE_NO_WINDOW, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+            QueryFullProcessImageNameW, WaitForSingleObject,
+        },
     },
 };
 
@@ -37,6 +42,89 @@ impl Drop for ProcessHandle {
         unsafe {
             let _ = CloseHandle(self.0);
         }
+    }
+}
+
+fn wide_null(value: &OsStr) -> Vec<u16> {
+    value.encode_wide().chain(std::iter::once(0)).collect()
+}
+
+fn schedule_delete_on_reboot(path: &Path) {
+    let path = wide_null(path.as_os_str());
+    // SAFETY: path is a NUL-terminated UTF-16 string and a null destination requests deletion.
+    unsafe {
+        let _ = MoveFileExW(path.as_ptr(), std::ptr::null(), MOVEFILE_DELAY_UNTIL_REBOOT);
+    }
+}
+
+fn system_executable_path(name: &str, label: &str) -> Result<PathBuf, String> {
+    let mut buffer = vec![0_u16; 32_768];
+    // SAFETY: buffer is writable for its declared length and GetSystemDirectoryW writes UTF-16 data.
+    let length = unsafe {
+        GetSystemDirectoryW(buffer.as_mut_ptr(), u32::try_from(buffer.len()).unwrap_or(u32::MAX))
+    };
+    let length = usize::try_from(length)
+        .map_err(|_| "Windows system directory path length was invalid.".to_owned())?;
+    if length == 0 || length >= buffer.len() {
+        return Err("Could not resolve the Windows system directory.".to_owned());
+    }
+    let mut path = PathBuf::from(OsString::from_wide(&buffer[..length]));
+    path.push(name);
+    canonical_file(&path, label)
+}
+
+fn spawn_cleanup_process(cleanup: &DetachedArtifactsCleanup) -> Result<(), String> {
+    const CLEANUP_COMMAND: &str = concat!(
+        "for /L %i in (1,1,120) do @( ",
+        "if defined SMU_CLEANUP_PACKAGE del /F /Q \"%SMU_CLEANUP_PACKAGE%\" >NUL 2>&1 & ",
+        "del /F /Q \"%SMU_CLEANUP_HELPER%\" >NUL 2>&1 & ",
+        "rd /Q \"%SMU_CLEANUP_DIR%\" >NUL 2>&1 & ",
+        "if not exist \"%SMU_CLEANUP_DIR%\" exit /B 0 & ",
+        "\"%SMU_CLEANUP_DELAY%\" -n 2 127.0.0.1 >NUL )"
+    );
+
+    let command_processor =
+        system_executable_path("cmd.exe", "the Windows system command processor")?;
+    let cleanup_delay =
+        system_executable_path("ping.exe", "the Windows system cleanup delay utility")?;
+    let mut command = Command::new(command_processor);
+    command
+        .args(["/D", "/Q", "/E:ON", "/V:OFF", "/C", CLEANUP_COMMAND])
+        .env("SMU_CLEANUP_HELPER", &cleanup.helper)
+        .env("SMU_CLEANUP_DIR", &cleanup.directory)
+        .env("SMU_CLEANUP_DELAY", cleanup_delay)
+        .env("SMU_CLEANUP_PACKAGE", cleanup.package.as_deref().unwrap_or_else(|| Path::new("")))
+        .creation_flags(CREATE_NO_WINDOW);
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Could not launch detached update cleanup: {error}"))
+}
+
+#[derive(Debug)]
+struct DetachedArtifactsCleanup {
+    helper: PathBuf,
+    package: Option<PathBuf>,
+    directory: PathBuf,
+}
+
+impl DetachedArtifactsCleanup {
+    fn set_package(&mut self, package: PathBuf) {
+        self.package = Some(package);
+    }
+}
+
+impl Drop for DetachedArtifactsCleanup {
+    fn drop(&mut self) {
+        if let Some(package) = &self.package {
+            let _ = std::fs::remove_file(package);
+        }
+        let _ = spawn_cleanup_process(self);
+        if let Some(package) = &self.package {
+            schedule_delete_on_reboot(package);
+        }
+        schedule_delete_on_reboot(&self.helper);
+        schedule_delete_on_reboot(&self.directory);
     }
 }
 
@@ -83,15 +171,29 @@ where
 }
 
 fn canonical_directory(path: &Path, label: &str) -> Result<PathBuf, String> {
-    if !path.is_dir() {
-        return Err(format!("{label} does not exist: {}", path.display()));
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_dir()
+        || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(format!(
+            "Rust Windows update helper refused a non-directory or reparse-point {label}."
+        ));
     }
     std::fs::canonicalize(path).map_err(|error| format!("Could not resolve {label}: {error}"))
 }
 
 fn canonical_file(path: &Path, label: &str) -> Result<PathBuf, String> {
-    if !path.is_file() {
-        return Err(format!("{label} does not exist: {}", path.display()));
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {label}: {error}"))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(format!(
+            "Rust Windows update helper refused a non-regular or reparse-point {label}."
+        ));
     }
     std::fs::canonicalize(path).map_err(|error| format!("Could not resolve {label}: {error}"))
 }
@@ -120,7 +222,10 @@ fn fresh_staging_directory() -> Result<PathBuf, String> {
     Err("Could not allocate a fresh Windows update staging path.".to_owned())
 }
 
-fn fetch_and_authenticate_package(args: &ApplyUpdateArgs) -> Result<Vec<u8>, String> {
+fn fetch_and_authenticate_package(
+    args: &ApplyUpdateArgs,
+    package_path: &Path,
+) -> Result<Vec<u8>, String> {
     let mut checker = UpdateChecker::new(WinInetUpdateTransport, UpdatePlatform::Windows, false);
     let release =
         checker.fetch_release_version(&args.target_version).map_err(|error| error.to_string())?;
@@ -129,22 +234,60 @@ fn fetch_and_authenticate_package(args: &ApplyUpdateArgs) -> Result<Vec<u8>, Str
     }
     let asset = select_update_asset(&release, UpdatePlatform::Windows)
         .ok_or_else(|| "Requested release did not include a Windows update package.".to_owned())?;
-    read_verified_update_asset(&asset, &args.package_path).map_err(|error| error.to_string())
+    if package_path.file_name() != Some(OsStr::new(&asset.name)) {
+        return Err(
+            "Rust Windows update helper refused a package filename that did not match the release manifest."
+                .to_owned(),
+        );
+    }
+    read_verified_update_asset(&asset, package_path).map_err(|error| error.to_string())
 }
 
-fn detached_current_helper(install_root: &Path) -> Result<PathBuf, String> {
+fn detached_current_helper(old_pid: u32) -> Result<(PathBuf, PathBuf), String> {
     let current_helper = canonical_file(
         &std::env::current_exe()
             .map_err(|error| format!("Could not resolve update helper: {error}"))?,
         "the running update helper",
     )?;
-    if current_helper.starts_with(install_root) {
+    if current_helper.file_name() != Some(OsStr::new(HELPER_EXE)) {
+        return Err("Rust Windows update helper refused an unexpected executable name.".to_owned());
+    }
+    let helper_directory = current_helper
+        .parent()
+        .ok_or_else(|| "Rust Windows update helper has no parent directory.".to_owned())?;
+    let helper_directory = canonical_directory(helper_directory, "the detached update directory")?;
+    let temp_root = std::fs::canonicalize(std::env::temp_dir())
+        .map_err(|error| format!("Could not resolve the Windows temporary directory: {error}"))?;
+    if !helper_directory.starts_with(&temp_root) {
         return Err(
-            "Rust Windows update helper must run from a detached copy outside the installation directory."
+            "Rust Windows update helper refused a detached directory outside the Windows temporary directory."
                 .to_owned(),
         );
     }
-    Ok(current_helper)
+    let expected_prefix = format!("smu-update-launch-{old_pid}-");
+    let directory_name =
+        helper_directory.file_name().and_then(|value| value.to_str()).ok_or_else(|| {
+            "Rust Windows update helper received an invalid detached directory name.".to_owned()
+        })?;
+    if !directory_name.starts_with(&expected_prefix) {
+        return Err("Rust Windows update helper refused an unexpected detached launch directory."
+            .to_owned());
+    }
+    Ok((current_helper, helper_directory))
+}
+
+fn detached_package_path(args: &ApplyUpdateArgs, current_helper: &Path) -> Result<PathBuf, String> {
+    let package = canonical_file(&args.package_path, "the downloaded Windows update package")?;
+    let helper_directory = current_helper
+        .parent()
+        .ok_or_else(|| "Rust Windows update helper has no parent directory.".to_owned())?;
+    if package.parent() != Some(helper_directory) {
+        return Err(
+            "Rust Windows update helper refused a package outside its detached launch directory."
+                .to_owned(),
+        );
+    }
+    Ok(package)
 }
 
 fn validate_versions_and_signers(
@@ -254,12 +397,27 @@ fn require_startup_survival(child: &mut Child) -> Result<(), String> {
 }
 
 fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
+    let (current_helper, detached_directory) = detached_current_helper(args.old_pid)?;
+    let mut cleanup = DetachedArtifactsCleanup {
+        helper: current_helper.clone(),
+        package: None,
+        directory: detached_directory,
+    };
     let install_root = canonical_directory(&args.install_root, "the SMU installation directory")?;
+    if current_helper.starts_with(&install_root) {
+        return Err(
+            "Rust Windows update helper must run from a detached copy outside the installation directory."
+                .to_owned(),
+        );
+    }
     let installed_app =
         canonical_file(&install_root.join(PRODUCT_EXE), "the installed SMU executable")?;
     let old_process = open_expected_old_process(args.old_pid, &installed_app)?;
-    let current_helper = detached_current_helper(&install_root)?;
-    let package = fetch_and_authenticate_package(&args)?;
+    let package_path = detached_package_path(&args, &current_helper)?;
+    cleanup.set_package(package_path.clone());
+    let package_result = fetch_and_authenticate_package(&args, &package_path);
+    let _ = std::fs::remove_file(&package_path);
+    let package = package_result?;
     let authenticated_hashes =
         windows_bundle_file_sha256(&package).map_err(|error| error.to_string())?;
     let staging = fresh_staging_directory()?;
@@ -292,9 +450,6 @@ fn apply(args: ApplyUpdateArgs) -> Result<(), String> {
         }
         transaction.commit().map_err(|error| error.to_string())
     })();
-    if result.is_ok() {
-        let _ = std::fs::remove_file(&args.package_path);
-    }
     let _ = std::fs::remove_dir_all(&staging);
     result
 }
