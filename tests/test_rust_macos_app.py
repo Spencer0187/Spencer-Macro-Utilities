@@ -152,7 +152,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         self.assertNotIn("start_lag_switch_controller(&macos", main)
         self.assertNotIn("WindowsBuiltinRuntimeServices::new(&shell_state, &macos", main)
 
-    def test_macos_update_checks_are_composed_but_auto_apply_launcher_remains_unwired(self) -> None:
+    def test_macos_update_checks_and_restart_path_are_composed_but_auto_apply_remains_gated(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
         )
@@ -191,6 +191,21 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             "UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false)",
             updater,
         )
+        for expected in (
+            "use smu_updater::launch_macos_update_helper",
+            "if !state.status.auto_apply_supported",
+            "state.status.selected_asset.is_none()",
+            "let result = launch_macos_update_helper(&target_version)",
+            "ui.restart_requested = true",
+            "Signed macOS update is ready. The app will restart shortly.",
+        ):
+            self.assertIn(expected, updater)
+        self.assertLess(
+            updater.index("if !state.status.auto_apply_supported"),
+            updater.index("launch_macos_update_helper(&target_version)"),
+        )
+        self.assertIn("fn update_restart_requested(&self) -> bool", main)
+        self.assertIn("if macos_platform.update_restart_requested()", main)
         self.assertIn(
             "Automatic installation is not yet enabled for the Rust macOS app.",
             settings,

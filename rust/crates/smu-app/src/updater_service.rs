@@ -8,6 +8,8 @@ use crate::settings_menu::UpdaterPanelStatus;
 use smu_updater::CurlUpdateTransport;
 #[cfg(target_os = "windows")]
 use smu_updater::WinInetUpdateTransport;
+#[cfg(target_os = "macos")]
+use smu_updater::launch_macos_update_helper;
 use smu_updater::{LATEST_RELEASE_PAGE_URL, UpdateChecker, UpdaterStatus, current_platform};
 #[cfg(target_os = "linux")]
 use smu_updater::{apply_linux_update, linux_auto_apply_supported};
@@ -193,13 +195,67 @@ impl UpdateService {
         *lock(&self.worker) = Some(worker);
     }
 
-    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    #[cfg(target_os = "windows")]
     pub fn confirm_apply(&self) {
         let mut state = lock(&self.state);
         state.update_confirm_open = false;
         state.update_prompt_dismissed = true;
         "An update is available, but automatic installation is not supported in this launch mode."
             .clone_into(&mut state.action_message);
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn confirm_apply(&self) {
+        self.reap_finished_worker();
+        let target_version = {
+            let mut state = lock(&self.state);
+            if state.applying {
+                return;
+            }
+            if !state.status.auto_apply_supported {
+                state.update_confirm_open = false;
+                state.update_prompt_dismissed = true;
+                "An update is available, but automatic installation is not supported in this launch mode."
+                    .clone_into(&mut state.action_message);
+                return;
+            }
+            if state.status.selected_asset.is_none() {
+                state.update_confirm_open = false;
+                "An update is available, but no matching package asset was found for this platform."
+                    .clone_into(&mut state.action_message);
+                return;
+            }
+            let Some(release) = state.status.latest_release.as_ref() else {
+                state.update_confirm_open = false;
+                "No update release is available to install.".clone_into(&mut state.action_message);
+                return;
+            };
+            let target_version = release.version.clone();
+            state.update_confirm_open = false;
+            state.update_prompt_dismissed = true;
+            state.applying = true;
+            state.apply_failed = false;
+            "Preparing signed macOS update...".clone_into(&mut state.action_message);
+            target_version
+        };
+        let state = Arc::clone(&self.state);
+        let worker = std::thread::spawn(move || {
+            let result = launch_macos_update_helper(&target_version);
+            let mut ui = lock(&state);
+            ui.applying = false;
+            match result {
+                Ok(_) => {
+                    ui.restart_requested = true;
+                    "Signed macOS update is ready. The app will restart shortly."
+                        .clone_into(&mut ui.action_message);
+                }
+                Err(error) => {
+                    ui.apply_failed = true;
+                    ui.action_message = error.to_string();
+                }
+            }
+        });
+        *lock(&self.worker) = Some(worker);
     }
 
     pub fn dismiss_update(&self, message: &str) {

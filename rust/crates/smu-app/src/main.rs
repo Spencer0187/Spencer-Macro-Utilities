@@ -799,6 +799,10 @@ impl MacosPlatformServices {
         }
     }
 
+    fn update_restart_requested(&self) -> bool {
+        self.update_service.restart_requested()
+    }
+
     fn shutdown(&self) {
         self.update_service.shutdown();
         self.input.shutdown();
@@ -2963,6 +2967,10 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         );
         #[cfg(target_os = "linux")]
         if linux_services.update_restart_requested() {
+            break 'main;
+        }
+        #[cfg(target_os = "macos")]
+        if macos_platform.update_restart_requested() {
             break 'main;
         }
 

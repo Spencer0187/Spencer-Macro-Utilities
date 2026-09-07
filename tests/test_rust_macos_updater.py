@@ -26,9 +26,11 @@ class RustMacosUpdaterTests(unittest.TestCase):
         self.assertIn("CurlUpdateTransport::macos()", service)
         self.assertIn("UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false)", service)
         self.assertIn(
-            '#[cfg(any(target_os = "windows", target_os = "macos"))]\n    pub fn confirm_apply',
+            '#[cfg(target_os = "macos")]\n    pub fn confirm_apply',
             service,
         )
+        self.assertIn("if !state.status.auto_apply_supported", service)
+        self.assertIn("launch_macos_update_helper(&target_version)", service)
         self.assertIn(
             "automatic installation is not supported in this launch mode", service
         )
@@ -320,7 +322,6 @@ class RustMacosUpdaterTests(unittest.TestCase):
 
         self.assertNotIn("smu_macos_updater_helper", app_sources)
         self.assertNotIn("smu-macos-updater-helper", app_sources)
-        self.assertNotIn("launch_macos_update_helper", app_sources)
 
     def test_dormant_parent_launcher_copies_signed_helper_and_waits_for_ready(self) -> None:
         launcher = (
@@ -418,7 +419,7 @@ class RustMacosUpdaterTests(unittest.TestCase):
         self.assertNotIn("ReadyMarker", helper)
         self.assertIn("mod macos_launch;", exports)
         self.assertIn("launch_macos_update_helper", exports)
-        self.assertNotIn("launch_macos_update_helper", app_sources)
+        self.assertIn("launch_macos_update_helper", app_sources)
         self.assertNotIn("MacosUpdateLaunch", app_sources)
 
     def test_explicit_bundle_updater_apis_support_detached_helper_without_enabling_app_apply(self) -> None:

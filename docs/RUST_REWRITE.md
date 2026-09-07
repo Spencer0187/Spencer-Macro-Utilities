@@ -216,9 +216,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   The now-empty private root is intentionally retained because macOS has no safe unlink-by-directory-handle primitive.
   The remaining same-UID race is the final pathname resolution performed by macOS process spawn between the last
   detached-file identity check and `exec`; no descriptor-exec primitive is available in the targeted libc surface,
-  so this residual is documented rather than overstated as eliminated. This launcher remains deliberately
-  unused by `smu-app`, so Rust macOS auto-apply stays false until production Rust `.app` signing/publishing and the
-  app-side restart request are enabled and reviewed.
+  so this residual is documented rather than overstated as eliminated. `smu-app` now composes this launcher behind
+  the updater apply worker and normal restart exit path, but `check_for_updates` still constructs the macOS checker
+  with `auto_apply=false`, `request_apply`/`confirm_apply` both recheck that capability, and the Settings UI therefore
+  cannot enter the launcher in production. The remaining cutover is intentionally the production Rust `.app`
+  signing/publishing trust decision plus an explicit flip of that auto-apply capability.
   HTTP remains injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted
   metadata is validated before install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
