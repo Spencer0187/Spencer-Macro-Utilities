@@ -41,8 +41,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   Studio, results are sorted/deduplicated and cached for 250 ms, `findMain` prefers a matching frontmost app,
   suspend/resume use `SIGSTOP`/`SIGCONT` while refusing the current process, and foreground checks compare the
   frontmost PID. AppKit objects stay inside autorelease pools and only plain Rust PID/cache data is retained.
-  A dedicated `macos-latest` rewrite-CI lane tests and clippies `smu-process`; the adapter is not wired into
-  `smu-app` yet while the remaining macOS input/display services are still missing. The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
+  A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input crates; the
+  adapters are not wired into `smu-app` yet while macOS physical-input state, native-layout text, and display
+  services are still missing. The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
   matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
   queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
   and foreground checks compare the active window PID directly. Fedora validation covers the portable
@@ -66,7 +67,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   matching PID, and process-control users may independently select main-vs-all targets.
 - `smu-input` owns separate physical-state and injection contracts, C++-oracle-tested loose/strict
   hotkey matching, transient-input boundaries, and both native-layout and historical fallback text
-  entry. Linux character injection queries the current X11 keyboard/modifier maps and mirrors the C++
+  entry. A first dormant native macOS output adapter now mirrors the CoreGraphics injection half of the
+  Objective-C++ backend: the full Windows-VK-to-macOS key table is differential-tested against
+  `core/keymapping.h`; Accessibility trust is rechecked at each output site after explicit initialization;
+  keyboard, mouse-button/X-button, relative/absolute cursor, and line-wheel events carry the same
+  `0x534D554D41434F53` source-user-data tag and post at the HID event tap. Relative movement defaults to the
+  legacy game-safe delta-field mode, with the historical visible-cursor movement preference exposed as an
+  explicit setter, and direct absolute positioning reports the same Accessibility failure class. Physical
+  event-tap state capture and active-layout Text Input Services character resolution are deliberately deferred
+  to the next macOS input checkpoint, so this adapter remains unwired from `smu-app`. Linux character
+  injection queries the current X11 keyboard/modifier maps and mirrors the C++
   six-state `XLookupString` search (`none`, Shift, Mod1, Mod5, Shift+Mod1, Shift+Mod5), including the
   first-key-per-modifier and X11-keycode-minus-8 evdev rules; synthetic-map tests freeze plain Shift
   and Mod5/ISO-Level3 behavior. If native layout resolution is unavailable, callers retain the exact
@@ -436,7 +446,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
   enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS still lacks its
-  native Rust input/display adapters and app-level composition.
+  native Rust physical-input state/text/display adapters and app-level composition.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

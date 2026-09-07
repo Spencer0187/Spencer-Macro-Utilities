@@ -48,11 +48,12 @@ class RustMacosProcessTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("macos-process:", workflow)
+        self.assertIn("macos-native-adapters:", workflow)
         self.assertIn("runs-on: macos-latest", workflow)
-        self.assertIn("cargo test -p smu-process", workflow)
+        self.assertIn("cargo test -p smu-process -p smu-input", workflow)
         self.assertIn(
-            "cargo clippy -p smu-process --all-targets -- -D warnings", workflow
+            "cargo clippy -p smu-process -p smu-input --all-targets -- -D warnings",
+            workflow,
         )
 
 

@@ -882,6 +882,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-application-services"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69282c2b5bc58fba07cb9de2113619532eb551e98efe3d8d695509ef45fbd53b"
+dependencies = [
+ "bitflags",
+ "objc2-core-foundation",
+]
+
+[[package]]
 name = "objc2-core-foundation"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -890,6 +900,16 @@ dependencies = [
  "bitflags",
  "dispatch2",
  "objc2",
+]
+
+[[package]]
+name = "objc2-core-graphics"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e022c9d066895efa1345f8e33e584b9f958da2fd4cd116792e15e07e4720a807"
+dependencies = [
+ "bitflags",
+ "objc2-core-foundation",
 ]
 
 [[package]]
@@ -1397,6 +1417,9 @@ version = "0.0.0"
 dependencies = [
  "evdev",
  "libc",
+ "objc2-application-services",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
  "serde",
  "serde_json",
  "smu-core",

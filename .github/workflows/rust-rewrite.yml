@@ -12,6 +12,7 @@ on:
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
       - "tests/test_rust_macos_process.py"
+      - "tests/test_rust_macos_input.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -24,6 +25,7 @@ on:
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
       - "tests/test_rust_macos_process.py"
+      - "tests/test_rust_macos_input.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -43,9 +45,9 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
-      - name: macOS process source-contract test
+      - name: macOS native-adapter source-contract tests
         working-directory: .
-        run: python3 -m unittest tests.test_rust_macos_process
+        run: python3 -m unittest tests.test_rust_macos_process tests.test_rust_macos_input
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy compatibility/core crates
@@ -61,7 +63,7 @@ jobs:
       - name: Dependency policy
         run: cargo deny check
 
-  macos-process:
+  macos-native-adapters:
     runs-on: macos-latest
     defaults:
       run:
@@ -72,10 +74,10 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
-      - name: Test native macOS process adapter
-        run: cargo test -p smu-process
-      - name: Clippy native macOS process adapter
-        run: cargo clippy -p smu-process --all-targets -- -D warnings
+      - name: Test native macOS process/input adapters
+        run: cargo test -p smu-process -p smu-input
+      - name: Clippy native macOS process/input adapters
+        run: cargo clippy -p smu-process -p smu-input --all-targets -- -D warnings
 
   windows-rust-app:
     runs-on: windows-latest
