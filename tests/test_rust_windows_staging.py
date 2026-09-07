@@ -500,6 +500,9 @@ class RustWindowsStagingTest(unittest.TestCase):
         helper = (
             ROOT / "rust" / "crates" / "smu-windows-updater-helper" / "src" / "windows.rs"
         ).read_text(encoding="utf-8")
+        bundle = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_bundle.rs"
+        ).read_text(encoding="utf-8")
         settings = (
             ROOT / "rust" / "crates" / "smu-app" / "src" / "settings_menu.rs"
         ).read_text(encoding="utf-8")
@@ -560,6 +563,23 @@ class RustWindowsStagingTest(unittest.TestCase):
         ]["windows-sys"]["features"]
         self.assertIn("Win32_Security", windows_features)
         self.assertIn("Win32_System_Threading", windows_features)
+        for expected in (
+            "WINDOWS_RELEASE_SIGNER_FILES",
+            '"Spencer-Macro-Utilities.exe"',
+            '"SMU-Update-Helper.exe"',
+            '"SDL3.dll"',
+            '"SMCWinDivert.dll"',
+            "WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES",
+            '"SMCWinDivert64.sys"',
+        ):
+            self.assertIn(expected, bundle)
+        for expected in (
+            "for relative in WINDOWS_RELEASE_SIGNER_FILES",
+            "require_matching_authenticode_signer(&installed_app, &staged)",
+            "for relative in WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES",
+            "require_matching_authenticode_signer(&installed, &staged)",
+        ):
+            self.assertIn(expected, helper)
         self.assertIn(
             "Automatic installation is not yet enabled for the Rust Windows app.",
             settings,
@@ -606,6 +626,10 @@ class RustWindowsStagingTest(unittest.TestCase):
             "extract_windows_bundle",
             "prepare_windows_bundle_tree",
             "require_matching_authenticode_signer",
+            "WINDOWS_RELEASE_SIGNER_FILES",
+            "WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES",
+            "Windows update runtime signer validation failed",
+            "Windows update upstream signer continuity failed",
             "windows_file_version",
             "detached_current_helper",
             'format!("smu-update-launch-{old_pid}-")',

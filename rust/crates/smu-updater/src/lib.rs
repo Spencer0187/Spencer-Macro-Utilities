@@ -64,7 +64,8 @@ pub use windows::{
     verify_authenticode_signature, windows_file_version,
 };
 pub use windows_bundle::{
-    WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle, windows_bundle_file_sha256,
+    WINDOWS_BUNDLE_ROOT, WINDOWS_RELEASE_SIGNER_FILES, WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES,
+    WindowsBundleError, extract_windows_bundle, windows_bundle_file_sha256,
 };
 #[cfg(target_os = "windows")]
 pub use windows_launch::{

@@ -8,6 +8,18 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 pub const WINDOWS_BUNDLE_ROOT: &str = "Spencer-Macro-Utilities";
+/// User-mode PE files that production Windows releases must sign with the same release certificate as SMU.
+///
+/// The helper enforces this against the installed app before the parent is allowed to exit, preventing a
+/// manifest/package compromise from substituting a differently signed DLL that the authenticated app would load.
+pub const WINDOWS_RELEASE_SIGNER_FILES: &[&str] =
+    &["Spencer-Macro-Utilities.exe", "SMU-Update-Helper.exe", "SDL3.dll", "SMCWinDivert.dll"];
+/// PE files whose upstream signer must remain continuous across an automatic update.
+///
+/// `WinDivert`'s kernel driver keeps its upstream kernel-compatible signature rather than being re-signed with the
+/// SMU release certificate. Automatic updates therefore require the staged driver to match the installed driver's
+/// Authenticode signer.
+pub const WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES: &[&str] = &["SMCWinDivert64.sys"];
 const MAXIMUM_BUNDLE_ENTRIES: usize = 4096;
 const REQUIRED_FILES: &[&str] = &[
     "Spencer-Macro-Utilities.exe",
@@ -448,6 +460,21 @@ mod tests {
             ("Spencer-Macro-Utilities/assets/macro_tutorials/wallhop.jpg", b"image"),
             ("Spencer-Macro-Utilities/LICENSE", b"license"),
         ]
+    }
+
+    #[test]
+    fn executable_trust_policy_covers_every_required_pe_runtime_once() {
+        let release = WINDOWS_RELEASE_SIGNER_FILES.iter().copied().collect::<BTreeSet<_>>();
+        let upstream =
+            WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES.iter().copied().collect::<BTreeSet<_>>();
+        assert!(release.is_disjoint(&upstream));
+        let covered = release.union(&upstream).copied().collect::<BTreeSet<_>>();
+        let expected = REQUIRED_FILES
+            .iter()
+            .copied()
+            .filter(|relative| !relative.starts_with("assets/"))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(covered, expected);
     }
 
     #[test]

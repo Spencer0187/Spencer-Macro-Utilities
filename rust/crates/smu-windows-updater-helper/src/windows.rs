@@ -1,5 +1,6 @@
 use smu_updater::{
-    UpdateChecker, UpdatePlatform, WinInetUpdateTransport, WindowsFileVersion,
+    UpdateChecker, UpdatePlatform, WINDOWS_RELEASE_SIGNER_FILES,
+    WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES, WinInetUpdateTransport, WindowsFileVersion,
     WindowsReplacementTransaction, extract_windows_bundle, is_canonical_manifest_version,
     is_updater_version_allowed, prepare_windows_bundle_tree, read_verified_update_asset,
     replace_windows_bundle_tree, require_matching_authenticode_signer, select_update_asset,
@@ -403,12 +404,37 @@ fn validate_versions_and_signers(
     let staged_app = canonical_file(&staged_root.join(PRODUCT_EXE), "the staged SMU executable")?;
     let staged_helper = canonical_file(&staged_root.join(HELPER_EXE), "the staged update helper")?;
 
+    // The detached helper must still be the installed SMU release signer's code. Then require every user-mode
+    // executable image the new app can load from its package root to use that same release signer. The manifest
+    // authenticates bytes, while signer continuity keeps a compromised release/package channel from substituting
+    // attacker-signed code beside an otherwise authentic SMU executable.
     require_matching_authenticode_signer(&installed_app, current_helper)
         .map_err(|error| error.to_string())?;
-    require_matching_authenticode_signer(&installed_app, &staged_app)
-        .map_err(|error| error.to_string())?;
-    require_matching_authenticode_signer(&installed_app, &staged_helper)
-        .map_err(|error| error.to_string())?;
+    for relative in WINDOWS_RELEASE_SIGNER_FILES {
+        let staged = canonical_file(
+            &staged_root.join(relative),
+            &format!("the staged release-signed runtime file {relative}"),
+        )?;
+        require_matching_authenticode_signer(&installed_app, &staged).map_err(|error| {
+            format!("Windows update runtime signer validation failed for {relative}: {error}")
+        })?;
+    }
+
+    // Do not re-sign the WinDivert kernel driver with the SMU certificate. Preserve its upstream kernel-compatible
+    // signature instead by requiring signer continuity with the already installed driver.
+    for relative in WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES {
+        let installed = canonical_file(
+            &install_root.join(relative),
+            &format!("the installed upstream-signed runtime file {relative}"),
+        )?;
+        let staged = canonical_file(
+            &staged_root.join(relative),
+            &format!("the staged upstream-signed runtime file {relative}"),
+        )?;
+        require_matching_authenticode_signer(&installed, &staged).map_err(|error| {
+            format!("Windows update upstream signer continuity failed for {relative}: {error}")
+        })?;
+    }
 
     let expected = target_file_version(&args.target_version)?;
     let installed = windows_file_version(&installed_app).map_err(|error| error.to_string())?;

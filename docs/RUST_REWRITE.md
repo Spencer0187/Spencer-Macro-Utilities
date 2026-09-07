@@ -499,7 +499,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   staging-path race fails closed without touching attacker- or user-created contents. The Windows updater
   also now owns the C++ Authenticode trust primitives: WinTrust validates each executable's chain and
   revocation state, Crypt32 extracts the signer certificate SHA-256 fingerprint, and the public
-  same-signer operation first verifies both executables before comparing their signer fingerprints.
+  same-signer operation first verifies both executables before comparing their signer fingerprints. The
+  Windows bundle contract now also freezes the production trust classes: the staged app, update helper,
+  `SDL3.dll`, and `SMCWinDivert.dll` must use the installed SMU app's release signer, while
+  `SMCWinDivert64.sys` preserves its upstream kernel-compatible signature and must keep the same signer as
+  the already installed driver. This prevents a manifest/package-channel compromise from substituting a
+  differently signed side-loaded DLL or driver beside an otherwise authentic SMU executable.
   The updater also now owns a platform-neutral multi-file replacement transaction for the validated staged
   tree. It copies each managed file through a unique same-directory temporary file, moves overwritten files
   into a fresh rollback directory inside the installation root, rejects symlink/non-regular targets and
