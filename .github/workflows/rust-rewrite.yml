@@ -250,7 +250,7 @@ jobs:
         run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper
       - name: Clippy Windows Rust application and updater
         run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings
-      - name: Stage experimental unsigned Windows Rust application
+      - name: Stage experimental Windows Rust application
         run: >-
           python scripts/stage_rust_windows_app.py
           --root .
@@ -307,11 +307,77 @@ jobs:
           if ($helperVersion.OriginalFilename -ne $expectedHelperOriginal) {
             throw "Unexpected helper OriginalFilename: $($helperVersion.OriginalFilename)"
           }
-      - name: Package unsigned Rust Windows release bundle
+      - name: Configure ephemeral Rust Windows test signing identity
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate `
+            -Type CodeSigningCert `
+            -Subject "CN=SMU Rust Rewrite CI" `
+            -FriendlyName "SMU Rust Rewrite CI" `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -KeyExportPolicy NonExportable `
+            -HashAlgorithm SHA256 `
+            -KeyLength 2048 `
+            -NotAfter (Get-Date).AddDays(7)
+          if ($null -eq $cert) {
+            throw "Could not create the ephemeral Rust Windows test signing certificate."
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP "smu-rust-rewrite-ci.cer"
+          Export-Certificate -Cert $cert -FilePath $certPath | Out-Null
+          Import-Certificate -FilePath $certPath -CertStoreLocation "Cert:\CurrentUser\Root" | Out-Null
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value "SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT=$($cert.Thumbprint)"
+      - name: Test-sign staged Rust Windows user-mode runtime
+        shell: pwsh
+        run: |
+          $signtool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($null -eq $signtool) {
+            throw "Could not find the Windows SDK signtool.exe."
+          }
+          $releaseFiles = @(
+            "build/rust-windows-app/Spencer-Macro-Utilities.exe",
+            "build/rust-windows-app/SMU-Update-Helper.exe",
+            "build/rust-windows-app/SDL3.dll",
+            "build/rust-windows-app/SMCWinDivert.dll"
+          )
+          foreach ($path in $releaseFiles) {
+            & $signtool.FullName sign /fd SHA256 /sha1 $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT /s My $path
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool failed to test-sign $path."
+            }
+          }
+      - name: Validate test-signed Windows runtime trust classes
+        shell: pwsh
+        run: |
+          $releaseFiles = @(
+            "build/rust-windows-app/Spencer-Macro-Utilities.exe",
+            "build/rust-windows-app/SMU-Update-Helper.exe",
+            "build/rust-windows-app/SDL3.dll",
+            "build/rust-windows-app/SMCWinDivert.dll"
+          )
+          foreach ($path in $releaseFiles) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $path
+            if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "Test-signed Rust Windows runtime failed Authenticode validation: $path ($($signature.Status))"
+            }
+            if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Thumbprint -ne $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
+              throw "Rust Windows runtime signer did not match the ephemeral test certificate: $path"
+            }
+          }
+          $driver = "build/rust-windows-app/SMCWinDivert64.sys"
+          $driverSignature = Get-AuthenticodeSignature -LiteralPath $driver
+          if ($driverSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or $null -eq $driverSignature.SignerCertificate) {
+            throw "Bundled WinDivert driver does not carry a valid upstream Authenticode signature: $($driverSignature.Status)"
+          }
+          if ($driverSignature.SignerCertificate.Thumbprint -eq $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
+            throw "Bundled WinDivert driver was unexpectedly re-signed with the SMU test certificate."
+          }
+      - name: Package test-signed Rust Windows release bundle
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force build/rust-windows-release | Out-Null
-          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-unsigned.zip"
+          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-test-signed.zip"
           python scripts/package_rust_windows_bundle.py `
             --root . `
             --stage-dir build/rust-windows-app `
@@ -324,10 +390,10 @@ jobs:
             --output build/rust-windows-release/update-manifest-rust-windows.json `
             --windows-asset $assetName `
             --only-platform windows-x64
-      - name: Validate unsigned Rust Windows release bundle contract
+      - name: Validate test-signed Rust Windows release bundle contract
         shell: pwsh
         run: |
-          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-unsigned.zip"
+          $bundle = "build/rust-windows-release/Spencer-Macro-Utilities-Rust-Windows-test-signed.zip"
           $verify = "build/rust-windows-release-verify"
           Remove-Item $verify -Recurse -Force -ErrorAction SilentlyContinue
           Expand-Archive -LiteralPath $bundle -DestinationPath $verify
@@ -350,6 +416,25 @@ jobs:
               throw "Missing Rust Windows release-bundle file: $_"
             }
           }
+          @(
+            "$root/Spencer-Macro-Utilities.exe",
+            "$root/SMU-Update-Helper.exe",
+            "$root/SDL3.dll",
+            "$root/SMCWinDivert.dll"
+          ) | ForEach-Object {
+            $signature = Get-AuthenticodeSignature -LiteralPath $_
+            if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+                $null -eq $signature.SignerCertificate -or
+                $signature.SignerCertificate.Thumbprint -ne $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
+              throw "Packaged Rust Windows release-signed runtime failed signer validation: $_"
+            }
+          }
+          $packagedDriverSignature = Get-AuthenticodeSignature -LiteralPath "$root/SMCWinDivert64.sys"
+          if ($packagedDriverSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+              $null -eq $packagedDriverSignature.SignerCertificate -or
+              $packagedDriverSignature.SignerCertificate.Thumbprint -eq $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
+            throw "Packaged WinDivert driver did not preserve its valid upstream signer."
+          }
           $manifest = Get-Content -Raw build/rust-windows-release/update-manifest-rust-windows.json | ConvertFrom-Json
           $artifact = $manifest.artifacts.'windows-x64'
           if ($artifact.asset -ne (Split-Path -Leaf $bundle)) {
@@ -359,15 +444,23 @@ jobs:
           if ($artifact.sha256 -ne $actualHash) {
             throw "Rust Windows validation manifest SHA-256 does not match the bundle."
           }
-      - name: Upload unsigned Rust Windows validation artifact
+      - name: Remove ephemeral Rust Windows test signing identity
+        if: always()
+        shell: pwsh
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT)) {
+            Remove-Item -LiteralPath "Cert:\CurrentUser\My\$env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath "Cert:\CurrentUser\Root\$env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT" -Force -ErrorAction SilentlyContinue
+          }
+      - name: Upload test-signed Rust Windows validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rust-windows-app-unsigned
+          name: rust-windows-app-test-signed
           path: build/rust-windows-app
           if-no-files-found: error
-      - name: Upload unsigned Rust Windows release-contract artifact
+      - name: Upload test-signed Rust Windows release-contract artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rust-windows-release-contract-unsigned
+          name: rust-windows-release-contract-test-signed
           path: build/rust-windows-release
           if-no-files-found: error

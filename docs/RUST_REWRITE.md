@@ -472,8 +472,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   before relaunch, and a Windows-only `ShellExecuteExW(..., "runas", ...)` helper starts the current
   executable elevated while the original instance exits through normal controller/backend shutdown. The
   rewrite CI has a separate `windows-latest` job that runs Windows unit tests plus clippy, exercises the
-  staging path, verifies the required siblings, and uploads only explicitly unsigned validation
-  artifacts. It now also packages that staged tree as a future release-style ZIP rooted at
+  staging path, verifies the required siblings, and test-signs the SMU-owned user-mode PE set with an ephemeral
+  CI-only certificate while preserving the upstream WinDivert driver signature. It validates those trust classes
+  with Windows Authenticode before uploading explicitly test-signed validation artifacts. It now also packages that
+  staged tree as a future release-style ZIP rooted at
   `Spencer-Macro-Utilities/`, including all runtime siblings/assets plus the same release notices/licenses
   as the legacy Windows bundle. `generate_update_manifest.py` keeps the production asset mapping unchanged
   by default but supports an opt-in Windows asset override/platform-only mode so rewrite CI can emit and
@@ -488,7 +490,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   policy, 10-second connect/receive timeouts, success-status validation, and the shared 512 MiB response
   limit; the Windows app feeds that transport into the same Settings/update-modal service used on Linux.
   Automatic Windows apply deliberately remains disabled until production bundle-wide signing/trust is promoted;
-  the multi-file replacement and parent/helper readiness paths are now implemented behind that false capability. The unsigned multi-file bundle shape is frozen in rewrite CI, and `smu-updater` owns a
+  the multi-file replacement and parent/helper readiness paths are now implemented behind that false capability. The test-signed multi-file bundle shape and signer partition are frozen in rewrite CI, and `smu-updater` owns a
   platform-neutral Windows bundle validator/extractor that requires the single
   `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
   encrypted/non-regular entries, excessive entry counts or expanded payloads, unexpected top-level files,
@@ -580,10 +582,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   legacy detached-worker shutdown behavior. `smu-app` composes
   the launcher in its Windows apply worker and normal restart exit path, but both `request_apply` and the Windows
   `confirm_apply` worker recheck the updater capability and the Windows checker still advertises
-  `auto_apply=false`, so production UI cannot enter that path. The remaining Windows cutover gate is production
-  signing/publishing of the helper/bundle-wide trust policy: the side-loaded runtime siblings still include the
-  repository `SMCWinDivert.dll`, which is currently unsigned. The signed legacy C++ `build.yml` / SignPath release
-  path remains untouched until that trust gate is deliberately promoted. macOS now composes its
+  `auto_apply=false`, so production UI cannot enter that path. Rewrite CI now proves the intended Windows bundle-wide trust
+  partition end to end with an ephemeral self-signed code-signing certificate installed only into the runner's
+  current-user trust store: the app/helper/SDL/WinDivert DLL share that test signer, the bundled WinDivert driver
+  must retain a separate valid upstream signer, and the resulting test-signed ZIP is hashed into the experimental
+  Windows manifest. The remaining Windows cutover gate is therefore the deliberate production signing/publishing
+  promotion with the real release identity plus the explicit auto-apply capability flip. The signed legacy C++
+  `build.yml` / SignPath release path remains untouched until that trust gate is deliberately promoted. macOS now composes its
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while

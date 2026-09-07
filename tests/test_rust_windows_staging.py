@@ -522,7 +522,10 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertNotIn("scripts/package_rust_windows_bundle.py", production)
         self.assertIn("scripts/stage_rust_windows_app.py", rewrite)
         self.assertIn("scripts/package_rust_windows_bundle.py", rewrite)
-        self.assertIn("rust-windows-release-contract-unsigned", rewrite)
+        self.assertIn("rust-windows-release-contract-test-signed", rewrite)
+        self.assertIn("New-SelfSignedCertificate", rewrite)
+        self.assertIn("Get-AuthenticodeSignature", rewrite)
+        self.assertIn("SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT", rewrite)
         self.assertNotIn("SignPath", rewrite)
 
         self.assertIn(
@@ -694,7 +697,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(expected, build_script)
 
-    def test_rewrite_workflow_has_isolated_unsigned_windows_rust_validation(self) -> None:
+    def test_rewrite_workflow_has_isolated_test_signed_windows_rust_validation(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
         )
@@ -713,8 +716,17 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("scripts/generate_update_manifest.py", workflow)
         self.assertIn("--only-platform windows-x64", workflow)
         self.assertIn("SMU-Update-Helper.exe", workflow)
-        self.assertIn("rust-windows-app-unsigned", workflow)
-        self.assertIn("rust-windows-release-contract-unsigned", workflow)
+        self.assertIn("New-SelfSignedCertificate", workflow)
+        self.assertIn('"Cert:\\CurrentUser\\Root"', workflow)
+        self.assertIn("SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT", workflow)
+        self.assertIn("signtool.exe", workflow)
+        self.assertIn("Get-AuthenticodeSignature", workflow)
+        self.assertIn("Bundled WinDivert driver does not carry a valid upstream Authenticode signature", workflow)
+        self.assertIn("Packaged WinDivert driver did not preserve its valid upstream signer", workflow)
+        self.assertIn("rust-windows-app-test-signed", workflow)
+        self.assertIn("rust-windows-release-contract-test-signed", workflow)
+        self.assertNotIn("rust-windows-app-unsigned", workflow)
+        self.assertNotIn("rust-windows-release-contract-unsigned", workflow)
         self.assertNotIn("SignPath", workflow)
 
 
