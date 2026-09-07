@@ -34,8 +34,9 @@ use std::io::Read as _;
 use std::path::Path;
 #[cfg(target_os = "windows")]
 pub use windows::{
-    WinInetUpdateTransport, WindowsUpdateTrustError, authenticode_signer_sha256,
-    require_matching_authenticode_signer, verify_authenticode_signature,
+    WinInetUpdateTransport, WindowsFileVersion, WindowsUpdateTrustError,
+    authenticode_signer_sha256, require_matching_authenticode_signer,
+    verify_authenticode_signature, windows_file_version,
 };
 pub use windows_bundle::{WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle};
 pub use windows_replace::{

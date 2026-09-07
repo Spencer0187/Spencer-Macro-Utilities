@@ -318,6 +318,8 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn('verify_authenticode_signature', updater_lib)
         self.assertIn('authenticode_signer_sha256', updater_lib)
         self.assertIn('require_matching_authenticode_signer', updater_lib)
+        self.assertIn('windows_file_version', updater_lib)
+        self.assertIn('WindowsFileVersion', updater_lib)
         for expected in (
             "InternetOpenW",
             "InternetOpenUrlW",
@@ -341,6 +343,14 @@ class RustWindowsStagingTest(unittest.TestCase):
             "Downloaded update was signed by a different certificate",
             "verify_authenticode_signature(current_executable)?;",
             "verify_authenticode_signature(downloaded_executable)?;",
+            "GetFileVersionInfoSizeW",
+            "GetFileVersionInfoW",
+            "VerQueryValueW",
+            "VS_FIXEDFILEINFO",
+            "std::ptr::read_unaligned",
+            "dwFileVersionMS",
+            "dwFileVersionLS",
+            "dwStrucVersion",
         ):
             self.assertIn(expected, updater)
         windows_sys = updater_manifest["target"]["cfg(target_os = \"windows\")"][
@@ -351,6 +361,7 @@ class RustWindowsStagingTest(unittest.TestCase):
             "Win32_Networking_WinInet",
             "Win32_Security_Cryptography",
             "Win32_Security_WinTrust",
+            "Win32_Storage_FileSystem",
         ):
             self.assertIn(feature, windows_sys["features"])
         self.assertIn("UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)", updater_service)

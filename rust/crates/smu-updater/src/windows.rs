@@ -28,6 +28,9 @@ use windows_sys::Win32::{
             WTD_STATEACTION_CLOSE, WTD_STATEACTION_VERIFY, WTD_UI_NONE, WinVerifyTrust,
         },
     },
+    Storage::FileSystem::{
+        GetFileVersionInfoSizeW, GetFileVersionInfoW, VS_FIXEDFILEINFO, VerQueryValueW,
+    },
 };
 
 const TIMEOUT_MS: u32 = 10_000;
@@ -51,6 +54,21 @@ impl fmt::Display for WindowsUpdateTrustError {
 }
 
 impl std::error::Error for WindowsUpdateTrustError {}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct WindowsFileVersion {
+    pub major: u16,
+    pub minor: u16,
+    pub patch: u16,
+    pub revision: u16,
+}
+
+impl WindowsFileVersion {
+    #[must_use]
+    pub const fn as_tuple(self) -> (u16, u16, u16, u16) {
+        (self.major, self.minor, self.patch, self.revision)
+    }
+}
 
 #[derive(Debug)]
 struct CertStoreHandle(HCERTSTORE);
@@ -120,6 +138,68 @@ fn wide_path(path: &Path) -> Vec<u16> {
 
 fn ffi_size_u32<T>() -> u32 {
     u32::try_from(std::mem::size_of::<T>()).unwrap_or_default()
+}
+
+/// Read the numeric `FILEVERSION` embedded in a Windows executable.
+///
+/// # Errors
+///
+/// Returns an error when the file is missing, has no readable version resource, or exposes malformed
+/// `VS_FIXEDFILEINFO` data.
+pub fn windows_file_version(path: &Path) -> Result<WindowsFileVersion, WindowsUpdateTrustError> {
+    if !path.is_file() {
+        return Err(WindowsUpdateTrustError::new("Windows version-info target does not exist."));
+    }
+    let path = wide_path(path);
+    let mut ignored = 0_u32;
+    // SAFETY: the NUL-terminated path and writable handle value remain valid for the synchronous call.
+    let size = unsafe { GetFileVersionInfoSizeW(path.as_ptr(), &raw mut ignored) };
+    if size == 0 {
+        return Err(WindowsUpdateTrustError::new(
+            "Could not read the Windows executable version resource.",
+        ));
+    }
+    let mut data = vec![0_u8; usize::try_from(size).unwrap_or_default()];
+    if data.is_empty() {
+        return Err(WindowsUpdateTrustError::new(
+            "Could not allocate the Windows executable version resource buffer.",
+        ));
+    }
+    // SAFETY: `data` is writable for `size` bytes and the path remains live for this synchronous call.
+    if unsafe { GetFileVersionInfoW(path.as_ptr(), 0, size, data.as_mut_ptr().cast()) } == 0 {
+        return Err(WindowsUpdateTrustError::new(
+            "Could not load the Windows executable version resource.",
+        ));
+    }
+    let root = wide_null("\\");
+    let mut value = std::ptr::null_mut();
+    let mut value_size = 0_u32;
+    // SAFETY: the version-resource buffer and NUL-terminated root query stay live through this call.
+    let queried = unsafe {
+        VerQueryValueW(data.as_ptr().cast(), root.as_ptr(), &raw mut value, &raw mut value_size)
+    };
+    if queried == 0
+        || value.is_null()
+        || usize::try_from(value_size).unwrap_or_default() < std::mem::size_of::<VS_FIXEDFILEINFO>()
+    {
+        return Err(WindowsUpdateTrustError::new(
+            "Windows executable version resource did not contain VS_FIXEDFILEINFO.",
+        ));
+    }
+    // SAFETY: VerQueryValueW returned at least sizeof(VS_FIXEDFILEINFO) bytes. `read_unaligned` avoids
+    // assuming the pointer returned into the byte buffer has Rust's native struct alignment.
+    let info = unsafe { std::ptr::read_unaligned(value.cast::<VS_FIXEDFILEINFO>()) };
+    if info.dwSignature != 0xFEEF_04BD || info.dwStrucVersion != 0x0001_0000 {
+        return Err(WindowsUpdateTrustError::new(
+            "Windows executable version resource had an invalid fixed-info header.",
+        ));
+    }
+    Ok(WindowsFileVersion {
+        major: u16::try_from(info.dwFileVersionMS >> 16).unwrap_or_default(),
+        minor: u16::try_from(info.dwFileVersionMS & 0xFFFF).unwrap_or_default(),
+        patch: u16::try_from(info.dwFileVersionLS >> 16).unwrap_or_default(),
+        revision: u16::try_from(info.dwFileVersionLS & 0xFFFF).unwrap_or_default(),
+    })
 }
 
 /// Validate an executable's embedded Authenticode signature and certificate chain.

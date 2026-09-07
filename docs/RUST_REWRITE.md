@@ -379,8 +379,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   authenticated bytes read from disk. The Linux updater has been switched to that verifier, so future
   Windows helper code will not duplicate package-integrity logic. `UpdateChecker` can also re-fetch one
   exact canonical GitHub release tag and requires the returned release version to match the requested
-  version, avoiding a race where `releases/latest` changes between confirmation and helper startup.
-  Auto-apply remains off because the Rust
+  version, avoiding a race where `releases/latest` changes between confirmation and helper startup. The
+  Windows updater can also read and strictly validate a PE's numeric `FILEVERSION` from
+  `VS_FIXEDFILEINFO`, giving the future helper a caller-independent downgrade guard against the installed
+  executable. Auto-apply remains off because the Rust
   bundle contains side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned;
   production signing/publishing must establish a bundle-wide trust policy before the replacement launcher
   can be enabled. macOS still lacks its native Rust adapters.
