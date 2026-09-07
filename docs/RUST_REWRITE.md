@@ -155,8 +155,25 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   a private 0700 temp directory for `/usr/bin/ditto -x -k` extraction. The staged bundle must be a real directory,
   pass `codesign --verify --deep --strict`, and carry the exact same extracted leaf signing certificate bytes as
   the installed app; its staging tree is RAII-cleaned. This API remains dormant and never mutates the installed
-  bundle. Rust macOS auto-apply is still deliberately advertised as false until the signed `.app`
-  replacement/rollback transaction itself is ported. HTTP remains injected behind
+  bundle. A further dormant transaction layer now copies that already-validated staged `.app` into a private
+  same-filesystem swap directory beside the installed app, revalidates the signer after the copy, and records
+  `(st_dev, st_ino)` identities for both old/new bundles before any live rename. Preparation also opens and holds
+  the install-parent and private swap directories with `O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`; activation,
+  rollback, commit, recovery, and recursive cleanup then use `fstatat(..., AT_SYMLINK_NOFOLLOW)`, `renameat`,
+  `openat`, and `unlinkat` relative to those pinned descriptors rather than trusting mutable pathnames. The
+  descriptor-relative cleanup never follows symlinks or crosses a device boundary. Activation moves the old app
+  into rollback storage, renames the prepared new app into place, and returns an RAII transaction: explicit
+  rollback or Drop restores the pinned old bundle, while commit removes only the pinned rollback copy. A
+  same-UID rename/replacement of the hidden swap pathname therefore cannot redirect live mutation; regression
+  tests rename that directory and install an attacker-controlled substitute while the transaction continues on
+  the original pinned object. Post-mutation recovery is phaseful on both sides of activation: activation recovery
+  records `OldMoved -> OldRestored -> PreparedUpdateRemoved`, while rollback records `NewActivated ->
+  NewMovedAside -> OldRestored -> FailedUpdateRemoved`. Errors retain the boxed recovery state with cloned/pinned
+  directory handles, so explicit `recover()` resumes from the exact completed phase instead of replaying a rename;
+  Drop performs one best-effort recovery attempt. Regression tests cover resuming after the old app was already
+  restored and after the new app was already moved aside. This transaction remains completely dormant:
+  no process wait/handoff, relaunch, updater helper, or UI auto-apply wiring exists yet. Rust macOS auto-apply is
+  still deliberately advertised as false until that detached process-handoff/relaunch layer is ported. HTTP remains injected behind
   `UpdateTransport`, and platform replacement remains separate, so untrusted metadata is validated before
   install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
@@ -493,8 +510,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
-  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired, but
-  automatic `.app` replacement remains intentionally disabled until the Rust signed-bundle transaction is ported.
+  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired and the
+  signed-bundle staging/swap transaction is dormant in `smu-updater`, but automatic `.app` replacement remains
+  intentionally disabled until a detached old-process wait/relaunch handoff is ported and reviewed.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

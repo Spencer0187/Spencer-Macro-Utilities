@@ -4,6 +4,7 @@
 //! legacy updater so update checks can distinguish a valid installed `.app` from DMG/manual-only launches.
 
 use crate::macos_bundle::validate_macos_bundle_archive;
+use crate::macos_replace::PreparedMacosReplacement;
 use crate::{ReleaseAsset, read_verified_update_asset};
 use std::fmt;
 use std::fs;
@@ -192,6 +193,73 @@ impl Drop for StagedMacosBundle {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.work_dir);
     }
+}
+
+/// Copy an already-authenticated staged `.app` into a private same-filesystem swap directory beside the
+/// installed bundle and revalidate its signer after that copy.
+///
+/// This remains dormant: it prepares paths for the replacement transaction but does not rename the installed
+/// application or launch anything.
+///
+/// # Errors
+///
+/// Returns when install eligibility changes, the same-directory copy fails, the copied bundle is substituted,
+/// or its release signer no longer matches the installed app.
+pub fn prepare_macos_replacement(
+    staged: &StagedMacosBundle,
+) -> Result<PreparedMacosReplacement, MacosUpdateError> {
+    let current_app = macos_update_bundle_if_replaceable()?;
+    let parent = current_app.parent().ok_or_else(|| {
+        MacosUpdateError::new("Could not resolve the installed macOS app containing directory.")
+    })?;
+    let swap_dir = unique_directory(parent, ".smu-update-swap")?;
+    let preparation = (|| {
+        let new_app = swap_dir.join("new.app");
+        let backup_app = swap_dir.join("old.app");
+        let status = Command::new("/usr/bin/ditto")
+            .arg(staged.app_path())
+            .arg(&new_app)
+            .status()
+            .map_err(|error| {
+            MacosUpdateError::new(format!(
+                "Could not copy the validated macOS app beside the installed bundle: {error}"
+            ))
+        })?;
+        if !status.success() {
+            return Err(MacosUpdateError::new(
+                "Could not copy the validated macOS app beside the installed bundle.",
+            ));
+        }
+        let current_metadata = fs::symlink_metadata(&current_app).map_err(|error| {
+            MacosUpdateError::new(format!(
+                "Could not inspect the installed macOS app before replacement: {error}"
+            ))
+        })?;
+        let new_metadata = fs::symlink_metadata(&new_app).map_err(|error| {
+            MacosUpdateError::new(format!("Could not inspect the prepared macOS app: {error}"))
+        })?;
+        if new_metadata.file_type().is_symlink() || !new_metadata.is_dir() {
+            return Err(MacosUpdateError::new(
+                "Prepared macOS update is not a regular app bundle directory.",
+            ));
+        }
+        // Snapshot identities before signature verification; PreparedMacosReplacement::from_paths rechecks
+        // these exact objects after codesign completes, closing substitution between verification and pinning.
+        validate_staged_bundle_signer(&current_app, &new_app)?;
+        PreparedMacosReplacement::from_paths(
+            &swap_dir,
+            &current_app,
+            &new_app,
+            &backup_app,
+            (current_metadata.dev(), current_metadata.ino()),
+            (new_metadata.dev(), new_metadata.ino()),
+        )
+        .map_err(|error| MacosUpdateError::new(error.to_string()))
+    })();
+    if preparation.is_err() {
+        let _ = fs::remove_dir_all(&swap_dir);
+    }
+    preparation
 }
 
 fn validate_staged_bundle_signer(

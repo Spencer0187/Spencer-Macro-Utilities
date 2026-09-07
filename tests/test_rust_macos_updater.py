@@ -112,6 +112,81 @@ class RustMacosUpdaterTests(unittest.TestCase):
         self.assertNotIn("rename(&installed", updater)
         self.assertNotIn("macos_auto_apply_supported() -> bool {\n    true", updater)
 
+    def test_dormant_macos_swap_transaction_pins_bundle_identity_and_rolls_back(self) -> None:
+        updater = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "macos.rs"
+        ).read_text(encoding="utf-8")
+        replacement = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "macos_replace.rs"
+        ).read_text(encoding="utf-8")
+        for expected in (
+            "pub fn prepare_macos_replacement",
+            'unique_directory(parent, ".smu-update-swap")',
+            'Command::new("/usr/bin/ditto")',
+            "staged.app_path()",
+            "validate_staged_bundle_signer(&current_app, &new_app)",
+            "PreparedMacosReplacement",
+        ):
+            self.assertIn(expected, updater)
+        prepare_block = updater.split("pub fn prepare_macos_replacement", 1)[1].split(
+            "fn validate_staged_bundle_signer", 1
+        )[0]
+        self.assertLess(
+            prepare_block.index("let current_metadata"),
+            prepare_block.index("validate_staged_bundle_signer"),
+        )
+        self.assertLess(
+            prepare_block.index("let new_metadata"),
+            prepare_block.index("validate_staged_bundle_signer"),
+        )
+        self.assertLess(
+            prepare_block.index("validate_staged_bundle_signer"),
+            prepare_block.index("PreparedMacosReplacement::from_paths("),
+        )
+        for expected in (
+            "struct DirectoryIdentity",
+            "metadata.dev()",
+            "metadata.ino()",
+            "open_pinned_directory",
+            "libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC",
+            "libc::fstatat",
+            "libc::AT_SYMLINK_NOFOLLOW",
+            "libc::renameat",
+            "libc::openat",
+            "libc::unlinkat",
+            "fdopendir",
+            "swap_identity",
+            "Pinned macOS update swap directory changed identity",
+            "require_child_directory_identity",
+            "activate_prepared_macos_replacement",
+            "rename_at(",
+            "pub struct MacosReplacementTransaction",
+            "pub const fn recovery_available",
+            "pub fn recover",
+            "MacosReplaceError::with_recovery",
+            "impl Drop for MacosReplaceError",
+            "pub fn commit",
+            "pub fn rollback",
+            "enum RecoveryState",
+            "enum ActivationPhase",
+            "ActivationPhase::OldRestored",
+            "ActivationPhase::PreparedUpdateRemoved",
+            "activation_recovery_resumes_after_old_app_was_restored",
+            "enum RollbackPhase",
+            "RollbackPhase::NewMovedAside",
+            "RollbackPhase::OldRestored",
+            'OsStr::new("failed-new.app")',
+            "rollback_recovery_resumes_after_new_app_was_moved_aside",
+            "impl Drop for MacosReplacementTransaction",
+            "pinned_swap_handle_survives_swap_path_rename",
+            "prepared_drop_cleans_pinned_swap_after_path_rename_without_touching_substitute",
+        ):
+            self.assertIn(expected, replacement)
+        self.assertNotIn('Command::new("/bin/mv")', replacement)
+        self.assertNotIn("kill(", replacement)
+        self.assertNotIn("open -a", replacement)
+        self.assertNotIn("auto_apply", replacement)
+
     def test_macos_ci_runs_updater_and_source_contract(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
