@@ -12,6 +12,11 @@ workspace = true
 libc.workspace = true
 x11rb.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+libc.workspace = true
+objc2.workspace = true
+objc2-app-kit.workspace = true
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",

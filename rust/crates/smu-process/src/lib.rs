@@ -204,6 +204,44 @@ pub fn select_main_process(selector: &str, records: &[ProcessRecord]) -> Option<
     pids.first().copied()
 }
 
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_normalize_process_name(value: &str) -> String {
+    let basename = value.rsplit(['/', '\\']).next().unwrap_or(value);
+    let mut normalized = basename.to_ascii_lowercase();
+    if let Some(without_suffix) = normalized.strip_suffix(".exe") {
+        normalized = without_suffix.to_owned();
+    }
+    if let Some(without_suffix) = normalized.strip_suffix(".app") {
+        normalized = without_suffix.to_owned();
+    }
+    normalized
+}
+
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_process_candidate_matches(candidate: &str, query: &str) -> bool {
+    let normalized_query = macos_normalize_process_name(query);
+    if normalized_query.is_empty() {
+        return false;
+    }
+    let normalized_candidate = macos_normalize_process_name(candidate);
+    if matches!(normalized_query.as_str(), "roblox" | "robloxplayer" | "robloxplayerbeta") {
+        if normalized_candidate.contains("studio") {
+            return false;
+        }
+        return matches!(
+            normalized_candidate.as_str(),
+            "roblox" | "robloxplayer" | "robloxplayerbeta"
+        ) || normalized_candidate.contains("robloxplayer")
+            || normalized_candidate.contains("com.roblox.roblox");
+    }
+    normalized_candidate == normalized_query
+}
+
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_select_main_pid(pids: &[u32], frontmost_pid: Option<u32>) -> Option<u32> {
+    frontmost_pid.filter(|pid| pids.contains(pid)).or_else(|| pids.first().copied())
+}
+
 #[cfg(any(target_os = "windows", test))]
 pub(crate) const fn windows_process_name_matches(candidate: &str, target: &str) -> bool {
     !target.is_empty() && candidate.eq_ignore_ascii_case(target)
@@ -224,13 +262,16 @@ pub(crate) fn newest_windows_process(entries: &[(u32, u64)]) -> Option<u32> {
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "macos")]
+pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
 #[cfg(test)]
 mod tests {
     use super::{
-        ProcessRecord, newest_windows_process, select_all_processes, select_main_process,
+        ProcessRecord, macos_normalize_process_name, macos_process_candidate_matches,
+        macos_select_main_pid, newest_windows_process, select_all_processes, select_main_process,
         windows_process_name_matches,
     };
 
@@ -324,6 +365,36 @@ mod tests {
         ];
 
         assert_eq!(select_main_process("sober 20", &records), Some(20));
+    }
+
+    #[test]
+    fn macos_process_names_normalize_like_the_cpp_backend() {
+        assert_eq!(macos_normalize_process_name("/Applications/Roblox.app"), "roblox");
+        assert_eq!(
+            macos_normalize_process_name("C:\\Games\\RobloxPlayerBeta.EXE"),
+            "robloxplayerbeta"
+        );
+        assert_eq!(macos_normalize_process_name("RobloxStudio.app"), "robloxstudio");
+    }
+
+    #[test]
+    fn macos_roblox_aliases_match_player_candidates_but_exclude_studio() {
+        for query in ["roblox", "RobloxPlayer", "ROBLOXPLAYERBETA.EXE"] {
+            assert!(macos_process_candidate_matches("RobloxPlayerBeta.app", query));
+            assert!(macos_process_candidate_matches("com.roblox.roblox", query));
+            assert!(!macos_process_candidate_matches("RobloxStudio.app", query));
+        }
+        assert!(macos_process_candidate_matches("Discord.app", "discord"));
+        assert!(!macos_process_candidate_matches("Discord Helper.app", "discord"));
+    }
+
+    #[test]
+    fn macos_main_process_prefers_matching_frontmost_pid_then_first_sorted_pid() {
+        let pids = [12, 44, 90];
+        assert_eq!(macos_select_main_pid(&pids, Some(44)), Some(44));
+        assert_eq!(macos_select_main_pid(&pids, Some(7)), Some(12));
+        assert_eq!(macos_select_main_pid(&pids, None), Some(12));
+        assert_eq!(macos_select_main_pid(&[], Some(44)), None);
     }
 
     #[test]

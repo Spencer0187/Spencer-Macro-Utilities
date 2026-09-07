@@ -11,6 +11,7 @@ on:
       - "scripts/package_rust_windows_bundle.py"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_macos_process.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -22,6 +23,7 @@ on:
       - "scripts/package_rust_windows_bundle.py"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_macos_process.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -41,6 +43,9 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
+      - name: macOS process source-contract test
+        working-directory: .
+        run: python3 -m unittest tests.test_rust_macos_process
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy compatibility/core crates
@@ -55,6 +60,22 @@ jobs:
         run: cargo install cargo-deny --locked --version 0.19.9
       - name: Dependency policy
         run: cargo deny check
+
+  macos-process:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
+      - name: Select pinned Rust toolchain
+        run: rustup override set 1.98.0
+      - name: Test native macOS process adapter
+        run: cargo test -p smu-process
+      - name: Clippy native macOS process adapter
+        run: cargo clippy -p smu-process --all-targets -- -D warnings
 
   windows-rust-app:
     runs-on: windows-latest

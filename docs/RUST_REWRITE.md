@@ -34,8 +34,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 
 ## Current Rust service slices
 
-- `smu-process` owns process discovery/selection plus Linux and Windows native process backends.
-  The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
+- `smu-process` owns process discovery/selection plus Linux, Windows, and a first native macOS process
+  backend. The macOS backend mirrors the Objective-C++ `NSWorkspace` path: selectors are split on ASCII
+  whitespace, decimal PID tokens are accepted only when `NSRunningApplication` can resolve them, named
+  candidates compare normalized localized/bundle/executable/bundle-path names, Roblox player aliases exclude
+  Studio, results are sorted/deduplicated and cached for 250 ms, `findMain` prefers a matching frontmost app,
+  suspend/resume use `SIGSTOP`/`SIGCONT` while refusing the current process, and foreground checks compare the
+  frontmost PID. AppKit objects stay inside autorelease pools and only plain Rust PID/cache data is retained.
+  A dedicated `macos-latest` rewrite-CI lane tests and clippies `smu-process`; the adapter is not wired into
+  `smu-app` yet while the remaining macOS input/display services are still missing. The Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
   matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
   queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
   and foreground checks compare the active window PID directly. Fedora validation covers the portable
@@ -429,7 +436,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
   enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS still lacks its
-  native Rust adapters.
+  native Rust input/display adapters and app-level composition.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

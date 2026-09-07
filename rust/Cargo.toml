@@ -42,6 +42,8 @@ gl = "0.14"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "pnm"] }
 libc = "=0.2.189"
 mlua = { version = "=0.12.1", features = ["lua54", "send", "vendored"] }
+objc2 = "=0.6.4"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "libc", "NSRunningApplication", "NSWorkspace"] }
 pipewire = "=0.10.1"
 regress = { version = "=0.12.0", features = ["prohibit-unsafe"] }
 sdl3 = { version = "0.18", features = ["build-from-source"] }
