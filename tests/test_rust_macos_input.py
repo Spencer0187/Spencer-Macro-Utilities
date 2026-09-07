@@ -21,6 +21,13 @@ class RustMacosInputTests(unittest.TestCase):
         self.assertIn("objc2-core-foundation", dependencies)
         self.assertIn("objc2-core-graphics", dependencies)
 
+    def test_workspace_enables_corefoundation_event_tap_runloop_features(self) -> None:
+        workspace = tomllib.loads((ROOT / "rust" / "Cargo.toml").read_text(encoding="utf-8"))
+        core_foundation = workspace["workspace"]["dependencies"]["objc2-core-foundation"]
+        self.assertFalse(core_foundation["default-features"])
+        for feature in ("std", "CFDate", "CFMachPort", "CFRunLoop"):
+            self.assertIn(feature, core_foundation["features"])
+
     def test_virtual_key_map_matches_cpp_table(self) -> None:
         cpp = (ROOT / "core" / "keymapping.h").read_text(encoding="utf-8")
         cpp_block = cpp.split(
@@ -70,8 +77,36 @@ class RustMacosInputTests(unittest.TestCase):
             "prefers_direct_absolute_positioning",
         ):
             self.assertIn(expected, source)
-        self.assertNotIn("CGEventTapCreate", source)
         self.assertNotIn("TISCopyCurrentKeyboardLayoutInputSource", source)
+
+    def test_coregraphics_state_reader_preserves_cpp_event_tap_contract(self) -> None:
+        source = (ROOT / "rust" / "crates" / "smu-input" / "src" / "macos.rs").read_text(
+            encoding="utf-8"
+        )
+        for expected in (
+            "pub struct MacosInputState",
+            "impl KeyState for MacosInputState",
+            "CGEvent::tap_create",
+            "CGEventTapLocation::SessionEventTap",
+            "CGEventTapPlacement::HeadInsertEventTap",
+            "CGEventTapOptions::ListenOnly",
+            "CFMachPort::new_run_loop_source",
+            "kCFRunLoopCommonModes",
+            "CFRunLoop::run_in_mode",
+            "CGEventType::TapDisabledByTimeout",
+            "CGEventType::TapDisabledByUserInput",
+            "CGEvent::tap_enable",
+            "CGEventField::KeyboardEventKeycode",
+            "modifier_down_for_flags_changed",
+            "mouse_event_key",
+            "CGEventField::ScrollWheelEventDeltaAxis1",
+            "KeyCode::MOUSE_WHEEL_UP",
+            "KeyCode::MOUSE_WHEEL_DOWN",
+            "pending_transient.swap",
+            "== INJECTED_EVENT_TAG",
+            'name("smu-macos-input-tap".to_owned())',
+        ):
+            self.assertIn(expected, source)
 
     def test_adapter_remains_unwired_until_state_and_display_backends_exist(self) -> None:
         app_sources = "\n".join(
@@ -79,6 +114,7 @@ class RustMacosInputTests(unittest.TestCase):
             for path in (ROOT / "rust" / "crates" / "smu-app" / "src").glob("*.rs")
         )
         self.assertNotIn("MacosInputInjector", app_sources)
+        self.assertNotIn("MacosInputState", app_sources)
 
     def test_rewrite_workflow_runs_native_macos_input_gate(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(

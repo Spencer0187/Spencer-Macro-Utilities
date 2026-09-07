@@ -154,6 +154,20 @@ pub(crate) fn macos_key_code(key: KeyCode) -> Option<u16> {
     }
 }
 
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_windows_key_code(mac_key: u16) -> Option<KeyCode> {
+    match mac_key {
+        0x36 => Some(KeyCode::RWIN),
+        0x3C => Some(KeyCode::SHIFT),
+        0x3D => Some(KeyCode::MENU),
+        0x3E => Some(KeyCode::CONTROL),
+        0x4C => Some(KeyCode::RETURN),
+        _ => MACOS_KEY_MAP
+            .iter()
+            .find_map(|(windows, macos)| (*macos == mac_key).then_some(KeyCode::new(*windows))),
+    }
+}
+
 #[cfg(any(target_os = "windows", test))]
 pub(crate) const fn windows_virtual_key(key: KeyCode) -> Option<i32> {
     let raw = key.raw();
@@ -423,6 +437,14 @@ mod tests {
         assert_eq!(super::macos_key_code(KeyCode::new(0x04)), Some(super::MACOS_MOUSE_MIDDLE));
         assert_eq!(super::macos_key_code(KeyCode::MOUSE_WHEEL_UP), None);
         assert_eq!(super::macos_key_code(KeyCode::new(0x1FF)), None);
+
+        assert_eq!(super::macos_windows_key_code(0x00), Some(KeyCode::A));
+        assert_eq!(super::macos_windows_key_code(0x36), Some(KeyCode::RWIN));
+        assert_eq!(super::macos_windows_key_code(0x3C), Some(KeyCode::SHIFT));
+        assert_eq!(super::macos_windows_key_code(0x3D), Some(KeyCode::MENU));
+        assert_eq!(super::macos_windows_key_code(0x3E), Some(KeyCode::CONTROL));
+        assert_eq!(super::macos_windows_key_code(0x4C), Some(KeyCode::RETURN));
+        assert_eq!(super::macos_windows_key_code(0xFFFF), None);
     }
 
     #[test]

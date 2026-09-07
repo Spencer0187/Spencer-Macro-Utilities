@@ -73,9 +73,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   keyboard, mouse-button/X-button, relative/absolute cursor, and line-wheel events carry the same
   `0x534D554D41434F53` source-user-data tag and post at the HID event tap. Relative movement defaults to the
   legacy game-safe delta-field mode, with the historical visible-cursor movement preference exposed as an
-  explicit setter, and direct absolute positioning reports the same Accessibility failure class. Physical
-  event-tap state capture and active-layout Text Input Services character resolution are deliberately deferred
-  to the next macOS input checkpoint, so this adapter remains unwired from `smu-app`. Linux character
+  explicit setter, and direct absolute positioning reports the same Accessibility failure class. The macOS
+  input slice now also owns a separate `MacosInputState`: it starts the legacy listen-only Session event tap
+  on a named private thread, ignores SMU-tagged injected events, re-enables taps disabled by timeout/user input,
+  mirrors the C++ mac-key/modifier/mouse-button state transitions, stores wheel direction only as transient
+  binding input, exposes the same first-pressed-key scan, and clears state on deterministic shutdown. The
+  callback owns only an `Arc` of atomic Rust state; CoreFoundation tap/run-loop objects stay on the reader
+  thread, which runs in short default-mode slices so shutdown does not retain a cross-thread run-loop pointer.
+  Active-layout Text Input Services character resolution remains the next macOS input checkpoint, so these
+  adapters remain unwired from `smu-app`. Linux character
   injection queries the current X11 keyboard/modifier maps and mirrors the C++
   six-state `XLookupString` search (`none`, Shift, Mod1, Mod5, Shift+Mod1, Shift+Mod5), including the
   first-key-per-modifier and X11-keycode-minus-8 evdev rules; synthetic-map tests freeze plain Shift
