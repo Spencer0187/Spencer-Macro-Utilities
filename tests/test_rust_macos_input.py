@@ -147,9 +147,9 @@ class RustMacosInputTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("runs-on: macos-latest", workflow)
-        self.assertIn("cargo test -p smu-process -p smu-input", workflow)
+        self.assertIn("cargo test -p smu-process -p smu-input -p smu-display", workflow)
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display --all-targets -- -D warnings",
             workflow,
         )
 

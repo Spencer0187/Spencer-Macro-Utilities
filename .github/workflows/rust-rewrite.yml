@@ -13,6 +13,7 @@ on:
       - "tests/test_rust_windows_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
+      - "tests/test_rust_macos_display.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -26,6 +27,7 @@ on:
       - "tests/test_rust_windows_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
+      - "tests/test_rust_macos_display.py"
       - "tests/test_update_manifest.py"
       - "docs/RUST_REWRITE.md"
       - ".github/workflows/rust-rewrite.yml"
@@ -47,7 +49,7 @@ jobs:
         run: rustup override set 1.98.0
       - name: macOS native-adapter source-contract tests
         working-directory: .
-        run: python3 -m unittest tests.test_rust_macos_process tests.test_rust_macos_input
+        run: python3 -m unittest tests.test_rust_macos_process tests.test_rust_macos_input tests.test_rust_macos_display
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy compatibility/core crates
@@ -74,10 +76,10 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
-      - name: Test native macOS process/input adapters
-        run: cargo test -p smu-process -p smu-input
-      - name: Clippy native macOS process/input adapters
-        run: cargo clippy -p smu-process -p smu-input --all-targets -- -D warnings
+      - name: Test native macOS process/input/display adapters
+        run: cargo test -p smu-process -p smu-input -p smu-display
+      - name: Clippy native macOS process/input/display adapters
+        run: cargo clippy -p smu-process -p smu-input -p smu-display --all-targets -- -D warnings
 
   windows-rust-app:
     runs-on: windows-latest

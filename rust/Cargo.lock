@@ -1405,6 +1405,9 @@ name = "smu-display"
 version = "0.0.0"
 dependencies = [
  "ashpd",
+ "objc2-application-services",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
  "pipewire",
  "tokio",
  "windows-sys",

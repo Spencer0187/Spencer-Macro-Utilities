@@ -14,6 +14,19 @@ pipewire.workspace = true
 tokio.workspace = true
 x11rb.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-application-services.workspace = true
+objc2-core-foundation = { workspace = true, features = ["CFDictionary", "CFNumber", "CFString"] }
+objc2-core-graphics = { workspace = true, features = [
+    "CGBitmapContext",
+    "CGColorSpace",
+    "CGContext",
+    "CGDirectDisplay",
+    "CGError",
+    "CGImage",
+    "CGWindow",
+] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { workspace = true, features = [
     "Win32_Foundation",

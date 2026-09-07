@@ -7,6 +7,8 @@ use std::fmt;
 
 #[cfg(target_os = "linux")]
 pub mod linux;
+#[cfg(target_os = "macos")]
+pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
@@ -23,6 +25,88 @@ impl ScreenBounds {
     pub const fn is_valid(self) -> bool {
         self.width > 0 && self.height > 0
     }
+}
+
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_screen_bounds_from_edges(
+    min_x: f64,
+    min_y: f64,
+    max_x: f64,
+    max_y: f64,
+) -> Option<ScreenBounds> {
+    if ![min_x, min_y, max_x, max_y].into_iter().all(f64::is_finite) {
+        return None;
+    }
+    let left = min_x.floor();
+    let top = min_y.floor();
+    let right = max_x.ceil();
+    let bottom = max_y.ceil();
+    if left < f64::from(i32::MIN)
+        || top < f64::from(i32::MIN)
+        || right > f64::from(i32::MAX)
+        || bottom > f64::from(i32::MAX)
+    {
+        return None;
+    }
+    let width = right - left;
+    let height = bottom - top;
+    if width <= 0.0 || height <= 0.0 || width > f64::from(i32::MAX) || height > f64::from(i32::MAX)
+    {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    Some(ScreenBounds { x: left as i32, y: top as i32, width: width as i32, height: height as i32 })
+}
+
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_display_index_for_point(
+    point_x: f64,
+    point_y: f64,
+    rects: &[(f64, f64, f64, f64)],
+) -> Option<usize> {
+    let mut closest = None;
+    let mut closest_distance = f64::INFINITY;
+    for (index, &(min_x, min_y, max_x, max_y)) in rects.iter().enumerate() {
+        if ![min_x, min_y, max_x, max_y].into_iter().all(f64::is_finite)
+            || max_x <= min_x
+            || max_y <= min_y
+        {
+            continue;
+        }
+        if point_x >= min_x && point_x < max_x && point_y >= min_y && point_y < max_y {
+            return Some(index);
+        }
+        let clamped_x = point_x.clamp(min_x, max_x);
+        let clamped_y = point_y.clamp(min_y, max_y);
+        let dx = point_x - clamped_x;
+        let dy = point_y - clamped_y;
+        #[allow(clippy::suboptimal_flops)]
+        let distance = dx * dx + dy * dy;
+        if closest.is_none() || distance < closest_distance {
+            closest = Some(index);
+            closest_distance = distance;
+        }
+    }
+    closest
+}
+
+#[cfg(any(target_os = "macos", test))]
+pub(crate) fn macos_global_screen_bounds(rects: &[(f64, f64, f64, f64)]) -> Option<ScreenBounds> {
+    let mut union: Option<(f64, f64, f64, f64)> = None;
+    for &(min_x, min_y, max_x, max_y) in rects {
+        if macos_screen_bounds_from_edges(min_x, min_y, max_x, max_y).is_none() {
+            continue;
+        }
+        union = Some(match union {
+            Some((left, top, right, bottom)) => {
+                (left.min(min_x), top.min(min_y), right.max(max_x), bottom.max(max_y))
+            }
+            None => (min_x, min_y, max_x, max_y),
+        });
+    }
+    union.and_then(|(left, top, right, bottom)| {
+        macos_screen_bounds_from_edges(left, top, right, bottom)
+    })
 }
 
 #[cfg(any(target_os = "windows", test))]
@@ -341,6 +425,25 @@ mod tests {
         assert!(BOUNDS.is_valid());
         assert!(!ScreenBounds { width: 0, ..BOUNDS }.is_valid());
         assert!(!ScreenBounds { height: -1, ..BOUNDS }.is_valid());
+    }
+
+    #[test]
+    fn macos_screen_bounds_floor_ceil_union_and_nearest_display_match_cpp_rules() {
+        assert_eq!(
+            macos_screen_bounds_from_edges(-1920.4, -0.2, -0.1, 1080.1),
+            Some(ScreenBounds { x: -1921, y: -1, width: 1921, height: 1082 })
+        );
+        assert_eq!(macos_screen_bounds_from_edges(0.0, 0.0, 0.0, 1080.0), None);
+        assert_eq!(macos_screen_bounds_from_edges(f64::NAN, 0.0, 10.0, 10.0), None);
+
+        let rects = [(-1920.0, 0.0, 0.0, 1080.0), (0.0, 0.0, 2560.0, 1440.0)];
+        assert_eq!(macos_display_index_for_point(-100.0, 500.0, &rects), Some(0));
+        assert_eq!(macos_display_index_for_point(2000.0, 1000.0, &rects), Some(1));
+        assert_eq!(macos_display_index_for_point(3000.0, 500.0, &rects), Some(1));
+        assert_eq!(
+            macos_global_screen_bounds(&rects),
+            Some(ScreenBounds { x: -1920, y: 0, width: 4480, height: 1440 })
+        );
     }
 
     #[test]
