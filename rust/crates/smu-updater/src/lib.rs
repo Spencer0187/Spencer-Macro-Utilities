@@ -36,7 +36,9 @@ pub use linux_install::{
 pub use macos::{
     MacosUpdateError, StagedMacosBundle, macos_auto_apply_supported,
     macos_auto_apply_unavailable_reason, macos_update_bundle_if_replaceable,
-    prepare_macos_replacement, stage_verified_macos_update_asset,
+    macos_update_bundle_if_replaceable_at, prepare_macos_replacement,
+    prepare_macos_replacement_for_bundle, require_matching_macos_release_signer,
+    stage_verified_macos_update_asset, stage_verified_macos_update_asset_for_bundle,
 };
 #[cfg(target_os = "macos")]
 pub use macos_replace::{

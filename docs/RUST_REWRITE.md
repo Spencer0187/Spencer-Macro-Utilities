@@ -42,7 +42,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   suspend/resume use `SIGSTOP`/`SIGCONT` while refusing the current process, and foreground checks compare the
   frontmost PID. AppKit objects stay inside autorelease pools and only plain Rust PID/cache data is retained.
   A dedicated `macos-latest` rewrite-CI lane tests and clippies the native macOS process/input/display/updater
-  crates plus `smu-app`; those native adapters are now composed into the Rust application. The
+  crates, the SDL-free macOS updater helper, and `smu-app`; those native adapters are now composed into the Rust application. The
   Windows backend mirrors C++ Toolhelp enumeration: the full selector is one executable name,
   matching is case-insensitive, `findAll` preserves snapshot order, `findMain` chooses the newest
   queryable creation time, suspend/resume dynamically resolves `NtSuspendProcess`/`NtResumeProcess`,
@@ -147,8 +147,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   transport with the legacy 15-second metadata / 120-second file timeout profile and can perform the same
   manifest-driven update check from `smu-app`. A read-only macOS install-eligibility slice also resolves the
   enclosing `.app`, rejects mounted-DMG/symlink launches, requires `codesign --verify --deep --strict` plus a
-  non-empty extracted leaf certificate, enforces the sticky-directory ownership rule, and proves sibling
-  staging writability with a create/remove probe. The next dormant slice now stages only manifest-authenticated
+  non-empty extracted leaf certificate, requires the app's containing folder to be owned by the current user,
+  rejects group/world-writable mode bits and any macOS extended ACL on that folder (with the sticky-directory
+  ownership rule retained as a further guard), and proves sibling staging writability with a create/remove probe. The next dormant slice now stages only manifest-authenticated
   ZIP bytes: a Rust validator requires one `.app` root, tolerates matching `__MACOSX`/AppleDouble metadata from
   `ditto --sequesterRsrc --keepParent`, rejects traversal/backslash, encrypted, duplicate, special-file, excessive-
   entry/expanded-size, outside-root, and incomplete app payloads, then writes those exact authenticated bytes to
@@ -161,21 +162,42 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   the install-parent and private swap directories with `O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC`; activation,
   rollback, commit, recovery, and recursive cleanup then use `fstatat(..., AT_SYMLINK_NOFOLLOW)`, `renameat`,
   `openat`, and `unlinkat` relative to those pinned descriptors rather than trusting mutable pathnames. The
-  descriptor-relative cleanup never follows symlinks or crosses a device boundary. Activation moves the old app
-  into rollback storage, renames the prepared new app into place, and returns an RAII transaction: explicit
-  rollback or Drop restores the pinned old bundle, while commit removes only the pinned rollback copy. A
-  same-UID rename/replacement of the hidden swap pathname therefore cannot redirect live mutation; regression
+  descriptor-relative cleanup never follows symlinks or crosses a device boundary; each root/child directory is
+  opened with `O_NOFOLLOW` and its opened `(st_dev, st_ino)` is rechecked before recursion. Because macOS has no
+  unlink-by-directory-handle primitive, cleanup intentionally retains the now-empty rollback/update root and
+  hidden swap directories instead of reopening a final pathname-based `rmdir` TOCTOU. Activation moves the
+  old app into rollback storage, renames the prepared new app into place, and returns an RAII transaction:
+  explicit rollback or Drop restores the pinned old bundle, while commit first rechecks that the installed
+  pathname still names the pinned new bundle and opens/verifies the pinned rollback directory object before
+  disarming recovery and beginning destructive cleanup; identity/open failures return recoverable rollback state
+  instead of destroying the backup. A same-UID rename/replacement of the hidden swap
+  pathname therefore cannot redirect live mutation; regression
   tests rename that directory and install an attacker-controlled substitute while the transaction continues on
   the original pinned object. Post-mutation recovery is phaseful on both sides of activation: activation recovery
   records `OldMoved -> OldRestored -> PreparedUpdateRemoved`, while rollback records `NewActivated ->
-  NewMovedAside -> OldRestored -> FailedUpdateRemoved`. Errors retain the boxed recovery state with cloned/pinned
-  directory handles, so explicit `recover()` resumes from the exact completed phase instead of replaying a rename;
+  NewMovedAside -> OldRestored -> FailedUpdateRemoved`. Errors retain the boxed recovery state with the original
+  pinned directory handles transferred out of the transaction (no `try_clone()`/new-FD allocation), so explicit
+  `recover()` resumes from the exact completed phase instead of replaying a rename;
   Drop performs one best-effort recovery attempt. Regression tests cover resuming after the old app was already
-  restored and after the new app was already moved aside. This transaction remains completely dormant:
-  no process wait/handoff, relaunch, updater helper, or UI auto-apply wiring exists yet. Rust macOS auto-apply is
-  still deliberately advertised as false until that detached process-handoff/relaunch layer is ported. HTTP remains injected behind
-  `UpdateTransport`, and platform replacement remains separate, so untrusted metadata is validated before
-  install-side effects are possible.
+  restored and after the new app was already moved aside. A dedicated SDL-free `smu-macos-updater-helper` is now
+  the final dormant handoff layer: it runs only from a private detached directory owned by the current user,
+  with no group/other mode access and no extended ACL, verifies that standalone helper against the installed
+  app's exact leaf release certificate, registers the old
+  PID with `kqueue(EVFILT_PROC/NOTE_EXIT)` and confirms `proc_pidpath` matches the installed SMU executable, then
+  re-fetches the exact requested GitHub tag, checks helper-version compatibility, re-downloads the selected macOS
+  asset through the hardened curl transport, and re-runs manifest ZIP/signer/version staging against the explicit
+  installed bundle. Only after all of those network/trust/staging checks succeed does it atomically create a
+  0600 `ready` marker beside the detached helper; a future parent launcher must wait for that marker before
+  exiting, so the old app cannot disappear before process pinning and staging are complete. Once the registered
+  old process exits, the helper activates the descriptor-pinned transaction, clears quarantine, creates the
+  legacy permission-repair marker, launches the updated `.app` with `/usr/bin/open -n`, and uses the phaseful
+  rollback/recovery transaction if LaunchServices rejects the new app or if commit-time identity checks fail;
+  non-recoverable commit errors are treated only as post-commit rollback-cleanup failures. This helper is
+  CI-compiled but is not yet
+  packaged, copied, or launched by `smu-app`; Rust macOS auto-apply therefore remains deliberately advertised as
+  false until signed Rust `.app` packaging and the parent-side detached-helper launcher/ready handshake are wired.
+  HTTP remains injected behind `UpdateTransport`, and platform replacement remains separate, so untrusted
+  metadata is validated before install-side effects are possible.
 - `smu-app` now composes the live Linux imported-script runtime and UI over `smu-scripting`.
   `ScriptManager` remains the sole owner of Lua instances, cancellation, and named per-record workers;
   the app controller owns only global macro enable, target-foreground eligibility, and C++-compatible
@@ -325,8 +347,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   the C++ `MacroRuntime`—Freeze, Item Desync, Press Key, Wallhop, Walless LHJ, Speedglitch, HHJ, Floor Bounce,
   Item Unequip, Item Clip, Laugh Clip, Wall Walk, Spam Key, Ledge Bounce, and Bunnyhop—and updates their settings
   from the live shell each frame. Anti-AFK remains omitted because the C++ implementation is Windows-only, while
-  Lag Switch remains unavailable because the macOS network backend is null; the Rust updater is also still not
-  composed on macOS. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
+  Lag Switch remains unavailable because the macOS network backend is null. macOS update checking is composed,
+  but its signed replacement helper remains deliberately unwired from the app until Rust `.app` packaging is
+  production-ready. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
   discover matching processes and suspend/resume them with the native backend. A platform-neutral
   `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
   its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
@@ -510,9 +533,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
   hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
   permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
-  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired and the
-  signed-bundle staging/swap transaction is dormant in `smu-updater`, but automatic `.app` replacement remains
-  intentionally disabled until a detached old-process wait/relaunch handoff is ported and reviewed.
+  packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired, and the
+  signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper are dormant in the Rust
+  workspace; automatic `.app` replacement remains intentionally disabled until signed Rust `.app` packaging and
+  the parent-side detached-helper launcher/readiness handshake are wired and reviewed.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

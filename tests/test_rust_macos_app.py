@@ -158,11 +158,11 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         )
         self.assertIn("tests.test_rust_macos_app", workflow)
         self.assertIn(
-            "cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app",
+            "cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app",
             workflow,
         )
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app --all-targets -- -D warnings",
             workflow,
         )
 

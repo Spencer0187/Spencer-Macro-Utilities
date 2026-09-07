@@ -87,6 +87,26 @@ fn mounted_dmg_path(path: &Path) -> bool {
     path == Path::new("/Volumes") || path.starts_with("/Volumes")
 }
 
+fn validated_macos_bundle_path(bundle: &Path) -> Result<PathBuf, MacosUpdateError> {
+    let metadata = fs::symlink_metadata(bundle).map_err(|error| {
+        MacosUpdateError::new(format!("Could not inspect the SMU app bundle: {error}"))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(MacosUpdateError::new(
+            "macOS auto-update requires a regular .app bundle directory.",
+        ));
+    }
+    let canonical = fs::canonicalize(bundle).map_err(|error| {
+        MacosUpdateError::new(format!("Could not canonicalize the SMU app bundle: {error}"))
+    })?;
+    if canonical.extension().and_then(|value| value.to_str()) != Some("app") {
+        return Err(MacosUpdateError::new(
+            "macOS auto-update requires running from a .app bundle.",
+        ));
+    }
+    Ok(canonical)
+}
+
 fn command_succeeded(program: &str, arguments: &[&str], path: &Path) -> bool {
     Command::new(program).args(arguments).arg(path).status().is_ok_and(|status| status.success())
 }
@@ -125,6 +145,30 @@ fn certificate_backed_release_signature(bundle: &Path) -> Result<(), MacosUpdate
     release_leaf_certificate(bundle).map(|_| ())
 }
 
+fn parent_has_extended_acl(parent: &Path) -> Result<bool, MacosUpdateError> {
+    let output = Command::new("/bin/ls")
+        .env("LC_ALL", "C")
+        .args(["-l", "-d", "-e"])
+        .arg(parent)
+        .output()
+        .map_err(|error| {
+            MacosUpdateError::new(format!(
+                "Could not inspect the macOS app containing-folder ACL: {error}"
+            ))
+        })?;
+    if !output.status.success() {
+        return Err(MacosUpdateError::new(
+            "Could not inspect the macOS app containing-folder ACL.",
+        ));
+    }
+    let listing = String::from_utf8_lossy(&output.stdout);
+    Ok(listing.lines().skip(1).any(|line| {
+        line.trim_start().split_once(':').is_some_and(|(index, _)| {
+            !index.is_empty() && index.bytes().all(|byte| byte.is_ascii_digit())
+        })
+    }))
+}
+
 fn replacement_parent_is_safe(bundle: &Path) -> Result<(), MacosUpdateError> {
     let parent = bundle.parent().ok_or_else(|| {
         MacosUpdateError::new("Could not resolve the current SMU app containing folder.")
@@ -136,9 +180,23 @@ fn replacement_parent_is_safe(bundle: &Path) -> Result<(), MacosUpdateError> {
         MacosUpdateError::new(format!("Could not inspect the current SMU app location: {error}"))
     })?;
     let effective_user = unsafe { libc::geteuid() };
+    if effective_user != parent_metadata.uid() {
+        return Err(MacosUpdateError::new(
+            "Automatic updates require the app's containing folder to be owned by the current user.",
+        ));
+    }
+    if parent_metadata.mode() & 0o022 != 0 {
+        return Err(MacosUpdateError::new(
+            "Automatic updates are unavailable from a group- or world-writable containing folder.",
+        ));
+    }
+    if parent_has_extended_acl(parent)? {
+        return Err(MacosUpdateError::new(
+            "Automatic updates are unavailable from a containing folder with an extended ACL.",
+        ));
+    }
     if parent_metadata.mode() & libc::S_ISVTX != 0
         && effective_user != 0
-        && effective_user != parent_metadata.uid()
         && effective_user != bundle_metadata.uid()
     {
         return Err(MacosUpdateError::new(
@@ -158,14 +216,14 @@ fn replacement_parent_is_safe(bundle: &Path) -> Result<(), MacosUpdateError> {
     })
 }
 
-/// Return the canonical installed `.app` bundle when the current launch satisfies the legacy macOS
+/// Return the canonical installed `.app` bundle when the supplied bundle satisfies the legacy macOS
 /// self-replacement preconditions.
 ///
 /// # Errors
 ///
-/// Returns the user-facing reason that this launch must use manual installation instead.
-pub fn macos_update_bundle_if_replaceable() -> Result<PathBuf, MacosUpdateError> {
-    let bundle = current_app_bundle_path()?;
+/// Returns the user-facing reason that this bundle must use manual installation instead.
+pub fn macos_update_bundle_if_replaceable_at(bundle: &Path) -> Result<PathBuf, MacosUpdateError> {
+    let bundle = validated_macos_bundle_path(bundle)?;
     if mounted_dmg_path(&bundle) {
         return Err(MacosUpdateError::new(
             "Automatic installation is unavailable while SMU is running from a mounted DMG. Drag the app to Applications and launch it there first.",
@@ -174,6 +232,16 @@ pub fn macos_update_bundle_if_replaceable() -> Result<PathBuf, MacosUpdateError>
     certificate_backed_release_signature(&bundle)?;
     replacement_parent_is_safe(&bundle)?;
     Ok(bundle)
+}
+
+/// Return the canonical installed `.app` bundle when the current launch satisfies the legacy macOS
+/// self-replacement preconditions.
+///
+/// # Errors
+///
+/// Returns the user-facing reason that this launch must use manual installation instead.
+pub fn macos_update_bundle_if_replaceable() -> Result<PathBuf, MacosUpdateError> {
+    macos_update_bundle_if_replaceable_at(&current_app_bundle_path()?)
 }
 
 #[derive(Debug)]
@@ -205,10 +273,11 @@ impl Drop for StagedMacosBundle {
 ///
 /// Returns when install eligibility changes, the same-directory copy fails, the copied bundle is substituted,
 /// or its release signer no longer matches the installed app.
-pub fn prepare_macos_replacement(
+pub fn prepare_macos_replacement_for_bundle(
     staged: &StagedMacosBundle,
+    installed_bundle: &Path,
 ) -> Result<PreparedMacosReplacement, MacosUpdateError> {
-    let current_app = macos_update_bundle_if_replaceable()?;
+    let current_app = macos_update_bundle_if_replaceable_at(installed_bundle)?;
     let parent = current_app.parent().ok_or_else(|| {
         MacosUpdateError::new("Could not resolve the installed macOS app containing directory.")
     })?;
@@ -262,20 +331,46 @@ pub fn prepare_macos_replacement(
     preparation
 }
 
+/// Prepare a same-filesystem replacement for the current installed app bundle.
+///
+/// # Errors
+///
+/// Returns when current-bundle eligibility, staging, signer validation, or descriptor pinning fails.
+pub fn prepare_macos_replacement(
+    staged: &StagedMacosBundle,
+) -> Result<PreparedMacosReplacement, MacosUpdateError> {
+    prepare_macos_replacement_for_bundle(staged, &current_app_bundle_path()?)
+}
+
+/// Require two macOS code objects to carry the exact same certificate-backed leaf release signer.
+///
+/// # Errors
+///
+/// Returns when either code object fails strict code-signature verification, lacks a leaf certificate, or the
+/// extracted leaf certificates differ byte-for-byte.
+pub fn require_matching_macos_release_signer(
+    trusted_code: &Path,
+    candidate_code: &Path,
+) -> Result<(), MacosUpdateError> {
+    let trusted_certificate = release_leaf_certificate(trusted_code)?;
+    let candidate_certificate = release_leaf_certificate(candidate_code).map_err(|_| {
+        MacosUpdateError::new("Candidate macOS code failed release-signature validation.")
+    })?;
+    if trusted_certificate != candidate_certificate {
+        return Err(MacosUpdateError::new(
+            "Candidate macOS code was not signed by the same release certificate.",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_staged_bundle_signer(
     installed_bundle: &Path,
     staged_bundle: &Path,
 ) -> Result<(), MacosUpdateError> {
-    let installed_certificate = release_leaf_certificate(installed_bundle)?;
-    let staged_certificate = release_leaf_certificate(staged_bundle).map_err(|_| {
-        MacosUpdateError::new("Downloaded macOS app failed code-signature validation.")
-    })?;
-    if installed_certificate != staged_certificate {
-        return Err(MacosUpdateError::new(
-            "Downloaded macOS app was not signed by the same release certificate.",
-        ));
-    }
-    Ok(())
+    require_matching_macos_release_signer(installed_bundle, staged_bundle).map_err(|error| {
+        MacosUpdateError::new(format!("Downloaded macOS app failed signer validation: {error}"))
+    })
 }
 
 /// Stage one manifest-authenticated macOS ZIP into a private temporary directory and require a single,
@@ -288,9 +383,10 @@ fn validate_staged_bundle_signer(
 ///
 /// Returns an error when the asset contract, ZIP layout, `ditto` extraction, staged bundle type, or signature
 /// identity check fails.
-pub fn stage_verified_macos_update_asset(
+pub fn stage_verified_macos_update_asset_for_bundle(
     asset: &ReleaseAsset,
     downloaded_path: &Path,
+    installed_bundle: &Path,
 ) -> Result<StagedMacosBundle, MacosUpdateError> {
     if !asset
         .name
@@ -301,7 +397,7 @@ pub fn stage_verified_macos_update_asset(
             "macOS auto-update only supports ZIP release assets containing a .app bundle.",
         ));
     }
-    let installed_bundle = macos_update_bundle_if_replaceable()?;
+    let installed_bundle = macos_update_bundle_if_replaceable_at(installed_bundle)?;
     let authenticated_bytes = read_verified_update_asset(asset, downloaded_path)
         .map_err(|error| MacosUpdateError::new(error.to_string()))?;
     let app_name = validate_macos_bundle_archive(&authenticated_bytes)
@@ -344,6 +440,22 @@ pub fn stage_verified_macos_update_asset(
         let _ = fs::remove_dir_all(&work_dir);
     }
     staging
+}
+
+/// Stage one verified macOS update asset against the current installed app bundle.
+///
+/// # Errors
+///
+/// Returns when current-bundle eligibility, asset verification, extraction, or signer validation fails.
+pub fn stage_verified_macos_update_asset(
+    asset: &ReleaseAsset,
+    downloaded_path: &Path,
+) -> Result<StagedMacosBundle, MacosUpdateError> {
+    stage_verified_macos_update_asset_for_bundle(
+        asset,
+        downloaded_path,
+        &current_app_bundle_path()?,
+    )
 }
 
 #[must_use]

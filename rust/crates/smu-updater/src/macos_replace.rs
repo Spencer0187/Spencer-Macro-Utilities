@@ -275,16 +275,47 @@ fn unlink_at(dir: &File, name: &OsStr, flags: i32) -> Result<(), MacosReplaceErr
     }
 }
 
+fn open_verified_child_directory(
+    parent: &File,
+    name: &OsStr,
+    expected: DirectoryIdentity,
+    label: &str,
+) -> Result<File, MacosReplaceError> {
+    require_child_directory_identity(parent, name, expected, label)?;
+    let directory = open_child_directory(parent, name)?;
+    if DirectoryIdentity::from_file(&directory)? != expected {
+        return Err(MacosReplaceError::new(format!(
+            "Refusing macOS update because the {label} directory changed identity after opening."
+        )));
+    }
+    Ok(directory)
+}
+
+fn remove_open_directory_tree_at(
+    parent: &File,
+    name: &OsStr,
+    expected: DirectoryIdentity,
+    directory: &File,
+) -> Result<(), MacosReplaceError> {
+    if DirectoryIdentity::from_file(directory)? != expected {
+        return Err(MacosReplaceError::new(
+            "Refusing macOS update cleanup because the pinned root directory changed identity.",
+        ));
+    }
+    remove_directory_contents(directory, expected.device)?;
+    // macOS has no unlink-by-directory-handle primitive. Recursive deletion is therefore performed only through
+    // the verified root FD, and the now-empty root directory itself is intentionally retained. Recheck its name
+    // for diagnostics, but never race a final path-based rmdir against a same-UID rename/substitution.
+    require_child_directory_identity(parent, name, expected, "emptied cleanup")
+}
+
 fn remove_directory_tree_at(
     parent: &File,
     name: &OsStr,
     expected: DirectoryIdentity,
 ) -> Result<(), MacosReplaceError> {
-    require_child_directory_identity(parent, name, expected, "cleanup")?;
-    let directory = open_child_directory(parent, name)?;
-    let root_device = DirectoryIdentity::from_file(&directory)?.device;
-    remove_directory_contents(&directory, root_device)?;
-    unlink_at(parent, name, libc::AT_REMOVEDIR)
+    let directory = open_verified_child_directory(parent, name, expected, "cleanup")?;
+    remove_open_directory_tree_at(parent, name, expected, &directory)
 }
 
 fn remove_directory_contents(dir: &File, root_device: u64) -> Result<(), MacosReplaceError> {
@@ -313,28 +344,16 @@ fn remove_directory_contents(dir: &File, root_device: u64) -> Result<(), MacosRe
     Ok(())
 }
 
-fn cleanup_swap_container(
-    parent: &File,
+fn finalize_swap_container(
     swap: &File,
     swap_identity: DirectoryIdentity,
 ) -> Result<(), MacosReplaceError> {
     if DirectoryIdentity::from_file(swap)? != swap_identity {
         return Err(MacosReplaceError::new("Pinned macOS update swap directory changed identity."));
     }
-    if !directory_entries(swap)?.is_empty() {
-        return Err(MacosReplaceError::new(
-            "Pinned macOS update swap directory is not empty after cleanup.",
-        ));
-    }
-    for name in directory_entries(parent)? {
-        if child_metadata(parent, &name)?
-            .is_some_and(|metadata| metadata.is_directory() && metadata.identity == swap_identity)
-        {
-            return unlink_at(parent, &name, libc::AT_REMOVEDIR);
-        }
-    }
-    // The swap directory may have been renamed outside the pinned install parent. Its contents are already
-    // cleaned through the retained descriptor, so leaving the now-empty directory is safer than guessing a path.
+    // The swap root and emptied child roots are intentionally retained. macOS provides no safe unlink-by-handle
+    // primitive, so attempting a final pathname rmdir would reopen a same-UID TOCTOU after descriptor-relative
+    // cleanup has already succeeded. Empty hidden directories are preferable to deleting a substituted name.
     Ok(())
 }
 
@@ -409,7 +428,7 @@ impl Drop for PreparedMacosReplacement {
         if !self.armed {
             return;
         }
-        if let (Some(parent), Some(swap)) = (&self.parent, &self.swap) {
+        if let Some(swap) = &self.swap {
             if require_child_directory_identity(
                 swap,
                 &self.new_name,
@@ -420,7 +439,7 @@ impl Drop for PreparedMacosReplacement {
             {
                 let _ = remove_directory_tree_at(swap, &self.new_name, self.new_identity);
             }
-            let _ = cleanup_swap_container(parent, swap, self.swap_identity);
+            let _ = finalize_swap_container(swap, self.swap_identity);
         }
         self.armed = false;
     }
@@ -504,7 +523,7 @@ impl ActivationRecovery {
             self.old_identity,
             "restored",
         )?;
-        cleanup_swap_container(&self.parent, &self.swap, self.swap_identity)
+        finalize_swap_container(&self.swap, self.swap_identity)
     }
 
     fn into_rollback_recovery(self) -> RollbackRecovery {
@@ -542,20 +561,19 @@ struct RollbackRecovery {
 }
 
 impl RollbackRecovery {
-    fn from_transaction(
-        transaction: &MacosReplacementTransaction,
+    fn take_from_transaction(
+        transaction: &mut MacosReplacementTransaction,
     ) -> Result<Self, MacosReplaceError> {
+        let parent = transaction.parent.take().ok_or_else(|| {
+            MacosReplaceError::new("macOS replacement lost its pinned install-parent handle.")
+        })?;
+        let swap = transaction.swap.take().ok_or_else(|| {
+            MacosReplaceError::new("macOS replacement lost its pinned swap-directory handle.")
+        })?;
+        transaction.active = false;
         Ok(Self {
-            parent: transaction.parent.try_clone().map_err(|error| {
-                MacosReplaceError::new(format!(
-                    "Could not clone pinned macOS install-parent handle: {error}"
-                ))
-            })?,
-            swap: transaction.swap.try_clone().map_err(|error| {
-                MacosReplaceError::new(format!(
-                    "Could not clone pinned macOS swap-directory handle: {error}"
-                ))
-            })?,
+            parent,
+            swap,
             swap_identity: transaction.swap_identity,
             current_name: transaction.current_name.clone(),
             backup_name: transaction.backup_name.clone(),
@@ -567,8 +585,8 @@ impl RollbackRecovery {
 
     fn into_transaction(self) -> MacosReplacementTransaction {
         MacosReplacementTransaction {
-            parent: self.parent,
-            swap: self.swap,
+            parent: Some(self.parent),
+            swap: Some(self.swap),
             swap_identity: self.swap_identity,
             current_name: self.current_name,
             backup_name: self.backup_name,
@@ -639,14 +657,14 @@ impl RollbackRecovery {
             self.old_identity,
             "restored",
         )?;
-        cleanup_swap_container(&self.parent, &self.swap, self.swap_identity)
+        finalize_swap_container(&self.swap, self.swap_identity)
     }
 }
 
 #[derive(Debug)]
 pub struct MacosReplacementTransaction {
-    parent: File,
-    swap: File,
+    parent: Option<File>,
+    swap: Option<File>,
     swap_identity: DirectoryIdentity,
     current_name: OsString,
     backup_name: OsString,
@@ -662,28 +680,66 @@ impl MacosReplacementTransaction {
     ///
     /// Returns a cleanup error after committing the new app if the pinned rollback tree cannot be removed.
     pub fn commit(mut self) -> Result<(), MacosReplaceError> {
-        require_child_directory_identity(
-            &self.swap,
+        let installed_check = {
+            let parent = self.parent.as_ref().ok_or_else(|| {
+                MacosReplaceError::new("macOS replacement lost its pinned install-parent handle.")
+            })?;
+            require_child_directory_identity(
+                parent,
+                &self.current_name,
+                self.new_identity,
+                "installed update",
+            )
+        };
+        if let Err(error) = installed_check {
+            let recovery = RollbackRecovery::take_from_transaction(&mut self)?;
+            return Err(MacosReplaceError::with_recovery(
+                error.to_string(),
+                RecoveryState::Rollback(recovery),
+            ));
+        }
+
+        let backup_directory = {
+            let swap = self.swap.as_ref().ok_or_else(|| {
+                MacosReplaceError::new("macOS replacement lost its pinned swap-directory handle.")
+            })?;
+            open_verified_child_directory(swap, &self.backup_name, self.old_identity, "rollback")
+        };
+        let backup_directory = match backup_directory {
+            Ok(directory) => directory,
+            Err(error) => {
+                let recovery = RollbackRecovery::take_from_transaction(&mut self)?;
+                return Err(MacosReplaceError::with_recovery(
+                    error.to_string(),
+                    RecoveryState::Rollback(recovery),
+                ));
+            }
+        };
+
+        // Commit means keep the new app. Disarm rollback only after both live path identities and the opened
+        // rollback directory object are verified, immediately before destructive cleanup of the old bundle.
+        self.active = false;
+        let swap = self.swap.as_ref().ok_or_else(|| {
+            MacosReplaceError::new("macOS replacement lost its pinned swap-directory handle.")
+        })?;
+        remove_open_directory_tree_at(
+            swap,
             &self.backup_name,
             self.old_identity,
-            "rollback",
+            &backup_directory,
         )?;
-        // Commit means keep the new app. Disarm rollback before destructive cleanup of the old bundle.
-        self.active = false;
-        remove_directory_tree_at(&self.swap, &self.backup_name, self.old_identity)?;
-        cleanup_swap_container(&self.parent, &self.swap, self.swap_identity)
+        finalize_swap_container(swap, self.swap_identity)
     }
 
     /// Restore the previous app bundle.
     ///
     /// # Errors
     ///
-    /// Any failure after rollback starts returns an error that retains cloned pinned directory handles and the
-    /// exact rollback phase, allowing explicit retry through [`MacosReplaceError::recover`] or automatic retry
-    /// when that error is dropped.
+    /// Any failure after rollback starts returns an error that retains the transaction's original pinned
+    /// directory handles and exact rollback phase, allowing explicit retry through [`MacosReplaceError::recover`]
+    /// or automatic retry when that error is dropped.
     pub fn rollback(mut self) -> Result<(), MacosReplaceError> {
-        let mut recovery = RollbackRecovery::from_transaction(&self)?;
-        self.active = false;
+        let mut recovery = RollbackRecovery::take_from_transaction(&mut self)?;
         match recovery.try_recover() {
             Ok(()) => Ok(()),
             Err(error) => Err(MacosReplaceError::with_recovery(
@@ -699,7 +755,7 @@ impl Drop for MacosReplacementTransaction {
         if !self.active {
             return;
         }
-        if let Ok(mut recovery) = RollbackRecovery::from_transaction(self) {
+        if let Ok(mut recovery) = RollbackRecovery::take_from_transaction(self) {
             let _ = recovery.try_recover();
         }
         self.active = false;
@@ -745,7 +801,7 @@ pub fn activate_prepared_macos_replacement(
     prepared.armed = false;
     if let Err(error) = rename_at(&parent, &prepared.current_name, &swap, &prepared.backup_name) {
         let _ = remove_directory_tree_at(&swap, &prepared.new_name, prepared.new_identity);
-        let _ = cleanup_swap_container(&parent, &swap, prepared.swap_identity);
+        let _ = finalize_swap_container(&swap, prepared.swap_identity);
         return Err(MacosReplaceError::new(format!(
             "Could not move the current macOS app into rollback storage: {error}"
         )));
@@ -872,14 +928,39 @@ mod tests {
     }
 
     #[test]
-    fn commit_keeps_new_app_and_removes_private_rollback_tree() {
+    fn commit_keeps_new_app_and_empties_private_rollback_tree() {
         let tree = TempTree::new();
         let current = tree.0.join("SMU.app");
+        let rollback = tree.0.join(".swap/old.app");
         let transaction = activate_prepared_macos_replacement(prepared(&tree));
         assert!(transaction.is_ok());
         let Ok(transaction) = transaction else { return };
         assert_eq!(fs::read_to_string(current.join("marker")).ok().as_deref(), Some("new"));
         assert!(transaction.commit().is_ok());
+        assert!(rollback.is_dir());
+        assert!(fs::read_dir(&rollback).is_ok_and(|mut entries| entries.next().is_none()));
+    }
+
+    #[test]
+    fn commit_identity_failure_retains_recoverable_rollback_state() {
+        let tree = TempTree::new();
+        let current = tree.0.join("SMU.app");
+        let held_new = tree.0.join("held-new.app");
+        let transaction = activate_prepared_macos_replacement(prepared(&tree));
+        assert!(transaction.is_ok());
+        let Ok(transaction) = transaction else { return };
+        assert!(fs::rename(&current, &held_new).is_ok());
+        write_marker(&current, "substitute");
+
+        let error = transaction.commit();
+        assert!(error.is_err());
+        let Err(error) = error else { return };
+        assert!(error.recovery_available());
+
+        assert!(fs::remove_dir_all(&current).is_ok());
+        assert!(fs::rename(&held_new, &current).is_ok());
+        assert!(error.recover().is_ok());
+        assert_eq!(fs::read_to_string(current.join("marker")).ok().as_deref(), Some("old"));
     }
 
     #[test]
@@ -953,10 +1034,9 @@ mod tests {
         let transaction = activate_prepared_macos_replacement(prepared(&tree));
         assert!(transaction.is_ok());
         let Ok(mut transaction) = transaction else { return };
-        let recovery = RollbackRecovery::from_transaction(&transaction);
+        let recovery = RollbackRecovery::take_from_transaction(&mut transaction);
         assert!(recovery.is_ok());
         let Ok(mut recovery) = recovery else { return };
-        transaction.active = false;
 
         let failed_name = OsStr::new("failed-new.app");
         assert!(
@@ -998,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_drop_cleans_pinned_swap_after_path_rename_without_touching_substitute() {
+    fn prepared_drop_empties_pinned_swap_after_path_rename_without_touching_substitute() {
         let tree = TempTree::new();
         let prepared = prepared(&tree);
         let original_swap = tree.0.join(".swap");
@@ -1011,6 +1091,8 @@ mod tests {
             fs::read_to_string(original_swap.join("new.app/marker")).ok().as_deref(),
             Some("attacker")
         );
-        assert!(!renamed_swap.exists());
+        let emptied_new = renamed_swap.join("new.app");
+        assert!(emptied_new.is_dir());
+        assert!(fs::read_dir(&emptied_new).is_ok_and(|mut entries| entries.next().is_none()));
     }
 }

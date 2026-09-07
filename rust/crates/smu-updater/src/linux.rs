@@ -45,7 +45,11 @@ impl CurlUpdateTransport {
     }
 
     /// Download one HTTPS URL directly to a file using the same curl restrictions as C++.
-    pub(crate) fn download_to_file(
+    ///
+    /// # Errors
+    ///
+    /// Returns when the URL is not HTTPS, curl cannot be launched, or curl exits unsuccessfully.
+    pub fn download_to_file(
         &self,
         url: &str,
         destination: &Path,

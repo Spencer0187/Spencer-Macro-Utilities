@@ -80,10 +80,10 @@ jobs:
         run: rustup toolchain install 1.98.0 --profile minimal --component clippy,rustfmt
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
-      - name: Test native macOS process/input/display/updater adapters and app composition
-        run: cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app
-      - name: Clippy native macOS process/input/display/updater adapters and app composition
-        run: cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-app --all-targets -- -D warnings
+      - name: Test native macOS process/input/display/updater adapters, helper, and app composition
+        run: cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app
+      - name: Clippy native macOS process/input/display/updater adapters, helper, and app composition
+        run: cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app --all-targets -- -D warnings
 
   windows-rust-app:
     runs-on: windows-latest

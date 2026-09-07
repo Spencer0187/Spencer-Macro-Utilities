@@ -1432,6 +1432,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "smu-macos-updater-helper"
+version = "0.0.0"
+dependencies = [
+ "libc",
+ "smu-updater",
+]
+
+[[package]]
 name = "smu-network"
 version = "0.0.0"
 dependencies = [

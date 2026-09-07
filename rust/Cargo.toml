@@ -6,6 +6,7 @@ members = [
     "crates/smu-core",
     "crates/smu-display",
     "crates/smu-input",
+    "crates/smu-macos-updater-helper",
     "crates/smu-network",
     "crates/smu-process",
     "crates/smu-profile",
