@@ -30,8 +30,12 @@ use process_status_service::ProcessStatusService;
 use script_app_service::ScriptAppServices;
 #[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
+#[cfg(target_os = "macos")]
+use smu_display::macos::{MacosDisplayCapture, screen_recording_trusted};
 #[cfg(target_os = "linux")]
 use smu_input::linux::EvdevUinputInputDevice;
+#[cfg(target_os = "macos")]
+use smu_input::macos::{MacosInputDevice, accessibility_trusted};
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use smu_network::LagSwitchControl;
 #[cfg(target_os = "linux")]
@@ -42,6 +46,8 @@ use smu_network::windows::WindowsLagSwitchBackend;
 use smu_process::linux::{
     ProcCgroupProcessControl, ProcDiscovery, ProcForegroundProcess, UnixFreezeHelper,
 };
+#[cfg(target_os = "macos")]
+use smu_process::macos::MacosProcessService;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
 use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
@@ -49,39 +55,39 @@ use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
 #[cfg(target_os = "windows")]
 mod anti_afk_runtime;
 mod bunnyhop;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod bunnyhop_runtime;
 mod capture;
 mod critical_modal;
 mod floor_bounce;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod floor_bounce_runtime;
 mod foreground_ui;
 mod freeze;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod freeze_runtime;
 mod global_settings;
 mod hhj;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod hhj_runtime;
 mod item_clip;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod item_clip_runtime;
 mod item_desync;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod item_desync_runtime;
 mod item_unequip;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod item_unequip_runtime;
 mod keybind;
 mod lag_switch;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod lag_switch_runtime;
 mod laugh_clip;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod laugh_clip_runtime;
 mod ledge_bounce;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod ledge_bounce_runtime;
 #[cfg(target_os = "linux")]
 mod linux_freeze_authorization;
@@ -96,7 +102,7 @@ mod multi_instance;
 mod notification_suppression;
 mod parity;
 mod press_key;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod press_key_runtime;
 mod process_status_service;
 mod profile_adapter;
@@ -111,10 +117,10 @@ mod settings_menu;
 mod shell;
 mod sidebar;
 mod spam_key;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod spam_key_runtime;
 mod speedglitch;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod speedglitch_runtime;
 mod target_runtime;
 mod theme;
@@ -122,13 +128,13 @@ mod tutorial_media;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod updater_service;
 mod wall_walk;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod wall_walk_runtime;
 mod walless_lhj;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod walless_lhj_runtime;
 mod wallhop;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod wallhop_runtime;
 mod warning_toast;
 #[cfg(target_os = "windows")]
@@ -698,6 +704,63 @@ impl LinuxPlatformServices {
     }
 }
 
+#[cfg(target_os = "macos")]
+struct MacosPlatformServices {
+    input: Arc<MacosInputDevice>,
+    input_ready: bool,
+    display: Arc<MacosDisplayCapture>,
+    process: Arc<MacosProcessService>,
+}
+
+#[cfg(target_os = "macos")]
+impl MacosPlatformServices {
+    fn new(shell_state: &mut shell::ShellState) -> Self {
+        let input = Arc::new(MacosInputDevice::new());
+        let display = Arc::new(MacosDisplayCapture::new());
+        let process = Arc::new(MacosProcessService::new());
+        let accessibility_ready = accessibility_trusted();
+        let screen_recording_ready = screen_recording_trusted();
+        let input_ready = if accessibility_ready && screen_recording_ready {
+            match input.init() {
+                Ok(()) => true,
+                Err(error) => {
+                    shell_state.push_warning(format!("macOS input initialization failed: {error}"));
+                    false
+                }
+            }
+        } else {
+            let mut missing = Vec::new();
+            if !accessibility_ready {
+                missing.push("Accessibility");
+            }
+            if !screen_recording_ready {
+                missing.push("Screen Recording");
+            }
+            shell_state.push_warning(format!(
+                "macOS macro input is disabled until {} permission{} granted. Imported scripts can still use process/display APIs that do not require unavailable permissions.",
+                missing.join(" and "),
+                if missing.len() == 1 { " is" } else { "s are" }
+            ));
+            false
+        };
+        Self { input, input_ready, display, process }
+    }
+
+    fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        if self.input_ready && shell_state.keybind_input_poll_needed() {
+            let input = keybind::InputSnapshot::capture(
+                self.input.as_ref(),
+                shell_state.keybind_capture_active(),
+            );
+            shell_state.set_keybind_input(input);
+        }
+    }
+
+    fn shutdown(&self) {
+        self.input.shutdown();
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn create_linux_platform_services()
 -> (Arc<linux_freeze_authorization::FreezeHelperAuthorizationGate>, LinuxPlatformServices) {
@@ -1115,12 +1178,65 @@ fn apply_linux_foreground_warning(shell_state: &mut shell::ShellState, parity_ca
     }
 }
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+#[cfg(target_os = "macos")]
+fn macos_process_status(platform: &MacosPlatformServices) -> ProcessStatusService {
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process.clone();
+    ProcessStatusService::new(Some(discovery), None)
+}
+
+#[cfg(target_os = "macos")]
+fn start_macos_app_services(
+    shell_state: &mut shell::ShellState,
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    parity_case: Option<&str>,
+) -> (MacosPlatformServices, ProcessStatusService, ScriptAppServices) {
+    let platform = MacosPlatformServices::new(shell_state);
+    let process_status = macos_process_status(&platform);
+    let script_app = start_macos_script_app(saved_settings, shell_state, parity_case, &platform);
+    (platform, process_status, script_app)
+}
+
+#[cfg(target_os = "macos")]
+fn start_macos_script_app(
+    saved_settings: Arc<profile_adapter::LiveSavedSettings>,
+    shell_state: &shell::ShellState,
+    parity_case: Option<&str>,
+    platform: &MacosPlatformServices,
+) -> ScriptAppServices {
+    let (selector, take_all_process_ids) = shell_state.script_process_target();
+    let mut config = ScriptManagerConfig::new(app_version());
+    config.process_selector = selector;
+    config.take_all_process_ids = take_all_process_ids;
+    let input: Option<Arc<dyn smu_input::InputDevice>> = if platform.input_ready {
+        let input: Arc<dyn smu_input::InputDevice> = platform.input.clone();
+        Some(input)
+    } else {
+        None
+    };
+    let display: Arc<dyn smu_display::DisplayCapture> = platform.display.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process.clone();
+    let control: Arc<dyn smu_process::ProcessControl> = platform.process.clone();
+    let services = ScriptServices {
+        input,
+        display: Some(display),
+        process_discovery: Some(discovery),
+        process_control: Some(control),
+        saved_settings: Some(saved_settings.clone()),
+        ..ScriptServices::default()
+    };
+    ScriptAppServices::new(
+        Arc::new(ScriptManager::new(config, services)),
+        saved_settings,
+        parity_case == Some("imported-script-footer-user-reference"),
+    )
+}
+
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
 fn start_portable_process_status() -> ProcessStatusService {
     ProcessStatusService::new(None, None)
 }
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
 fn start_portable_script_app(
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
@@ -1633,27 +1749,49 @@ impl WindowsBuiltinRuntimeServices {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 fn start_portable_script_runtime(
     script_app: &ScriptAppServices,
     shell_state: &shell::ShellState,
-    #[cfg(target_os = "windows")] platform: &WindowsMacroPlatformServices,
+    platform: &WindowsMacroPlatformServices,
 ) -> Option<script_runtime::ScriptRuntimeController> {
-    #[cfg(target_os = "windows")]
-    {
-        Some(script_runtime::ScriptRuntimeController::start(
-            Arc::clone(&platform.key_state),
-            Arc::clone(&platform.discovery),
-            Arc::clone(&platform.foreground),
-            script_app.manager(),
-            shell_state.script_runtime_settings(),
-        ))
+    Some(script_runtime::ScriptRuntimeController::start(
+        Arc::clone(&platform.key_state),
+        Arc::clone(&platform.discovery),
+        Arc::clone(&platform.foreground),
+        script_app.manager(),
+        shell_state.script_runtime_settings(),
+    ))
+}
+
+#[cfg(target_os = "macos")]
+fn start_macos_script_runtime(
+    script_app: &ScriptAppServices,
+    shell_state: &shell::ShellState,
+    platform: &MacosPlatformServices,
+) -> Option<script_runtime::ScriptRuntimeController> {
+    if !platform.input_ready {
+        return None;
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (script_app, shell_state);
-        None
-    }
+    let input: Arc<dyn smu_input::KeyState> = platform.input.clone();
+    let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process.clone();
+    let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process.clone();
+    Some(script_runtime::ScriptRuntimeController::start(
+        input,
+        discovery,
+        foreground,
+        script_app.manager(),
+        shell_state.script_runtime_settings(),
+    ))
+}
+
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
+fn start_portable_script_runtime(
+    script_app: &ScriptAppServices,
+    shell_state: &shell::ShellState,
+) -> Option<script_runtime::ScriptRuntimeController> {
+    let _ = (script_app, shell_state);
+    None
 }
 
 #[cfg(target_os = "linux")]
@@ -2401,6 +2539,8 @@ struct UiLoopContext<'a> {
     portable_script_runtime: Option<&'a script_runtime::ScriptRuntimeController>,
     #[cfg(target_os = "linux")]
     linux_services: &'a LinuxRuntimeServices,
+    #[cfg(target_os = "macos")]
+    macos_platform: &'a MacosPlatformServices,
     #[cfg(target_os = "windows")]
     windows_lag_switch: &'a WindowsLagSwitchServices,
     #[cfg(target_os = "windows")]
@@ -2507,6 +2647,7 @@ fn handle_windows_privileged_shell_action(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
         events,
@@ -2522,6 +2663,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         portable_script_runtime,
         #[cfg(target_os = "linux")]
         linux_services,
+        #[cfg(target_os = "macos")]
+        macos_platform,
         #[cfg(target_os = "windows")]
         windows_lag_switch,
         #[cfg(target_os = "windows")]
@@ -2548,6 +2691,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         prepare_shared_shell_frame(profile_service, script_app, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.prepare_shell(shell_state);
+        #[cfg(target_os = "macos")]
+        macos_platform.prepare_shell(shell_state);
         #[cfg(target_os = "windows")]
         windows_builtin_runtime.prepare_shell(shell_state);
         #[cfg(target_os = "windows")]
@@ -2696,7 +2841,20 @@ fn shutdown_portable_services(
     script_app.shutdown();
 }
 
-#[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+#[cfg(target_os = "macos")]
+fn shutdown_macos_services(
+    script_runtime: Option<&script_runtime::ScriptRuntimeController>,
+    script_app: &ScriptAppServices,
+    platform: &MacosPlatformServices,
+) {
+    if let Some(controller) = script_runtime {
+        controller.stop();
+    }
+    script_app.shutdown();
+    platform.shutdown();
+}
+
+#[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
 fn shutdown_portable_services(
     script_runtime: Option<&script_runtime::ScriptRuntimeController>,
     script_app: &ScriptAppServices,
@@ -2707,6 +2865,7 @@ fn shutdown_portable_services(
     script_app.shutdown();
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     #[cfg(target_os = "linux")]
@@ -2729,10 +2888,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let process_status = linux_services.process_status();
     #[cfg(target_os = "windows")]
     let windows_platform = WindowsMacroPlatformServices::new();
+    #[cfg(target_os = "macos")]
+    let (macos_platform, portable_process_status, portable_script_app) = start_macos_app_services(
+        &mut shell_state,
+        Arc::clone(&saved_settings),
+        parity_case.as_deref(),
+    );
     #[cfg(target_os = "windows")]
     let portable_process_status =
         ProcessStatusService::new(Some(Arc::clone(&windows_platform.discovery)), None);
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     let portable_process_status = start_portable_process_status();
     #[cfg(not(target_os = "linux"))]
     let process_status = &portable_process_status;
@@ -2751,7 +2916,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &windows_platform,
         &windows_lag_switch,
     );
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     let portable_script_app = start_portable_script_app(
         Arc::clone(&saved_settings),
         &shell_state,
@@ -2763,7 +2928,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     let portable_script_runtime =
         start_portable_script_runtime(script_app, &shell_state, &windows_platform);
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    #[cfg(target_os = "macos")]
+    let portable_script_runtime =
+        start_macos_script_runtime(script_app, &shell_state, &macos_platform);
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     let portable_script_runtime = start_portable_script_runtime(script_app, &shell_state);
     #[cfg(target_os = "linux")]
     let portable_script_runtime_ref = None;
@@ -2783,6 +2951,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         portable_script_runtime: portable_script_runtime_ref,
         #[cfg(target_os = "linux")]
         linux_services: &linux_services,
+        #[cfg(target_os = "macos")]
+        macos_platform: &macos_platform,
         #[cfg(target_os = "windows")]
         windows_lag_switch: &windows_lag_switch,
         #[cfg(target_os = "windows")]
@@ -2809,7 +2979,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &windows_lag_switch,
         script_app,
     );
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    #[cfg(target_os = "macos")]
+    shutdown_macos_services(portable_script_runtime.as_ref(), script_app, &macos_platform);
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     shutdown_portable_services(portable_script_runtime.as_ref(), script_app);
 
     Ok(())

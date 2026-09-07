@@ -11,11 +11,6 @@ use smu_input::InputDevice;
 use smu_profile::{SavedSettingSource, SavedSettingValue};
 use std::fmt;
 use std::sync::Arc;
-#[cfg(target_os = "macos")]
-use std::sync::atomic::{AtomicBool, Ordering};
-
-#[cfg(target_os = "macos")]
-static MACOS_CURSOR_MOVEMENT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum PixelOutputFormat {
@@ -662,34 +657,19 @@ fn display_error_message(display: &dyn DisplayCapture, error: &DisplayError) -> 
     }
 }
 
-fn install_macos_cursor_api(lua: &Lua) -> mlua::Result<()> {
+fn install_macos_cursor_api(lua: &Lua, input: Option<Arc<dyn InputDevice>>) -> mlua::Result<()> {
+    let setter_input = input.clone();
     lua.globals().set(
         "setMacOSCursorMovement",
-        lua.create_function(|_, value: Value| {
+        lua.create_function(move |_, value: Value| {
             let enabled = !matches!(value, Value::Nil | Value::Boolean(false));
-            #[cfg(target_os = "macos")]
-            {
-                MACOS_CURSOR_MOVEMENT.store(enabled, Ordering::Release);
-                Ok(true)
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = enabled;
-                Ok(false)
-            }
+            Ok(setter_input.as_ref().is_some_and(|input| input.set_direct_cursor_movement(enabled)))
         })?,
     )?;
     lua.globals().set(
         "getMacOSCursorMovement",
-        lua.create_function(|_, ()| {
-            #[cfg(target_os = "macos")]
-            {
-                Ok(MACOS_CURSOR_MOVEMENT.load(Ordering::Acquire))
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                Ok(false)
-            }
+        lua.create_function(move |_, ()| {
+            Ok(input.as_ref().is_some_and(|input| input.direct_cursor_movement()))
         })?,
     )
 }
@@ -758,7 +738,7 @@ pub fn install_display_api(
     let stop = vm.stop_handle();
     install_motion_api(&vm.lua, context, &stop, input, display)?;
     install_pixel_api(&vm.lua, context, &stop, display)?;
-    install_macos_cursor_api(&vm.lua)?;
+    install_macos_cursor_api(&vm.lua, resources.1.clone())?;
     Ok(())
 }
 
@@ -836,6 +816,30 @@ mod tests {
 
         fn prefers_direct_absolute_positioning(&self) -> bool {
             self.direct.load(Ordering::Acquire)
+        }
+
+        fn set_direct_cursor_movement(&self, enabled: bool) -> bool {
+            #[cfg(target_os = "macos")]
+            {
+                self.direct.store(enabled, Ordering::Release);
+                true
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = enabled;
+                false
+            }
+        }
+
+        fn direct_cursor_movement(&self) -> bool {
+            #[cfg(target_os = "macos")]
+            {
+                self.direct.load(Ordering::Acquire)
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                false
+            }
         }
 
         fn mouse_wheel(&self, _delta: i32) {}

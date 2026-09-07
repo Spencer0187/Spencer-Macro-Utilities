@@ -285,8 +285,14 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   imported-script sidebar/detail/footer UI, native-dialog/fallback import, profile persistence, saved-value
   reads, process-target propagation, and script/settings mutations are all available there through a
   `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
-  calls that require native backends therefore remain unavailable until composition attaches them.
-  Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
+  calls that require native backends therefore remain unavailable until composition attaches them. macOS now
+  replaces that fallback with a dedicated composition root: native process discovery/control and display are
+  always attached to imported-script services, while native input/state and the shared script-hotkey runtime
+  start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
+  feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The
+  shared controller model modules compile on macOS because the cross-platform UI/profile layer references their
+  settings types, but no macOS Lag Switch/network backend, updater, Anti-AFK, or built-in macro controller is
+  instantiated yet. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
   discover matching processes and suspend/resume them with the native backend. A platform-neutral
   `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
   its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
@@ -466,8 +472,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   auto-apply therefore remains off because the Rust bundle has side-loaded runtime siblings and the repository
   `SMCWinDivert.dll` is currently unsigned; production
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
-  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS now has dormant
-  native Rust process, input, and display adapters; the remaining native platform gap is final app-level composition.
+  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS now composes its
+  native Rust process, input, and display adapters into the app for process status, imported scripts, script
+  hotkeys, display APIs, and built-in keybind capture when both privacy permissions are ready. macOS packet
+  interception/updating and the built-in macro-controller runtime remain intentionally unwired pending their
+  own native support/cutover decisions.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

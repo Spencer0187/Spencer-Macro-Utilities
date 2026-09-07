@@ -104,9 +104,15 @@ fn active_monitor_refresh_rate() -> Option<i32> {
     Some(refresh.round() as i32)
 }
 
-fn accessibility_trusted() -> bool {
+#[must_use]
+pub fn accessibility_trusted() -> bool {
     // SAFETY: AXIsProcessTrusted takes no arguments and only queries current-process trust state.
     unsafe { AXIsProcessTrusted() }
+}
+
+#[must_use]
+pub fn screen_recording_trusted() -> bool {
+    CGPreflightScreenCaptureAccess()
 }
 
 fn prompt_for_accessibility() {

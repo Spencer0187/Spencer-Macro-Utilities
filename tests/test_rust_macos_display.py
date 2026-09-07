@@ -76,12 +76,13 @@ class RustMacosDisplayTests(unittest.TestCase):
         ):
             self.assertIn(expected, source)
 
-    def test_adapter_remains_unwired_until_final_macos_composition(self) -> None:
-        app_sources = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in (ROOT / "rust" / "crates" / "smu-app" / "src").glob("*.rs")
+    def test_adapter_is_wired_only_through_macos_composition(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
         )
-        self.assertNotIn("MacosDisplayCapture", app_sources)
+        self.assertIn("use smu_display::macos::{MacosDisplayCapture, screen_recording_trusted};", main)
+        self.assertIn("display: Arc<MacosDisplayCapture>", main)
+        self.assertIn("let display: Arc<dyn smu_display::DisplayCapture> = platform.display.clone()", main)
 
     def test_rewrite_workflow_runs_native_macos_display_gate(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
@@ -90,10 +91,10 @@ class RustMacosDisplayTests(unittest.TestCase):
         self.assertIn("macos-native-adapters:", workflow)
         self.assertIn("runs-on: macos-latest", workflow)
         self.assertIn(
-            "cargo test -p smu-process -p smu-input -p smu-display", workflow
+            "cargo test -p smu-process -p smu-input -p smu-display -p smu-app", workflow
         )
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input -p smu-display --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-app --all-targets -- -D warnings",
             workflow,
         )
 

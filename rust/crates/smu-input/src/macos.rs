@@ -110,7 +110,8 @@ fn mouse_button_description(mac_key: u16) -> Option<MouseButtonDescription> {
     }
 }
 
-fn accessibility_trusted() -> bool {
+#[must_use]
+pub fn accessibility_trusted() -> bool {
     // SAFETY: AXIsProcessTrusted takes no arguments and only queries the current process trust state.
     unsafe { AXIsProcessTrusted() }
 }
@@ -567,14 +568,19 @@ impl MacosInputInjector {
         Ok(())
     }
 
+    pub fn shutdown(&self) {
+        self.initialized.store(false, Ordering::Release);
+    }
+
     fn output_allowed(&self) -> bool {
         self.initialized.load(Ordering::Acquire) && accessibility_trusted()
     }
 
     /// Match the legacy `macos_cursor_movement` preference. `false` preserves game-safe relative deltas;
     /// `true` visibly repositions the cursor by the requested delta.
-    pub fn set_direct_cursor_movement(&self, enabled: bool) {
+    pub fn set_direct_cursor_movement(&self, enabled: bool) -> bool {
         self.direct_cursor_movement.store(enabled, Ordering::Release);
+        true
     }
 
     #[must_use]
@@ -763,6 +769,14 @@ impl InputInjector for MacosInputInjector {
         true
     }
 
+    fn set_direct_cursor_movement(&self, enabled: bool) -> bool {
+        MacosInputInjector::set_direct_cursor_movement(self, enabled)
+    }
+
+    fn direct_cursor_movement(&self) -> bool {
+        MacosInputInjector::direct_cursor_movement(self)
+    }
+
     fn absolute_pointer_unavailable_reason(&self) -> String {
         if accessibility_trusted() {
             "macOS could not create a global absolute mouse movement event.".to_owned()
@@ -785,5 +799,112 @@ impl InputInjector for MacosInputInjector {
 
     fn press_character(&self, character: u8, delay_ms: i32) -> bool {
         self.press_character_with_active_layout(character, delay_ms)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MacosInputDevice {
+    state: MacosInputState,
+    injector: MacosInputInjector,
+}
+
+impl MacosInputDevice {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Initialize the physical event tap and injection halves together.
+    ///
+    /// # Errors
+    ///
+    /// Returns the native macOS input initialization failure and unwinds any partially-started reader.
+    pub fn init(&self) -> Result<(), InputError> {
+        self.state.init()?;
+        if let Err(error) = self.injector.init() {
+            self.state.shutdown();
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    pub fn shutdown(&self) {
+        self.injector.shutdown();
+        self.state.shutdown();
+    }
+
+    #[must_use]
+    pub fn is_initialized(&self) -> bool {
+        self.state.is_initialized() && self.injector.initialized.load(Ordering::Acquire)
+    }
+
+    pub fn set_direct_cursor_movement(&self, enabled: bool) {
+        self.injector.set_direct_cursor_movement(enabled);
+    }
+}
+
+impl Drop for MacosInputDevice {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+impl KeyState for MacosInputDevice {
+    fn is_pressed(&self, key: KeyCode) -> bool {
+        self.state.is_pressed(key)
+    }
+
+    fn current_pressed_key(&self) -> Option<KeyCode> {
+        self.state.current_pressed_key()
+    }
+
+    fn consume_next_transient_input(&self) -> Option<KeyCode> {
+        self.state.consume_next_transient_input()
+    }
+}
+
+impl InputInjector for MacosInputDevice {
+    fn hold_key(&self, key: KeyCode, extended: bool) {
+        self.injector.hold_key(key, extended);
+    }
+
+    fn release_key(&self, key: KeyCode, extended: bool) {
+        self.injector.release_key(key, extended);
+    }
+
+    fn move_mouse(&self, dx: i32, dy: i32) {
+        self.injector.move_mouse(dx, dy);
+    }
+
+    fn move_mouse_raw(&self, dx: i32, dy: i32) {
+        self.injector.move_mouse_raw(dx, dy);
+    }
+
+    fn move_mouse_absolute(&self, x: i32, y: i32) -> Result<(), InputError> {
+        self.injector.move_mouse_absolute(x, y)
+    }
+
+    fn prefers_direct_absolute_positioning(&self) -> bool {
+        self.injector.prefers_direct_absolute_positioning()
+    }
+
+    fn set_direct_cursor_movement(&self, enabled: bool) -> bool {
+        self.injector.set_direct_cursor_movement(enabled)
+    }
+
+    fn direct_cursor_movement(&self) -> bool {
+        self.injector.direct_cursor_movement()
+    }
+
+    fn absolute_pointer_unavailable_reason(&self) -> String {
+        self.injector.absolute_pointer_unavailable_reason()
+    }
+
+    fn mouse_wheel(&self, delta: i32) {
+        self.injector.mouse_wheel(delta);
+    }
+
+    fn press_character(&self, character: u8, delay_ms: i32) -> bool {
+        self.injector.press_character(character, delay_ms)
     }
 }

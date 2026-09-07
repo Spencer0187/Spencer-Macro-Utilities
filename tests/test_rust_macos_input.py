@@ -134,22 +134,25 @@ class RustMacosInputTests(unittest.TestCase):
         ):
             self.assertIn(expected, source)
 
-    def test_adapter_remains_unwired_until_state_and_display_backends_exist(self) -> None:
-        app_sources = "\n".join(
-            path.read_text(encoding="utf-8")
-            for path in (ROOT / "rust" / "crates" / "smu-app" / "src").glob("*.rs")
+    def test_composed_input_facade_is_used_by_macos_app_services(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
         )
-        self.assertNotIn("MacosInputInjector", app_sources)
-        self.assertNotIn("MacosInputState", app_sources)
+        self.assertIn("use smu_input::macos::{MacosInputDevice, accessibility_trusted};", main)
+        self.assertIn("input: Arc<MacosInputDevice>", main)
+        self.assertIn("if accessibility_ready && screen_recording_ready", main)
+        self.assertIn("macos_platform.prepare_shell(shell_state)", main)
+        self.assertNotIn("MacosInputInjector", main)
+        self.assertNotIn("MacosInputState", main)
 
     def test_rewrite_workflow_runs_native_macos_input_gate(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("runs-on: macos-latest", workflow)
-        self.assertIn("cargo test -p smu-process -p smu-input -p smu-display", workflow)
+        self.assertIn("cargo test -p smu-process -p smu-input -p smu-display -p smu-app", workflow)
         self.assertIn(
-            "cargo clippy -p smu-process -p smu-input -p smu-display --all-targets -- -D warnings",
+            "cargo clippy -p smu-process -p smu-input -p smu-display -p smu-app --all-targets -- -D warnings",
             workflow,
         )
 

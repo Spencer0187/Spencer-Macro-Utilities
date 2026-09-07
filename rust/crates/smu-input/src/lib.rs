@@ -285,6 +285,15 @@ pub trait InputInjector: Send + Sync {
         false
     }
 
+    /// Toggle the legacy macOS visible-cursor movement mode. Other platform injectors keep this unsupported.
+    fn set_direct_cursor_movement(&self, _enabled: bool) -> bool {
+        false
+    }
+
+    fn direct_cursor_movement(&self) -> bool {
+        false
+    }
+
     fn absolute_pointer_unavailable_reason(&self) -> String {
         "cursor/screen position is not available on this platform/session".to_owned()
     }
