@@ -9,7 +9,7 @@ use std::{
     sync::Arc,
 };
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(target_os = "linux")]
 use std::sync::{Mutex, MutexGuard};
@@ -1749,6 +1749,178 @@ impl WindowsBuiltinRuntimeServices {
     }
 }
 
+#[cfg(target_os = "macos")]
+struct MacosBuiltinRuntimeServices {
+    bunnyhop_controller: bunnyhop_runtime::BunnyhopController,
+    hhj_controller: hhj_runtime::HhjController,
+    floor_bounce_controller: floor_bounce_runtime::FloorBounceController,
+    freeze_controller: freeze_runtime::FreezeController,
+    item_desync_controller: item_desync_runtime::ItemDesyncController,
+    item_clip_controller: item_clip_runtime::ItemClipController,
+    item_unequip_controller: item_unequip_runtime::ItemUnequipController,
+    laugh_clip_controller: laugh_clip_runtime::LaughClipController,
+    press_key_controller: press_key_runtime::PressKeyController,
+    spam_key_controller: spam_key_runtime::SpamKeyController,
+    ledge_bounce_controller: ledge_bounce_runtime::LedgeBounceController,
+    speedglitch_controller: speedglitch_runtime::SpeedglitchController,
+    wall_walk_controller: wall_walk_runtime::WallWalkController,
+    walless_lhj_controller: walless_lhj_runtime::WallessLhjController,
+    wallhop_controller: wallhop_runtime::WallhopController,
+}
+
+#[cfg(target_os = "macos")]
+impl MacosBuiltinRuntimeServices {
+    fn new(shell_state: &shell::ShellState, platform: &MacosPlatformServices) -> Option<Self> {
+        if !platform.input_ready {
+            return None;
+        }
+        let input: Arc<dyn smu_input::InputDevice> = platform.input.clone();
+        let key_state: Arc<dyn smu_input::KeyState> = platform.input.clone();
+        let discovery: Arc<dyn smu_process::ProcessDiscovery> = platform.process.clone();
+        let foreground: Arc<dyn smu_process::ProcessForeground> = platform.process.clone();
+        let control: Arc<dyn smu_process::ProcessControl> = platform.process.clone();
+        let hhj_active = Arc::new(AtomicBool::new(false));
+
+        Some(Self {
+            bunnyhop_controller: bunnyhop_runtime::BunnyhopController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.bunnyhop_controller_settings(),
+            ),
+            hhj_controller: hhj_runtime::HhjController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                Arc::clone(&control),
+                Arc::clone(&hhj_active),
+                shell_state.hhj_controller_settings(),
+            ),
+            floor_bounce_controller: floor_bounce_runtime::FloorBounceController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                Arc::clone(&control),
+                hhj_active,
+                shell_state.floor_bounce_controller_settings(),
+            ),
+            freeze_controller: freeze_runtime::FreezeController::start(
+                key_state,
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                Arc::clone(&control),
+                shell_state.freeze_controller_settings(),
+            ),
+            item_desync_controller: item_desync_runtime::ItemDesyncController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.item_desync_controller_settings(),
+            ),
+            item_clip_controller: item_clip_runtime::ItemClipController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.item_clip_controller_settings(),
+            ),
+            item_unequip_controller: item_unequip_runtime::ItemUnequipController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.item_unequip_controller_settings(),
+            ),
+            laugh_clip_controller: laugh_clip_runtime::LaughClipController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.laugh_clip_controller_settings(),
+            ),
+            press_key_controller: press_key_runtime::PressKeyController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.press_key_controller_settings(),
+            ),
+            spam_key_controller: spam_key_runtime::SpamKeyController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.spam_key_controller_settings(),
+            ),
+            ledge_bounce_controller: ledge_bounce_runtime::LedgeBounceController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.ledge_bounce_controller_settings(),
+            ),
+            speedglitch_controller: speedglitch_runtime::SpeedglitchController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.speedglitch_controller_settings(),
+            ),
+            wall_walk_controller: wall_walk_runtime::WallWalkController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                shell_state.wall_walk_controller_settings(),
+            ),
+            walless_lhj_controller: walless_lhj_runtime::WallessLhjController::start(
+                Arc::clone(&input),
+                Arc::clone(&discovery),
+                Arc::clone(&foreground),
+                control,
+                shell_state.walless_lhj_controller_settings(),
+            ),
+            wallhop_controller: wallhop_runtime::WallhopController::start(
+                input,
+                discovery,
+                foreground,
+                shell_state.wallhop_controller_settings(),
+            ),
+        })
+    }
+
+    fn finish_shell(&self, shell_state: &shell::ShellState) {
+        self.bunnyhop_controller.update_settings(shell_state.bunnyhop_controller_settings());
+        self.hhj_controller.update_settings(shell_state.hhj_controller_settings());
+        self.floor_bounce_controller
+            .update_settings(shell_state.floor_bounce_controller_settings());
+        self.freeze_controller.update_settings(shell_state.freeze_controller_settings());
+        self.item_desync_controller.update_settings(shell_state.item_desync_controller_settings());
+        self.item_clip_controller.update_settings(shell_state.item_clip_controller_settings());
+        self.item_unequip_controller
+            .update_settings(shell_state.item_unequip_controller_settings());
+        self.laugh_clip_controller.update_settings(shell_state.laugh_clip_controller_settings());
+        self.press_key_controller.update_settings(shell_state.press_key_controller_settings());
+        self.spam_key_controller.update_settings(shell_state.spam_key_controller_settings());
+        self.ledge_bounce_controller
+            .update_settings(shell_state.ledge_bounce_controller_settings());
+        self.speedglitch_controller.update_settings(shell_state.speedglitch_controller_settings());
+        self.wall_walk_controller.update_settings(shell_state.wall_walk_controller_settings());
+        self.walless_lhj_controller.update_settings(shell_state.walless_lhj_controller_settings());
+        self.wallhop_controller.update_settings(shell_state.wallhop_controller_settings());
+    }
+
+    fn shutdown(&self) {
+        self.floor_bounce_controller.stop();
+        self.hhj_controller.stop();
+        self.bunnyhop_controller.stop();
+        self.ledge_bounce_controller.stop();
+        self.spam_key_controller.stop();
+        self.press_key_controller.stop();
+        self.wallhop_controller.stop();
+        self.walless_lhj_controller.stop();
+        self.wall_walk_controller.stop();
+        self.laugh_clip_controller.stop();
+        self.item_unequip_controller.stop();
+        self.item_clip_controller.stop();
+        self.speedglitch_controller.stop();
+        self.item_desync_controller.stop();
+        self.freeze_controller.stop();
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn start_portable_script_runtime(
     script_app: &ScriptAppServices,
@@ -2541,6 +2713,8 @@ struct UiLoopContext<'a> {
     linux_services: &'a LinuxRuntimeServices,
     #[cfg(target_os = "macos")]
     macos_platform: &'a MacosPlatformServices,
+    #[cfg(target_os = "macos")]
+    macos_builtin_runtime: Option<&'a MacosBuiltinRuntimeServices>,
     #[cfg(target_os = "windows")]
     windows_lag_switch: &'a WindowsLagSwitchServices,
     #[cfg(target_os = "windows")]
@@ -2665,6 +2839,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         linux_services,
         #[cfg(target_os = "macos")]
         macos_platform,
+        #[cfg(target_os = "macos")]
+        macos_builtin_runtime,
         #[cfg(target_os = "windows")]
         windows_lag_switch,
         #[cfg(target_os = "windows")]
@@ -2723,6 +2899,10 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         finish_shared_shell_frame(window, script_app, portable_script_runtime, shell_state);
         #[cfg(target_os = "linux")]
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
+        #[cfg(target_os = "macos")]
+        if let Some(runtime) = macos_builtin_runtime {
+            runtime.finish_shell(shell_state);
+        }
         #[cfg(target_os = "windows")]
         windows_builtin_runtime.finish_shell(shell_action.as_ref(), shell_state);
         #[cfg(target_os = "windows")]
@@ -2844,6 +3024,7 @@ fn shutdown_portable_services(
 #[cfg(target_os = "macos")]
 fn shutdown_macos_services(
     script_runtime: Option<&script_runtime::ScriptRuntimeController>,
+    builtin_runtime: Option<&MacosBuiltinRuntimeServices>,
     script_app: &ScriptAppServices,
     platform: &MacosPlatformServices,
 ) {
@@ -2851,6 +3032,9 @@ fn shutdown_macos_services(
         controller.stop();
     }
     script_app.shutdown();
+    if let Some(runtime) = builtin_runtime {
+        runtime.shutdown();
+    }
     platform.shutdown();
 }
 
@@ -2908,6 +3092,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "windows")]
     let windows_builtin_runtime =
         WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform, parity_case.is_none());
+    #[cfg(target_os = "macos")]
+    let macos_builtin_runtime = MacosBuiltinRuntimeServices::new(&shell_state, &macos_platform);
     #[cfg(target_os = "windows")]
     let portable_script_app = start_windows_script_app(
         Arc::clone(&saved_settings),
@@ -2953,6 +3139,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         linux_services: &linux_services,
         #[cfg(target_os = "macos")]
         macos_platform: &macos_platform,
+        #[cfg(target_os = "macos")]
+        macos_builtin_runtime: macos_builtin_runtime.as_ref(),
         #[cfg(target_os = "windows")]
         windows_lag_switch: &windows_lag_switch,
         #[cfg(target_os = "windows")]
@@ -2980,7 +3168,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         script_app,
     );
     #[cfg(target_os = "macos")]
-    shutdown_macos_services(portable_script_runtime.as_ref(), script_app, &macos_platform);
+    shutdown_macos_services(
+        portable_script_runtime.as_ref(),
+        macos_builtin_runtime.as_ref(),
+        script_app,
+        &macos_platform,
+    );
     #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     shutdown_portable_services(portable_script_runtime.as_ref(), script_app);
 

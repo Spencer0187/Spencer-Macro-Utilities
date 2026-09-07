@@ -70,7 +70,69 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             self.assertIn(expected, source)
         self.assertNotIn("MacosLagSwitch", source)
 
-    def test_macos_app_compiles_shared_runtime_models_without_starting_native_backends(self) -> None:
+    def test_macos_builtin_runtime_matches_cpp_non_network_controller_set(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("struct MacosBuiltinRuntimeServices", main)
+        self.assertIn("if !platform.input_ready", main)
+        for controller in (
+            "BunnyhopController",
+            "HhjController",
+            "FloorBounceController",
+            "FreezeController",
+            "ItemDesyncController",
+            "ItemClipController",
+            "ItemUnequipController",
+            "LaughClipController",
+            "PressKeyController",
+            "SpamKeyController",
+            "LedgeBounceController",
+            "SpeedglitchController",
+            "WallWalkController",
+            "WallessLhjController",
+            "WallhopController",
+        ):
+            self.assertIn(controller, main)
+        macos_block = main.split("struct MacosBuiltinRuntimeServices", 1)[1].split(
+            '#[cfg(target_os = "windows")]', 1
+        )[0]
+        self.assertNotIn("AntiAfkController", macos_block)
+        self.assertNotIn("LagSwitchController", macos_block)
+        self.assertIn("macos_builtin_runtime: Option<&'a MacosBuiltinRuntimeServices>", main)
+        self.assertIn("runtime.finish_shell(shell_state)", main)
+        self.assertIn("macos_builtin_runtime.as_ref()", main)
+        self.assertIn("runtime.shutdown()", main)
+
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        macos_cfg = '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]'
+        for settings_fn in (
+            "freeze_controller_settings",
+            "floor_bounce_controller_settings",
+            "hhj_controller_settings",
+            "item_unequip_controller_settings",
+            "item_desync_controller_settings",
+            "item_clip_controller_settings",
+            "laugh_clip_controller_settings",
+            "spam_key_controller_settings",
+            "bunnyhop_controller_settings",
+            "ledge_bounce_controller_settings",
+            "speedglitch_controller_settings",
+            "press_key_controller_settings",
+            "wallhop_controller_settings",
+            "walless_lhj_controller_settings",
+            "wall_walk_controller_settings",
+        ):
+            marker = f"{macos_cfg}\n    #[must_use]\n    pub fn {settings_fn}"
+            self.assertIn(marker, shell)
+        self.assertNotIn(
+            f"{macos_cfg}\n    #[must_use]\n    pub fn lag_switch_controller_settings",
+            shell,
+        )
+
+    def test_macos_app_keeps_network_updater_and_windows_only_runtime_unavailable(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(
                 encoding="utf-8"

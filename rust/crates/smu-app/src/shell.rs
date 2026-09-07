@@ -706,7 +706,7 @@ impl ShellState {
         }
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn freeze_controller_settings(&self) -> crate::freeze_runtime::FreezeControllerSettings {
         self.freeze
@@ -735,7 +735,7 @@ impl ShellState {
         enabled
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn floor_bounce_controller_settings(
         &self,
@@ -748,7 +748,7 @@ impl ShellState {
         )
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn hhj_controller_settings(&self) -> crate::hhj_runtime::HhjControllerSettings {
         let (strength_x, strength_y) = self.speedglitch.motion_strengths();
@@ -765,7 +765,7 @@ impl ShellState {
         })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn item_unequip_controller_settings(
         &self,
@@ -780,7 +780,7 @@ impl ShellState {
         })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn item_desync_controller_settings(
         &self,
@@ -789,7 +789,7 @@ impl ShellState {
             .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn item_clip_controller_settings(
         &self,
@@ -798,7 +798,7 @@ impl ShellState {
             .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn laugh_clip_controller_settings(
         &self,
@@ -816,7 +816,7 @@ impl ShellState {
         })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn spam_key_controller_settings(
         &self,
@@ -825,7 +825,7 @@ impl ShellState {
             .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn bunnyhop_controller_settings(
         &self,
@@ -837,7 +837,7 @@ impl ShellState {
         )
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn ledge_bounce_controller_settings(
         &self,
@@ -850,7 +850,7 @@ impl ShellState {
         )
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn speedglitch_controller_settings(
         &self,
@@ -862,7 +862,7 @@ impl ShellState {
         )
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn press_key_controller_settings(
         &self,
@@ -871,14 +871,14 @@ impl ShellState {
             .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn wallhop_controller_settings(&self) -> crate::wallhop_runtime::WallhopControllerSettings {
         self.wallhop
             .controller_settings(self.macro_runtime_enabled(), self.global.process_selector())
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn walless_lhj_controller_settings(
         &self,
@@ -893,7 +893,7 @@ impl ShellState {
         })
     }
 
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn wall_walk_controller_settings(
         &self,

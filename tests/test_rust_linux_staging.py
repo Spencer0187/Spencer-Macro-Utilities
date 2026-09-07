@@ -264,7 +264,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             self.assertIn(controller, main)
         self.assertNotIn('#[cfg(target_os = "linux")]\nmod bunnyhop_runtime;', main)
         self.assertIn(
-            '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn bunnyhop_controller_settings',
+            '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]\n    #[must_use]\n    pub fn bunnyhop_controller_settings',
             shell,
         )
 

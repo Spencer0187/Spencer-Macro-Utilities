@@ -291,8 +291,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
   feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The
   shared controller model modules compile on macOS because the cross-platform UI/profile layer references their
-  settings types, but no macOS Lag Switch/network backend, updater, Anti-AFK, or built-in macro controller is
-  instantiated yet. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
+  settings types. With native input ready, macOS now starts the same 15 shared built-in controllers exercised by
+  the C++ `MacroRuntime`—Freeze, Item Desync, Press Key, Wallhop, Walless LHJ, Speedglitch, HHJ, Floor Bounce,
+  Item Unequip, Item Clip, Laugh Clip, Wall Walk, Spam Key, Ledge Bounce, and Bunnyhop—and updates their settings
+  from the live shell each frame. Anti-AFK remains omitted because the C++ implementation is Windows-only, while
+  Lag Switch remains unavailable because the macOS network backend is null; the Rust updater is also still not
+  composed on macOS. Windows now injects `smu-process::windows` into the portable `ScriptServices`, so imported scripts can
   discover matching processes and suspend/resume them with the native backend. A platform-neutral
   `ProcessStatusService` now owns the selector-sensitive one-second process-found cache too: Linux uses
   its existing `ProcDiscovery` plus parity override, while Windows uses `WindowsProcessBackend`, so the
@@ -474,9 +478,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
   enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS now composes its
   native Rust process, input, and display adapters into the app for process status, imported scripts, script
-  hotkeys, display APIs, and built-in keybind capture when both privacy permissions are ready. macOS packet
-  interception/updating and the built-in macro-controller runtime remain intentionally unwired pending their
-  own native support/cutover decisions.
+  hotkeys, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
+  permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
+  packet interception/Lag Switch and updating remain intentionally unwired pending native support/cutover decisions.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The
