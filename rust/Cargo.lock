@@ -1419,6 +1419,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "smu-windows-updater-helper"
+version = "0.0.0"
+dependencies = [
+ "smu-updater",
+ "windows-sys",
+ "winres",
+]
+
+[[package]]
 name = "socket2"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

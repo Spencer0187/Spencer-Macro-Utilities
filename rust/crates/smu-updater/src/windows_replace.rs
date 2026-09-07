@@ -1,9 +1,26 @@
 use crate::windows_bundle::{destination_path, validate_windows_bundle_tree};
+use sha2::{Digest as _, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
+#[cfg(target_os = "windows")]
+use std::os::windows::{
+    ffi::OsStrExt as _,
+    fs::{MetadataExt as _, OpenOptionsExt as _},
+    io::AsRawHandle as _,
+};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::{
+    Foundation::GENERIC_READ,
+    Storage::FileSystem::{
+        DELETE, FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_RENAME_INFO, FILE_SHARE_READ, FileRenameInfo,
+        SetFileInformationByHandle,
+    },
+};
 
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -24,10 +41,37 @@ impl fmt::Display for WindowsReplacementError {
 
 impl std::error::Error for WindowsReplacementError {}
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct ReplacementRecord {
     relative: String,
-    had_original: bool,
+    backup_source: Option<File>,
+    backup_sha256: Option<[u8; 32]>,
+}
+
+#[derive(Debug)]
+struct PreparedWindowsFile {
+    relative: String,
+    source: File,
+    expected_sha256: [u8; 32],
+}
+
+#[derive(Debug)]
+pub struct PreparedWindowsBundle {
+    staged_root: PathBuf,
+    files: Vec<PreparedWindowsFile>,
+}
+
+impl PreparedWindowsBundle {
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.staged_root
+    }
+}
+
+#[derive(Debug)]
+struct TargetDirectoryGuards {
+    #[cfg(target_os = "windows")]
+    handles: Vec<File>,
 }
 
 #[derive(Debug)]
@@ -35,6 +79,7 @@ pub struct WindowsReplacementTransaction {
     install_root: PathBuf,
     backup_root: PathBuf,
     records: Vec<ReplacementRecord>,
+    directory_guards: Option<TargetDirectoryGuards>,
     active: bool,
 }
 
@@ -46,6 +91,10 @@ impl WindowsReplacementTransaction {
     /// Returns an error when the backup tree cannot be removed. The new installation remains active.
     pub fn commit(mut self) -> Result<(), WindowsReplacementError> {
         self.active = false;
+        for record in &mut self.records {
+            record.backup_source = None;
+        }
+        self.directory_guards = None;
         if self.backup_root.exists() {
             fs::remove_dir_all(&self.backup_root).map_err(|error| {
                 WindowsReplacementError::new(format!(
@@ -63,14 +112,24 @@ impl WindowsReplacementTransaction {
     /// Returns an error when one or more files cannot be restored.
     pub fn rollback(mut self) -> Result<(), WindowsReplacementError> {
         self.active = false;
-        rollback_records(&self.install_root, &self.backup_root, &self.records)
+        rollback_with_guards(
+            &self.install_root,
+            &self.backup_root,
+            &mut self.records,
+            &mut self.directory_guards,
+        )
     }
 }
 
 impl Drop for WindowsReplacementTransaction {
     fn drop(&mut self) {
         if self.active {
-            let _ = rollback_records(&self.install_root, &self.backup_root, &self.records);
+            let _ = rollback_with_guards(
+                &self.install_root,
+                &self.backup_root,
+                &mut self.records,
+                &mut self.directory_guards,
+            );
         }
     }
 }
@@ -79,11 +138,7 @@ fn create_temporary_target(target: &Path) -> Result<(PathBuf, File), WindowsRepl
     let parent = target.parent().ok_or_else(|| {
         WindowsReplacementError::new("Windows update target file has no parent directory.")
     })?;
-    fs::create_dir_all(parent).map_err(|error| {
-        WindowsReplacementError::new(format!(
-            "Could not create a Windows update target directory: {error}"
-        ))
-    })?;
+    inspect_safe_directory(parent)?;
     let stem = target.file_name().and_then(|value| value.to_str()).unwrap_or("file");
     for _ in 0..128 {
         let counter = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -101,20 +156,92 @@ fn create_temporary_target(target: &Path) -> Result<(PathBuf, File), WindowsRepl
     Err(WindowsReplacementError::new("Could not create a unique temporary Windows update target."))
 }
 
-fn copy_to_temporary_target(
-    source: &Path,
-    target: &Path,
-) -> Result<PathBuf, WindowsReplacementError> {
-    let mut source_file = File::open(source).map_err(|error| {
+fn open_staged_source(source: &Path) -> Result<File, WindowsReplacementError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "windows")]
+    options.share_mode(FILE_SHARE_READ);
+    options.open(source).map_err(|error| {
         WindowsReplacementError::new(format!(
-            "Could not open a staged Windows update file: {error}"
+            "Could not open and lock a staged Windows update file: {error}"
+        ))
+    })
+}
+
+fn open_original_for_backup(source: &Path) -> Result<Option<File>, WindowsReplacementError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "windows")]
+    options
+        .access_mode(GENERIC_READ | DELETE)
+        .share_mode(FILE_SHARE_READ)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = match options.open(source) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(WindowsReplacementError::new(format!(
+                "Could not open and pin an installed Windows runtime file: {error}"
+            )));
+        }
+    };
+    let metadata = file.metadata().map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not inspect a pinned installed Windows runtime file: {error}"
+        ))
+    })?;
+    if existing_target_is_unsafe(&metadata) {
+        return Err(WindowsReplacementError::new(format!(
+            "Windows updater refused a non-regular or reparse-point installed file: {}",
+            source.display()
+        )));
+    }
+    Ok(Some(file))
+}
+
+fn hash_open_file(source: &mut File) -> Result<[u8; 32], WindowsReplacementError> {
+    source.seek(SeekFrom::Start(0)).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not rewind a staged Windows update file: {error}"
+        ))
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        let count = source.read(&mut buffer).map_err(|error| {
+            WindowsReplacementError::new(format!(
+                "Could not read a staged Windows update file: {error}"
+            ))
+        })?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    source.seek(SeekFrom::Start(0)).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not rewind a staged Windows update file: {error}"
+        ))
+    })?;
+    Ok(hasher.finalize().into())
+}
+
+fn copy_prepared_to_temporary_target(
+    source: &mut File,
+    target: &Path,
+    expected_sha256: &[u8; 32],
+) -> Result<PathBuf, WindowsReplacementError> {
+    source.seek(SeekFrom::Start(0)).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not rewind a staged Windows update file: {error}"
         ))
     })?;
     let (temporary, mut output) = create_temporary_target(target)?;
     let result = (|| {
+        let mut hasher = Sha256::new();
         let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
         loop {
-            let count = source_file.read(&mut buffer).map_err(|error| {
+            let count = source.read(&mut buffer).map_err(|error| {
                 WindowsReplacementError::new(format!(
                     "Could not read a staged Windows update file: {error}"
                 ))
@@ -122,11 +249,18 @@ fn copy_to_temporary_target(
             if count == 0 {
                 break;
             }
+            hasher.update(&buffer[..count]);
             output.write_all(&buffer[..count]).map_err(|error| {
                 WindowsReplacementError::new(format!(
                     "Could not write a Windows update target file: {error}"
                 ))
             })?;
+        }
+        let actual: [u8; 32] = hasher.finalize().into();
+        if &actual != expected_sha256 {
+            return Err(WindowsReplacementError::new(
+                "Staged Windows update file changed after authenticated preparation.",
+            ));
         }
         output.sync_all().map_err(|error| {
             WindowsReplacementError::new(format!(
@@ -142,71 +276,383 @@ fn copy_to_temporary_target(
     result
 }
 
-fn reject_unsafe_existing_target(target: &Path) -> Result<bool, WindowsReplacementError> {
-    match fs::symlink_metadata(target) {
-        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
-            Err(WindowsReplacementError::new(format!(
-                "Windows updater refused to replace a non-regular target: {}",
-                target.display()
-            )))
+fn inspect_safe_directory(path: &Path) -> Result<(), WindowsReplacementError> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not inspect a Windows update target directory: {error}"
+        ))
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(WindowsReplacementError::new(format!(
+            "Windows updater refused a non-directory or symlink target ancestor: {}",
+            path.display()
+        )));
+    }
+    #[cfg(target_os = "windows")]
+    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(WindowsReplacementError::new(format!(
+            "Windows updater refused a reparse-point target ancestor: {}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+fn ensure_safe_directory(path: &Path) -> Result<bool, WindowsReplacementError> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => {
+            inspect_safe_directory(path)?;
+            Ok(false)
         }
-        Ok(_) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(path).map_err(|error| {
+                WindowsReplacementError::new(format!(
+                    "Could not create a Windows update target directory: {error}"
+                ))
+            })?;
+            inspect_safe_directory(path)?;
+            Ok(true)
+        }
         Err(error) => Err(WindowsReplacementError::new(format!(
-            "Could not inspect an existing Windows update target: {error}"
+            "Could not inspect a Windows update target directory: {error}"
         ))),
     }
 }
 
-fn rollback_records(
+#[cfg_attr(not(target_os = "windows"), allow(clippy::needless_pass_by_ref_mut))]
+fn pin_safe_directory(
+    path: &Path,
+    guards: &mut TargetDirectoryGuards,
+) -> Result<(), WindowsReplacementError> {
+    inspect_safe_directory(path)?;
+    #[cfg(target_os = "windows")]
+    {
+        let mut options = OpenOptions::new();
+        options
+            .access_mode(0)
+            .share_mode(FILE_SHARE_READ)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT);
+        let handle = options.open(path).map_err(|error| {
+            WindowsReplacementError::new(format!(
+                "Could not pin a Windows update target directory: {error}"
+            ))
+        })?;
+        let metadata = handle.metadata().map_err(|error| {
+            WindowsReplacementError::new(format!(
+                "Could not validate a pinned Windows update target directory: {error}"
+            ))
+        })?;
+        if !metadata.is_dir() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return Err(WindowsReplacementError::new(format!(
+                "Windows updater refused a reparse-point target ancestor: {}",
+                path.display()
+            )));
+        }
+        guards.handles.push(handle);
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = guards;
+    Ok(())
+}
+
+fn pin_relative_parent_chain(
+    root: &Path,
+    relative: &str,
+    seen: &mut BTreeSet<PathBuf>,
+    created: &mut Vec<PathBuf>,
+    guards: &mut TargetDirectoryGuards,
+) -> Result<(), WindowsReplacementError> {
+    let Some(parent) = Path::new(relative).parent() else {
+        return Ok(());
+    };
+    let mut current = root.to_path_buf();
+    for component in parent.components() {
+        current.push(component.as_os_str());
+        if seen.insert(current.clone()) {
+            if ensure_safe_directory(&current)? {
+                created.push(current.clone());
+            }
+            pin_safe_directory(&current, guards)?;
+        }
+    }
+    Ok(())
+}
+
+fn prepare_target_directory_guards(
     install_root: &Path,
     backup_root: &Path,
-    records: &[ReplacementRecord],
+    files: &[PreparedWindowsFile],
+) -> Result<TargetDirectoryGuards, WindowsReplacementError> {
+    let mut guards = TargetDirectoryGuards {
+        #[cfg(target_os = "windows")]
+        handles: Vec::new(),
+    };
+    pin_safe_directory(install_root, &mut guards)?;
+    let mut created = Vec::new();
+    let result = (|| {
+        fs::create_dir(backup_root).map_err(|error| {
+            WindowsReplacementError::new(format!(
+                "Could not create the Windows update rollback directory: {error}"
+            ))
+        })?;
+        created.push(backup_root.to_path_buf());
+        pin_safe_directory(backup_root, &mut guards)?;
+
+        let mut seen = BTreeSet::from([install_root.to_path_buf(), backup_root.to_path_buf()]);
+        for file in files {
+            pin_relative_parent_chain(
+                install_root,
+                &file.relative,
+                &mut seen,
+                &mut created,
+                &mut guards,
+            )?;
+            pin_relative_parent_chain(
+                backup_root,
+                &file.relative,
+                &mut seen,
+                &mut created,
+                &mut guards,
+            )?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        #[cfg(target_os = "windows")]
+        drop(guards);
+        for path in created.iter().rev() {
+            let _ = fs::remove_dir(path);
+        }
+        return Err(error);
+    }
+    Ok(guards)
+}
+
+#[cfg(target_os = "windows")]
+fn rename_open_file_to_backup(source: &File, backup: &Path) -> Result<(), WindowsReplacementError> {
+    let file_name: Vec<u16> = backup.as_os_str().encode_wide().collect();
+    let file_name_bytes = file_name
+        .len()
+        .checked_mul(std::mem::size_of::<u16>())
+        .ok_or_else(|| WindowsReplacementError::new("Windows rollback path was too long."))?;
+    let trailing_name_bytes = file_name_bytes.saturating_sub(std::mem::size_of::<u16>());
+    let buffer_bytes =
+        std::mem::size_of::<FILE_RENAME_INFO>().checked_add(trailing_name_bytes).ok_or_else(
+            || WindowsReplacementError::new("Windows rollback rename buffer was too large."),
+        )?;
+    let word_bytes = std::mem::size_of::<usize>();
+    let words = buffer_bytes.div_ceil(word_bytes);
+    let mut storage = vec![0_usize; words];
+    let info = storage.as_mut_ptr().cast::<FILE_RENAME_INFO>();
+    let file_name_length = u32::try_from(file_name_bytes)
+        .map_err(|_| WindowsReplacementError::new("Windows rollback path was too long."))?;
+    let buffer_size = u32::try_from(buffer_bytes).map_err(|_| {
+        WindowsReplacementError::new("Windows rollback rename buffer was too large.")
+    })?;
+    // SAFETY: storage is usize-aligned and large enough for the variable-length FILE_RENAME_INFO plus
+    // the UTF-16 filename. The source handle was opened with DELETE access and remains live for the call.
+    let renamed = unsafe {
+        (*info).Anonymous.ReplaceIfExists = false;
+        (*info).RootDirectory = std::ptr::null_mut();
+        (*info).FileNameLength = file_name_length;
+        std::ptr::copy_nonoverlapping(
+            file_name.as_ptr(),
+            std::ptr::addr_of_mut!((*info).FileName).cast::<u16>(),
+            file_name.len(),
+        );
+        SetFileInformationByHandle(
+            source.as_raw_handle().cast(),
+            FileRenameInfo,
+            info.cast(),
+            buffer_size,
+        )
+    };
+    if renamed == 0 {
+        return Err(WindowsReplacementError::new(format!(
+            "Could not move a pinned Windows runtime file into rollback storage: {}",
+            std::io::Error::last_os_error()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn rename_open_file_to_backup(
+    _source: &File,
+    backup: &Path,
+    target: &Path,
+) -> Result<(), WindowsReplacementError> {
+    fs::rename(target, backup).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not move an existing Windows runtime file into rollback storage: {error}"
+        ))
+    })
+}
+
+fn move_original_to_backup(
+    target: &Path,
+    backup: &Path,
+) -> Result<Option<(File, [u8; 32])>, WindowsReplacementError> {
+    let Some(mut source) = open_original_for_backup(target)? else {
+        return Ok(None);
+    };
+    let digest = hash_open_file(&mut source)?;
+    #[cfg(target_os = "windows")]
+    rename_open_file_to_backup(&source, backup)?;
+    #[cfg(not(target_os = "windows"))]
+    rename_open_file_to_backup(&source, backup, target)?;
+    Ok(Some((source, digest)))
+}
+
+fn existing_target_is_unsafe(metadata: &fs::Metadata) -> bool {
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return true;
+    }
+    #[cfg(target_os = "windows")]
+    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return true;
+    }
+    false
+}
+
+fn restore_records(
+    install_root: &Path,
+    records: &mut [ReplacementRecord],
 ) -> Result<(), WindowsReplacementError> {
     let mut first_error = None;
-    for record in records.iter().rev() {
+    for record in records.iter_mut().rev() {
         let target = destination_path(install_root, &record.relative);
-        if target.exists()
-            && let Err(error) = fs::remove_file(&target)
-            && first_error.is_none()
-        {
-            first_error =
-                Some(format!("Could not remove a partially installed update file: {error}"));
-        }
-        if record.had_original {
-            let backup = destination_path(backup_root, &record.relative);
-            if let Some(parent) = target.parent()
-                && let Err(error) = fs::create_dir_all(parent)
-                && first_error.is_none()
-            {
-                first_error =
-                    Some(format!("Could not recreate a rollback target directory: {error}"));
-            }
-            if !backup.exists() {
-                if first_error.is_none() {
+        match fs::symlink_metadata(&target) {
+            Ok(metadata) if !existing_target_is_unsafe(&metadata) => {
+                if let Err(error) = fs::remove_file(&target)
+                    && first_error.is_none()
+                {
                     first_error = Some(format!(
-                        "Windows update rollback backup is missing: {}",
-                        backup.display()
+                        "Could not remove a partially installed update file: {error}"
                     ));
                 }
-                continue;
             }
-            if let Err(error) = fs::rename(&backup, &target)
-                && first_error.is_none()
-            {
+            Ok(_) => {
+                if first_error.is_none() {
+                    first_error = Some(format!(
+                        "Windows update rollback refused a non-regular or reparse-point target: {}",
+                        target.display()
+                    ));
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                if first_error.is_none() {
+                    first_error = Some(format!(
+                        "Could not inspect a partially installed update file: {error}"
+                    ));
+                }
+            }
+        }
+
+        let Some(backup_source) = record.backup_source.as_mut() else {
+            continue;
+        };
+        let Some(expected_sha256) = record.backup_sha256 else {
+            if first_error.is_none() {
+                first_error =
+                    Some(format!("Windows update rollback digest is missing: {}", record.relative));
+            }
+            continue;
+        };
+        let temporary =
+            match copy_prepared_to_temporary_target(backup_source, &target, &expected_sha256) {
+                Ok(path) => path,
+                Err(error) => {
+                    if first_error.is_none() {
+                        first_error = Some(format!(
+                            "Could not reconstruct a Windows update rollback file: {error}"
+                        ));
+                    }
+                    continue;
+                }
+            };
+        if let Err(error) = fs::rename(&temporary, &target) {
+            let _ = fs::remove_file(&temporary);
+            if first_error.is_none() {
                 first_error =
                     Some(format!("Could not restore a Windows update rollback file: {error}"));
             }
         }
     }
-    if backup_root.exists()
-        && let Err(error) = fs::remove_dir_all(backup_root)
-        && first_error.is_none()
-    {
-        first_error =
-            Some(format!("Could not remove the Windows update rollback directory: {error}"));
-    }
     first_error.map_or(Ok(()), |error| Err(WindowsReplacementError::new(error)))
+}
+
+fn cleanup_backup_tree(backup_root: &Path) -> Result<(), WindowsReplacementError> {
+    if backup_root.exists() {
+        fs::remove_dir_all(backup_root).map_err(|error| {
+            WindowsReplacementError::new(format!(
+                "Could not remove the Windows update rollback directory: {error}"
+            ))
+        })?;
+    }
+    Ok(())
+}
+
+fn rollback_with_guards(
+    install_root: &Path,
+    backup_root: &Path,
+    records: &mut [ReplacementRecord],
+    directory_guards: &mut Option<TargetDirectoryGuards>,
+) -> Result<(), WindowsReplacementError> {
+    let restore = restore_records(install_root, records);
+    for record in records {
+        record.backup_source = None;
+    }
+    *directory_guards = None;
+    restore?;
+    cleanup_backup_tree(backup_root)
+}
+
+/// Open every validated staged file once and bind it to SHA-256 values derived from the authenticated ZIP.
+///
+/// On Windows, the returned file handles deny write/delete sharing for the lifetime of the prepared bundle.
+///
+/// # Errors
+///
+/// Returns an error when the staging tree differs from the authenticated file set, a staged file cannot
+/// be opened, or any staged file digest differs from the authenticated ZIP digest.
+pub fn prepare_windows_bundle_tree(
+    staged_root: &Path,
+    expected_sha256: &BTreeMap<String, [u8; 32]>,
+) -> Result<PreparedWindowsBundle, WindowsReplacementError> {
+    let files = validate_windows_bundle_tree(staged_root)
+        .map_err(|error| WindowsReplacementError::new(error.to_string()))?;
+    if files.len() != expected_sha256.len()
+        || !files.iter().all(|relative| expected_sha256.contains_key(relative))
+    {
+        return Err(WindowsReplacementError::new(
+            "Staged Windows update file set did not match the authenticated bundle.",
+        ));
+    }
+    let staged_root = fs::canonicalize(staged_root).map_err(|error| {
+        WindowsReplacementError::new(format!(
+            "Could not resolve the staged Windows update root: {error}"
+        ))
+    })?;
+    let mut prepared_files = Vec::with_capacity(files.len());
+    for relative in files {
+        let expected = *expected_sha256.get(&relative).ok_or_else(|| {
+            WindowsReplacementError::new(
+                "Staged Windows update file was missing an authenticated digest.",
+            )
+        })?;
+        let source_path = destination_path(&staged_root, &relative);
+        let mut source = open_staged_source(&source_path)?;
+        let actual = hash_open_file(&mut source)?;
+        if actual != expected {
+            return Err(WindowsReplacementError::new(format!(
+                "Staged Windows update file did not match the authenticated bundle: {relative}"
+            )));
+        }
+        prepared_files.push(PreparedWindowsFile { relative, source, expected_sha256: expected });
+    }
+    Ok(PreparedWindowsBundle { staged_root, files: prepared_files })
 }
 
 fn validate_replacement_roots(
@@ -253,60 +699,63 @@ fn validate_replacement_roots(
 /// Returns an error before or during replacement. Any files already changed by this call are rolled back
 /// best-effort before the error is returned.
 pub fn replace_windows_bundle_tree(
-    staged_root: &Path,
+    prepared: &mut PreparedWindowsBundle,
     install_root: &Path,
     backup_root: &Path,
 ) -> Result<WindowsReplacementTransaction, WindowsReplacementError> {
-    let files = validate_windows_bundle_tree(staged_root)
-        .map_err(|error| WindowsReplacementError::new(error.to_string()))?;
-    let (staged_root, install_root) =
-        validate_replacement_roots(staged_root, install_root, backup_root)?;
-    fs::create_dir(backup_root).map_err(|error| {
-        WindowsReplacementError::new(format!(
-            "Could not create the Windows update rollback directory: {error}"
-        ))
-    })?;
+    let (_, install_root) =
+        validate_replacement_roots(&prepared.staged_root, install_root, backup_root)?;
+    let mut directory_guards =
+        Some(prepare_target_directory_guards(&install_root, backup_root, &prepared.files)?);
 
-    let mut records = Vec::with_capacity(files.len());
-    for relative in files {
-        let source = destination_path(&staged_root, &relative);
+    let mut records = Vec::with_capacity(prepared.files.len());
+    for file in &mut prepared.files {
+        let relative = file.relative.clone();
         let target = destination_path(&install_root, &relative);
         let backup = destination_path(backup_root, &relative);
-        let had_original = match reject_unsafe_existing_target(&target) {
-            Ok(value) => value,
+        let (backup_source, backup_sha256) = match move_original_to_backup(&target, &backup) {
+            Ok(Some((source, digest))) => (Some(source), Some(digest)),
+            Ok(None) => (None, None),
             Err(error) => {
-                let _ = rollback_records(&install_root, backup_root, &records);
+                let _ = rollback_with_guards(
+                    &install_root,
+                    backup_root,
+                    &mut records,
+                    &mut directory_guards,
+                );
                 return Err(error);
             }
         };
-        if had_original {
-            if let Some(parent) = backup.parent()
-                && let Err(error) = fs::create_dir_all(parent)
-            {
-                let _ = rollback_records(&install_root, backup_root, &records);
-                return Err(WindowsReplacementError::new(format!(
-                    "Could not create a Windows update rollback directory: {error}"
-                )));
-            }
-            if let Err(error) = fs::rename(&target, &backup) {
-                let _ = rollback_records(&install_root, backup_root, &records);
-                return Err(WindowsReplacementError::new(format!(
-                    "Could not move an existing Windows runtime file into rollback storage: {error}"
-                )));
-            }
-        }
-        records.push(ReplacementRecord { relative: relative.clone(), had_original });
+        records.push(ReplacementRecord {
+            relative: relative.clone(),
+            backup_source,
+            backup_sha256,
+        });
 
-        let temporary = match copy_to_temporary_target(&source, &target) {
+        let temporary = match copy_prepared_to_temporary_target(
+            &mut file.source,
+            &target,
+            &file.expected_sha256,
+        ) {
             Ok(path) => path,
             Err(error) => {
-                let _ = rollback_records(&install_root, backup_root, &records);
+                let _ = rollback_with_guards(
+                    &install_root,
+                    backup_root,
+                    &mut records,
+                    &mut directory_guards,
+                );
                 return Err(error);
             }
         };
         if let Err(error) = fs::rename(&temporary, &target) {
             let _ = fs::remove_file(&temporary);
-            let _ = rollback_records(&install_root, backup_root, &records);
+            let _ = rollback_with_guards(
+                &install_root,
+                backup_root,
+                &mut records,
+                &mut directory_guards,
+            );
             return Err(WindowsReplacementError::new(format!(
                 "Could not activate a staged Windows update file: {error}"
             )));
@@ -317,6 +766,7 @@ pub fn replace_windows_bundle_tree(
         install_root,
         backup_root: backup_root.to_path_buf(),
         records,
+        directory_guards,
         active: true,
     })
 }
@@ -361,6 +811,7 @@ mod tests {
     fn staged_tree(base: &Path) -> PathBuf {
         let root = base.join("staging").join(WINDOWS_BUNDLE_ROOT);
         write_file(&root, "Spencer-Macro-Utilities.exe", b"new-exe");
+        write_file(&root, "SMU-Update-Helper.exe", b"new-helper");
         write_file(&root, "SDL3.dll", b"new-sdl");
         write_file(&root, "SMCWinDivert.dll", b"new-windivert");
         write_file(&root, "SMCWinDivert64.sys", b"new-driver");
@@ -368,6 +819,23 @@ mod tests {
         write_file(&root, "assets/macro_tutorials/wallhop.jpg", b"new-image");
         write_file(&root, "LICENSE", b"new-license");
         root
+    }
+
+    fn hashes_for_tree(root: &Path) -> BTreeMap<String, [u8; 32]> {
+        validate_windows_bundle_tree(root)
+            .expect("staged tree should validate")
+            .into_iter()
+            .map(|relative| {
+                let bytes = fs::read(destination_path(root, &relative))
+                    .expect("staged fixture should be readable");
+                (relative, Sha256::digest(bytes).into())
+            })
+            .collect()
+    }
+
+    fn prepared_tree(root: &Path) -> PreparedWindowsBundle {
+        prepare_windows_bundle_tree(root, &hashes_for_tree(root))
+            .expect("staged tree should prepare")
     }
 
     #[test]
@@ -380,8 +848,9 @@ mod tests {
         write_file(&install, "SDL3.dll", b"old-sdl");
         write_file(&install, "profiles.json", b"user-data");
         let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
 
-        let transaction = replace_windows_bundle_tree(&staged, &install, &backup)
+        let transaction = replace_windows_bundle_tree(&mut prepared, &install, &backup)
             .expect("replacement should succeed");
         assert_eq!(
             fs::read(install.join("Spencer-Macro-Utilities.exe"))
@@ -417,8 +886,9 @@ mod tests {
         fs::create_dir_all(&install).expect("install root should exist");
         write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
         let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
 
-        let transaction = replace_windows_bundle_tree(&staged, &install, &backup)
+        let transaction = replace_windows_bundle_tree(&mut prepared, &install, &backup)
             .expect("replacement should succeed");
         transaction.rollback().expect("rollback should succeed");
 
@@ -432,21 +902,46 @@ mod tests {
     }
 
     #[test]
-    fn rollback_reports_missing_original_backup_instead_of_succeeding_silently() {
-        let temp = TestDirectory::new("missing-backup");
+    fn rollback_uses_pinned_original_even_if_backup_path_is_removed() {
+        let temp = TestDirectory::new("unlinked-backup");
         let staged = staged_tree(&temp.0);
         let install = temp.0.join("install");
         fs::create_dir_all(&install).expect("install root should exist");
         write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
         let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
 
-        let transaction = replace_windows_bundle_tree(&staged, &install, &backup)
+        let transaction = replace_windows_bundle_tree(&mut prepared, &install, &backup)
             .expect("replacement should succeed");
         fs::remove_file(backup.join("Spencer-Macro-Utilities.exe"))
-            .expect("rollback fixture should remove the original backup");
-        let error = transaction.rollback().expect_err("missing backup must fail rollback");
+            .expect("rollback fixture should unlink the backup pathname");
+        transaction.rollback().expect("rollback should restore from the pinned original handle");
 
-        assert!(error.to_string().contains("rollback backup is missing"));
+        assert_eq!(
+            fs::read(install.join("Spencer-Macro-Utilities.exe"))
+                .expect("restored fixture should read"),
+            b"old-exe"
+        );
+        assert!(!backup.exists());
+    }
+
+    #[test]
+    fn rollback_refuses_modified_backup_bytes() {
+        let temp = TestDirectory::new("modified-backup");
+        let staged = staged_tree(&temp.0);
+        let install = temp.0.join("install");
+        fs::create_dir_all(&install).expect("install root should exist");
+        write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
+        let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
+
+        let transaction = replace_windows_bundle_tree(&mut prepared, &install, &backup)
+            .expect("replacement should succeed");
+        fs::write(backup.join("Spencer-Macro-Utilities.exe"), b"tampered")
+            .expect("non-Windows fixture can mutate the backup inode");
+        let error = transaction.rollback().expect_err("modified rollback bytes must fail closed");
+
+        assert!(error.to_string().contains("authenticated preparation"));
         assert!(!install.join("Spencer-Macro-Utilities.exe").exists());
     }
 
@@ -462,10 +957,11 @@ mod tests {
         fs::write(install.join("assets"), b"parent-is-a-file")
             .expect("collision fixture should be written");
         let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
 
-        let error = replace_windows_bundle_tree(&staged, &install, &backup)
+        let error = replace_windows_bundle_tree(&mut prepared, &install, &backup)
             .expect_err("asset parent collision should fail replacement");
-        assert!(error.to_string().contains("Windows update target"));
+        assert!(error.to_string().contains("target ancestor"));
         assert_eq!(
             fs::read(install.join("SDL3.dll")).expect("fixture file should read"),
             b"old-sdl"
@@ -483,6 +979,71 @@ mod tests {
     }
 
     #[test]
+    fn authenticated_digest_mismatch_is_rejected_during_preparation() {
+        let temp = TestDirectory::new("prepare-hash-mismatch");
+        let staged = staged_tree(&temp.0);
+        let mut hashes = hashes_for_tree(&staged);
+        hashes.insert("SDL3.dll".to_owned(), [0_u8; 32]);
+
+        let error = prepare_windows_bundle_tree(&staged, &hashes)
+            .expect_err("digest mismatch must reject staged tree");
+        assert!(error.to_string().contains("did not match the authenticated bundle"));
+    }
+
+    #[test]
+    fn staged_mutation_after_preparation_is_detected_before_activation() {
+        let temp = TestDirectory::new("prepared-mutation");
+        let staged = staged_tree(&temp.0);
+        let install = temp.0.join("install");
+        fs::create_dir_all(&install).expect("install root should exist");
+        write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
+        write_file(&install, "SDL3.dll", b"old-sdl");
+        let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
+
+        write_file(&staged, "SDL3.dll", b"tampered-after-prepare");
+        let error = replace_windows_bundle_tree(&mut prepared, &install, &backup)
+            .expect_err("post-preparation mutation must fail replacement");
+        assert!(error.to_string().contains("changed after authenticated preparation"));
+        assert_eq!(
+            fs::read(install.join("Spencer-Macro-Utilities.exe"))
+                .expect("fixture file should read"),
+            b"old-exe"
+        );
+        assert_eq!(
+            fs::read(install.join("SDL3.dll")).expect("fixture file should read"),
+            b"old-sdl"
+        );
+        assert!(!backup.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_target_ancestor_is_rejected_before_replacement() {
+        use std::os::unix::fs::symlink;
+
+        let temp = TestDirectory::new("target-symlink");
+        let staged = staged_tree(&temp.0);
+        let install = temp.0.join("install");
+        let outside = temp.0.join("outside");
+        fs::create_dir_all(&install).expect("install root should exist");
+        fs::create_dir_all(&outside).expect("outside root should exist");
+        write_file(&outside, "sentinel.txt", b"outside");
+        symlink(&outside, install.join("assets")).expect("ancestor symlink should be created");
+        let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
+
+        let error = replace_windows_bundle_tree(&mut prepared, &install, &backup)
+            .expect_err("symlinked target ancestor must be rejected");
+        assert!(error.to_string().contains("target ancestor"));
+        assert_eq!(
+            fs::read(outside.join("sentinel.txt")).expect("outside sentinel should read"),
+            b"outside"
+        );
+        assert!(!backup.exists());
+    }
+
+    #[test]
     fn overlapping_roots_and_existing_backup_are_rejected() {
         let temp = TestDirectory::new("roots");
         let staged = staged_tree(&temp.0);
@@ -490,11 +1051,14 @@ mod tests {
         fs::create_dir_all(&install).expect("install root should exist");
         let backup = install.join(".smu-update-backup-test");
         fs::create_dir_all(&backup).expect("backup collision should exist");
-        assert!(replace_windows_bundle_tree(&staged, &install, &backup).is_err());
+        let mut prepared = prepared_tree(&staged);
+        assert!(replace_windows_bundle_tree(&mut prepared, &install, &backup).is_err());
 
         let nested_install = staged.join("nested-install");
         fs::create_dir_all(&nested_install).expect("nested install should exist");
         let nested_backup = nested_install.join(".smu-update-backup-test");
-        assert!(replace_windows_bundle_tree(&staged, &nested_install, &nested_backup).is_err());
+        assert!(
+            replace_windows_bundle_tree(&mut prepared, &nested_install, &nested_backup).is_err()
+        );
     }
 }

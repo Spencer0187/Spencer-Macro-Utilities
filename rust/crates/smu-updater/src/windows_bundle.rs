@@ -1,8 +1,9 @@
 use crate::MAXIMUM_UPDATE_BYTES;
-use std::collections::BTreeSet;
+use sha2::{Digest as _, Sha256};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::{self, File};
-use std::io::Cursor;
+use std::io::{Cursor, Read as _};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
@@ -10,6 +11,7 @@ pub const WINDOWS_BUNDLE_ROOT: &str = "Spencer-Macro-Utilities";
 const MAXIMUM_BUNDLE_ENTRIES: usize = 4096;
 const REQUIRED_FILES: &[&str] = &[
     "Spencer-Macro-Utilities.exe",
+    "SMU-Update-Helper.exe",
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",
@@ -17,6 +19,7 @@ const REQUIRED_FILES: &[&str] = &[
 ];
 const ALLOWED_TOP_LEVEL_FILES: &[&str] = &[
     "Spencer-Macro-Utilities.exe",
+    "SMU-Update-Helper.exe",
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",
@@ -151,6 +154,61 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
     Ok(files)
 }
 
+/// Calculate one SHA-256 digest per validated regular file in an authenticated Windows bundle.
+///
+/// # Errors
+///
+/// Returns an error when the archive is malformed, violates the Windows bundle contract, or an entry
+/// cannot be read completely.
+pub fn windows_bundle_file_sha256(
+    bytes: &[u8],
+) -> Result<BTreeMap<String, [u8; 32]>, WindowsBundleError> {
+    let expected_files = validate_bundle_archive(bytes)?;
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).map_err(|_| {
+        WindowsBundleError::new("Downloaded Windows update was not a valid ZIP archive.")
+    })?;
+    let mut digests = BTreeMap::new();
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|_| {
+            WindowsBundleError::new("Windows update bundle contains an unreadable ZIP entry.")
+        })?;
+        if entry.is_dir() {
+            continue;
+        }
+        let Some(relative) = normalized_relative_name(entry.name())? else {
+            continue;
+        };
+        if !expected_files.contains(&relative) || digests.contains_key(&relative) {
+            return Err(WindowsBundleError::new(
+                "Windows update bundle changed during digest calculation.",
+            ));
+        }
+        let mut entry_hasher = Sha256::new();
+        loop {
+            let count = entry.read(&mut buffer).map_err(|error| {
+                WindowsBundleError::new(format!(
+                    "Could not read a Windows update bundle entry while hashing: {error}"
+                ))
+            })?;
+            if count == 0 {
+                break;
+            }
+            entry_hasher.update(&buffer[..count]);
+        }
+        let digest: [u8; 32] = entry_hasher.finalize().into();
+        digests.insert(relative, digest);
+    }
+    if digests.len() != expected_files.len()
+        || !expected_files.iter().all(|relative| digests.contains_key(relative))
+    {
+        return Err(WindowsBundleError::new(
+            "Windows update bundle digest set did not match the validated file set.",
+        ));
+    }
+    Ok(digests)
+}
+
 pub fn destination_path(root: &Path, relative: &str) -> PathBuf {
     relative.split('/').fold(root.to_path_buf(), |path, part| path.join(part))
 }
@@ -264,16 +322,16 @@ pub fn extract_windows_bundle(
     destination: &Path,
 ) -> Result<PathBuf, WindowsBundleError> {
     let expected_files = validate_bundle_archive(bytes)?;
-    if destination.exists() {
-        fs::remove_dir_all(destination).map_err(|error| {
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
             WindowsBundleError::new(format!(
-                "Could not clear the Windows update staging directory: {error}"
+                "Could not create the Windows update staging parent directory: {error}"
             ))
         })?;
     }
-    fs::create_dir_all(destination).map_err(|error| {
+    fs::create_dir(destination).map_err(|error| {
         WindowsBundleError::new(format!(
-            "Could not create the Windows update staging directory: {error}"
+            "Could not create a fresh Windows update staging directory: {error}"
         ))
     })?;
 
@@ -382,6 +440,7 @@ mod tests {
     fn valid_entries() -> Vec<(&'static str, &'static [u8])> {
         vec![
             ("Spencer-Macro-Utilities/Spencer-Macro-Utilities.exe", b"exe"),
+            ("Spencer-Macro-Utilities/SMU-Update-Helper.exe", b"helper"),
             ("Spencer-Macro-Utilities/SDL3.dll", b"sdl"),
             ("Spencer-Macro-Utilities/SMCWinDivert.dll", b"dll"),
             ("Spencer-Macro-Utilities/SMCWinDivert64.sys", b"driver"),
@@ -389,6 +448,18 @@ mod tests {
             ("Spencer-Macro-Utilities/assets/macro_tutorials/wallhop.jpg", b"image"),
             ("Spencer-Macro-Utilities/LICENSE", b"license"),
         ]
+    }
+
+    #[test]
+    fn authenticated_bundle_hashes_cover_every_validated_file() {
+        let bytes = bundle(&valid_entries());
+        let hashes = windows_bundle_file_sha256(&bytes).expect("bundle hashes should calculate");
+        assert_eq!(hashes.len(), valid_entries().len());
+        assert_eq!(hashes.get("SDL3.dll"), Some(&<[u8; 32]>::from(Sha256::digest(b"sdl"))));
+        assert_eq!(
+            hashes.get("SMU-Update-Helper.exe"),
+            Some(&<[u8; 32]>::from(Sha256::digest(b"helper")))
+        );
     }
 
     #[test]
@@ -404,6 +475,22 @@ mod tests {
                 .expect("tutorial image should read"),
             b"image"
         );
+    }
+
+    #[test]
+    fn preexisting_staging_directory_is_rejected_without_modification() {
+        let temporary = TestDirectory::new("preexisting");
+        let staging = temporary.0.join("stage");
+        fs::create_dir(&staging).expect("staging fixture should be created");
+        let marker = staging.join("marker.txt");
+        fs::write(&marker, b"keep").expect("marker should be written");
+
+        let error = extract_windows_bundle(&bundle(&valid_entries()), &staging)
+            .expect_err("preexisting staging directory must be rejected");
+
+        assert!(error.to_string().contains("fresh Windows update staging directory"));
+        assert_eq!(fs::read(&marker).expect("marker should remain readable"), b"keep");
+        assert!(!staging.join(WINDOWS_BUNDLE_ROOT).exists());
     }
 
     #[test]

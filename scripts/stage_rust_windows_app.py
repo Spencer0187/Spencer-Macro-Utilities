@@ -15,6 +15,8 @@ import sys
 
 APP_OUTPUT_NAME = "Spencer-Macro-Utilities.exe"
 CARGO_BINARY_NAME = "smu-app.exe"
+HELPER_OUTPUT_NAME = "SMU-Update-Helper.exe"
+HELPER_CARGO_BINARY_NAME = "smu-windows-updater-helper.exe"
 SDL_DLL_NAME = "SDL3.dll"
 WINDIVERT_DLL_NAME = "SMCWinDivert.dll"
 WINDIVERT_DRIVER_NAME = "SMCWinDivert64.sys"
@@ -95,14 +97,16 @@ def required_runtime_sources(root: Path) -> tuple[Path, Path, Path]:
 
 def stage_runtime(
     binary: Path,
+    helper_binary: Path,
     sdl_dll: Path,
     assets: Path,
     windivert_dll: Path,
     windivert_driver: Path,
     stage_dir: Path,
-) -> tuple[Path, Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path, Path]:
     for label, path in (
         ("Rust app binary", binary),
+        ("Rust update helper binary", helper_binary),
         ("Cargo-built SDL3.dll", sdl_dll),
         (WINDIVERT_DLL_NAME, windivert_dll),
         (WINDIVERT_DRIVER_NAME, windivert_driver),
@@ -117,11 +121,13 @@ def stage_runtime(
     stage_dir.mkdir(parents=True)
 
     staged_binary = stage_dir / APP_OUTPUT_NAME
+    staged_helper = stage_dir / HELPER_OUTPUT_NAME
     staged_sdl = stage_dir / SDL_DLL_NAME
     staged_windivert_dll = stage_dir / WINDIVERT_DLL_NAME
     staged_windivert_driver = stage_dir / WINDIVERT_DRIVER_NAME
 
     shutil.copy2(binary, staged_binary)
+    shutil.copy2(helper_binary, staged_helper)
     shutil.copy2(sdl_dll, staged_sdl)
     shutil.copy2(windivert_dll, staged_windivert_dll)
     shutil.copy2(windivert_driver, staged_windivert_driver)
@@ -129,6 +135,7 @@ def stage_runtime(
 
     return (
         staged_binary,
+        staged_helper,
         staged_sdl,
         staged_windivert_dll,
         staged_windivert_driver,
@@ -141,7 +148,7 @@ def build_and_stage(
     stage_dir: Path,
     profile: str,
     cargo: str,
-) -> tuple[Path, Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path, Path]:
     if profile not in {"debug", "release"}:
         raise ValueError(f"unsupported Cargo profile: {profile}")
 
@@ -155,21 +162,26 @@ def build_and_stage(
         str(root / "rust" / "Cargo.toml"),
         "-p",
         "smu-app",
+        "-p",
+        "smu-windows-updater-helper",
     ]
     if profile == "release":
         command.append("--release")
     run(command, cwd=root / "rust", env=env)
 
     binary = target_dir / profile / CARGO_BINARY_NAME
-    subsystem = pe_subsystem(binary)
-    if subsystem != WINDOWS_GUI_SUBSYSTEM:
-        raise RuntimeError(
-            f"Rust Windows app uses PE subsystem {subsystem}, expected GUI subsystem {WINDOWS_GUI_SUBSYSTEM}"
-        )
+    helper_binary = target_dir / profile / HELPER_CARGO_BINARY_NAME
+    for label, executable in (("app", binary), ("update helper", helper_binary)):
+        subsystem = pe_subsystem(executable)
+        if subsystem != WINDOWS_GUI_SUBSYSTEM:
+            raise RuntimeError(
+                f"Rust Windows {label} uses PE subsystem {subsystem}, expected GUI subsystem {WINDOWS_GUI_SUBSYSTEM}"
+            )
     sdl_dll = resolve_sdl_dll(target_dir, profile)
     assets, windivert_dll, windivert_driver = required_runtime_sources(root)
     return stage_runtime(
         binary,
+        helper_binary,
         sdl_dll,
         assets,
         windivert_dll,
@@ -200,9 +212,10 @@ def main() -> int:
         args.cargo,
     )
     print(f"Staged experimental Rust Windows app: {staged[0]}")
-    print(f"Staged Cargo SDL3: {staged[1]}")
-    print(f"Staged WinDivert DLL: {staged[2]}")
-    print(f"Staged WinDivert driver: {staged[3]}")
+    print(f"Staged Rust update helper: {staged[1]}")
+    print(f"Staged Cargo SDL3: {staged[2]}")
+    print(f"Staged WinDivert DLL: {staged[3]}")
+    print(f"Staged WinDivert driver: {staged[4]}")
     return 0
 
 

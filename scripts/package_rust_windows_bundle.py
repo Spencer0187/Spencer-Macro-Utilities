@@ -16,6 +16,7 @@ import zipfile
 PACKAGE_ROOT = "Spencer-Macro-Utilities"
 RUNTIME_FILES = (
     "Spencer-Macro-Utilities.exe",
+    "SMU-Update-Helper.exe",
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",

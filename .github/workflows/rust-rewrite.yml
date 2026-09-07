@@ -67,9 +67,9 @@ jobs:
       - name: Windows Rust packaging/manifest unit tests
         run: python -m unittest tests.test_rust_windows_staging tests.test_update_manifest
       - name: Test Windows Rust application and updater
-        run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater
+        run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper
       - name: Clippy Windows Rust application and updater
-        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater --all-targets -- -D warnings
+        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings
       - name: Stage experimental unsigned Windows Rust application
         run: >-
           python scripts/stage_rust_windows_app.py
@@ -81,8 +81,10 @@ jobs:
         shell: pwsh
         run: |
           $app = "build/rust-windows-app/Spencer-Macro-Utilities.exe"
+          $helper = "build/rust-windows-app/SMU-Update-Helper.exe"
           $required = @(
             $app,
+            $helper,
             "build/rust-windows-app/SDL3.dll",
             "build/rust-windows-app/SMCWinDivert.dll",
             "build/rust-windows-app/SMCWinDivert64.sys",
@@ -114,6 +116,17 @@ jobs:
           if ($version.OriginalFilename -ne $expectedOriginal) {
             throw "Unexpected OriginalFilename: $($version.OriginalFilename)"
           }
+          $helperVersion = (Get-Item -LiteralPath $helper).VersionInfo
+          if ($helperVersion.FileDescription -ne "Spencer Macro Utilities Update Helper") {
+            throw "Unexpected helper FileDescription: $($helperVersion.FileDescription)"
+          }
+          if ($helperVersion.FileVersion -ne $expectedVersion) {
+            throw "Unexpected helper FileVersion: $($helperVersion.FileVersion)"
+          }
+          $expectedHelperOriginal = "SMU-Update-Helper-V$expectedVersion-Windows.exe"
+          if ($helperVersion.OriginalFilename -ne $expectedHelperOriginal) {
+            throw "Unexpected helper OriginalFilename: $($helperVersion.OriginalFilename)"
+          }
       - name: Package unsigned Rust Windows release bundle
         shell: pwsh
         run: |
@@ -141,6 +154,7 @@ jobs:
           $root = "$verify/Spencer-Macro-Utilities"
           @(
             "$root/Spencer-Macro-Utilities.exe",
+            "$root/SMU-Update-Helper.exe",
             "$root/SDL3.dll",
             "$root/SMCWinDivert.dll",
             "$root/SMCWinDivert64.sys",

@@ -364,8 +364,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `Spencer-Macro-Utilities/` root, rejects traversal/backslash/drive-style and duplicate paths,
   encrypted/non-regular entries, excessive entry counts or expanded payloads, unexpected top-level files,
   and executable/script-bearing additions outside the frozen runtime set; only image/font assets and text
-  license extensions remain intentionally extensible. It also verifies the required executable/SDL/
-  WinDivert/font runtime siblings before retaining a staging directory. The Windows updater
+  license extensions remain intentionally extensible. It also verifies the required app/update-helper/SDL/
+  WinDivert/font runtime siblings before retaining a staging directory. Extraction now creates the staging
+  root atomically and refuses an already-existing destination instead of deleting or adopting it, so a
+  staging-path race fails closed without touching attacker- or user-created contents. The Windows updater
   also now owns the C++ Authenticode trust primitives: WinTrust validates each executable's chain and
   revocation state, Crypt32 extracts the signer certificate SHA-256 fingerprint, and the public
   same-signer operation first verifies both executables before comparing their signer fingerprints.
@@ -376,16 +378,43 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   or reverse the complete transaction; unit tests cover successful commit, explicit rollback, and automatic
   rollback after a mid-update filesystem collision. `smu-updater` now also exposes one shared downloaded-
   asset verifier: it enforces the manifest-declared size and SHA-256 digest and can return the exact
-  authenticated bytes read from disk. The Linux updater has been switched to that verifier, so future
-  Windows helper code will not duplicate package-integrity logic. `UpdateChecker` can also re-fetch one
-  exact canonical GitHub release tag and requires the returned release version to match the requested
-  version, avoiding a race where `releases/latest` changes between confirmation and helper startup. The
-  Windows updater can also read and strictly validate a PE's numeric `FILEVERSION` from
-  `VS_FIXEDFILEINFO`, giving the future helper a caller-independent downgrade guard against the installed
-  executable. Auto-apply remains off because the Rust
-  bundle contains side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned;
-  production signing/publishing must establish a bundle-wide trust policy before the replacement launcher
-  can be enabled. macOS still lacks its native Rust adapters.
+  authenticated bytes read from disk. The Linux updater has been switched to that verifier. `UpdateChecker`
+  can re-fetch one exact canonical GitHub release tag and requires the returned release version to match the
+  requested version, avoiding a race where `releases/latest` changes between confirmation and helper startup.
+  The Windows updater can also read and strictly validate a PE's numeric `FILEVERSION` from
+  `VS_FIXEDFILEINFO`, providing a caller-independent downgrade guard against the installed executable.
+  A dedicated `smu-windows-updater-helper` binary now composes those primitives without SDL or the main GUI
+  dependency chain. Rewrite CI builds and stages it as `SMU-Update-Helper.exe`, embeds matching Windows
+  product/version resources, and includes it in the experimental release ZIP. Its dormant apply path
+  re-fetches the exact requested release tag, re-verifies the caller-downloaded ZIP against the official
+  manifest size/SHA-256, derives one SHA-256 per validated ZIP entry from those authenticated bytes,
+  extracts only into a fresh staging directory, opens every staged file once and verifies it against the
+  authenticated per-file digest set, and on Windows keeps those read handles open without write/delete
+  sharing through signer/version validation, the old-process wait, and replacement. The copy path hashes
+  the bytes read from those same handles again before activation, so staged pathname swaps or post-validation
+  mutations fail closed. It also requires the running helper plus staged app/helper to share the installed
+  app's valid Authenticode signer, enforces staged PE `FILEVERSION` equality with the target plus a strict
+  installed-version upgrade, waits for the old process, performs the transactional multi-file replacement,
+  and rolls back if relaunch fails or exits during the startup check.
+  The main staged app is deliberately not used as that helper because its pre-main SDL DLL load would widen
+  the trust boundary before bundle revalidation. The helper also refuses to run from inside the installation
+  directory, making the future launcher responsible for copying the installed signed helper to a detached
+  location before replacement so Windows never has to overwrite the running helper image in place. The
+  replacement transaction now rejects symlink/reparse-point target ancestors and, on Windows, opens the
+  install/rollback directory chain with `FILE_FLAG_OPEN_REPARSE_POINT` while allowing only read sharing; those
+  handles remain live through activation and rollback restoration so writable/delete-sharing handles cannot
+  swap junction/path identity during mutation. Existing runtime files are opened with
+  `FILE_FLAG_OPEN_REPARSE_POINT`, validated and hashed from that exact handle, then on Windows moved into
+  rollback storage with `SetFileInformationByHandle(FileRenameInfo)` so the object inspected is the object
+  renamed. Rollback reconstructs from that pinned handle while rechecking its digest instead of trusting the
+  backup pathname. The helper also opens the old PID before
+  network/staging work with synchronization plus query rights, verifies that handle's
+  image path is the installed SMU executable, and keeps the handle alive through the wait so PID reuse cannot
+  redirect synchronization to an unrelated process. Windows auto-apply remains off because the Rust bundle has
+  side-loaded runtime siblings and the repository `SMCWinDivert.dll` is currently unsigned; production
+  signing/publishing must establish and sign the helper/bundle-wide trust policy before this path can be
+  enabled. The signed legacy C++ `build.yml` / SignPath release path remains untouched. macOS still lacks its
+  native Rust adapters.
 - `smu-app` now owns the live Linux Wall Helicopter High Jump slice plus its dedicated motion lane.
   The XButton1 rising-edge controller snapshots only the target PID vector; automatic-key, freeze,
   zoom/shift, HHJ length, and release settings remain live at the exact C++ worker read sites. The

@@ -117,6 +117,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             binary = root / "smu-app.exe"
+            helper = root / "smu-windows-updater-helper.exe"
             sdl = root / "SDL3.dll"
             windivert_dll = root / "SMCWinDivert.dll"
             windivert_driver = root / "SMCWinDivert64.sys"
@@ -125,6 +126,7 @@ class RustWindowsStagingTest(unittest.TestCase):
             tutorials.mkdir(parents=True)
 
             binary.write_bytes(b"rust-app")
+            helper.write_bytes(b"rust-helper")
             sdl.write_bytes(b"sdl")
             windivert_dll.write_bytes(b"windivert-dll")
             windivert_driver.write_bytes(b"windivert-driver")
@@ -138,6 +140,7 @@ class RustWindowsStagingTest(unittest.TestCase):
 
             staged = MODULE.stage_runtime(
                 binary,
+                helper,
                 sdl,
                 assets,
                 windivert_dll,
@@ -146,7 +149,9 @@ class RustWindowsStagingTest(unittest.TestCase):
             )
 
             self.assertEqual(staged[0], stage / "Spencer-Macro-Utilities.exe")
+            self.assertEqual(staged[1], stage / "SMU-Update-Helper.exe")
             self.assertEqual((stage / "Spencer-Macro-Utilities.exe").read_bytes(), b"rust-app")
+            self.assertEqual((stage / "SMU-Update-Helper.exe").read_bytes(), b"rust-helper")
             self.assertEqual((stage / "SDL3.dll").read_bytes(), b"sdl")
             self.assertEqual(
                 (stage / "SMCWinDivert.dll").read_bytes(), b"windivert-dll"
@@ -171,6 +176,7 @@ class RustWindowsStagingTest(unittest.TestCase):
             existing.write_bytes(b"x")
             with self.assertRaises(RuntimeError):
                 MODULE.stage_runtime(
+                    existing,
                     existing,
                     root / "missing-sdl.dll",
                     assets,
@@ -218,6 +224,8 @@ class RustWindowsStagingTest(unittest.TestCase):
         )
         self.assertEqual(MODULE.APP_OUTPUT_NAME, "Spencer-Macro-Utilities.exe")
         self.assertEqual(MODULE.CARGO_BINARY_NAME, "smu-app.exe")
+        self.assertEqual(MODULE.HELPER_OUTPUT_NAME, "SMU-Update-Helper.exe")
+        self.assertEqual(MODULE.HELPER_CARGO_BINARY_NAME, "smu-windows-updater-helper.exe")
 
     def test_windows_pe_resources_match_cpp_product_identity_contract(self) -> None:
         build_script = (ROOT / "rust" / "crates" / "smu-app" / "build.rs").read_text(
@@ -375,6 +383,91 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(expected, main)
 
+    def test_windows_replacement_pins_authenticated_files_and_target_directories(self) -> None:
+        replacement = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_replace.rs"
+        ).read_text(encoding="utf-8")
+        bundle = (
+            ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows_bundle.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "windows_bundle_file_sha256",
+            "Sha256::new()",
+            "prepare_windows_bundle_tree",
+            "expected_sha256",
+        ):
+            self.assertIn(expected, bundle + replacement)
+        for expected in (
+            "FILE_ATTRIBUTE_REPARSE_POINT",
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "FILE_FLAG_BACKUP_SEMANTICS",
+            ".share_mode(FILE_SHARE_READ)",
+            ".access_mode(0)",
+            "prepare_target_directory_guards",
+            "open_original_for_backup",
+            "GENERIC_READ | DELETE",
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "SetFileInformationByHandle",
+            "FileRenameInfo",
+            "backup_source: Option<File>",
+            "backup_sha256: Option<[u8; 32]>",
+            "rollback_with_guards",
+            "Staged Windows update file changed after authenticated preparation",
+        ):
+            self.assertIn(expected, replacement)
+        self.assertNotIn("FILE_SHARE_WRITE", replacement)
+        self.assertNotIn("FILE_SHARE_DELETE", replacement)
+
+    def test_windows_update_helper_is_minimal_authenticated_and_dormant(self) -> None:
+        helper_root = ROOT / "rust" / "crates" / "smu-windows-updater-helper"
+        manifest = tomllib.loads((helper_root / "Cargo.toml").read_text(encoding="utf-8"))
+        main = (helper_root / "src" / "main.rs").read_text(encoding="utf-8")
+        windows = (helper_root / "src" / "windows.rs").read_text(encoding="utf-8")
+        build_script = (helper_root / "build.rs").read_text(encoding="utf-8")
+
+        self.assertNotIn("sdl3", manifest.get("dependencies", {}))
+        self.assertIn(
+            '#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]',
+            main,
+        )
+        self.assertEqual(manifest["build-dependencies"]["winres"], "=0.1.12")
+        windows_sys = manifest["target"]['cfg(target_os = "windows")']["dependencies"][
+            "windows-sys"
+        ]
+        self.assertIn("Win32_System_Threading", windows_sys["features"])
+        for expected in (
+            'const APPLY_UPDATE_FLAG: &str = "--apply-update"',
+            "UpdateChecker::new(WinInetUpdateTransport, UpdatePlatform::Windows, false)",
+            "fetch_release_version(&args.target_version)",
+            "read_verified_update_asset",
+            "windows_bundle_file_sha256",
+            "extract_windows_bundle",
+            "prepare_windows_bundle_tree",
+            "require_matching_authenticode_signer",
+            "windows_file_version",
+            "detached_current_helper",
+            "current_helper.starts_with(install_root)",
+            "OpenProcess",
+            "PROCESS_QUERY_LIMITED_INFORMATION",
+            "QueryFullProcessImageNameW",
+            "open_expected_old_process",
+            "WaitForSingleObject",
+            "replace_windows_bundle_tree",
+            ".rollback()",
+            ".commit()",
+            "Command::new(install_root.join(PRODUCT_EXE))",
+        ):
+            self.assertIn(expected, windows)
+        for expected in (
+            '"FileDescription", "Spencer Macro Utilities Update Helper"',
+            '"InternalName", "SMU-Update-Helper.exe"',
+            'format!("SMU-Update-Helper-V{version}-Windows.exe")',
+            "VersionInfo::FILEVERSION",
+            "VersionInfo::PRODUCTVERSION",
+        ):
+            self.assertIn(expected, build_script)
+
     def test_rewrite_workflow_has_isolated_unsigned_windows_rust_validation(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "rust-rewrite.yml").read_text(
             encoding="utf-8"
@@ -382,17 +475,18 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("windows-rust-app:", workflow)
         self.assertIn("runs-on: windows-latest", workflow)
         self.assertIn(
-            "cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater",
+            "cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper",
             workflow,
         )
         self.assertIn(
-            "cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater --all-targets -- -D warnings",
+            "cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings",
             workflow,
         )
         self.assertIn("scripts/stage_rust_windows_app.py", workflow)
         self.assertIn("scripts/package_rust_windows_bundle.py", workflow)
         self.assertIn("scripts/generate_update_manifest.py", workflow)
         self.assertIn("--only-platform windows-x64", workflow)
+        self.assertIn("SMU-Update-Helper.exe", workflow)
         self.assertIn("rust-windows-app-unsigned", workflow)
         self.assertIn("rust-windows-release-contract-unsigned", workflow)
         self.assertNotIn("SignPath", workflow)

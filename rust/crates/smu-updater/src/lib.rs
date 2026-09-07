@@ -38,9 +38,12 @@ pub use windows::{
     authenticode_signer_sha256, require_matching_authenticode_signer,
     verify_authenticode_signature, windows_file_version,
 };
-pub use windows_bundle::{WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle};
+pub use windows_bundle::{
+    WINDOWS_BUNDLE_ROOT, WindowsBundleError, extract_windows_bundle, windows_bundle_file_sha256,
+};
 pub use windows_replace::{
-    WindowsReplacementError, WindowsReplacementTransaction, replace_windows_bundle_tree,
+    PreparedWindowsBundle, WindowsReplacementError, WindowsReplacementTransaction,
+    prepare_windows_bundle_tree, replace_windows_bundle_tree,
 };
 
 pub const LATEST_RELEASE_PAGE_URL: &str =
