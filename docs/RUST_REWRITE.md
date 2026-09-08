@@ -957,6 +957,45 @@ a mask must be narrow and reviewed.
 Named layout constants are preferred in Rust even when their numeric values must match existing
 magic constants. Pixel parity is the requirement, not preservation of the old implementation style.
 
+## Release cutover readiness
+
+Application-code parity is complete enough that the remaining work is release promotion rather than another
+behavioral rewrite pass. Keep these gates separate so a packaging/signing mistake cannot accidentally enable
+self-update at the same time.
+
+1. Keep Linux on its existing Rust production path. `SMU_PACKAGE_RUST_LINUX=ON` already makes the release
+   package use the Rust app; the C++ Linux targets remain only for compatibility/oracle coverage.
+2. Decide whether the Windows Rust production cutover is V3.4.0 or V3.4.1+. The repository is still V3.4.0.
+   A V3.4.0 Rust release must preserve the root-level `suspend.exe` migration ZIP, with the complete Rust
+   runtime beside it. A V3.4.1+ cutover instead uses the normal nested bundle and must first delete the
+   V3.4.0-only Rust filename-migration module/startup call so its compile-time tripwire can no longer fire.
+3. Do not replace the current direct Windows EXE asset with the staged Rust EXE as-is. The Rust Windows app
+   currently requires sibling `SDL3.dll`, `SMCWinDivert.dll`, `SMCWinDivert64.sys`, the updater helper, and
+   runtime assets. Before production promotion, either make the direct executable genuinely self-contained,
+   retire/change the standalone-EXE release contract, or provide another self-contained installer/bootstrapper.
+4. Promote Windows as a signed runtime bundle, not merely a different build command. Production SignPath
+   currently signs one `Spencer-Macro-Utilities.exe`; Rust updater trust requires the app, `SMU-Update-Helper.exe`,
+   `SDL3.dll`, and `SMCWinDivert.dll` to share the production release signer while preserving the separate
+   upstream signer on `SMCWinDivert64.sys`. Confirm the SignPath artifact configuration can accept and return
+   that file set before changing `.github/workflows/build.yml`.
+5. Promote the Rust macOS staging path with the existing stable release certificate, then connect the staged
+   universal `.app` to both updater-ZIP generation and the existing DMG creation/verification path. The rewrite
+   workflow already proves the universal app/helper/SDL layout and certificate continuity, but production still
+   packages the legacy C++ app and the Rust validation job currently stops at the signed ZIP.
+6. Validate the actual production-signed Windows and macOS artifacts on their native operating systems before
+   enabling replacement. Check runtime startup, signer continuity, helper launch/readiness, replacement,
+   rollback, relaunch, package layout, and the release manifest generated from the exact uploaded bytes.
+7. Enable updater apply only after those signed artifacts are the production packages. Windows currently passes
+   `auto_apply=false` deliberately. macOS should switch from the hard-coded false capability to the existing
+   `macos_auto_apply_supported()` eligibility check rather than an unconditional true value, so DMG/read-only or
+   otherwise non-replaceable launches remain manual-update-only.
+8. Keep the C++ compatibility oracles through the production promotion. They are no longer release binaries on
+   Linux and do not block a Rust Windows/macOS cutover; removing the C++ oracle tree is a separate follow-up once
+   the production Rust releases have accumulated enough confidence.
+
+The production workflow, updater capability flags, and C++ oracle are intentionally unchanged until those
+release decisions are explicitly authorized.
+
 ## Branch/cutover policy
 
 - `main` remains the production C++ line during the rewrite.
