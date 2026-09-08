@@ -841,6 +841,11 @@ impl MacosInputDevice {
     pub fn set_direct_cursor_movement(&self, enabled: bool) {
         self.injector.set_direct_cursor_movement(enabled);
     }
+
+    #[must_use]
+    pub fn direct_cursor_movement(&self) -> bool {
+        self.injector.direct_cursor_movement()
+    }
 }
 
 impl Drop for MacosInputDevice {

@@ -64,6 +64,7 @@ pub struct GlobalSettingsState {
     short_descriptions: bool,
     global_zoom: bool,
     zoom_reverse: bool,
+    macos_cursor_movement: bool,
 }
 
 impl GlobalSettingsState {
@@ -252,6 +253,17 @@ impl GlobalSettingsState {
         self.zoom_reverse
     }
 
+    #[cfg(target_os = "macos")]
+    #[must_use]
+    pub const fn macos_cursor_movement(&self) -> bool {
+        self.macos_cursor_movement
+    }
+
+    #[cfg(target_os = "macos")]
+    pub const fn set_macos_cursor_movement(&mut self, enabled: bool) {
+        self.macos_cursor_movement = enabled;
+    }
+
     pub(crate) fn apply_profile(&mut self, payload: &PreservedProfilePayload) {
         if let Some(value) = crate::profile_adapter::bool_value(payload, "macrotoggled") {
             self.toggles.macro_enabled = value;
@@ -301,6 +313,9 @@ impl GlobalSettingsState {
         if let Some(value) = crate::profile_adapter::bool_value(payload, "globalzoominreverse") {
             self.zoom_reverse = value;
         }
+        if let Some(value) = crate::profile_adapter::bool_value(payload, "macos_cursor_movement") {
+            self.macos_cursor_movement = value;
+        }
         if let Some(value) = crate::profile_adapter::i32_value(payload, "display_scale") {
             self.display_scale = value;
         }
@@ -342,6 +357,11 @@ impl GlobalSettingsState {
         );
         crate::profile_adapter::insert_bool(overlay, "globalzoomin", self.global_zoom);
         crate::profile_adapter::insert_bool(overlay, "globalzoominreverse", self.zoom_reverse);
+        crate::profile_adapter::insert_bool(
+            overlay,
+            "macos_cursor_movement",
+            self.macos_cursor_movement,
+        );
         crate::profile_adapter::insert_i32(overlay, "display_scale", self.display_scale);
         crate::profile_adapter::insert_string(
             overlay,
@@ -402,6 +422,7 @@ impl Default for GlobalSettingsState {
             short_descriptions: false,
             global_zoom: false,
             zoom_reverse: false,
+            macos_cursor_movement: false,
         }
     }
 }
@@ -508,6 +529,9 @@ pub fn render(
         state.speed_calibration_revision = state.speed_calibration_revision.wrapping_add(1);
     }
 
+    #[cfg(target_os = "macos")]
+    render_macos_cursor_movement_toggle(ui, &mut state.macos_cursor_movement, theme);
+
     render_global_window_buttons(ui, window_width, settings_open, theme_editor_open).or(action)
 }
 
@@ -529,6 +553,26 @@ fn render_official_source_link(
     };
     drop(link);
     action
+}
+
+#[cfg(target_os = "macos")]
+fn render_macos_cursor_movement_toggle(ui: &Ui, enabled: &mut bool, theme: &ThemeDefinition) {
+    ui.same_line();
+    let tooltip_start = ui.cursor_screen_pos();
+    ui.text("Swap Movement Mode (");
+    ui.same_line_with_spacing(0.0, 0.0);
+    ui.text_colored(theme.accent_primary, "?");
+    ui.same_line_with_spacing(0.0, 0.0);
+    ui.text("):");
+    let tooltip_size = ui.calc_text_size("Swap Movement Mode (?)");
+    if ui.is_mouse_hovering_rect(
+        tooltip_start,
+        [tooltip_start[0] + tooltip_size[0], tooltip_start[1] + tooltip_size[1]],
+    ) {
+        ui.set_tooltip("Off: macOS uses relative input, best for locked-camera games like Roblox.\nOn: macOS moves the visible cursor, best for desktop/non-game automation.\nThis toggle exists because Quartz synthetic mouse events cannot perfectly do both at once.");
+    }
+    ui.same_line();
+    ui.checkbox("##MacOSCursorMovement", enabled);
 }
 
 fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme: &ThemeDefinition) {
@@ -659,6 +703,22 @@ mod tests {
         assert_eq!(state.sensitivity(), "0.6");
         assert_eq!(state.fps, "200");
         assert_eq!(state.fps_runtime(), 120);
+    }
+
+    #[test]
+    fn macos_cursor_movement_profile_value_round_trips_on_every_platform() {
+        let payload = smu_profile::payload::PreservedProfilePayload::from_value(&json!({
+            "macos_cursor_movement": true
+        }));
+        assert!(payload.is_some());
+        let Some(payload) = payload else { return };
+        let mut state = GlobalSettingsState::default();
+        state.apply_profile(&payload);
+        assert!(state.macos_cursor_movement);
+
+        let mut overlay = Map::new();
+        state.overlay_profile(&mut overlay);
+        assert_eq!(overlay["macos_cursor_movement"], json!(true));
     }
 
     #[test]

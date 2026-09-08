@@ -1038,6 +1038,7 @@ impl LinuxPlatformServices {
 struct MacosPlatformServices {
     input: Arc<MacosInputDevice>,
     input_ready: bool,
+    prepared_cursor_movement: AtomicBool,
     display: Arc<MacosDisplayCapture>,
     process: Arc<MacosProcessService>,
     permission_setup: macos_permission_setup::MacosPermissionSetupService,
@@ -1048,6 +1049,8 @@ struct MacosPlatformServices {
 impl MacosPlatformServices {
     fn new(shell_state: &mut shell::ShellState, updates_enabled: bool) -> Self {
         let input = Arc::new(MacosInputDevice::new());
+        let saved_cursor_movement = shell_state.macos_cursor_movement();
+        input.set_direct_cursor_movement(saved_cursor_movement);
         let display = Arc::new(MacosDisplayCapture::new());
         let process = Arc::new(MacosProcessService::new());
         let permission_setup = macos_permission_setup::MacosPermissionSetupService::new();
@@ -1081,10 +1084,21 @@ impl MacosPlatformServices {
             false
         };
         let update_service = updater_service::UpdateService::new(app_version(), updates_enabled);
-        Self { input, input_ready, display, process, permission_setup, update_service }
+        Self {
+            input,
+            input_ready,
+            prepared_cursor_movement: AtomicBool::new(saved_cursor_movement),
+            display,
+            process,
+            permission_setup,
+            update_service,
+        }
     }
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        let cursor_movement = self.input.direct_cursor_movement();
+        self.prepared_cursor_movement.store(cursor_movement, Ordering::Release);
+        shell_state.set_macos_cursor_movement(cursor_movement);
         shell_state
             .set_macos_permission_setup_status(self.permission_setup.prepare(), self.input_ready);
         if self.input_ready && shell_state.keybind_input_poll_needed() {
@@ -1106,7 +1120,12 @@ impl MacosPlatformServices {
         shell_state.set_settings_updater_status(updater_status);
     }
 
-    fn finish_shell(&self, action: Option<&shell::ShellAction>) {
+    fn finish_shell(&self, action: Option<&shell::ShellAction>, shell_state: &shell::ShellState) {
+        let cursor_movement = shell_state.macos_cursor_movement();
+        let prepared_cursor_movement = self.prepared_cursor_movement.load(Ordering::Acquire);
+        if cursor_movement != prepared_cursor_movement {
+            self.input.set_direct_cursor_movement(cursor_movement);
+        }
         match action {
             Some(shell::ShellAction::RequestMacosAccessibilityPermission) => {
                 self.permission_setup.request_accessibility();
@@ -3383,7 +3402,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
         linux_services.finish_shell(shell_action.as_ref(), shell_state, window);
         #[cfg(target_os = "macos")]
         {
-            macos_platform.finish_shell(shell_action.as_ref());
+            macos_platform.finish_shell(shell_action.as_ref(), shell_state);
             if let Some(runtime) = macos_builtin_runtime {
                 runtime.finish_shell(shell_state);
             }

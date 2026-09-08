@@ -113,6 +113,51 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         ):
             self.assertIn(expected, main)
 
+    def test_macos_swap_movement_mode_syncs_profile_gui_and_shared_script_input(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        global_settings = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "global_settings.rs"
+        ).read_text(encoding="utf-8")
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        macos_input = (
+            ROOT / "rust" / "crates" / "smu-input" / "src" / "macos.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            '"macos_cursor_movement"',
+            'ui.text("Swap Movement Mode (")',
+            'ui.checkbox("##MacOSCursorMovement", enabled)',
+            "pub const fn macos_cursor_movement(&self) -> bool",
+            "pub const fn set_macos_cursor_movement(&mut self, enabled: bool)",
+        ):
+            self.assertIn(expected, global_settings)
+        for expected in (
+            "pub const fn macos_cursor_movement(&self) -> bool",
+            "pub const fn set_macos_cursor_movement(&mut self, enabled: bool)",
+        ):
+            self.assertIn(expected, shell)
+        for expected in (
+            "pub fn direct_cursor_movement(&self) -> bool",
+            "self.injector.direct_cursor_movement()",
+        ):
+            self.assertIn(expected, macos_input)
+        for expected in (
+            "let saved_cursor_movement = shell_state.macos_cursor_movement()",
+            "input.set_direct_cursor_movement(saved_cursor_movement)",
+            "prepared_cursor_movement: AtomicBool",
+            "let cursor_movement = self.input.direct_cursor_movement()",
+            "shell_state.set_macos_cursor_movement(cursor_movement)",
+            "let cursor_movement = shell_state.macos_cursor_movement()",
+            "if cursor_movement != prepared_cursor_movement",
+            "self.input.set_direct_cursor_movement(cursor_movement)",
+            "macos_platform.finish_shell(shell_action.as_ref(), shell_state)",
+        ):
+            self.assertIn(expected, main)
+
     def test_macos_scripts_get_native_process_display_and_only_ready_input(self) -> None:
         source = (
             ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs"
@@ -255,7 +300,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             "self.update_service.open_latest_release()",
             "self.update_service.open_latest_release_and_dismiss()",
             "self.update_service.shutdown()",
-            "macos_platform.finish_shell(shell_action.as_ref())",
+            "macos_platform.finish_shell(shell_action.as_ref(), shell_state)",
         ):
             self.assertIn(expected, main)
 

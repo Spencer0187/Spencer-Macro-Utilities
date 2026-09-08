@@ -392,6 +392,17 @@ impl ShellState {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    #[must_use]
+    pub const fn macos_cursor_movement(&self) -> bool {
+        self.global.macos_cursor_movement()
+    }
+
+    #[cfg(target_os = "macos")]
+    pub const fn set_macos_cursor_movement(&mut self, enabled: bool) {
+        self.global.set_macos_cursor_movement(enabled);
+    }
+
     pub(crate) fn reset_section_to_defaults(&mut self, section: usize) {
         if section >= 16 {
             return;

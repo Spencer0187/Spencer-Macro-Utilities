@@ -74,6 +74,7 @@ class RustMacosInputTests(unittest.TestCase):
             "CGEvent::new_scroll_wheel_event2",
             "CGScrollEventUnit::Line",
             "set_direct_cursor_movement",
+            "pub fn direct_cursor_movement(&self) -> bool",
             "prefers_direct_absolute_positioning",
         ):
             self.assertIn(expected, source)

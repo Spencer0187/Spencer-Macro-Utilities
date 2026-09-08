@@ -73,7 +73,13 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   keyboard, mouse-button/X-button, relative/absolute cursor, and line-wheel events carry the same
   `0x534D554D41434F53` source-user-data tag and post at the HID event tap. Relative movement defaults to the
   legacy game-safe delta-field mode, with the historical visible-cursor movement preference exposed as an
-  explicit setter, and direct absolute positioning reports the same Accessibility failure class. The macOS
+  explicit setter, and direct absolute positioning reports the same Accessibility failure class. The Rust app now
+  also restores C++'s macOS-only `Swap Movement Mode (?)` global control and persists the existing
+  `macos_cursor_movement` profile key. Startup pushes the saved value into the shared `MacosInputDevice`; each UI
+  frame pulls the current device value back before rendering so Lua `setMacosCursorMovement(...)` changes are
+  reflected in the checkbox/profile state, and a GUI/profile change is pushed back after rendering only when it
+  differs from the prepared value. This keeps the GUI, profiles, macro runtimes, and Lua on the same cursor-mode
+  source of truth instead of maintaining parallel flags. The macOS
   input slice now also owns a separate `MacosInputState`: it starts the legacy listen-only Session event tap
   on a named private thread, ignores SMU-tagged injected events, re-enables taps disabled by timeout/user input,
   mirrors the C++ mac-key/modifier/mouse-button state transitions, stores wheel direction only as transient
