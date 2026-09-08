@@ -424,7 +424,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `GetAsyncKeyState`, the shared `ScriptRuntimeController` depends only on `KeyState`, and foreground
   gating uses `WindowsProcessBackend`. That same Win32 device now implements `InputInjector` with
   tagged `SendInput` scan-code keyboard events, mouse-button events, wheel input, current-key scans, and
-  relative mouse motion, and Windows `ScriptServices.input` is populated with it. Relative motion uses
+  relative mouse motion, and Windows `ScriptServices.input` is populated with it. Windows macro text entry now
+  also mirrors both C++ chat-typing modes: normal typing resolves each byte through the foreground keyboard
+  layout with `VkKeyScanExW`/`MapVirtualKeyExW`, presses Alt/Ctrl/Shift plus the mapped scan code in the C++
+  order, and unwinds modifiers in reverse; the legacy `Old Unicode Chat-Typing` setting routes Item Unequip and
+  Laugh Clip through UTF-8-to-UTF-16 `KEYEVENTF_UNICODE` key-down/key-up events instead. Both workers re-read
+  `use_old_paste` at the actual paste site, so mid-worker setting changes retain the C++ behavior. Relative motion uses
   the live C++ `display_scale` rule while `move_mouse_raw` stays unscaled, and tagged injections honor
   the C++ foreground-GUI budget of 50 events per 16 ms using the SDL-provided HWND. `WindowsKeyState`
   now also implements direct absolute positioning with the C++ virtual-desktop normalization rule, and

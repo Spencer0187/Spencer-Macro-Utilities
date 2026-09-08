@@ -19,21 +19,22 @@ use windows_sys::Win32::{
     UI::{
         Input::KeyboardAndMouse::{
             GetAsyncKeyState, GetKeyboardLayout, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE,
-            KBDLLHOOKSTRUCT, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-            KEYEVENTF_SCANCODE, MAPVK_VK_TO_VSC_EX, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
+            KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE,
+            KEYEVENTF_UNICODE, MAPVK_VK_TO_VSC_EX, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN,
             MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE,
             MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_VIRTUALDESK, MOUSEEVENTF_WHEEL,
             MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, MapVirtualKeyExW, SendInput,
+            VK_CONTROL, VK_MENU, VK_SHIFT, VkKeyScanExW,
         },
         WindowsAndMessaging::{
             CallNextHookEx, DispatchMessageW, GA_ROOT, GetAncestor, GetForegroundWindow,
-            GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, HC_ACTION, LLKHF_INJECTED,
-            LLKHF_LOWER_IL_INJECTED, LLMHF_INJECTED, LLMHF_LOWER_IL_INJECTED, MSG, MSLLHOOKSTRUCT,
-            PM_NOREMOVE, PeekMessageW, PostThreadMessageW, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-            SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetCursorPos, SetWindowsHookExW,
-            TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN,
-            WM_KEYUP, WM_MOUSEWHEEL, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER, XBUTTON1,
-            XBUTTON2,
+            GetMessageW, GetSystemMetrics, GetWindowThreadProcessId, HC_ACTION, KBDLLHOOKSTRUCT,
+            LLKHF_INJECTED, LLKHF_LOWER_IL_INJECTED, LLMHF_INJECTED, LLMHF_LOWER_IL_INJECTED, MSG,
+            MSLLHOOKSTRUCT, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, SM_CXVIRTUALSCREEN,
+            SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SetCursorPos,
+            SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL,
+            WM_KEYDOWN, WM_KEYUP, WM_MOUSEWHEEL, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER,
+            XBUTTON1, XBUTTON2,
         },
     },
 };
@@ -400,13 +401,123 @@ pub fn set_left_mouse_button_direct(down: bool) {
     }
 }
 
-fn dispatch(input: &INPUT) {
-    acquire_input_budget(1);
-    // SAFETY: `input` points to one initialized Win32 INPUT record and remains valid for the call.
-    unsafe {
-        let _ =
-            SendInput(1, input, i32::try_from(std::mem::size_of::<INPUT>()).unwrap_or_default());
+fn dispatch_inputs(inputs: &[INPUT]) {
+    if inputs.is_empty() {
+        return;
     }
+    acquire_input_budget(inputs.len());
+    let Ok(count) = u32::try_from(inputs.len()) else {
+        return;
+    };
+    // SAFETY: `inputs` is a contiguous initialized slice that remains valid for the duration of SendInput.
+    unsafe {
+        let _ = SendInput(
+            count,
+            inputs.as_ptr(),
+            i32::try_from(std::mem::size_of::<INPUT>()).unwrap_or_default(),
+        );
+    }
+}
+
+fn dispatch(input: &INPUT) {
+    dispatch_inputs(std::slice::from_ref(input));
+}
+
+fn unicode_keyboard_input(code_unit: u16, key_up: bool) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: 0,
+                wScan: code_unit,
+                dwFlags: KEYEVENTF_UNICODE | if key_up { KEYEVENTF_KEYUP } else { 0 },
+                time: 0,
+                dwExtraInfo: INJECTED_INPUT_TAG,
+            },
+        },
+    }
+}
+
+fn type_unicode_text_native(text: &str, delay_ms: i32) -> bool {
+    let delay = Duration::from_millis(u64::try_from(delay_ms.max(0)).unwrap_or_default());
+    for code_unit in text.encode_utf16() {
+        dispatch(&unicode_keyboard_input(code_unit, false));
+        dispatch(&unicode_keyboard_input(code_unit, true));
+        std::thread::sleep(delay);
+    }
+    true
+}
+
+fn type_unicode_byte_native(character: u8, delay_ms: i32) -> bool {
+    if character.is_ascii() {
+        let text = [character];
+        let Ok(text) = std::str::from_utf8(&text) else {
+            return false;
+        };
+        return type_unicode_text_native(text, delay_ms);
+    }
+    false
+}
+
+fn layout_scan_input(
+    virtual_key: u16,
+    layout: *mut core::ffi::c_void,
+    key_up: bool,
+) -> Option<INPUT> {
+    // SAFETY: `layout` is a keyboard-layout handle returned by GetKeyboardLayout and MapVirtualKeyExW retains
+    // no caller-owned pointers.
+    let mapped = unsafe { MapVirtualKeyExW(u32::from(virtual_key), MAPVK_VK_TO_VSC_EX, layout) };
+    if mapped == 0 {
+        return None;
+    }
+    Some(keyboard_input((mapped & 0xFF) as u16, (mapped & 0xFF00) == 0xE000, key_up))
+}
+
+fn press_character_native(character: u8, delay_ms: i32) -> bool {
+    let layout = foreground_keyboard_layout();
+    // SAFETY: `layout` is a keyboard-layout handle returned by GetKeyboardLayout.
+    let encoded = unsafe { VkKeyScanExW(u16::from(character), layout) };
+    if encoded == -1 {
+        return type_unicode_byte_native(character, delay_ms);
+    }
+
+    let encoded = encoded as u16;
+    let virtual_key = encoded & 0x00FF;
+    let modifiers = ((encoded >> 8) & 0x00FF) as u8;
+    if virtual_key == 0 || (modifiers & 0xF8) != 0 {
+        return type_unicode_byte_native(character, delay_ms);
+    }
+
+    let mut key_downs = Vec::with_capacity(4);
+    for (mask, modifier) in [(0x04, VK_MENU), (0x02, VK_CONTROL), (0x01, VK_SHIFT)] {
+        if modifiers & mask != 0 {
+            let Some(input) = layout_scan_input(modifier, layout, false) else {
+                return type_unicode_byte_native(character, delay_ms);
+            };
+            key_downs.push(input);
+        }
+    }
+    let Some(key_down) = layout_scan_input(virtual_key, layout, false) else {
+        return type_unicode_byte_native(character, delay_ms);
+    };
+    key_downs.push(key_down);
+    dispatch_inputs(&key_downs);
+
+    std::thread::sleep(Duration::from_millis(u64::try_from(delay_ms.max(0)).unwrap_or_default()));
+
+    let mut key_ups = Vec::with_capacity(key_downs.len());
+    if let Some(input) = layout_scan_input(virtual_key, layout, true) {
+        key_ups.push(input);
+    }
+    for (mask, modifier) in [(0x01, VK_SHIFT), (0x02, VK_CONTROL), (0x04, VK_MENU)] {
+        if modifiers & mask != 0 {
+            if let Some(input) = layout_scan_input(modifier, layout, true) {
+                key_ups.push(input);
+            }
+        }
+    }
+    dispatch_inputs(&key_ups);
+    true
 }
 
 fn mouse_button_input(vk: u16, down: bool) -> INPUT {
@@ -508,5 +619,13 @@ impl InputInjector for WindowsKeyState {
 
     fn mouse_wheel(&self, delta: i32) {
         dispatch(&mouse_input(MOUSEEVENTF_WHEEL, delta as u32, 0, 0));
+    }
+
+    fn press_character(&self, character: u8, delay_ms: i32) -> bool {
+        press_character_native(character, delay_ms)
+    }
+
+    fn type_unicode_text(&self, text: &str, delay_ms: i32) -> bool {
+        type_unicode_text_native(text, delay_ms)
     }
 }

@@ -25,6 +25,20 @@ pub fn open_chat(
     input.release_key_chord(chat_key_up());
 }
 
+pub fn paste_text(
+    input: &dyn InputInjector,
+    text: &str,
+    delay_ms: i32,
+    use_unicode: bool,
+    sleep: impl FnMut(Duration),
+) -> bool {
+    let safe_delay_ms = delay_ms.max(0);
+    if use_unicode && input.type_unicode_text(text, safe_delay_ms) {
+        return true;
+    }
+    type_text(input, text, safe_delay_ms, sleep)
+}
+
 pub fn type_text(
     input: &dyn InputInjector,
     text: &str,
@@ -47,7 +61,7 @@ pub fn type_text(
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{open_chat, type_text};
+    use super::{open_chat, paste_text, type_text};
     use smu_core::{Hotkey, KeyCode};
     use smu_input::InputInjector;
     use std::sync::Mutex;
@@ -56,6 +70,7 @@ mod tests {
     #[derive(Debug, Default)]
     struct FakeInput {
         native_success: bool,
+        unicode_success: bool,
         events: Mutex<Vec<String>>,
     }
 
@@ -73,6 +88,10 @@ mod tests {
         fn press_character(&self, character: u8, delay_ms: i32) -> bool {
             self.events.lock().expect("events").push(format!("native:{character}:{delay_ms}"));
             self.native_success
+        }
+        fn type_unicode_text(&self, text: &str, delay_ms: i32) -> bool {
+            self.events.lock().expect("events").push(format!("unicode:{text}:{delay_ms}"));
+            self.unicode_success
         }
     }
 
@@ -119,6 +138,37 @@ mod tests {
         );
         assert_eq!(*input.events.lock().expect("events"), ["down:65", "up:66"]);
         assert_eq!(waits, [Duration::from_millis(50)]);
+    }
+
+    #[test]
+    fn paste_text_uses_unicode_path_only_when_requested_and_available() {
+        let input = FakeInput { unicode_success: true, ..FakeInput::default() };
+        let mut waits = Vec::new();
+        assert!(paste_text(&input, "hé", 3, true, |duration| waits.push(duration)));
+        assert_eq!(*input.events.lock().expect("events"), ["unicode:hé:3"]);
+        assert!(waits.is_empty());
+    }
+
+    #[test]
+    fn paste_text_falls_back_to_normal_typing_when_unicode_path_is_unavailable() {
+        let input = FakeInput::default();
+        let mut waits = Vec::new();
+        assert!(paste_text(&input, "a", 4, true, |duration| waits.push(duration)));
+        assert_eq!(
+            *input.events.lock().expect("events"),
+            ["unicode:a:4", "native:97:4", "down:65", "up:65"]
+        );
+        assert_eq!(waits, [Duration::from_millis(4)]);
+    }
+
+    #[test]
+    fn paste_text_skips_unicode_path_when_setting_is_disabled() {
+        let input =
+            FakeInput { unicode_success: true, native_success: true, ..FakeInput::default() };
+        let mut waits = Vec::new();
+        assert!(paste_text(&input, "a", 2, false, |duration| waits.push(duration)));
+        assert_eq!(*input.events.lock().expect("events"), ["native:97:2"]);
+        assert!(waits.is_empty());
     }
 
     #[test]

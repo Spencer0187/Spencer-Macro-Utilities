@@ -137,6 +137,11 @@ impl GlobalSettingsState {
         self.paste_delay_ms
     }
 
+    #[must_use]
+    pub const fn use_old_paste(&self) -> bool {
+        self.use_old_paste
+    }
+
     pub const fn set_process_found(&mut self, found: bool) {
         self.process.found = found;
     }

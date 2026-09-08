@@ -27,6 +27,7 @@ pub struct LaughClipControllerSettings {
     pub chat_key: u32,
     pub enter_key: u32,
     pub paste_delay_ms: i32,
+    pub use_old_paste: bool,
     pub global_zoom: bool,
     pub shift_key: u32,
     pub zoom_reverse: bool,
@@ -45,6 +46,7 @@ impl Default for LaughClipControllerSettings {
             chat_key: 0xBF,
             enter_key: 0x0D,
             paste_delay_ms: 1,
+            use_old_paste: true,
             global_zoom: false,
             shift_key: 0x10,
             zoom_reverse: false,
@@ -197,7 +199,9 @@ fn execute_worker(
     sleep(Duration::from_millis(25));
 
     let paste_delay = lock(settings).paste_delay_ms.max(0);
-    let _ = crate::macro_text::type_text(input, "/e laugh", paste_delay, &mut sleep);
+    let use_old_paste = lock(settings).use_old_paste;
+    let _ =
+        crate::macro_text::paste_text(input, "/e laugh", paste_delay, use_old_paste, &mut sleep);
     sleep(Duration::from_millis(100));
     input.hold_key_chord(Hotkey::new(lock(settings).enter_key));
     sleep(Duration::from_millis(35));
@@ -239,6 +243,7 @@ mod tests {
 
     #[derive(Debug, Default)]
     struct FakeInput {
+        unicode_success: bool,
         events: Mutex<Vec<String>>,
     }
 
@@ -259,6 +264,10 @@ mod tests {
         fn mouse_wheel(&self, delta: i32) {
             lock(&self.events).push(format!("wheel:{delta}"));
         }
+        fn type_unicode_text(&self, text: &str, delay_ms: i32) -> bool {
+            lock(&self.events).push(format!("unicode:{text}:{delay_ms}"));
+            self.unicode_success
+        }
     }
 
     #[test]
@@ -271,10 +280,29 @@ mod tests {
         assert_eq!(settings.chat_key, 0xBF);
         assert_eq!(settings.enter_key, 0x0D);
         assert_eq!(settings.paste_delay_ms, 1);
+        assert!(settings.use_old_paste);
         assert!(!settings.global_zoom);
         assert_eq!(settings.shift_key, 0x10);
         assert!(!settings.zoom_reverse);
         assert!(!settings.laugh_move_switch);
+    }
+
+    #[test]
+    fn worker_reads_old_unicode_toggle_live_at_paste_site() {
+        let settings = Mutex::new(LaughClipControllerSettings {
+            paste_delay_ms: 7,
+            use_old_paste: false,
+            ..LaughClipControllerSettings::default()
+        });
+        let input = FakeInput { unicode_success: true, ..FakeInput::default() };
+        let mut elapsed = Duration::ZERO;
+        execute_worker(&settings, &input, |duration| {
+            elapsed += duration;
+            if elapsed == Duration::from_millis(75) {
+                lock(&settings).use_old_paste = true;
+            }
+        });
+        assert!(lock(&input.events).contains(&"unicode:/e laugh:7".to_owned()));
     }
 
     #[test]

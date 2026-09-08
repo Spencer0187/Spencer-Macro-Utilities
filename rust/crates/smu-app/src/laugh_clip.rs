@@ -32,6 +32,7 @@ pub struct LaughClipGlobals {
     pub chat_key: u32,
     pub enter_key: u32,
     pub paste_delay_ms: i32,
+    pub use_old_paste: bool,
     pub global_zoom: bool,
     pub shift_key: u32,
     pub zoom_reverse: bool,
@@ -66,6 +67,7 @@ impl LaughClipUiState {
             chat_key: globals.chat_key,
             enter_key: globals.enter_key,
             paste_delay_ms: globals.paste_delay_ms,
+            use_old_paste: globals.use_old_paste,
             global_zoom: globals.global_zoom,
             shift_key: globals.shift_key,
             zoom_reverse: globals.zoom_reverse,
@@ -151,6 +153,7 @@ mod tests {
             chat_key: 0xBF,
             enter_key: 0x0D,
             paste_delay_ms: 1,
+            use_old_paste: true,
             global_zoom: false,
             shift_key: 0x10,
             zoom_reverse: false,
@@ -158,6 +161,7 @@ mod tests {
         assert!(settings.chat_override);
         assert_eq!(settings.enter_key, 0x0D);
         assert_eq!(settings.paste_delay_ms, 1);
+        assert!(settings.use_old_paste);
         assert!(!settings.global_zoom);
         assert_eq!(settings.shift_key, 0x10);
         assert!(!settings.laugh_move_switch);

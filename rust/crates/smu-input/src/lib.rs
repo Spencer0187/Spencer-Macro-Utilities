@@ -306,6 +306,12 @@ pub trait InputInjector: Send + Sync {
         false
     }
 
+    /// Try the platform's direct Unicode text-injection compatibility path. Windows implements this
+    /// with `KEYEVENTF_UNICODE`; other platforms return `false` so callers keep their normal text path.
+    fn type_unicode_text(&self, _text: &str, _delay_ms: i32) -> bool {
+        false
+    }
+
     /// Inject a packed SMU hotkey in the same order as C++ `holdKeyChord`.
     fn hold_key_chord(&self, hotkey: Hotkey) {
         let key = hotkey.key();

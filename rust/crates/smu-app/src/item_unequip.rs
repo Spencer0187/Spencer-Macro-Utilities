@@ -42,6 +42,7 @@ pub struct ItemUnequipGlobals {
     pub chat_key: u32,
     pub enter_key: u32,
     pub paste_delay_ms: i32,
+    pub use_old_paste: bool,
 }
 
 impl ItemUnequipUiState {
@@ -102,6 +103,7 @@ impl ItemUnequipUiState {
             chat_key: globals.chat_key,
             enter_key: globals.enter_key,
             paste_delay_ms: globals.paste_delay_ms,
+            use_old_paste: globals.use_old_paste,
         }
     }
 }
@@ -223,11 +225,13 @@ mod tests {
             chat_key: 0xBF,
             enter_key: 0x0D,
             paste_delay_ms: 1,
+            use_old_paste: true,
         });
         assert_eq!(settings.emote_text, "/e dance2");
         assert_eq!(settings.selected_dropdown, 0);
         assert_eq!(settings.speed_slot, 3);
         assert!(settings.chat_override);
         assert_eq!(settings.paste_delay_ms, 1);
+        assert!(settings.use_old_paste);
     }
 }

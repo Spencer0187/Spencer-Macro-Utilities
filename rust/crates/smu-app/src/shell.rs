@@ -810,6 +810,7 @@ impl ShellState {
             chat_key: self.global.chat_key(),
             enter_key: self.global.enter_key(),
             paste_delay_ms: self.global.paste_delay_ms(),
+            use_old_paste: self.global.use_old_paste(),
         })
     }
 
@@ -843,6 +844,7 @@ impl ShellState {
             chat_key: self.global.chat_key(),
             enter_key: self.global.enter_key(),
             paste_delay_ms: self.global.paste_delay_ms(),
+            use_old_paste: self.global.use_old_paste(),
             global_zoom: self.global.global_zoom(),
             shift_key: self.global.shift_key(),
             zoom_reverse: self.global.zoom_reverse(),

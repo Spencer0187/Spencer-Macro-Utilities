@@ -337,6 +337,55 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_old_unicode_chat_typing_matches_cpp_text_input_contract(self) -> None:
+        input_trait = (ROOT / "rust" / "crates" / "smu-input" / "src" / "lib.rs").read_text(
+            encoding="utf-8"
+        )
+        windows_input = (
+            ROOT / "rust" / "crates" / "smu-input" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+        macro_text = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "macro_text.rs"
+        ).read_text(encoding="utf-8")
+        item_runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "item_unequip_runtime.rs"
+        ).read_text(encoding="utf-8")
+        laugh_runtime = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "laugh_clip_runtime.rs"
+        ).read_text(encoding="utf-8")
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("fn type_unicode_text(&self, _text: &str, _delay_ms: i32) -> bool", input_trait)
+        for expected in (
+            "KEYEVENTF_UNICODE",
+            "text.encode_utf16()",
+            "VkKeyScanExW",
+            "foreground_keyboard_layout",
+            "MapVirtualKeyExW",
+            "VK_MENU",
+            "VK_CONTROL",
+            "VK_SHIFT",
+            "dispatch_inputs(&key_downs)",
+            "dispatch_inputs(&key_ups)",
+            "fn press_character(&self, character: u8, delay_ms: i32) -> bool",
+            "fn type_unicode_text(&self, text: &str, delay_ms: i32) -> bool",
+        ):
+            self.assertIn(expected, windows_input)
+        self.assertLess(windows_input.index("[(0x04, VK_MENU), (0x02, VK_CONTROL), (0x01, VK_SHIFT)]"), windows_input.index("dispatch_inputs(&key_downs)"))
+        self.assertLess(windows_input.index("dispatch_inputs(&key_downs)"), windows_input.index("[(0x01, VK_SHIFT), (0x02, VK_CONTROL), (0x04, VK_MENU)]"))
+        for expected in (
+            "pub fn paste_text(",
+            "if use_unicode && input.type_unicode_text(text, safe_delay_ms)",
+            "type_text(input, text, safe_delay_ms, sleep)",
+        ):
+            self.assertIn(expected, macro_text)
+        for runtime in (item_runtime, laugh_runtime):
+            self.assertIn("let use_old_paste = lock(settings).use_old_paste", runtime)
+            self.assertIn("crate::macro_text::paste_text", runtime)
+        self.assertGreaterEqual(shell.count("use_old_paste: self.global.use_old_paste()"), 2)
+
     def test_windows_script_drop_matches_cpp_sdl_and_elevated_uipi_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
