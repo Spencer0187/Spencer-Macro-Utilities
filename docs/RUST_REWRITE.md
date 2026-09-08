@@ -526,7 +526,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   fallback of 80% of the primary-screen width and writes that resolved X back into live state for later saves.
   The renderer privately registers the same packaged `LSANS.TTF` file with GDI, updates from the shared WinDivert
   enabled/blocking state each frame, and destroys both its window and private font registration during Lag Switch
-  shutdown. Windows startup now also carries the V3.4.0-only `suspend.exe` filename bridge before any timing,
+  shutdown. The Windows Lag Switch pane also mirrors the remaining C++ help affordances: the accented `?` beside
+  `Prevent Roblox Disconnection` has the same invisible hover target, disabled-item hover behavior, and timeout
+  warning tooltip, while `Only Lag Switch Roblox` shows the same `Filters only Roblox traffic.` tooltip.
+  Windows startup now also carries the V3.4.0-only `suspend.exe` filename bridge before any timing,
   GUI, macro, or backend initialization. The Rust bridge has the same release-version compile-time tripwire,
   copies only to `Spencer-Macro-Utilities-V3.4.0-Windows.exe` without overwriting an existing different target,
   validates pre-existing targets byte-for-byte, creates a hidden/temporary one-shot helper with `CREATE_NEW`,

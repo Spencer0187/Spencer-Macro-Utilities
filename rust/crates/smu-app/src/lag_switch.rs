@@ -455,6 +455,9 @@ fn render_supported_platform(
     render_prevent_disconnect(ui, state, theme);
 
     ui.checkbox("Only Lag Switch Roblox", &mut state.filter.roblox_only);
+    if ui.is_item_hovered() {
+        ui.set_tooltip("Filters only Roblox traffic.");
+    }
     ui.checkbox("Also Block TCP (Websites)", &mut state.filter.use_tcp);
     crate::parity::separator(ui);
 
@@ -509,14 +512,20 @@ fn render_auto_unlag(ui: &Ui, state: &mut AutoUnlagState) {
 
 #[cfg(target_os = "windows")]
 fn render_prevent_disconnect(ui: &Ui, state: &mut LagSwitchUiState, theme: &ThemeDefinition) {
+    let tooltip_cursor_pos = ui.cursor_screen_pos();
     ui.checkbox("Prevent Roblox Disconnection (", &mut state.prevent_disconnect);
     ui.same_line_with_spacing(0.0, 0.0);
     ui.text_colored(theme.accent_primary, "?");
     ui.same_line_with_spacing(0.0, 0.0);
     ui.text(")");
-    // The C++ oracle overlays an invisible tooltip target and then advances the cursor by six
-    // logical pixels. Screenshot automation will add a direct geometry assertion for this
-    // Windows-only row before the tooltip hit-box is considered complete.
+    ui.set_cursor_screen_pos(tooltip_cursor_pos);
+    ui.invisible_button("##tooltip", ui.calc_text_size("Prevent Roblox Disconnection (?)      "));
+    if ui.is_item_hovered_with_flags(dear_imgui_rs::ItemHoveredFlags::ALLOW_WHEN_DISABLED) {
+        ui.set_tooltip(
+            "Prevents Timeout past the usual 10s threshold.\nExperimental, may break or kick. This is actively being worked on.",
+        );
+    }
+    ui.set_cursor_screen_pos([tooltip_cursor_pos[0], tooltip_cursor_pos[1] + 6.0]);
     ui.new_line();
 }
 

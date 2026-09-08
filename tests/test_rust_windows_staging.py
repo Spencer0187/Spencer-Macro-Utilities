@@ -493,6 +493,10 @@ class RustWindowsStagingTest(unittest.TestCase):
             "virtual_desktop.min_y",
             "virtual_desktop.max_y()",
             "set_overlay_x",
+            'ui.invisible_button("##tooltip", ui.calc_text_size("Prevent Roblox Disconnection (?)      "))',
+            "ItemHoveredFlags::ALLOW_WHEN_DISABLED",
+            "Prevents Timeout past the usual 10s threshold.",
+            'ui.set_tooltip("Filters only Roblox traffic.")',
         ):
             self.assertIn(expected, lag_switch)
         for expected in (
