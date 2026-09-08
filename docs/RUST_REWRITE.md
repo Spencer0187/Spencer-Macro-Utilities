@@ -374,8 +374,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   composition now also supplies a real `ScriptLogSink` on Linux, Windows, and macOS: Lua `log(...)` keeps the
   C++ `[script] ` prefix/truncation contract, retains the newest 512 info entries, preserves C++ local-time
   `[YYYY-MM-DD HH:MM:SS] [INFO]` formatting, writes `SMC.log` beside the executable only when `DEBUG=1` or
-  `SMU_DEBUG=1`, emits debug-console output in debug builds or those env modes, and mirrors info
-  lines to the Win32 debugger on Windows. Native input/state and the shared script-hotkey runtime
+  `SMU_DEBUG=1`, emits debug-console output in debug builds or those env modes, and mirrors info/warning
+  lines to the Win32 debugger on Windows. The same shared logger now reproduces C++ imported-script warning
+  delivery: unsupported/duplicate imports, execute/settings/cleanup failures, Lag Switch initialization failures,
+  unknown worker panics, and overlong manager shutdowns enter the thread-safe warning queue and are drained into
+  the existing warning-toast path on the UI thread; Force Stop retains the C++ info-level cancellation message.
+  Native input/state and the shared script-hotkey runtime
   start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
   feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The
   shared controller model modules compile on macOS because the cross-platform UI/profile layer references their
@@ -732,7 +736,11 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
 - `smu-scripting` owns imported-script hotkey/metadata parsing, script-owned hotkey state, persisted
   UI/settings state, and the restricted Lua 5.4.8 VM lifecycle. The VM matches the C++ library
   surface, allocator cap, instruction-hook timeout/cancellation model, protected-call/coroutine stop
-  wrappers, and foundational timing/cancellation functions. Service-backed globals now cover direct
+  wrappers, and foundational timing/cancellation functions. Coroutine `sleep()` / `sleepMicros()` now mirror
+  the C++ host scheduler instead of blocking the script worker: yieldable coroutines register wake times,
+  `onExecute` continues, and the host drains/resumes sleepers before the run completes; repeated yields are
+  resumed again, the main execution budget remains active until the host wait begins, and resume failures use
+  the same dedicated warning context as C++. Service-backed globals now cover direct
   input/text/hotkeys, edge-triggered input callbacks/listeners and managed hotkey mirroring,
   display/pixels/movement, process freeze, lag switch, Roblox log reads/callbacks, `log`,
   `getPlatform`, `getSMUVersion`, and `getSavedValue`. The full legacy `ui` table is also modeled

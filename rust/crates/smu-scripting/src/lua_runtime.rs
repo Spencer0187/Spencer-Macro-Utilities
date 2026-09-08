@@ -5,7 +5,10 @@
 
 use crate::memory_limit_bytes;
 use mlua::chunk::ChunkMode;
-use mlua::{Error as LuaError, HookTriggers, Lua, LuaOptions, StdLib, Value, VmState};
+use mlua::thread::ThreadStatus;
+use mlua::{
+    Error as LuaError, HookTriggers, Lua, LuaOptions, MultiValue, StdLib, Thread, Value, VmState,
+};
 use std::fmt;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
@@ -19,6 +22,105 @@ pub const MAX_SINGLE_SLEEP_MICROS: i64 = 24 * 60 * 60 * 1_000_000;
 pub const DEFAULT_SHOULD_YIELD_MICROS: i64 = 1_000;
 const PRECISE_SLEEP_SPIN_TAIL: Duration = Duration::from_micros(600);
 const LONG_WAIT_SLICE: Duration = Duration::from_hours(24);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SleepPrecision {
+    Coarse,
+    Precise,
+}
+
+#[derive(Clone, Debug)]
+struct SleepingCoroutine {
+    thread: Thread,
+    wake_time: Option<Instant>,
+    precision: SleepPrecision,
+}
+
+#[derive(Debug, Default)]
+struct CoroutineSleepScheduler {
+    sleepers: Mutex<Vec<SleepingCoroutine>>,
+}
+
+impl CoroutineSleepScheduler {
+    fn lock(&self) -> MutexGuard<'_, Vec<SleepingCoroutine>> {
+        match self.sleepers.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    fn schedule(&self, thread: Thread, duration: Duration, precision: SleepPrecision) {
+        let wake_time = Instant::now().checked_add(duration);
+        let pointer = thread.to_pointer();
+        let mut sleepers = self.lock();
+        if let Some(existing) =
+            sleepers.iter_mut().find(|entry| entry.thread.to_pointer() == pointer)
+        {
+            existing.wake_time = wake_time;
+            existing.precision = precision;
+            return;
+        }
+        sleepers.push(SleepingCoroutine { thread, wake_time, precision });
+    }
+
+    fn clear(&self) {
+        self.lock().clear();
+    }
+
+    fn is_empty(&self) -> bool {
+        self.lock().is_empty()
+    }
+
+    fn contains(&self, thread: &Thread) -> bool {
+        let pointer = thread.to_pointer();
+        self.lock().iter().any(|entry| entry.thread.to_pointer() == pointer)
+    }
+
+    fn next_wait(&self) -> Option<(Duration, SleepPrecision)> {
+        let sleepers = self.lock();
+        if sleepers.is_empty() {
+            return None;
+        }
+        let now = Instant::now();
+        let mut best: Option<(Duration, SleepPrecision)> = None;
+        for sleeper in sleepers.iter() {
+            let duration = sleeper
+                .wake_time
+                .map_or(LONG_WAIT_SLICE, |wake| wake.saturating_duration_since(now));
+            best = match best {
+                None => Some((duration, sleeper.precision)),
+                Some((best_duration, _best_precision)) if duration < best_duration => {
+                    Some((duration, sleeper.precision))
+                }
+                Some((best_duration, SleepPrecision::Coarse))
+                    if duration == best_duration
+                        && sleeper.precision == SleepPrecision::Precise =>
+                {
+                    Some((duration, SleepPrecision::Precise))
+                }
+                Some(existing) => Some(existing),
+            };
+        }
+        drop(sleepers);
+        best
+    }
+
+    fn take_due(&self) -> Vec<SleepingCoroutine> {
+        let now = Instant::now();
+        let mut sleepers = self.lock();
+        let mut due = Vec::new();
+        let mut index = 0;
+        while index < sleepers.len() {
+            if sleepers[index].wake_time.is_some_and(|wake| wake <= now) {
+                due.push(sleepers.swap_remove(index));
+            } else {
+                index += 1;
+            }
+        }
+        drop(sleepers);
+        due
+    }
+}
 
 const SAFE_WRAPPERS: &str = r"
 local raw_pcall = pcall
@@ -57,6 +159,31 @@ coroutine.wrap = function(fn)
         end
         return raw_unpack(results, 2, results.n)
     end
+end
+";
+
+const SLEEP_WRAPPERS: &str = r"
+local raw_yield = coroutine.yield
+local isyieldable = coroutine.isyieldable
+local block_sleep = __smu_block_sleep
+local schedule_sleep = __smu_schedule_sleep
+_G.__smu_block_sleep = nil
+_G.__smu_schedule_sleep = nil
+
+sleep = function(value)
+    if isyieldable() then
+        schedule_sleep(value, false)
+        return raw_yield()
+    end
+    return block_sleep(value, false)
+end
+
+sleepMicros = function(value)
+    if isyieldable() then
+        schedule_sleep(value, true)
+        return raw_yield()
+    end
+    return block_sleep(value, true)
 end
 ";
 
@@ -305,11 +432,17 @@ pub enum LuaExecutionErrorKind {
 pub struct LuaExecutionError {
     pub kind: LuaExecutionErrorKind,
     pub message: String,
+    pub during_coroutine_resume: bool,
 }
 
 impl LuaExecutionError {
     fn new(kind: LuaExecutionErrorKind, message: impl Into<String>) -> Self {
-        Self { kind, message: message.into() }
+        Self { kind, message: message.into(), during_coroutine_resume: false }
+    }
+
+    const fn during_coroutine_resume(mut self) -> Self {
+        self.during_coroutine_resume = true;
+        self
     }
 }
 
@@ -418,28 +551,6 @@ fn install_foundation_api(lua: &Lua, state: &Arc<ExecutionState>) -> mlua::Resul
         })?,
     )?;
 
-    let sleep_state = Arc::clone(state);
-    globals.set(
-        "sleep",
-        lua.create_function(move |lua, value: Value| {
-            sleep_state.check_deadline()?;
-            let millis = checked_integer(lua, value, 0, i64::MAX, "sleep duration")?;
-            sleep_state
-                .wait_coarse(Duration::from_millis(u64::try_from(millis).unwrap_or(u64::MAX)))
-        })?,
-    )?;
-
-    let sleep_micros_state = Arc::clone(state);
-    globals.set(
-        "sleepMicros",
-        lua.create_function(move |lua, value: Value| {
-            sleep_micros_state.check_deadline()?;
-            let micros = checked_integer(lua, value, 0, MAX_SINGLE_SLEEP_MICROS, "sleep duration")?;
-            sleep_micros_state
-                .wait_precise(Duration::from_micros(u64::try_from(micros).unwrap_or_default()))
-        })?,
-    )?;
-
     let until_state = Arc::clone(state);
     globals.set(
         "sleepUntilCancelled",
@@ -460,6 +571,61 @@ fn install_foundation_api(lua: &Lua, state: &Arc<ExecutionState>) -> mlua::Resul
     Ok(())
 }
 
+fn install_sleep_api(
+    lua: &Lua,
+    state: &Arc<ExecutionState>,
+    sleep_scheduler: &Arc<CoroutineSleepScheduler>,
+) -> mlua::Result<()> {
+    let globals = lua.globals();
+    let block_sleep_state = Arc::clone(state);
+    globals.set(
+        "__smu_block_sleep",
+        lua.create_function(move |lua, (value, precise): (Value, bool)| {
+            block_sleep_state.check_deadline()?;
+            let duration = if precise {
+                let micros =
+                    checked_integer(lua, value, 0, MAX_SINGLE_SLEEP_MICROS, "sleep duration")?;
+                Duration::from_micros(u64::try_from(micros).unwrap_or_default())
+            } else {
+                let millis = checked_integer(lua, value, 0, i64::MAX, "sleep duration")?;
+                Duration::from_millis(u64::try_from(millis).unwrap_or(u64::MAX))
+            };
+            if precise {
+                block_sleep_state.wait_precise(duration)
+            } else {
+                block_sleep_state.wait_coarse(duration)
+            }
+        })?,
+    )?;
+
+    let schedule_sleep_state = Arc::clone(state);
+    let scheduler = Arc::clone(sleep_scheduler);
+    globals.set(
+        "__smu_schedule_sleep",
+        lua.create_function(move |lua, (value, precise): (Value, bool)| {
+            schedule_sleep_state.check_deadline()?;
+            let (duration, precision) = if precise {
+                let micros =
+                    checked_integer(lua, value, 0, MAX_SINGLE_SLEEP_MICROS, "sleep duration")?;
+                (
+                    Duration::from_micros(u64::try_from(micros).unwrap_or_default()),
+                    SleepPrecision::Precise,
+                )
+            } else {
+                let millis = checked_integer(lua, value, 0, i64::MAX, "sleep duration")?;
+                (
+                    Duration::from_millis(u64::try_from(millis).unwrap_or(u64::MAX)),
+                    SleepPrecision::Coarse,
+                )
+            };
+            scheduler.schedule(lua.current_thread(), duration, precision);
+            Ok(())
+        })?,
+    )?;
+
+    lua.load(SLEEP_WRAPPERS).set_name("=smu-sleep-wrappers").exec()
+}
+
 fn restrict_base_library(lua: &Lua) -> mlua::Result<()> {
     let globals = lua.globals();
     for name in ["dofile", "loadfile", "load", "collectgarbage"] {
@@ -475,6 +641,7 @@ fn install_safe_wrappers(lua: &Lua) -> mlua::Result<()> {
 pub struct LuaScriptVm {
     pub(crate) lua: Lua,
     pub(crate) state: Arc<ExecutionState>,
+    sleep_scheduler: Arc<CoroutineSleepScheduler>,
     memory_limit_bytes: usize,
 }
 
@@ -510,6 +677,7 @@ impl LuaScriptVm {
         })?;
 
         let state = Arc::new(ExecutionState::default());
+        let sleep_scheduler = Arc::new(CoroutineSleepScheduler::default());
         let hook_state = Arc::clone(&state);
         lua.set_global_hook(
             HookTriggers::new().every_nth_instruction(LUA_HOOK_INSTRUCTION_COUNT),
@@ -525,11 +693,66 @@ impl LuaScriptVm {
         install_foundation_api(&lua, &state).map_err(|error| {
             LuaExecutionError::new(LuaExecutionErrorKind::Initialization, error.to_string())
         })?;
+        install_sleep_api(&lua, &state, &sleep_scheduler).map_err(|error| {
+            LuaExecutionError::new(LuaExecutionErrorKind::Initialization, error.to_string())
+        })?;
         install_safe_wrappers(&lua).map_err(|error| {
             LuaExecutionError::new(LuaExecutionErrorKind::Initialization, error.to_string())
         })?;
 
-        Ok(Self { lua, state, memory_limit_bytes })
+        Ok(Self { lua, state, sleep_scheduler, memory_limit_bytes })
+    }
+
+    fn drain_sleeping_coroutines(&self) -> Result<(), LuaExecutionError> {
+        while !self.sleep_scheduler.is_empty() {
+            let Some((duration, precision)) = self.sleep_scheduler.next_wait() else {
+                break;
+            };
+            let wait_result = if precision == SleepPrecision::Precise {
+                self.state.wait_precise(duration)
+            } else {
+                self.state.wait_coarse(duration)
+            };
+            if let Err(error) = wait_result {
+                self.sleep_scheduler.clear();
+                return Err(map_lua_error(error, self.state.reason()).during_coroutine_resume());
+            }
+
+            for sleeper in self.sleep_scheduler.take_due() {
+                if sleeper.thread.status() != ThreadStatus::Resumable {
+                    continue;
+                }
+                if let Err(error) = sleeper.thread.resume::<MultiValue>(()) {
+                    self.sleep_scheduler.clear();
+                    return Err(map_lua_error(error, self.state.reason()).during_coroutine_resume());
+                }
+                if self.state.reason() != ScriptStopReason::None {
+                    self.sleep_scheduler.clear();
+                    return Err(map_lua_error(
+                        LuaError::RuntimeError(self.state.reason().message().to_owned()),
+                        self.state.reason(),
+                    )
+                    .during_coroutine_resume());
+                }
+                if sleeper.thread.status() == ThreadStatus::Resumable
+                    && !self.sleep_scheduler.contains(&sleeper.thread)
+                {
+                    self.sleep_scheduler.schedule(
+                        sleeper.thread,
+                        Duration::ZERO,
+                        sleeper.precision,
+                    );
+                }
+            }
+
+            if !self.sleep_scheduler.is_empty()
+                && let Err(error) = self.state.pause()
+            {
+                self.sleep_scheduler.clear();
+                return Err(map_lua_error(error, self.state.reason()).during_coroutine_resume());
+            }
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -631,10 +854,32 @@ impl LuaScriptVm {
         limit: Duration,
         started: impl FnOnce(),
     ) -> Result<(), LuaExecutionError> {
-        self.run_budgeted_with_started(limit, started, |lua| {
-            let function = lua.globals().get::<mlua::Function>(name)?;
-            function.call::<()>(())
-        })
+        self.sleep_scheduler.clear();
+        self.state.begin(limit);
+        started();
+        let call_result = self
+            .lua
+            .globals()
+            .get::<mlua::Function>(name)
+            .and_then(|function| function.call::<()>(()));
+        if let Err(error) = call_result {
+            self.state.finish();
+            let reason = self.state.reason();
+            self.sleep_scheduler.clear();
+            return Err(map_lua_error(error, reason));
+        }
+
+        let drain_result = self.drain_sleeping_coroutines();
+        self.state.finish();
+        let reason = self.state.reason();
+        self.sleep_scheduler.clear();
+        match drain_result {
+            Err(error) => Err(error),
+            Ok(()) if reason == ScriptStopReason::None => Ok(()),
+            Ok(()) => {
+                Err(map_lua_error(LuaError::RuntimeError(reason.message().to_owned()), reason))
+            }
+        }
     }
 
     /// Call a global Lua function with no arguments.
@@ -787,6 +1032,73 @@ mod tests {
             .eval::<i64>("return elapsed", Duration::from_secs(1))
             .expect("elapsed value should exist");
         assert!(elapsed >= 10_000);
+    }
+
+    #[test]
+    fn coroutine_sleep_yields_then_host_drains_before_onexecute_returns() {
+        let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
+        vm.execute_source(
+            "events={}; function onExecute() local co=coroutine.create(function() table.insert(events, 'before'); sleep(5); table.insert(events, 'after') end); assert(coroutine.resume(co)); table.insert(events, 'main') end",
+            "coroutine-sleep.lua",
+        )
+        .expect("script should load");
+
+        vm.call_no_args_with_started("onExecute", Duration::from_secs(1), || {})
+            .expect("host should drain sleeping coroutine");
+        let events = vm
+            .eval::<String>("return table.concat(events, ',')", Duration::from_secs(1))
+            .expect("events should be readable");
+        assert_eq!(events, "before,main,after");
+    }
+
+    #[test]
+    fn scheduling_coroutine_sleep_does_not_pause_main_onexecute_budget() {
+        let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
+        vm.execute_source(
+            "function onExecute() local co=coroutine.create(function() sleep(1000) end); assert(coroutine.resume(co)); while true do end end",
+            "coroutine-main-timeout.lua",
+        )
+        .expect("script should load");
+
+        let error = vm
+            .call_no_args_with_started("onExecute", Duration::from_millis(10), || {})
+            .expect_err("main onExecute must still time out after scheduling coroutine sleep");
+        assert_eq!(error.kind, LuaExecutionErrorKind::Timeout);
+        assert!(!error.during_coroutine_resume);
+    }
+
+    #[test]
+    fn coroutine_sleep_resume_failure_is_distinguished_from_onexecute_failure() {
+        let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
+        vm.execute_source(
+            "function onExecute() local co=coroutine.create(function() sleep(1); error('resume boom') end); assert(coroutine.resume(co)) end",
+            "coroutine-resume-error.lua",
+        )
+        .expect("script should load");
+
+        let error = vm
+            .call_no_args_with_started("onExecute", Duration::from_secs(1), || {})
+            .expect_err("resume failure should fail onExecute");
+        assert_eq!(error.kind, LuaExecutionErrorKind::Runtime);
+        assert!(error.during_coroutine_resume);
+        assert!(error.message.contains("resume boom"));
+    }
+
+    #[test]
+    fn coroutine_manual_yield_after_sleep_is_resumed_again_like_cpp() {
+        let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
+        vm.execute_source(
+            "events={}; function onExecute() local co=coroutine.create(function() sleep(1); table.insert(events, 'after-sleep'); coroutine.yield(); table.insert(events, 'after-yield') end); assert(coroutine.resume(co)) end",
+            "coroutine-manual-yield.lua",
+        )
+        .expect("script should load");
+
+        vm.call_no_args_with_started("onExecute", Duration::from_secs(1), || {})
+            .expect("manual yield should be resumed on next drain pass");
+        let events = vm
+            .eval::<String>("return table.concat(events, ',')", Duration::from_secs(1))
+            .expect("events should be readable");
+        assert_eq!(events, "after-sleep,after-yield");
     }
 
     #[test]

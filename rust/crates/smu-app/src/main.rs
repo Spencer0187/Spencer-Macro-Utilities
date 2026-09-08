@@ -161,7 +161,7 @@ fn roblox_log_source_factory() -> RobloxLogSourceFactory {
 }
 
 fn script_log_sink() -> Arc<dyn ScriptLogSink> {
-    Arc::new(script_logging::AppScriptLogger::default())
+    script_logging::script_sink()
 }
 #[cfg(target_os = "macos")]
 const GLSL_VERSION: &str = "#version 150";
@@ -2803,6 +2803,9 @@ fn prepare_shared_shell_frame(
     script_app: &ScriptAppServices,
     shell_state: &mut shell::ShellState,
 ) {
+    for warning in script_logging::drain_warnings() {
+        shell_state.push_warning(warning);
+    }
     profile_service.prepare_shell(shell_state.profile_browser_mut());
     #[cfg(target_os = "windows")]
     smu_input::windows::set_display_scale_percent(shell_state.display_scale());

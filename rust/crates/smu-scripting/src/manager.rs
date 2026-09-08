@@ -280,6 +280,18 @@ impl ScriptManager {
         Self { config, services, process_target, scripts: Mutex::new(Vec::new()) }
     }
 
+    fn log_info(&self, message: &str) {
+        if let Some(logger) = &self.services.logger {
+            logger.log_info(message.as_bytes());
+        }
+    }
+
+    fn log_warning(&self, message: &str) {
+        if let Some(logger) = &self.services.logger {
+            logger.log_warning(message.as_bytes());
+        }
+    }
+
     #[must_use]
     pub fn count(&self) -> usize {
         lock(&self.scripts).len()
@@ -344,6 +356,10 @@ impl ScriptManager {
     pub fn import_script_with_result(&self, path: &Path) -> ScriptImportResult {
         let normalized = Self::normalize_path(path);
         if !is_supported_script_extension(&normalized) {
+            self.log_warning(&format!(
+                "Rejected imported script with unsupported extension: {}",
+                normalized.to_string_lossy()
+            ));
             return ScriptImportResult::UnsupportedExtension;
         }
 
@@ -356,6 +372,10 @@ impl ScriptManager {
         {
             let mut scripts = lock(&self.scripts);
             if Self::is_duplicate_path_locked(&scripts, record.path()) {
+                self.log_warning(&format!(
+                    "Script is already imported: {}",
+                    record.path().to_string_lossy()
+                ));
                 return ScriptImportResult::AlreadyImported;
             }
             scripts.push(Arc::clone(&record));
@@ -601,7 +621,10 @@ impl ScriptManager {
         true
     }
 
-    fn execute_record(record: &Arc<ScriptRecord>) -> bool {
+    fn execute_record(
+        record: &Arc<ScriptRecord>,
+        logger: Option<&Arc<dyn crate::ScriptLogSink>>,
+    ) -> bool {
         let _active = ActiveGuard { active: &record.active, running: &record.running };
         let (result, diagnostics) = {
             let mut instance_guard = lock(&record.instance);
@@ -619,6 +642,9 @@ impl ScriptManager {
         result.map_or_else(
             |_| {
                 record.set_last_error("Script execution failed with an unknown Rust panic.");
+                if let Some(logger) = &logger {
+                    logger.log_warning(b"Script execution failed with an unknown Rust panic.");
+                }
                 false
             },
             |result| result.is_ok(),
@@ -632,7 +658,7 @@ impl ScriptManager {
         if !Self::begin_execute(&record) {
             return false;
         }
-        Self::execute_record(&record)
+        Self::execute_record(&record, self.services.logger.as_ref())
     }
 
     /// Launch one named script worker. Different records can execute concurrently, while a second
@@ -646,8 +672,9 @@ impl ScriptManager {
             return false;
         }
         let worker_record = Arc::clone(&record);
+        let logger = self.services.logger.clone();
         let worker = std::thread::spawn(move || {
-            let _ = Self::execute_record(&worker_record);
+            let _ = Self::execute_record(&worker_record, logger.as_ref());
         });
         *lock(&record.worker) = Some(worker);
         true
@@ -664,6 +691,10 @@ impl ScriptManager {
         let Some(handle) = handle else {
             return false;
         };
+        self.log_info(&format!(
+            "Imported script cancel requested via Force Stop: {}",
+            record.metadata().name
+        ));
         handle.request_cancel();
         true
     }
@@ -857,6 +888,9 @@ impl ScriptManager {
         {
             let mut scripts = lock(&self.scripts);
             if scripts.iter().any(|record| record.is_active()) {
+                self.log_warning(
+                    "Imported script was still running during script manager shutdown; keeping it alive until it finishes.",
+                );
                 let mut index = 0;
                 while index < scripts.len() {
                     if scripts[index].is_active() {
@@ -924,6 +958,39 @@ mod tests {
         ScriptManager::new(ScriptManagerConfig::new("3.4.0"), ScriptServices::default())
     }
 
+    #[derive(Debug, Default)]
+    struct RecordingLogger {
+        info: Mutex<Vec<String>>,
+        warnings: Mutex<Vec<String>>,
+    }
+
+    impl RecordingLogger {
+        fn info(&self) -> Vec<String> {
+            lock(&self.info).clone()
+        }
+
+        fn warnings(&self) -> Vec<String> {
+            lock(&self.warnings).clone()
+        }
+    }
+
+    impl crate::ScriptLogSink for RecordingLogger {
+        fn log_info(&self, message: &[u8]) {
+            lock(&self.info).push(String::from_utf8_lossy(message).into_owned());
+        }
+
+        fn log_warning(&self, message: &[u8]) {
+            lock(&self.warnings).push(String::from_utf8_lossy(message).into_owned());
+        }
+    }
+
+    fn manager_with_logger(logger: Arc<RecordingLogger>) -> ScriptManager {
+        ScriptManager::new(
+            ScriptManagerConfig::new("3.4.0"),
+            ScriptServices { logger: Some(logger), ..ScriptServices::default() },
+        )
+    }
+
     fn wait_until(predicate: impl Fn() -> bool) -> bool {
         let deadline = Instant::now() + Duration::from_secs(2);
         while Instant::now() < deadline {
@@ -975,7 +1042,8 @@ mod tests {
         let directory = temp_dir("duplicate");
         let path = write_script(&directory, "a.lua", "function onExecute() end");
         let unsupported = write_script(&directory, "a.json", "{}");
-        let manager = manager();
+        let logger = Arc::new(RecordingLogger::default());
+        let manager = manager_with_logger(logger.clone());
         assert_eq!(
             manager.import_script_with_result(&unsupported),
             ScriptImportResult::UnsupportedExtension
@@ -983,6 +1051,10 @@ mod tests {
         assert_eq!(manager.import_script_with_result(&path), ScriptImportResult::Success);
         let alias = directory.join("sub").join("..").join("a.lua");
         assert_eq!(manager.import_script_with_result(&alias), ScriptImportResult::AlreadyImported);
+        let warnings = logger.warnings();
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].starts_with("Rejected imported script with unsupported extension: "));
+        assert!(warnings[1].starts_with("Script is already imported: "));
         manager.shutdown();
         let _ = fs::remove_dir_all(directory);
     }
@@ -1142,13 +1214,18 @@ mod tests {
     fn force_stop_cancels_worker_without_waiting_for_instance_mutex() {
         let directory = temp_dir("stop");
         let path = write_script(&directory, "stop.lua", "function onExecute() sleep(5000) end");
-        let manager = manager();
+        let logger = Arc::new(RecordingLogger::default());
+        let manager = manager_with_logger(logger.clone());
         assert!(manager.import_script(&path));
         assert!(manager.spawn_execute_script(0));
         assert!(wait_until(|| manager.get(0).is_some_and(|record| record.is_running())));
         assert!(manager.force_stop_script(0));
         assert!(wait_until(|| manager.get(0).is_some_and(|record| !record.is_running())));
         assert!(manager.get(0).expect("record should remain").last_error().is_empty());
+        assert_eq!(
+            logger.info(),
+            vec!["Imported script cancel requested via Force Stop: stop".to_owned()]
+        );
         manager.shutdown();
         let _ = fs::remove_dir_all(directory);
     }

@@ -167,7 +167,11 @@ impl fmt::Debug for LuaScriptInstance {
 }
 
 fn initialization_error(error: impl fmt::Display) -> LuaExecutionError {
-    LuaExecutionError { kind: LuaExecutionErrorKind::Initialization, message: error.to_string() }
+    LuaExecutionError {
+        kind: LuaExecutionErrorKind::Initialization,
+        message: error.to_string(),
+        during_coroutine_resume: false,
+    }
 }
 
 fn cleanup_reason(error: Option<&LuaExecutionError>) -> ScriptCleanupReason {
@@ -252,8 +256,13 @@ impl LuaScriptInstance {
             services.process_control.clone(),
         )
         .map_err(initialization_error)?;
-        install_network_api(&vm, execution_context.clone(), services.network.clone())
-            .map_err(initialization_error)?;
+        install_network_api(
+            &vm,
+            execution_context.clone(),
+            services.network.clone(),
+            services.logger.clone(),
+        )
+        .map_err(initialization_error)?;
         install_roblox_log_api(
             &vm,
             execution_context.clone(),
@@ -350,6 +359,17 @@ impl LuaScriptInstance {
         {
             let error = normalize_load_error(error);
             self.diagnostics.last_error.clone_from(&error.message);
+            if !matches!(
+                error.kind,
+                LuaExecutionErrorKind::Syntax
+                    | LuaExecutionErrorKind::Memory
+                    | LuaExecutionErrorKind::Initialization
+            ) {
+                self.log_warning(&format!(
+                    "Imported script failed during load script: {}",
+                    error.message
+                ));
+            }
             return Err(error);
         }
 
@@ -363,12 +383,17 @@ impl LuaScriptInstance {
             )
         {
             self.diagnostics.last_error.clone_from(&error.message);
+            self.log_warning(&format!(
+                "Imported script failed during onSettings: {}",
+                error.message
+            ));
         }
 
         if !self.vm.has_function("onExecute") {
             let error = LuaExecutionError {
                 kind: LuaExecutionErrorKind::Runtime,
                 message: MISSING_EXECUTE_ERROR.to_owned(),
+                during_coroutine_resume: false,
             };
             self.diagnostics.last_error.clone_from(&error.message);
             return Err(error);
@@ -414,22 +439,42 @@ impl LuaScriptInstance {
         self.diagnostics.running = true;
         self.diagnostics.last_warning.clear();
         self.execution_context.clear_lag_switch_diagnostics();
-        let result = if self.vm.has_function("onExecute") {
+        let has_execute_callback = self.vm.has_function("onExecute");
+        let result = if has_execute_callback {
             self.vm.call_no_args_with_started("onExecute", MAX_SCRIPT_RUNTIME, started)
         } else {
             started();
             Err(LuaExecutionError {
                 kind: LuaExecutionErrorKind::Runtime,
                 message: MISSING_EXECUTE_ERROR.to_owned(),
+                during_coroutine_resume: false,
             })
         };
 
         match &result {
-            Ok(()) => self.diagnostics.last_error = self.execution_context.lag_switch_error(),
-            Err(error) if error.kind == LuaExecutionErrorKind::Cancelled => {
+            Ok(()) => {
+                self.diagnostics.last_error = self.execution_context.lag_switch_error();
+            }
+            Err(error)
+                if error.kind == LuaExecutionErrorKind::Cancelled
+                    && !error.during_coroutine_resume =>
+            {
                 self.diagnostics.last_error.clear();
             }
-            Err(error) => self.diagnostics.last_error.clone_from(&error.message),
+            Err(error) => {
+                self.diagnostics.last_error.clone_from(&error.message);
+                if error.during_coroutine_resume {
+                    self.log_warning(&format!(
+                        "Imported script failed during coroutine sleep resume: {}",
+                        error.message
+                    ));
+                } else if has_execute_callback {
+                    self.log_warning(&format!(
+                        "Imported script failed during run onExecute: {}",
+                        error.message
+                    ));
+                }
+            }
         }
         self.diagnostics.last_warning = self.execution_context.lag_switch_warning();
 
@@ -452,6 +497,10 @@ impl LuaScriptInstance {
         );
         if let Err(error) = &result {
             self.diagnostics.last_error.clone_from(&error.message);
+            self.log_warning(&format!(
+                "Imported script failed during onSettings: {}",
+                error.message
+            ));
         }
         result
     }
@@ -498,8 +547,19 @@ impl LuaScriptInstance {
             Ok(()) => self.diagnostics.last_cleanup_warning.clear(),
             Err(error) => {
                 self.diagnostics.last_cleanup_warning =
-                    format!("Imported script failed during onCleanup: {}", error.message);
+                    if error.kind == LuaExecutionErrorKind::Timeout {
+                        "Imported script onCleanup timed out.".to_owned()
+                    } else {
+                        format!("Imported script failed during onCleanup: {}", error.message)
+                    };
+                self.log_warning(&self.diagnostics.last_cleanup_warning.clone());
             }
+        }
+    }
+
+    fn log_warning(&self, message: &str) {
+        if let Some(logger) = &self.services.logger {
+            logger.log_warning(message.as_bytes());
         }
     }
 
@@ -731,6 +791,13 @@ mod tests {
     fn instance_with_network(
         network: Arc<FakeNetwork>,
     ) -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
+        instance_with_network_and_logger(network, None)
+    }
+
+    fn instance_with_network_and_logger(
+        network: Arc<FakeNetwork>,
+        logger: Option<Arc<dyn ScriptLogSink>>,
+    ) -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
         let input = Arc::new(FakeInput::default());
         let process = Arc::new(FakeProcessControl::default());
         let services = ScriptServices {
@@ -738,6 +805,7 @@ mod tests {
             process_discovery: Some(Arc::new(FakeDiscovery)),
             process_control: Some(process.clone()),
             network: Some(network.clone()),
+            logger,
             ..ScriptServices::default()
         };
         let mut config = ScriptInstanceConfig::new("3.4.0");
@@ -750,6 +818,28 @@ mod tests {
     fn instance_with_services()
     -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
         instance_with_network(Arc::new(FakeNetwork::default()))
+    }
+
+    #[derive(Debug, Default)]
+    struct RecordingLogger {
+        warnings: Mutex<Vec<String>>,
+    }
+
+    impl RecordingLogger {
+        fn warnings(&self) -> Vec<String> {
+            self.warnings.lock().expect("warning log lock").clone()
+        }
+    }
+
+    impl ScriptLogSink for RecordingLogger {
+        fn log_info(&self, _message: &[u8]) {}
+
+        fn log_warning(&self, message: &[u8]) {
+            self.warnings
+                .lock()
+                .expect("warning log lock")
+                .push(String::from_utf8_lossy(message).into_owned());
+        }
     }
 
     #[derive(Debug)]
@@ -798,6 +888,57 @@ mod tests {
     }
 
     #[test]
+    fn execution_settings_and_cleanup_failures_publish_cpp_warning_text() {
+        let logger = Arc::new(RecordingLogger::default());
+        let services = ScriptServices { logger: Some(logger.clone()), ..ScriptServices::default() };
+        let mut instance = LuaScriptInstance::new(ScriptInstanceConfig::new("3.4.0"), services)
+            .expect("instance should initialize");
+        instance
+            .load_source(
+                b"function onSettings() error('settings boom') end; function onExecute() error('execute boom') end; function onCleanup() error('cleanup boom') end",
+                "warnings.lua",
+            )
+            .expect("settings failure should not make load fail");
+        instance.call_settings(true).expect_err("settings callback should fail");
+        instance.execute().expect_err("execute callback should fail");
+
+        let warnings = logger.warnings();
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("Imported script failed during onSettings:")
+                && warning.contains("settings boom")
+        }));
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("Imported script failed during run onExecute:")
+                && warning.contains("execute boom")
+        }));
+        assert!(warnings.iter().any(|warning| {
+            warning.contains("Imported script failed during onCleanup:")
+                && warning.contains("cleanup boom")
+        }));
+    }
+
+    #[test]
+    fn coroutine_sleep_resume_failure_publishes_cpp_warning_context() {
+        let logger = Arc::new(RecordingLogger::default());
+        let services = ScriptServices { logger: Some(logger.clone()), ..ScriptServices::default() };
+        let mut instance = LuaScriptInstance::new(ScriptInstanceConfig::new("3.4.0"), services)
+            .expect("instance should initialize");
+        instance
+            .load_source(
+                b"function onExecute() local co=coroutine.create(function() sleep(1); error('resume boom') end); assert(coroutine.resume(co)) end",
+                "coroutine-warning.lua",
+            )
+            .expect("script should load");
+
+        let error = instance.execute().expect_err("resume failure should fail execution");
+        assert!(error.during_coroutine_resume);
+        let warnings = logger.warnings();
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].starts_with("Imported script failed during coroutine sleep resume: "));
+        assert!(warnings[0].contains("resume boom"));
+    }
+
+    #[test]
     fn load_runs_settings_then_requires_on_execute() {
         let (mut instance, _, _, _) = instance_with_services();
         instance
@@ -816,12 +957,16 @@ mod tests {
             1
         );
 
-        let (mut missing, _, _, _) = instance_with_services();
+        let logger = Arc::new(RecordingLogger::default());
+        let services = ScriptServices { logger: Some(logger.clone()), ..ScriptServices::default() };
+        let mut missing = LuaScriptInstance::new(ScriptInstanceConfig::new("3.4.0"), services)
+            .expect("missing callback instance should initialize");
         let error = missing
             .load_source(b"function onSettings() settings.x=true end", "missing.lua")
             .expect_err("missing onExecute should fail manager compatibility gate");
         assert_eq!(error.message, MISSING_EXECUTE_ERROR);
         assert!(!missing.diagnostics().loaded);
+        assert!(logger.warnings().is_empty());
     }
 
     #[test]
@@ -902,7 +1047,9 @@ mod tests {
         let network = Arc::new(FakeNetwork::cold_failure(
             LagSwitchInitializationFailure::RequiresAdministrator,
         ));
-        let (mut instance, _, _, _) = instance_with_network(network);
+        let logger = Arc::new(RecordingLogger::default());
+        let (mut instance, _, _, _) =
+            instance_with_network_and_logger(network, Some(logger.clone()));
         instance
             .load_source(b"function onExecute() lagSwitch(true) end", "lag-admin.lua")
             .expect("script should load");
@@ -913,6 +1060,10 @@ mod tests {
             instance.diagnostics().last_warning,
             crate::network_api::LAG_SWITCH_REQUIRES_ADMIN_WARNING
         );
+        assert_eq!(
+            logger.warnings(),
+            vec![crate::network_api::LAG_SWITCH_REQUIRES_ADMIN_WARNING.to_owned()]
+        );
         assert!(instance.diagnostics().last_error.is_empty());
     }
 
@@ -921,7 +1072,9 @@ mod tests {
         let network = Arc::new(FakeNetwork::cold_failure(LagSwitchInitializationFailure::Error(
             "driver probe failed".to_owned(),
         )));
-        let (mut instance, _, _, _) = instance_with_network(network);
+        let logger = Arc::new(RecordingLogger::default());
+        let (mut instance, _, _, _) =
+            instance_with_network_and_logger(network, Some(logger.clone()));
         instance
             .load_source(b"function onExecute() lagSwitch(true) end", "lag-error.lua")
             .expect("script should load");
@@ -929,6 +1082,7 @@ mod tests {
         instance.execute().expect("lag-switch init errors remain non-throwing like C++");
 
         assert_eq!(instance.diagnostics().last_error, "driver probe failed");
+        assert_eq!(logger.warnings(), vec!["driver probe failed".to_owned()]);
         assert!(instance.diagnostics().last_warning.is_empty());
     }
 

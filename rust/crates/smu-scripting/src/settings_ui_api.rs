@@ -1005,6 +1005,7 @@ pub fn call_on_settings(
         return Err(LuaExecutionError {
             kind: crate::LuaExecutionErrorKind::Runtime,
             message: error.to_string(),
+            during_coroutine_resume: false,
         });
     }
     result.map(|()| true)

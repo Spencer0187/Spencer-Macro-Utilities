@@ -14,6 +14,8 @@ const SCRIPT_LOG_PREFIX: &[u8] = b"[script] ";
 /// Log sink kept outside the Lua VM so application logging remains a service concern.
 pub trait ScriptLogSink: Send + Sync {
     fn log_info(&self, message: &[u8]);
+
+    fn log_warning(&self, _message: &[u8]) {}
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

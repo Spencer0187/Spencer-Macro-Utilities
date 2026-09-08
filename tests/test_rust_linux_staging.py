@@ -524,8 +524,12 @@ class RustLinuxStagingTest(unittest.TestCase):
             "localtime_r",
             "GetLocalTime",
             "OutputDebugStringA",
+            "pub fn drain_warnings() -> Vec<String>",
+            "fn log_warning(&self, message: &[u8])",
         ):
             self.assertIn(expected, script_logging)
+        self.assertIn("for warning in script_logging::drain_warnings()", main)
+        self.assertIn("shell_state.push_warning(warning);", main)
         self.assertIn(
             '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn controller_settings(',
             lag_switch,

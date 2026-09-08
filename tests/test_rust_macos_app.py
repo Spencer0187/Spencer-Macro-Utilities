@@ -156,6 +156,8 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             "fn roblox_log_source_factory() -> RobloxLogSourceFactory",
             "roblox_log_factory: Some(roblox_log_source_factory())",
             "logger: Some(script_log_sink())",
+            "for warning in script_logging::drain_warnings()",
+            "shell_state.push_warning(warning);",
         ):
             self.assertIn(expected, main)
         for expected in (

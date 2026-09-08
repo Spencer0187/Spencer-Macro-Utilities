@@ -3,15 +3,33 @@ use std::collections::VecDeque;
 use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, OnceLock};
 
 const MAX_LOG_ENTRIES: usize = 512;
 const DEFAULT_LOG_FILENAME: &str = "SMC.log";
 const FALLBACK_TIMESTAMP: &str = "1970-01-01 00:00:00";
 
+static APP_SCRIPT_LOGGER: OnceLock<Arc<AppScriptLogger>> = OnceLock::new();
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AppLogLevel {
+    Info,
+    Warning,
+}
+
+impl AppLogLevel {
+    const fn name(self) -> &'static [u8] {
+        match self {
+            Self::Info => b"INFO",
+            Self::Warning => b"WARN",
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 struct LogState {
     entries: VecDeque<Vec<u8>>,
+    warnings: VecDeque<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -26,12 +44,27 @@ impl Default for AppScriptLogger {
     fn default() -> Self {
         let env_debug = debug_logging_enabled();
         Self {
-            state: Mutex::new(LogState { entries: VecDeque::with_capacity(MAX_LOG_ENTRIES) }),
+            state: Mutex::new(LogState {
+                entries: VecDeque::with_capacity(MAX_LOG_ENTRIES),
+                warnings: VecDeque::with_capacity(MAX_LOG_ENTRIES),
+            }),
             console_logging_enabled: cfg!(debug_assertions) || env_debug,
             file_logging_enabled: env_debug,
             file_path: default_log_path(),
         }
     }
+}
+
+pub fn shared() -> Arc<AppScriptLogger> {
+    Arc::clone(APP_SCRIPT_LOGGER.get_or_init(|| Arc::new(AppScriptLogger::default())))
+}
+
+pub fn script_sink() -> Arc<dyn ScriptLogSink> {
+    shared()
+}
+
+pub fn drain_warnings() -> Vec<String> {
+    shared().drain_warnings()
 }
 
 impl AppScriptLogger {
@@ -42,11 +75,35 @@ impl AppScriptLogger {
         file_path: PathBuf,
     ) -> Self {
         Self {
-            state: Mutex::new(LogState { entries: VecDeque::with_capacity(MAX_LOG_ENTRIES) }),
+            state: Mutex::new(LogState {
+                entries: VecDeque::with_capacity(MAX_LOG_ENTRIES),
+                warnings: VecDeque::with_capacity(MAX_LOG_ENTRIES),
+            }),
             console_logging_enabled,
             file_logging_enabled,
             file_path,
         }
+    }
+
+    pub fn drain_warnings(&self) -> Vec<String> {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        state
+            .warnings
+            .drain(..)
+            .map(|message| String::from_utf8_lossy(&message).into_owned())
+            .collect()
+    }
+
+    fn log(&self, level: AppLogLevel, message: &[u8]) {
+        let formatted = format_entry(level, message);
+        self.retain_and_append_debug_file(level, message, &formatted);
+
+        if self.console_logging_enabled {
+            let stdout = io::stdout();
+            let mut stdout = stdout.lock();
+            let _ = write_formatted_line(&mut stdout, &formatted);
+        }
+        write_windows_debug_line(&formatted);
     }
 
     #[cfg(test)]
@@ -61,12 +118,18 @@ impl AppScriptLogger {
     }
 
     #[allow(clippy::significant_drop_tightening)]
-    fn retain_and_append_debug_file(&self, message: &[u8], formatted: &[u8]) {
+    fn retain_and_append_debug_file(&self, level: AppLogLevel, message: &[u8], formatted: &[u8]) {
         let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         if state.entries.len() >= MAX_LOG_ENTRIES {
             state.entries.pop_front();
         }
         state.entries.push_back(message.to_vec());
+        if level == AppLogLevel::Warning {
+            if state.warnings.len() >= MAX_LOG_ENTRIES {
+                state.warnings.pop_front();
+            }
+            state.warnings.push_back(message.to_vec());
+        }
 
         // Match the C++ logger's single-mutex ordering: the retained history and optional SMC.log append
         // are committed under one lock, so concurrent scripts cannot reorder the file relative to the ring.
@@ -80,15 +143,11 @@ impl AppScriptLogger {
 
 impl ScriptLogSink for AppScriptLogger {
     fn log_info(&self, message: &[u8]) {
-        let formatted = format_info_entry(message);
-        self.retain_and_append_debug_file(message, &formatted);
+        self.log(AppLogLevel::Info, message);
+    }
 
-        if self.console_logging_enabled {
-            let stdout = io::stdout();
-            let mut stdout = stdout.lock();
-            let _ = write_formatted_line(&mut stdout, &formatted);
-        }
-        write_windows_debug_line(&formatted);
+    fn log_warning(&self, message: &[u8]) {
+        self.log(AppLogLevel::Warning, message);
     }
 }
 
@@ -107,12 +166,15 @@ fn default_log_path() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(DEFAULT_LOG_FILENAME))
 }
 
-fn format_info_entry(message: &[u8]) -> Vec<u8> {
+fn format_entry(level: AppLogLevel, message: &[u8]) -> Vec<u8> {
     let timestamp = local_timestamp();
-    let mut formatted = Vec::with_capacity(timestamp.len() + b"[] [INFO] ".len() + message.len());
+    let mut formatted =
+        Vec::with_capacity(timestamp.len() + b"[] [] ".len() + level.name().len() + message.len());
     formatted.push(b'[');
     formatted.extend_from_slice(timestamp.as_bytes());
-    formatted.extend_from_slice(b"] [INFO] ");
+    formatted.extend_from_slice(b"] [");
+    formatted.extend_from_slice(level.name());
+    formatted.extend_from_slice(b"] ");
     formatted.extend_from_slice(message);
     formatted
 }
@@ -242,6 +304,37 @@ mod tests {
         let line = file.strip_suffix(b"\n").expect("debug log should end with newline");
         assert_eq!(payload_from_formatted_line(line), b"[script] hello\0world");
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn warnings_use_cpp_level_format_and_drain_once() {
+        let path = temp_log_path("warning");
+        let logger = AppScriptLogger::for_test(false, true, path.clone());
+        logger.log_warning(b"Imported script failed during onSettings: boom");
+
+        let file = fs::read(&path).expect("warning log should be readable");
+        let line = file.strip_suffix(b"\n").expect("warning log should end with newline");
+        assert_eq!(line.get(20..29), Some(b"] [WARN] ".as_slice()));
+        assert_eq!(&line[29..], b"Imported script failed during onSettings: boom");
+        assert_eq!(
+            logger.drain_warnings(),
+            vec!["Imported script failed during onSettings: boom".to_owned()]
+        );
+        assert!(logger.drain_warnings().is_empty());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn warning_queue_keeps_newest_cpp_sized_window() {
+        let logger = AppScriptLogger::for_test(false, false, PathBuf::new());
+        for index in 0..(MAX_LOG_ENTRIES + 3) {
+            logger.log_warning(format!("warning-{index}").as_bytes());
+        }
+        let warnings = logger.drain_warnings();
+        assert_eq!(warnings.len(), MAX_LOG_ENTRIES);
+        assert_eq!(warnings.first().map(String::as_str), Some("warning-3"));
+        let expected_last = format!("warning-{}", MAX_LOG_ENTRIES + 2);
+        assert_eq!(warnings.last().map(String::as_str), Some(expected_last.as_str()));
     }
 
     #[test]

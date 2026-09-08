@@ -353,9 +353,11 @@ fn install_toggle_api(
     lua: &Lua,
     context: &ScriptInputContext,
     backend: Option<&Arc<dyn LagSwitchControl>>,
+    logger: Option<&Arc<dyn crate::ScriptLogSink>>,
 ) -> mlua::Result<()> {
     let toggle_context = context.clone();
     let toggle_backend = backend.cloned();
+    let toggle_logger = logger.cloned();
     let function = lua.create_function(move |lua, (enabled, config): (Value, Option<Value>)| {
         check_settings_callback(&toggle_context, "lagSwitch")?;
         let enabled = !matches!(enabled, Value::Nil | Value::Boolean(false));
@@ -383,17 +385,29 @@ fn install_toggle_api(
                         LagSwitchInitializationFailure::RequiresAdministrator => {
                             toggle_context
                                 .set_lag_switch_warning(LAG_SWITCH_REQUIRES_ADMIN_WARNING);
+                            if let Some(logger) = &toggle_logger {
+                                logger.log_warning(LAG_SWITCH_REQUIRES_ADMIN_WARNING.as_bytes());
+                            }
                         }
                         LagSwitchInitializationFailure::RequiresHelper => {
                             toggle_context
                                 .set_lag_switch_warning(LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING);
+                            if let Some(logger) = &toggle_logger {
+                                logger.log_warning(
+                                    LAG_SWITCH_REQUIRES_LINUX_HELPER_WARNING.as_bytes(),
+                                );
+                            }
                         }
                         LagSwitchInitializationFailure::Error(message) => {
-                            toggle_context.set_lag_switch_error(if message.is_empty() {
+                            let message = if message.is_empty() {
                                 LAG_SWITCH_INITIALIZATION_ERROR.to_owned()
                             } else {
                                 message
-                            });
+                            };
+                            toggle_context.set_lag_switch_error(message.clone());
+                            if let Some(logger) = &toggle_logger {
+                                logger.log_warning(message.as_bytes());
+                            }
                         }
                     }
                     return Ok(());
@@ -503,11 +517,13 @@ pub fn install_network_api(
     vm: &LuaScriptVm,
     context: ScriptInputContext,
     backend: Option<Arc<dyn LagSwitchControl>>,
+    logger: Option<Arc<dyn crate::ScriptLogSink>>,
 ) -> Result<(), ScriptNetworkApiError> {
-    let resources = (context, backend);
+    let resources = (context, backend, logger);
     let context = &resources.0;
     let backend = resources.1.as_ref();
-    install_toggle_api(&vm.lua, context, backend)?;
+    let logger = resources.2.as_ref();
+    install_toggle_api(&vm.lua, context, backend, logger)?;
     install_config_api(&vm.lua, context, backend)?;
     install_status_api(&vm.lua, context, backend)?;
     Ok(())
@@ -630,7 +646,7 @@ mod tests {
     fn vm_with_backend(backend: Arc<FakeBackend>) -> (LuaScriptVm, ScriptInputContext) {
         let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
         let context = ScriptInputContext::default();
-        install_network_api(&vm, context.clone(), Some(backend))
+        install_network_api(&vm, context.clone(), Some(backend), None)
             .expect("network API should install");
         (vm, context)
     }
@@ -836,7 +852,7 @@ mod tests {
     fn missing_backend_keeps_default_read_and_noop_write_behavior() {
         let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
         let context = ScriptInputContext::default();
-        install_network_api(&vm, context, None)
+        install_network_api(&vm, context, None, None)
             .expect("network API should install without backend");
         vm.execute_source(
             "setLagSwitchConfig({fakeLag=true}); lagSwitch(true); clearLagSwitchConfig()",
