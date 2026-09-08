@@ -422,6 +422,61 @@ class RustWindowsStagingTest(unittest.TestCase):
         for feature in ("Win32_Graphics_Gdi", "Win32_System_LibraryLoader"):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_v340_suspend_filename_bridge_matches_cpp_one_release_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        migration = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "windows_legacy_filename.rs"
+        ).read_text(encoding="utf-8")
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        windows_sys = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"][
+            "windows-sys"
+        ]
+
+        self.assertEqual((ROOT / "version").read_text(encoding="utf-8"), "3.4.0\n")
+        for expected in (
+            'const VERSION_BYTES: &[u8] = include_bytes!("../../../../version")',
+            'const LEGACY_FILENAME: &str = "suspend.exe"',
+            'const V340_TARGET_FILENAME: &str = "Spencer-Macro-Utilities-V3.4.0-Windows.exe"',
+            "assert!(VERSION_BYTES[4] == b'0')",
+            "GetModuleFileNameW",
+            "FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE",
+            "GetFileSizeEx",
+            "ReadFile",
+            "CopyFileW",
+            "GetFileAttributesW",
+            "FILE_ATTRIBUTE_DIRECTORY",
+            "CREATE_NEW",
+            "FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_TEMPORARY",
+            "FlushFileBuffers",
+            "GetSystemDirectoryW",
+            '".smu-v3.4.0-filename-migration-{process_id}-{tick_count}.cmd"',
+            'MIGRATION_SCRIPT.contains("%SMU_SYSTEM%\\\\timeout.exe")',
+            '"SMU_DELETE_ATTEMPTS% GEQ 300"',
+            'MIGRATION_SCRIPT.contains("%SMU_SYSTEM%\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe")',
+            "CreateProcessW",
+            "CREATE_NO_WINDOW",
+            "delete_file_best_effort(&script_path)",
+            "delete_file_best_effort(&target_path)",
+            "Nothing was overwritten.",
+        ):
+            self.assertIn(expected, migration)
+        migration_call = "windows_legacy_filename::schedule_v340_legacy_filename_migration()"
+        timing_call = "windows_timing::WindowsTimingGuard::configure()"
+        self.assertIn(migration_call, main)
+        self.assertLess(main.index(migration_call), main.index(timing_call))
+        self.assertIn("if windows_legacy_filename::schedule_v340_legacy_filename_migration()", main)
+        self.assertIn("return Ok(());", main[main.index(migration_call) : main.index(timing_call)])
+        for feature in (
+            "Win32_Security",
+            "Win32_Storage_FileSystem",
+            "Win32_System_IO",
+        ):
+            self.assertIn(feature, windows_sys["features"])
+
     def test_windows_process_timing_policy_matches_cpp_timer_and_power_throttling_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

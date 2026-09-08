@@ -503,7 +503,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   fallback of 80% of the primary-screen width and writes that resolved X back into live state for later saves.
   The renderer privately registers the same packaged `LSANS.TTF` file with GDI, updates from the shared WinDivert
   enabled/blocking state each frame, and destroys both its window and private font registration during Lag Switch
-  shutdown. Windows startup now also mirrors the C++ process-wide timing policy: an RAII
+  shutdown. Windows startup now also carries the V3.4.0-only `suspend.exe` filename bridge before any timing,
+  GUI, macro, or backend initialization. The Rust bridge has the same release-version compile-time tripwire,
+  copies only to `Spencer-Macro-Utilities-V3.4.0-Windows.exe` without overwriting an existing different target,
+  validates pre-existing targets byte-for-byte, creates a hidden/temporary one-shot helper with `CREATE_NEW`,
+  resolves `cmd.exe`, `timeout.exe`, and PowerShell through the trusted Windows system directory, retries removal
+  of the unlocked legacy image for up to five minutes, self-deletes the helper, and exits the old process only
+  after `CreateProcessW` successfully launches that migration helper. Failures keep the current `suspend.exe`
+  launch alive and show the same C++ warning dialogs; this entire compatibility path must be deleted for V3.4.1.
+  Windows startup now also mirrors the C++ process-wide timing policy: an RAII
   guard clamps a 1 ms WinMM timer request to `timeGetDevCaps`, balances successful `timeBeginPeriod` with
   `timeEndPeriod` on every exit path, disables EcoQoS execution-speed throttling plus Windows 11's
   ignore-timer-resolution policy through `SetProcessInformation`, and falls back to the older

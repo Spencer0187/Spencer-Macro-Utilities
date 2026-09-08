@@ -147,6 +147,8 @@ mod windows_elevation;
 #[cfg(any(target_os = "windows", test))]
 mod windows_lag_overlay;
 #[cfg(any(target_os = "windows", test))]
+mod windows_legacy_filename;
+#[cfg(any(target_os = "windows", test))]
 mod windows_timing;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
@@ -3527,6 +3529,10 @@ fn shutdown_portable_services(
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    if windows_legacy_filename::schedule_v340_legacy_filename_migration() {
+        return Ok(());
+    }
     #[cfg(target_os = "windows")]
     let _windows_timing = windows_timing::WindowsTimingGuard::configure();
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
