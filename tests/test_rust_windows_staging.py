@@ -427,6 +427,10 @@ class RustWindowsStagingTest(unittest.TestCase):
             "launch_windows_update_helper(&target_version)",
             "ui.restart_requested = true",
             "Signed Windows update helper launched. The app will restart shortly.",
+            "update_check_failure_message(&status.message)",
+            "update_apply_failure_message(&error.to_string())",
+            "log_warning(&warning)",
+            "log_warning(&message)",
         ):
             self.assertIn(expected, updater_service)
         self.assertLess(

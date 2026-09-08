@@ -333,7 +333,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   guards. A detached helper waits for normal Rust profile/service shutdown, swaps through a unique
   backup, relaunches the new image, and restores/relaunches the previous image if installation or the
   two-second startup check fails. The C++ Yes/No/Cancel/manual-install confirmation flow is preserved,
-  while a successful Rust staging worker requests clean app shutdown instead of exiting from that
+  and failed update checks plus failed apply workers now also pass through the shared app warning logger so
+  Settings status text is accompanied by the same warning-toast/debug/file-log behavior as C++ `LogWarning`.
+  A successful Rust staging worker requests clean app shutdown instead of exiting from that
   worker. Installer tests use temporary files/ZIPs only and never invoke the live helper or current
   APPIMAGE. Debian/RPM/portable/Nix installs remain manual. Update work is disabled during parity
   capture. Anti-AFK is Windows-only in the legacy runtime and has no Linux execution path to port;

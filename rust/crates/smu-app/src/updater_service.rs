@@ -4,6 +4,7 @@
 //! owns background check/apply workers plus the C++-compatible confirmation/restart UI state.
 
 use crate::settings_menu::UpdaterPanelStatus;
+use smu_scripting::ScriptLogSink;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use smu_updater::CurlUpdateTransport;
 #[cfg(target_os = "macos")]
@@ -43,6 +44,18 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     }
+}
+
+fn update_check_failure_message(status_message: &str) -> String {
+    format!("Update check failed: {status_message}")
+}
+
+fn update_apply_failure_message(error_message: &str) -> String {
+    if error_message.is_empty() { "Update failed.".to_owned() } else { error_message.to_owned() }
+}
+
+fn log_warning(message: &str) {
+    crate::script_logging::shared().log_warning(message.as_bytes());
 }
 
 #[cfg(target_os = "linux")]
@@ -115,6 +128,8 @@ impl UpdateService {
         let state = Arc::clone(&self.state);
         let worker = std::thread::spawn(move || {
             let status = check_for_updates(&local_version);
+            let warning =
+                (!status.check_succeeded).then(|| update_check_failure_message(&status.message));
             let should_open = status.check_succeeded
                 && status.update_available
                 && status.latest_release.is_some();
@@ -125,6 +140,10 @@ impl UpdateService {
             ui.status = status;
             if should_open && !ui.update_prompt_dismissed {
                 ui.update_confirm_open = true;
+            }
+            drop(ui);
+            if let Some(warning) = warning {
+                log_warning(&warning);
             }
         });
         *lock(&self.worker) = Some(worker);
@@ -187,8 +206,11 @@ impl UpdateService {
                         .clone_into(&mut ui.action_message);
                 }
                 Err(error) => {
+                    let message = update_apply_failure_message(&error.to_string());
                     ui.apply_failed = true;
-                    ui.action_message = error.to_string();
+                    ui.action_message.clone_from(&message);
+                    drop(ui);
+                    log_warning(&message);
                 }
             }
         });
@@ -241,8 +263,11 @@ impl UpdateService {
                         .clone_into(&mut ui.action_message);
                 }
                 Err(error) => {
+                    let message = update_apply_failure_message(&error.to_string());
                     ui.apply_failed = true;
-                    ui.action_message = error.to_string();
+                    ui.action_message.clone_from(&message);
+                    drop(ui);
+                    log_warning(&message);
                 }
             }
         });
@@ -295,8 +320,11 @@ impl UpdateService {
                         .clone_into(&mut ui.action_message);
                 }
                 Err(error) => {
+                    let message = update_apply_failure_message(&error.to_string());
                     ui.apply_failed = true;
-                    ui.action_message = error.to_string();
+                    ui.action_message.clone_from(&message);
+                    drop(ui);
+                    log_warning(&message);
                 }
             }
         });
@@ -408,6 +436,19 @@ mod tests {
             }),
             selected_asset: Some(asset),
         }
+    }
+
+    #[test]
+    fn updater_failure_messages_match_cpp_logging_contract() {
+        assert_eq!(
+            update_check_failure_message("network unavailable"),
+            "Update check failed: network unavailable"
+        );
+        assert_eq!(update_apply_failure_message(""), "Update failed.");
+        assert_eq!(
+            update_apply_failure_message("signature validation failed"),
+            "signature validation failed"
+        );
     }
 
     #[test]
