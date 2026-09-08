@@ -377,8 +377,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `SMU_DEBUG=1`, emits debug-console output in debug builds or those env modes, and mirrors info/warning
   lines to the Win32 debugger on Windows. The same shared logger now reproduces C++ imported-script warning
   delivery: unsupported/duplicate imports, execute/settings/cleanup failures, Lag Switch initialization failures,
-  unknown worker panics, and overlong manager shutdowns enter the thread-safe warning queue and are drained into
-  the existing warning-toast path on the UI thread; Force Stop retains the C++ info-level cancellation message.
+  missing-input-backend `pressKey` / `clickMouse` / `typeText` attempts, unknown worker panics, and overlong manager
+  shutdowns enter the thread-safe warning queue and are drained into the existing warning-toast path on the UI
+  thread; Force Stop retains the C++ info-level cancellation message.
   Native input/state and the shared script-hotkey runtime
   start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
   feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The

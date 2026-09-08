@@ -416,10 +416,12 @@ fn install_type_text_api(
     state: &Arc<ExecutionState>,
     context: &ScriptInputContext,
     device: Option<&Arc<dyn InputDevice>>,
+    logger: Option<&Arc<dyn crate::ScriptLogSink>>,
 ) -> mlua::Result<()> {
     let state = Arc::clone(state);
     let context = context.clone();
     let device = device.cloned();
+    let logger = logger.cloned();
     lua.globals().set(
         "typeText",
         lua.create_function(move |lua, (text_value, delay_value): (Value, Option<Value>)| {
@@ -455,6 +457,11 @@ fn install_type_text_api(
                 }
             };
             let Some(device) = device.as_ref() else {
+                if let Some(logger) = &logger {
+                    logger.log_warning(
+                        b"Imported script tried to type text, but the input backend is not available.",
+                    );
+                }
                 return Ok(());
             };
 
@@ -486,12 +493,14 @@ fn install_press_function(
     state: &Arc<ExecutionState>,
     context: &ScriptInputContext,
     device: Option<&Arc<dyn InputDevice>>,
+    logger: Option<&Arc<dyn crate::ScriptLogSink>>,
     name: &'static str,
     mouse_only: bool,
 ) -> mlua::Result<()> {
     let state = Arc::clone(state);
     let context = context.clone();
     let device = device.cloned();
+    let logger = logger.cloned();
     lua.globals().set(
         name,
         lua.create_function(move |lua, (key_value, delay_value): (Value, Option<Value>)| {
@@ -518,6 +527,11 @@ fn install_press_function(
                 }
             };
             let Some(device) = device.as_ref() else {
+                if let Some(logger) = &logger {
+                    logger.log_warning(
+                        b"Imported script tried to press a key, but the input backend is not available.",
+                    );
+                }
                 return Ok(());
             };
             device.hold_key(key, false);
@@ -779,14 +793,16 @@ pub fn install_input_api(
     vm: &LuaScriptVm,
     context: ScriptInputContext,
     device: Option<Arc<dyn InputDevice>>,
+    logger: Option<Arc<dyn crate::ScriptLogSink>>,
 ) -> Result<(), ScriptInputApiError> {
-    let resources = (context, device);
+    let resources = (context, device, logger);
     let context = &resources.0;
     let device = resources.1.as_ref();
+    let logger = resources.2.as_ref();
     let lua = &vm.lua;
-    install_press_function(lua, &vm.state, context, device, "pressKey", false)?;
-    install_press_function(lua, &vm.state, context, device, "clickMouse", true)?;
-    install_type_text_api(lua, &vm.state, context, device)?;
+    install_press_function(lua, &vm.state, context, device, logger, "pressKey", false)?;
+    install_press_function(lua, &vm.state, context, device, logger, "clickMouse", true)?;
+    install_type_text_api(lua, &vm.state, context, device, logger)?;
     install_direct_action_api(lua, context, device)?;
     install_direct_state_api(lua, context, device)?;
     install_managed_input_table(lua, context, device)?;
@@ -807,6 +823,28 @@ mod tests {
         Hold(KeyCode),
         Release(KeyCode),
         Wheel(i32),
+    }
+
+    #[derive(Debug, Default)]
+    struct RecordingLogger {
+        warnings: Mutex<Vec<String>>,
+    }
+
+    impl RecordingLogger {
+        fn warnings(&self) -> Vec<String> {
+            self.warnings.lock().expect("warning log lock").clone()
+        }
+    }
+
+    impl crate::ScriptLogSink for RecordingLogger {
+        fn log_info(&self, _message: &[u8]) {}
+
+        fn log_warning(&self, message: &[u8]) {
+            self.warnings
+                .lock()
+                .expect("warning log lock")
+                .push(String::from_utf8_lossy(message).into_owned());
+        }
     }
 
     #[derive(Debug, Default)]
@@ -851,7 +889,7 @@ mod tests {
         let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
         let context = ScriptInputContext::default();
         let input = Arc::new(FakeInput::default());
-        install_input_api(&vm, context.clone(), Some(input.clone()))
+        install_input_api(&vm, context.clone(), Some(input.clone()), None)
             .expect("input API should install");
         (vm, context, input)
     }
@@ -940,15 +978,31 @@ mod tests {
     }
 
     #[test]
-    fn missing_backend_matches_cpp_noop_and_false_behavior() {
+    fn missing_backend_matches_cpp_noop_false_and_warning_behavior() {
         let vm = LuaScriptVm::new(None).expect("Lua VM should initialize");
         let context = ScriptInputContext::default();
-        install_input_api(&vm, context, None).expect("input API should install without backend");
-        vm.execute_source("pressKey('A', 1000)", "no-backend.lua")
-            .expect("pressKey without backend is a no-op");
+        let logger = Arc::new(RecordingLogger::default());
+        install_input_api(&vm, context, None, Some(logger.clone()))
+            .expect("input API should install without backend");
+        vm.execute_source(
+            "pressKey('A', 1000); clickMouse('MouseLeft', 1000); typeText('hi', 0)",
+            "no-backend.lua",
+        )
+        .expect("missing input backend remains a no-op");
         assert!(
             !vm.eval::<bool>("return isKeyPressed('A')", MAX_SCRIPT_RUNTIME)
                 .expect("isKeyPressed should evaluate")
+        );
+        assert_eq!(
+            logger.warnings(),
+            vec![
+                "Imported script tried to press a key, but the input backend is not available."
+                    .to_owned(),
+                "Imported script tried to press a key, but the input backend is not available."
+                    .to_owned(),
+                "Imported script tried to type text, but the input backend is not available."
+                    .to_owned(),
+            ]
         );
     }
 

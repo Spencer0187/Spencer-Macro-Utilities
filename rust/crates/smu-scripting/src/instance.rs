@@ -224,8 +224,13 @@ impl LuaScriptInstance {
             services.logger.clone(),
         )
         .map_err(initialization_error)?;
-        install_input_api(&vm, execution_context.clone(), services.input.clone())
-            .map_err(initialization_error)?;
+        install_input_api(
+            &vm,
+            execution_context.clone(),
+            services.input.clone(),
+            services.logger.clone(),
+        )
+        .map_err(initialization_error)?;
         install_input_callback_api(
             &vm,
             &execution_context,

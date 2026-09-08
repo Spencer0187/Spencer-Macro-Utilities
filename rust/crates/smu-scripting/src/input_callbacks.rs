@@ -485,7 +485,7 @@ mod tests {
         let execution = ScriptInputContext::default();
         let callbacks = ScriptInputCallbackContext::default();
         let input = Arc::new(FakeInput::default());
-        install_input_api(&vm, execution.clone(), Some(input.clone()))
+        install_input_api(&vm, execution.clone(), Some(input.clone()), None)
             .expect("input API should install");
         let device: Arc<dyn InputDevice> = input.clone();
         install_input_callback_api(&vm, &execution, &callbacks, Some(&device))
