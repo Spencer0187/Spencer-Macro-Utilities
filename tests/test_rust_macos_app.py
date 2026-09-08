@@ -155,6 +155,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]\nuse smu_roblox::{RobloxLogSource, SharedRobloxLogReader};',
             "fn roblox_log_source_factory() -> RobloxLogSourceFactory",
             "roblox_log_factory: Some(roblox_log_source_factory())",
+            "logger: Some(script_log_sink())",
         ):
             self.assertIn(expected, main)
         for expected in (

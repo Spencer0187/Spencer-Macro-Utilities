@@ -50,7 +50,9 @@ use smu_process::linux::{
 use smu_process::macos::MacosProcessService;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
-use smu_scripting::{RobloxLogSourceFactory, ScriptManager, ScriptManagerConfig, ScriptServices};
+use smu_scripting::{
+    RobloxLogSourceFactory, ScriptLogSink, ScriptManager, ScriptManagerConfig, ScriptServices,
+};
 
 #[cfg(target_os = "windows")]
 mod anti_afk_runtime;
@@ -110,6 +112,7 @@ mod profile_browser;
 mod profile_service;
 mod runtime_input;
 mod script_app_service;
+mod script_logging;
 mod script_profile_bridge;
 mod script_runtime;
 mod script_ui;
@@ -155,6 +158,10 @@ fn app_version() -> String {
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn roblox_log_source_factory() -> RobloxLogSourceFactory {
     Arc::new(|| -> Arc<dyn RobloxLogSource> { Arc::new(SharedRobloxLogReader::default()) })
+}
+
+fn script_log_sink() -> Arc<dyn ScriptLogSink> {
+    Arc::new(script_logging::AppScriptLogger::default())
 }
 #[cfg(target_os = "macos")]
 const GLSL_VERSION: &str = "#version 150";
@@ -1194,7 +1201,7 @@ fn start_script_services(
         network: Some(lag_switch_backend.clone()),
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings),
-        logger: None,
+        logger: Some(script_log_sink()),
     };
     let (selector, take_all_process_ids) = shell_state.script_process_target();
     let mut config = ScriptManagerConfig::new(app_version());
@@ -1275,6 +1282,7 @@ fn start_macos_script_app(
         process_control: Some(control),
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
+        logger: Some(script_log_sink()),
         ..ScriptServices::default()
     };
     ScriptAppServices::new(
@@ -1330,6 +1338,7 @@ fn start_windows_script_app(
         network: Some(lag_switch.script_network()),
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
+        logger: Some(script_log_sink()),
         ..ScriptServices::default()
     };
     ScriptAppServices::new(

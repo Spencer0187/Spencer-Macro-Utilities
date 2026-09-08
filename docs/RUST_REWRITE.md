@@ -370,8 +370,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `ScriptManager` constructed with `ScriptServices::default()` plus the saved-setting source. Platform API
   calls that require native backends therefore remain unavailable until composition attaches them. macOS now
   replaces that fallback with a dedicated composition root: native process discovery/control, display, and the
-  per-script `smu-roblox` log-source factory are always attached to imported-script services, while native input/state
-  and the shared script-hotkey runtime
+  per-script `smu-roblox` log-source factory are always attached to imported-script services. The shared app
+  composition now also supplies a real `ScriptLogSink` on Linux, Windows, and macOS: Lua `log(...)` keeps the
+  C++ `[script] ` prefix/truncation contract, retains the newest 512 info entries, preserves C++ local-time
+  `[YYYY-MM-DD HH:MM:SS] [INFO]` formatting, writes `SMC.log` beside the executable only when `DEBUG=1` or
+  `SMU_DEBUG=1`, emits debug-console output in debug builds or those env modes, and mirrors info
+  lines to the Win32 debugger on Windows. Native input/state and the shared script-hotkey runtime
   start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
   feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The
   shared controller model modules compile on macOS because the cross-platform UI/profile layer references their

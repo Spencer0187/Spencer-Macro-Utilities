@@ -493,6 +493,9 @@ class RustLinuxStagingTest(unittest.TestCase):
         runtime = (
             ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch_runtime.rs"
         ).read_text(encoding="utf-8")
+        script_logging = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "script_logging.rs"
+        ).read_text(encoding="utf-8")
 
         for expected in (
             "struct WindowsLagSwitchControlAdapter",
@@ -502,6 +505,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             "Arc::clone(&self.control)",
             "Some(lag_switch.script_network())",
             "roblox_log_factory: Some(roblox_log_source_factory())",
+            "logger: Some(script_log_sink())",
             "windows_lag_switch.prepare_shell(shell_state);",
             "windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);",
             "lag_switch.shutdown();",
@@ -510,6 +514,18 @@ class RustLinuxStagingTest(unittest.TestCase):
             self.assertIn(expected, main)
         self.assertNotIn("Some(lag_switch.roblox_log())", main)
         self.assertNotIn("fn roblox_log(&self)", main)
+        self.assertEqual(main.count("logger: Some(script_log_sink())"), 3)
+        for expected in (
+            "MAX_LOG_ENTRIES: usize = 512",
+            '"DEBUG"',
+            '"SMU_DEBUG"',
+            '"SMC.log"',
+            "current_exe()",
+            "localtime_r",
+            "GetLocalTime",
+            "OutputDebugStringA",
+        ):
+            self.assertIn(expected, script_logging)
         self.assertIn(
             '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn controller_settings(',
             lag_switch,
