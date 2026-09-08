@@ -59,6 +59,9 @@ impl WallWalkUiState {
                 self.strength_y = n.wrapping_neg();
             }
         }
+        if let Some(v) = crate::profile_adapter::f32_value(payload, "PreviousWallWalkValue") {
+            self.previous_section_sensitivity = v;
+        }
         if let Some(v) =
             crate::profile_adapter::string_value(payload, "RobloxWallWalkValueDelayChar")
         {
@@ -69,10 +72,23 @@ impl WallWalkUiState {
         }
     }
 
+    pub(crate) fn reset_section_to_defaults(&mut self, defaults: &PreservedProfilePayload) {
+        let previous_section_sensitivity = self.previous_section_sensitivity;
+        let applied_global_revision = self.applied_global_revision;
+        self.apply_profile(defaults);
+        self.previous_section_sensitivity = previous_section_sensitivity;
+        self.applied_global_revision = applied_global_revision;
+    }
+
     pub(crate) fn overlay_profile(&self, overlay: &mut Map<String, Value>) {
         crate::profile_adapter::insert_u32(overlay, "vk_wallkey", self.hotkey.raw());
         crate::profile_adapter::insert_bool(overlay, "iswallwalkswitch", self.hold_mode);
         crate::profile_adapter::insert_bool(overlay, "wallwalktoggleside", self.left_flick);
+        crate::profile_adapter::insert_f32(
+            overlay,
+            "PreviousWallWalkValue",
+            self.previous_section_sensitivity,
+        );
         crate::profile_adapter::insert_string(
             overlay,
             "RobloxWallWalkValueChar",
@@ -101,6 +117,27 @@ impl WallWalkUiState {
         self.strength_y = -self.strength_x;
         self.pixel_text = self.strength_x.to_string();
         self.applied_global_revision = revision;
+    }
+
+    pub(crate) const fn restore_profile_calibration_latch(
+        &mut self,
+        revision: u64,
+        global_recalibration_pending: bool,
+    ) {
+        self.applied_global_revision =
+            if global_recalibration_pending { revision.wrapping_sub(1) } else { revision };
+    }
+
+    #[allow(clippy::cast_possible_truncation, clippy::float_cmp)]
+    fn sync_section_calibration(&mut self, sensitivity: &str, cam_fix: bool) {
+        let current_sensitivity = cpp_atof_f32(sensitivity);
+        if current_sensitivity != 0.0 && current_sensitivity != self.previous_section_sensitivity {
+            let base = if cam_fix { 500.0_f32 } else { 360.0_f32 };
+            self.strength_x = ((base / current_sensitivity) * 0.13_f32).round() as i32;
+            self.strength_y = -self.strength_x;
+        }
+        self.previous_section_sensitivity = current_sensitivity;
+        self.pixel_text = self.strength_x.to_string();
     }
 
     #[must_use]
@@ -168,14 +205,7 @@ pub fn render(
         &mut state.disable_outside_target,
     );
 
-    let current_sensitivity = cpp_atof_f32(sensitivity);
-    if current_sensitivity != 0.0 && current_sensitivity != state.previous_section_sensitivity {
-        let base = if cam_fix { 500.0_f32 } else { 360.0_f32 };
-        state.strength_x = ((base / current_sensitivity) * 0.13_f32).round() as i32;
-        state.strength_y = -state.strength_x;
-    }
-    state.previous_section_sensitivity = current_sensitivity;
-    state.pixel_text = state.strength_x.to_string();
+    state.sync_section_calibration(sensitivity, cam_fix);
 
     ui.text_wrapped("Wall-Walk Pixel Value BASED ON SENSITIVITY (meant to be low):");
     ui.set_next_item_width(90.0);
@@ -223,6 +253,7 @@ fn cpp_atof_f32(value: &str) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::WallWalkUiState;
+    use smu_profile::payload::PreservedProfilePayload;
 
     #[test]
     fn defaults_match_cpp_pre_render_wall_walk_globals() {
@@ -235,6 +266,48 @@ mod tests {
         assert_eq!(state.strength_x, 94);
         assert_eq!(state.strength_y, -94);
         assert_eq!(state.tail_delay_us, 72_720);
+    }
+
+    #[test]
+    fn loaded_custom_strength_is_preserved_when_previous_sensitivity_matches() {
+        let payload = PreservedProfilePayload::from_value(&serde_json::json!({
+            "RobloxWallWalkValueChar": "88",
+            "PreviousWallWalkValue": 0.5
+        }));
+        assert!(payload.is_some());
+        let Some(payload) = payload else { return };
+        let mut state = WallWalkUiState::default();
+        state.apply_profile(&payload);
+        state.restore_profile_calibration_latch(7, false);
+        state.sync_global_calibration("0.5", false, 7);
+        state.sync_section_calibration("0.5", false);
+        assert_eq!(state.strength_x, 88);
+        assert_eq!(state.strength_y, -88);
+        assert_eq!(state.pixel_text, "88");
+    }
+
+    #[test]
+    fn section_reset_preserves_previous_sensitivity_until_real_edit() {
+        let defaults = PreservedProfilePayload::cpp_default();
+        let mut state = WallWalkUiState {
+            previous_section_sensitivity: 0.5,
+            applied_global_revision: 7,
+            strength_x: 88,
+            strength_y: -88,
+            pixel_text: "88".to_owned(),
+            ..WallWalkUiState::default()
+        };
+        state.reset_section_to_defaults(&defaults);
+        let reset_strengths = (state.strength_x, state.strength_y);
+        assert!((state.previous_section_sensitivity - 0.5).abs() < f32::EPSILON);
+        assert_eq!(state.applied_global_revision, 7);
+
+        state.sync_section_calibration("0.5", false);
+        assert_eq!((state.strength_x, state.strength_y), reset_strengths);
+
+        state.sync_section_calibration("0.6", false);
+        assert_ne!((state.strength_x, state.strength_y), reset_strengths);
+        assert!((state.previous_section_sensitivity - 0.6).abs() < f32::EPSILON);
     }
 
     #[test]

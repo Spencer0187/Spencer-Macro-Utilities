@@ -272,8 +272,16 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   deletion, selection autosave, shutdown save, window geometry, imported-script persistence, and Lua
   saved-setting integration over `smu-profile`. `PreservedProfilePayload` keeps unknown/future keys and
   real script arrays while exposing C++-normalized values for live state; app saves batch-overlay the
-  Rust-owned settings onto that preservation baseline so untouched data survives round trips. Startup
-  mirrors C++ missing-file creation, legacy-flat conversion into `Profile 1`, preferred-profile load,
+  Rust-owned settings onto that preservation baseline so untouched data survives round trips. Speedglitch and
+  Wall-Walk profile loads also restore and re-save the C++ `PreviousSensValue`/`PreviousWallWalkValue`
+  calibration sentinels. A profile whose sentinel already matches its saved sensitivity therefore keeps custom
+  pixel strengths through the first render, while `PreviousSensValue = -1` and real Sensitivity/Cam-Fix edits
+  still drive the same global recalibration and section-specific follow-up behavior as C++. Speedglitch and
+  Wall-Walk section resets intentionally preserve those sentinels and their current calibration latches because
+  C++ `ResetSectionToDefaults` resets the section fields but does not reset `PreviousSensValue` or
+  `PreviousWallWalkValue`; the reset defaults therefore survive the next section render until a real calibration
+  input changes.
+  Startup mirrors C++ missing-file creation, legacy-flat conversion into `Profile 1`, preferred-profile load,
   immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Unreadable or unsupported
   startup settings now also queue the same C++ launch warning while keeping the source bytes untouched. Default-profile
   promotion now persists the promoted payload and the live theme/global/notification metadata in one

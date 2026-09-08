@@ -343,6 +343,11 @@ impl ShellState {
         self.bunnyhop.apply_profile(payload);
         self.floor_bounce.apply_profile(payload);
         self.lag_switch.apply_profile(payload);
+        let calibration_revision = self.global.speed_calibration_revision();
+        let global_recalibration_pending =
+            !self.speedglitch.restore_profile_calibration_latch(calibration_revision);
+        self.wall_walk
+            .restore_profile_calibration_latch(calibration_revision, global_recalibration_pending);
 
         let mut enabled_after = enabled_before;
         let mut disable_after = disable_before;
@@ -396,7 +401,7 @@ impl ShellState {
             0 => self.freeze.apply_profile(&defaults),
             1 => self.item_desync.apply_profile(&defaults),
             2 => self.hhj.apply_profile(&defaults),
-            3 => self.speedglitch.apply_profile(&defaults),
+            3 => self.speedglitch.reset_section_to_defaults(&defaults),
             4 => {
                 self.item_unequip.apply_profile(&defaults);
                 if let Some(value) = crate::profile_adapter::u32_value(&defaults, "vk_enterkey") {
@@ -408,7 +413,7 @@ impl ShellState {
             7 => self.walless_lhj.apply_profile(&defaults),
             8 => self.item_clip.apply_profile(&defaults),
             9 => self.laugh_clip.apply_profile(&defaults),
-            10 => self.wall_walk.apply_profile(&defaults),
+            10 => self.wall_walk.reset_section_to_defaults(&defaults),
             11 => self.spam_key.reset_base_to_profile_defaults(&defaults),
             12 => self.ledge_bounce.apply_profile(&defaults),
             13 => {
@@ -1732,7 +1737,14 @@ fn render_right_section(
             0 => freeze::render(ui, &mut state.freeze, &mut state.keybind_capture, theme),
             1 => item_desync::render(ui, &mut state.item_desync, &mut state.keybind_capture, theme),
             2 => hhj::render(ui, &mut state.hhj, &mut state.keybind_capture, theme),
-            3 => speedglitch::render(ui, &mut state.speedglitch, &mut state.keybind_capture, theme),
+            3 => speedglitch::render(
+                ui,
+                &mut state.speedglitch,
+                state.global.sensitivity(),
+                state.global.cam_fix_enabled(),
+                &mut state.keybind_capture,
+                theme,
+            ),
             4 => item_unequip::render(
                 ui,
                 &mut state.item_unequip,
@@ -2122,6 +2134,46 @@ mod profile_adapter_tests {
         let round_trip =
             state.overlay_profile_payload(&baseline).expect("C++ default overlay should validate");
         assert_eq!(round_trip.raw_snapshot(), baseline.raw_snapshot());
+    }
+
+    #[test]
+    fn profile_calibration_sentinels_preserve_custom_speed_and_wall_walk_values() {
+        let payload = PreservedProfilePayload::from_value(&json!({
+            "RobloxSensValue": "0.5",
+            "RobloxPixelValueChar": "812",
+            "speed_strengthx": 812,
+            "speed_strengthy": -812,
+            "PreviousSensValue": 0.5,
+            "RobloxWallWalkValueChar": "88",
+            "PreviousWallWalkValue": 0.5
+        }))
+        .expect("custom calibration payload should validate");
+        let mut state = ShellState::default();
+        state.apply_profile_payload(&payload);
+
+        let revision = state.global.speed_calibration_revision();
+        state.speedglitch.sync_global_calibration(
+            state.global.sensitivity(),
+            state.global.cam_fix_enabled(),
+            revision,
+        );
+        state.wall_walk.sync_global_calibration(
+            state.global.sensitivity(),
+            state.global.cam_fix_enabled(),
+            revision,
+        );
+
+        assert_eq!(state.speedglitch.motion_strengths(), (812, -812));
+        let wall_walk = state.wall_walk.controller_settings(true, 60, String::new());
+        assert_eq!((wall_walk.strength_x, wall_walk.strength_y), (88, -88));
+
+        let round_trip = state
+            .overlay_profile_payload(&payload)
+            .expect("custom calibration overlay should validate");
+        assert_eq!(round_trip.raw_value("PreviousSensValue"), Some(&json!(0.5)));
+        assert_eq!(round_trip.raw_value("PreviousWallWalkValue"), Some(&json!(0.5)));
+        assert_eq!(round_trip.raw_value("RobloxPixelValueChar"), Some(&json!("812")));
+        assert_eq!(round_trip.raw_value("RobloxWallWalkValueChar"), Some(&json!("88")));
     }
 
     #[test]
