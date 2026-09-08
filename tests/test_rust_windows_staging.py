@@ -302,6 +302,40 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_process_timing_policy_matches_cpp_timer_and_power_throttling_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        timing = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "windows_timing.rs"
+        ).read_text(encoding="utf-8")
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        windows_sys = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"][
+            "windows-sys"
+        ]
+
+        self.assertIn("let _windows_timing = windows_timing::WindowsTimingGuard::configure();", main)
+        for expected in (
+            "timeGetDevCaps",
+            "timeBeginPeriod",
+            "timeEndPeriod",
+            "PROCESS_POWER_THROTTLING_EXECUTION_SPEED",
+            "PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION",
+            "SetProcessInformation",
+            "ProcessPowerThrottling",
+            "FULL_CONTROL_MASK",
+            "EXECUTION_SPEED_ONLY",
+            "impl Drop for WindowsTimingGuard",
+            "requested_timer_period(caps.wPeriodMin, caps.wPeriodMax)",
+            "Windows refused the high-resolution timer-period request",
+            "Windows refused process power-throttling configuration",
+        ):
+            self.assertIn(expected, timing)
+        for feature in ("Win32_Media", "Win32_System_Threading"):
+            self.assertIn(feature, windows_sys["features"])
+
     def test_windows_updater_uses_wininet_checks_without_enabling_auto_apply(self) -> None:
         updater = (ROOT / "rust" / "crates" / "smu-updater" / "src" / "windows.rs").read_text(
             encoding="utf-8"

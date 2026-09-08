@@ -478,7 +478,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   WinDivert targeting, keybind capture, and the Bunnyhop/HHJ/Floor Bounce/Freeze/Item Desync/Item Clip/
   Item Unequip/Laugh Clip/Press Key/Spam Key/Ledge Bounce/Speedglitch/Wall Walk/Walless LHJ/Wallhop
   controllers. Their settings are refreshed from the shell every frame and every controller is stopped
-  explicitly at app shutdown. Lag Switch remains its separately owned Windows controller because it also
+  explicitly at app shutdown. Windows startup now also mirrors the C++ process-wide timing policy: an RAII
+  guard clamps a 1 ms WinMM timer request to `timeGetDevCaps`, balances successful `timeBeginPeriod` with
+  `timeEndPeriod` on every exit path, disables EcoQoS execution-speed throttling plus Windows 11's
+  ignore-timer-resolution policy through `SetProcessInformation`, and falls back to the older
+  execution-speed-only mask when that newer flag is rejected. Failures flow through the shared app logger so
+  short macro/script sleeps do not silently lose the C++ scheduler-granularity warning. Lag Switch remains its separately owned Windows controller because it also
   owns WinDivert lifecycle. Windows Anti-AFK is now composed as its own controller too: the existing
   low-level input-hook lease also counts real (non-injected) keyboard activity, the shared process backend
   selects the newest visible target window for background activation, and the controller reuses the

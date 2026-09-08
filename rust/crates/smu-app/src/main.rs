@@ -144,6 +144,8 @@ mod wallhop_runtime;
 mod warning_toast;
 #[cfg(target_os = "windows")]
 mod windows_elevation;
+#[cfg(any(target_os = "windows", test))]
+mod windows_timing;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
 #[cfg(target_os = "macos")]
@@ -3233,6 +3235,8 @@ fn shutdown_portable_services(
 
 #[allow(clippy::too_many_lines)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(target_os = "windows")]
+    let _windows_timing = windows_timing::WindowsTimingGuard::configure();
     let parity_case = std::env::var("SMU_UI_PARITY_CASE").ok();
     #[cfg(target_os = "linux")]
     reject_root_gui_launch(parity_case.is_some())?;
