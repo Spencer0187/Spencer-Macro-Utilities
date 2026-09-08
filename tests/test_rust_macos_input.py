@@ -138,8 +138,10 @@ class RustMacosInputTests(unittest.TestCase):
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
         )
-        self.assertIn("use smu_input::macos::{MacosInputDevice, accessibility_trusted};", main)
+        self.assertIn("use smu_input::macos::MacosInputDevice;", main)
         self.assertIn("input: Arc<MacosInputDevice>", main)
+        self.assertIn("let permission_status = permission_setup.prepare()", main)
+        self.assertIn("let accessibility_ready = permission_status.accessibility_granted", main)
         self.assertIn("if accessibility_ready && screen_recording_ready", main)
         self.assertIn("macos_platform.prepare_shell(shell_state)", main)
         self.assertNotIn("MacosInputInjector", main)

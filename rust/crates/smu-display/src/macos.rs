@@ -115,13 +115,23 @@ pub fn screen_recording_trusted() -> bool {
     CGPreflightScreenCaptureAccess()
 }
 
-fn prompt_for_accessibility() {
+#[must_use]
+pub fn request_accessibility_permission() -> bool {
     // SAFETY: kAXTrustedCheckOptionPrompt is a process-lifetime immutable CoreFoundation string.
     let prompt_key = unsafe { kAXTrustedCheckOptionPrompt };
     let options =
         CFDictionary::<CFString, CFBoolean>::from_slices(&[prompt_key], &[CFBoolean::new(true)]);
     // SAFETY: the dictionary contains the documented CFString -> CFBoolean accessibility option.
-    let _ = unsafe { AXIsProcessTrustedWithOptions(Some(options.as_opaque())) };
+    let trusted = unsafe { AXIsProcessTrustedWithOptions(Some(options.as_opaque())) };
+    trusted || accessibility_trusted()
+}
+
+#[must_use]
+pub fn request_screen_recording_permission() -> bool {
+    if CGPreflightScreenCaptureAccess() {
+        return true;
+    }
+    CGRequestScreenCaptureAccess() && CGPreflightScreenCaptureAccess()
 }
 
 #[derive(Default)]
@@ -281,8 +291,11 @@ impl MacosDisplayCapture {
 
     #[must_use]
     pub fn global_screen_bounds(&self) -> Option<ScreenBounds> {
-        let rects =
-            active_displays().into_iter().map(CGDisplayBounds).map(rect_edges).collect::<Vec<_>>();
+        let rects = active_displays()
+            .into_iter()
+            .map(|display| CGDisplayBounds(display))
+            .map(rect_edges)
+            .collect::<Vec<_>>();
         macos_global_screen_bounds(&rects)
     }
 }
@@ -328,7 +341,7 @@ impl DisplayCapture for MacosDisplayCapture {
                 "macOS Screen Recording permission request was cancelled.",
             ));
         }
-        if CGRequestScreenCaptureAccess() && CGPreflightScreenCaptureAccess() {
+        if request_screen_recording_permission() {
             Ok(())
         } else {
             Err(DisplayError::new(SCREEN_RECORDING_PERMISSION_REASON))
@@ -345,8 +358,7 @@ impl DisplayCapture for MacosDisplayCapture {
         if cancelled() {
             return Err(DisplayError::new("macOS Accessibility permission request was cancelled."));
         }
-        prompt_for_accessibility();
-        if accessibility_trusted() {
+        if request_accessibility_permission() {
             Ok(())
         } else {
             Err(DisplayError::new(ACCESSIBILITY_PERMISSION_REASON))

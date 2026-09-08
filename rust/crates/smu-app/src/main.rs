@@ -31,11 +31,11 @@ use script_app_service::ScriptAppServices;
 #[cfg(target_os = "linux")]
 use smu_display::linux::{LinuxDisplayCapture, WaylandPortalCapture};
 #[cfg(target_os = "macos")]
-use smu_display::macos::{MacosDisplayCapture, screen_recording_trusted};
+use smu_display::macos::MacosDisplayCapture;
 #[cfg(target_os = "linux")]
 use smu_input::linux::EvdevUinputInputDevice;
 #[cfg(target_os = "macos")]
-use smu_input::macos::{MacosInputDevice, accessibility_trusted};
+use smu_input::macos::MacosInputDevice;
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use smu_network::LagSwitchControl;
 #[cfg(target_os = "linux")]
@@ -99,6 +99,8 @@ mod linux_input_setup;
 mod linux_input_setup_service;
 #[cfg(target_os = "linux")]
 mod linux_privileged_helper;
+#[cfg(any(target_os = "macos", test))]
+mod macos_permission_setup;
 mod macro_text;
 mod multi_instance;
 mod notification_suppression;
@@ -805,6 +807,7 @@ struct MacosPlatformServices {
     input_ready: bool,
     display: Arc<MacosDisplayCapture>,
     process: Arc<MacosProcessService>,
+    permission_setup: macos_permission_setup::MacosPermissionSetupService,
     update_service: updater_service::UpdateService,
 }
 
@@ -814,8 +817,13 @@ impl MacosPlatformServices {
         let input = Arc::new(MacosInputDevice::new());
         let display = Arc::new(MacosDisplayCapture::new());
         let process = Arc::new(MacosProcessService::new());
-        let accessibility_ready = accessibility_trusted();
-        let screen_recording_ready = screen_recording_trusted();
+        let permission_setup = macos_permission_setup::MacosPermissionSetupService::new();
+        let permission_status = permission_setup.prepare();
+        let accessibility_ready = permission_status.accessibility_granted;
+        let screen_recording_ready = permission_status.screen_recording_granted;
+        if !(accessibility_ready && screen_recording_ready) {
+            permission_setup.require_restart_for_runtime();
+        }
         let input_ready = if accessibility_ready && screen_recording_ready {
             match input.init() {
                 Ok(()) => true,
@@ -840,10 +848,12 @@ impl MacosPlatformServices {
             false
         };
         let update_service = updater_service::UpdateService::new(app_version(), updates_enabled);
-        Self { input, input_ready, display, process, update_service }
+        Self { input, input_ready, display, process, permission_setup, update_service }
     }
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+        shell_state
+            .set_macos_permission_setup_status(self.permission_setup.prepare(), self.input_ready);
         if self.input_ready && shell_state.keybind_input_poll_needed() {
             let input = keybind::InputSnapshot::capture(
                 self.input.as_ref(),
@@ -865,6 +875,18 @@ impl MacosPlatformServices {
 
     fn finish_shell(&self, action: Option<&shell::ShellAction>) {
         match action {
+            Some(shell::ShellAction::RequestMacosAccessibilityPermission) => {
+                self.permission_setup.request_accessibility();
+            }
+            Some(shell::ShellAction::RequestMacosScreenRecordingPermission) => {
+                self.permission_setup.request_screen_recording();
+            }
+            Some(shell::ShellAction::ResetMacosPermissionEntries) => {
+                self.permission_setup.reset_permission_entries();
+            }
+            Some(shell::ShellAction::RestartMacosAndCheckPermissions) => {
+                self.permission_setup.restart_and_check();
+            }
             Some(shell::ShellAction::CheckUpdatesFromSettings) => {
                 self.update_service.start_check(true)
             }
@@ -895,7 +917,7 @@ impl MacosPlatformServices {
     }
 
     fn update_restart_requested(&self) -> bool {
-        self.update_service.restart_requested()
+        self.permission_setup.restart_requested() || self.update_service.restart_requested()
     }
 
     fn shutdown(&self) {

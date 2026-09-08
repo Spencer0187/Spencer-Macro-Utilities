@@ -64,6 +64,14 @@ pub enum ShellAction {
     StartLagSwitchHelper,
     #[cfg(target_os = "windows")]
     RestartAsAdmin,
+    #[cfg(target_os = "macos")]
+    RequestMacosAccessibilityPermission,
+    #[cfg(target_os = "macos")]
+    RequestMacosScreenRecordingPermission,
+    #[cfg(target_os = "macos")]
+    ResetMacosPermissionEntries,
+    #[cfg(target_os = "macos")]
+    RestartMacosAndCheckPermissions,
     PersistNotificationSuppression,
     #[cfg(target_os = "linux")]
     StartFreezeHelper,
@@ -141,6 +149,8 @@ pub struct ShellState {
     script_ui: ScriptUiState,
     #[cfg(target_os = "linux")]
     linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus,
+    #[cfg(target_os = "macos")]
+    macos_permission_setup: crate::macos_permission_setup::MacosPermissionSetupStatus,
     platform_input_ready: bool,
     section_order: [usize; 16],
     selected_section: i32,
@@ -185,6 +195,9 @@ impl Default for ShellState {
             script_ui: ScriptUiState::default(),
             #[cfg(target_os = "linux")]
             linux_input_setup: crate::linux_input_setup::LinuxInputSetupStatus::default(),
+            #[cfg(target_os = "macos")]
+            macos_permission_setup:
+                crate::macos_permission_setup::MacosPermissionSetupStatus::default(),
             platform_input_ready: true,
             section_order: sidebar::DEFAULT_SECTION_ORDER,
             selected_section: -1,
@@ -605,6 +618,16 @@ impl ShellState {
     ) {
         self.platform_input_ready = !status.required;
         self.linux_input_setup = status;
+    }
+
+    #[cfg(target_os = "macos")]
+    pub fn set_macos_permission_setup_status(
+        &mut self,
+        status: crate::macos_permission_setup::MacosPermissionSetupStatus,
+        input_ready: bool,
+    ) {
+        self.macos_permission_setup = status;
+        self.platform_input_ready = input_ready;
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -1041,6 +1064,10 @@ pub fn render(ui: &Ui, state: &mut ShellState) -> Option<ShellAction> {
     if let Some(modal_action) = render_windows_admin_modal(ui, state) {
         action = Some(modal_action);
     }
+    #[cfg(target_os = "macos")]
+    if let Some(modal_action) = render_macos_permission_setup_modal(ui, state) {
+        action = Some(modal_action);
+    }
     #[cfg(target_os = "linux")]
     if let Some(setup_action) = render_linux_input_setup(ui, state, &active_theme) {
         action = Some(setup_action);
@@ -1140,7 +1167,7 @@ fn render_linux_input_setup(
     })
 }
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 fn set_next_privileged_modal_layout(
     ui: &Ui,
     width: f32,
@@ -1221,6 +1248,81 @@ fn render_windows_admin_modal(ui: &Ui, state: &mut ShellState) -> Option<ShellAc
         ui.close_current_popup();
     }
     action
+}
+
+#[cfg(target_os = "macos")]
+fn render_macos_permission_setup_modal(ui: &Ui, state: &ShellState) -> Option<ShellAction> {
+    let status = &state.macos_permission_setup;
+    let setup_required = status.permissions_required() || status.restart_required;
+    if !setup_required {
+        if let Some(_popup) = ui
+            .begin_modal_popup_config(crate::macos_permission_setup::TITLE)
+            .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+            .begin()
+        {
+            ui.close_current_popup();
+        }
+        return None;
+    }
+
+    let _ = ui.open_popup(crate::macos_permission_setup::TITLE);
+    set_next_privileged_modal_layout(ui, 640.0, Condition::Appearing, None);
+    let _popup = ui
+        .begin_modal_popup_config(crate::macos_permission_setup::TITLE)
+        .flags(WindowFlags::ALWAYS_AUTO_RESIZE)
+        .begin()?;
+
+    ui.text_wrapped(
+        "macOS requires Accessibility for macro input and Screen Recording for pixel reads.",
+    );
+    if !status.permissions_required() && status.restart_required {
+        ui.text_wrapped("macOS permissions are granted. Restart SMU to activate macro input.");
+    } else if !status.summary.is_empty() {
+        ui.text_wrapped(&status.summary);
+    }
+    ui.text_wrapped(
+        "After changing a Privacy & Security setting, restart SMU so macOS reports the new state.",
+    );
+    crate::parity::separator(ui);
+
+    ui.text(format!(
+        "Accessibility: {}",
+        if status.accessibility_granted { "Granted" } else { "Missing" }
+    ));
+    ui.text(format!(
+        "Screen Recording for pixel reads: {}",
+        if status.screen_recording_granted { "Granted" } else { "Missing" }
+    ));
+
+    if !status.details.is_empty() {
+        crate::parity::separator(ui);
+        ui.text_wrapped(&status.details);
+    }
+
+    crate::parity::separator(ui);
+    if !status.accessibility_granted && ui.button("Open Accessibility Settings") {
+        return Some(ShellAction::RequestMacosAccessibilityPermission);
+    }
+    if !status.screen_recording_granted {
+        if !status.accessibility_granted {
+            ui.same_line();
+        }
+        if ui.button("Request Screen Recording Permission") {
+            return Some(ShellAction::RequestMacosScreenRecordingPermission);
+        }
+    }
+    if ui.button("Reset macOS Permission Entries") {
+        return Some(ShellAction::ResetMacosPermissionEntries);
+    }
+    if ui.button("Restart & Check Permissions") {
+        return Some(ShellAction::RestartMacosAndCheckPermissions);
+    }
+
+    if !status.action_message.is_empty() {
+        crate::parity::separator(ui);
+        ui.text_wrapped(&status.action_message);
+    }
+    None
 }
 
 #[cfg(target_os = "linux")]

@@ -385,8 +385,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   shutdowns enter the thread-safe warning queue and are drained into the existing warning-toast path on the UI
   thread; Force Stop retains the C++ info-level cancellation message.
   Native input/state and the shared script-hotkey runtime
-  start only when both Accessibility and Screen Recording are already trusted. The same composed input facade
-  feeds the built-in keybind editor, and shutdown stops script runtime before the event-tap/injector pair. The
+  start only when both Accessibility and Screen Recording are already trusted. macOS now also has the C++-style
+  recovery modal and app-layer permission service: it prompts/opens the Accessibility and Screen Recording panes,
+  resets the `Accessibility`/`ScreenCapture` TCC entries for `com.spencer0187.smu`, consumes the updater helper's
+  `macos-permissions-may-need-repair` marker, and relaunches the resolved `.app` through `/usr/bin/open -n` only
+  after that command succeeds. Because Rust script/controller capabilities are composed at startup, a launch that
+  began with missing privacy permission keeps an explicit restart-required state even if macOS reports both grants
+  later in the same session; the modal then stays open with a restart-to-activate message rather than falsely
+  claiming live input is already wired. The same composed input facade feeds the built-in keybind editor, and
+  shutdown stops script runtime before the event-tap/injector pair. The
   shared controller model modules compile on macOS because the cross-platform UI/profile layer references their
   settings types. With native input ready, macOS now starts the same 15 shared built-in controllers exercised by
   the C++ `MacroRuntime`—Freeze, Item Desync, Press Key, Wallhop, Walless LHJ, Speedglitch, HHJ, Floor Bounce,
@@ -611,7 +618,9 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   `build.yml` / SignPath release path remains untouched until that trust gate is deliberately promoted. macOS now composes its
   native Rust process, input, display, and Roblox-log services into the app for process status, imported scripts,
   script hotkeys, log APIs, display APIs, built-in keybind capture, and the 15 shared built-in macro controllers when both privacy
-  permissions are ready. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
+  permissions are ready. The app also owns the macOS permission-recovery modal/service, including System Settings
+  deep links, bundle-scoped TCC reset, post-update repair-marker advisory, and verified `.app` relaunch/restart
+  handling. macOS Anti-AFK remains absent to match the Windows-only C++ implementation, while
   packet interception/Lag Switch remains intentionally unavailable. macOS update checks are now wired through the
   always-present platform service (including Settings/manual release actions even without macro permissions), while
   the signed-bundle staging/swap transaction plus detached old-process wait/relaunch helper are now composed behind

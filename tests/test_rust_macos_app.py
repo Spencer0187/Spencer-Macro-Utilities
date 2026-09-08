@@ -35,8 +35,12 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             "Arc<MacosInputDevice>",
             "Arc<MacosDisplayCapture>",
             "Arc<MacosProcessService>",
-            "let accessibility_ready = accessibility_trusted()",
-            "let screen_recording_ready = screen_recording_trusted()",
+            "permission_setup: macos_permission_setup::MacosPermissionSetupService",
+            "let permission_setup = macos_permission_setup::MacosPermissionSetupService::new()",
+            "let permission_status = permission_setup.prepare()",
+            "let accessibility_ready = permission_status.accessibility_granted",
+            "let screen_recording_ready = permission_status.screen_recording_granted",
+            "permission_setup.require_restart_for_runtime()",
             "if accessibility_ready && screen_recording_ready",
             "match input.init()",
             'missing.push("Accessibility")',
@@ -53,6 +57,61 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             "platform.shutdown()",
         ):
             self.assertIn(expected, source)
+
+    def test_macos_permission_recovery_matches_cpp_system_settings_tcc_and_relaunch_contract(self) -> None:
+        service = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "macos_permission_setup.rs"
+        ).read_text(encoding="utf-8")
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        display = (
+            ROOT / "rust" / "crates" / "smu-display" / "src" / "macos.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            'const SMU_BUNDLE_IDENTIFIER: &str = "com.spencer0187.smu"',
+            'const PERMISSION_REPAIR_MARKER: &str = "macos-permissions-may-need-repair"',
+            '"Privacy_Accessibility"',
+            '"Privacy_ScreenCapture"',
+            'Command::new("/usr/bin/tccutil")',
+            '["reset", service, SMU_BUNDLE_IDENTIFIER]',
+            'Command::new("/usr/bin/open")',
+            '.arg("-n")',
+            "app_bundle_from_executable",
+            "request_accessibility_permission()",
+            "request_screen_recording_permission()",
+            "restart_required: AtomicBool",
+            "pub fn require_restart_for_runtime(&self)",
+        ):
+            self.assertIn(expected, service)
+        for expected in (
+            "pub fn request_accessibility_permission() -> bool",
+            "pub fn request_screen_recording_permission() -> bool",
+            "AXIsProcessTrustedWithOptions",
+            "CGRequestScreenCaptureAccess",
+        ):
+            self.assertIn(expected, display)
+        for expected in (
+            'ui.button("Open Accessibility Settings")',
+            'ui.button("Request Screen Recording Permission")',
+            'ui.button("Reset macOS Permission Entries")',
+            'ui.button("Restart & Check Permissions")',
+            "status.permissions_required() || status.restart_required",
+            "macOS permissions are granted. Restart SMU to activate macro input.",
+        ):
+            self.assertIn(expected, shell)
+        for expected in (
+            "ShellAction::RequestMacosAccessibilityPermission",
+            "ShellAction::RequestMacosScreenRecordingPermission",
+            "ShellAction::ResetMacosPermissionEntries",
+            "ShellAction::RestartMacosAndCheckPermissions",
+            "self.permission_setup.restart_requested() || self.update_service.restart_requested()",
+        ):
+            self.assertIn(expected, main)
 
     def test_macos_scripts_get_native_process_display_and_only_ready_input(self) -> None:
         source = (

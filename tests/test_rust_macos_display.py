@@ -80,7 +80,11 @@ class RustMacosDisplayTests(unittest.TestCase):
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
         )
-        self.assertIn("use smu_display::macos::{MacosDisplayCapture, screen_recording_trusted};", main)
+        self.assertIn("use smu_display::macos::MacosDisplayCapture;", main)
+        permission_setup = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "macos_permission_setup.rs"
+        ).read_text(encoding="utf-8")
+        self.assertIn("screen_recording_trusted()", permission_setup)
         self.assertIn("display: Arc<MacosDisplayCapture>", main)
         self.assertIn("let display: Arc<dyn smu_display::DisplayCapture> = platform.display.clone()", main)
 
