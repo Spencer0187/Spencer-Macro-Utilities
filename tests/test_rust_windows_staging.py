@@ -337,6 +337,47 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_script_drop_matches_cpp_sdl_and_elevated_uipi_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        script_ui = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "script_ui.rs"
+        ).read_text(encoding="utf-8")
+        drop_filter = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "windows_drop_filter.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "EventType::DropFile",
+            "set_event_enabled(EventType::DropFile, true)",
+            "Event::DropFile { filename, .. }",
+            "queue_dropped_import_candidate(path.clone())",
+            'format!("Rejected dropped script file: {}", path.display())',
+            "windows_drop_filter::allow_elevated_file_drops(hwnd)",
+        ):
+            self.assertIn(expected, main)
+        for expected in (
+            "pub fn queue_dropped_import_candidate",
+            "!is_supported_script_path(&path)",
+            "!path.is_file()",
+            "self.queue_import_candidate(path)",
+        ):
+            self.assertIn(expected, script_ui)
+        for expected in (
+            "GetModuleHandleW",
+            "GetProcAddress",
+            'c"ChangeWindowMessageFilterEx"',
+            "WM_DROPFILES",
+            "WM_COPYDATA",
+            "const WM_COPYGLOBALDATA: u32 = 0x0049",
+            "MSGFLT_ALLOW",
+            "change_message_filter(hwnd, message, MSGFLT_ALLOW, null_mut())",
+            "Could not find Win32 window handle for drag-and-drop message filter.",
+            "ChangeWindowMessageFilterEx is unavailable; elevated Windows drag-and-drop may be blocked.",
+        ):
+            self.assertIn(expected, drop_filter)
+
     def test_windows_lag_switch_overlay_matches_cpp_layered_window_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

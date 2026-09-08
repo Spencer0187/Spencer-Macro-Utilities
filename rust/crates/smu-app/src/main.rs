@@ -19,7 +19,7 @@ use std::thread::JoinHandle;
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
 use sdl3::{
-    event::Event,
+    event::{Event, EventType},
     keyboard::Keycode,
     video::{GLProfile, Window, WindowPos},
 };
@@ -142,6 +142,8 @@ mod wallhop;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod wallhop_runtime;
 mod warning_toast;
+#[cfg(target_os = "windows")]
+mod windows_drop_filter;
 #[cfg(target_os = "windows")]
 mod windows_elevation;
 #[cfg(any(target_os = "windows", test))]
@@ -3094,6 +3096,8 @@ fn initialize_sdl()
 -> Result<(sdl3::Sdl, sdl3::VideoSubsystem, sdl3::EventPump), Box<dyn std::error::Error>> {
     let sdl = sdl3::init()?;
     let video = sdl.video()?;
+    let _event_subsystem = sdl.event()?;
+    sdl3::EventSubsystem::set_event_enabled(EventType::DropFile, true);
     let events = sdl.event_pump()?;
     enable_native_ime_ui();
     configure_gl_attributes(&video);
@@ -3127,6 +3131,9 @@ fn register_windows_input_window(window: &Window) {
         )
     };
     smu_input::windows::set_gui_window_handle(hwnd);
+    for warning in windows_drop_filter::allow_elevated_file_drops(hwnd) {
+        script_logging::shared().log_warning(warning.as_bytes());
+    }
 }
 
 fn create_initial_window(
@@ -3318,6 +3325,14 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
     'main: loop {
         for event in events.poll_iter() {
             backend.process_event(imgui, &event)?;
+            if let Event::DropFile { filename, .. } = &event {
+                let path = PathBuf::from(filename);
+                if !shell_state.script_ui_mut().queue_dropped_import_candidate(path.clone()) {
+                    script_logging::shared().log_warning(
+                        format!("Rejected dropped script file: {}", path.display()).as_bytes(),
+                    );
+                }
+            }
             let should_quit = matches!(event, Event::Quit { .. })
                 || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
                     && !shell_state.input_capture_active());

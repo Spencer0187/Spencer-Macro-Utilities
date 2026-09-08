@@ -177,6 +177,14 @@ impl ScriptUiState {
         self.file_dialog_fallback.open
     }
 
+    pub fn queue_dropped_import_candidate(&mut self, path: PathBuf) -> bool {
+        if !is_supported_script_path(&path) || !path.is_file() {
+            return false;
+        }
+        self.queue_import_candidate(path);
+        true
+    }
+
     pub fn queue_import_candidate(&mut self, path: PathBuf) {
         self.preview.clear();
         self.preview_error.clear();
@@ -1192,6 +1200,34 @@ mod tests {
         assert!(!script.running);
         assert!(!script.has_settings_callback);
         assert!(state.controls.is_empty());
+    }
+
+    #[test]
+    fn dropped_script_requires_supported_regular_file_and_queues_same_trust_preview() {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let counter = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let directory =
+            std::env::temp_dir().join(format!("smu-script-drop-{}-{counter}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).expect("create drop fixture directory");
+        let script = directory.join("dropped.LUA");
+        fs::write(&script, "print('dropped')").expect("write dropped script");
+        let unsupported = directory.join("notes.md");
+        fs::write(&unsupported, "not a script").expect("write unsupported fixture");
+
+        let mut state = ScriptUiState::default();
+        assert!(state.queue_dropped_import_candidate(script.clone()));
+        assert_eq!(state.pending_import.as_deref(), Some(script.as_path()));
+        assert_eq!(state.preview, "print('dropped')");
+        assert!(state.open_trust_modal);
+
+        state.cancel_import();
+        assert!(!state.queue_dropped_import_candidate(unsupported));
+        assert!(!state.queue_dropped_import_candidate(directory.join("missing.lua")));
+        assert!(!state.queue_dropped_import_candidate(directory.clone()));
+        assert!(state.pending_import.is_none());
+
+        fs::remove_dir_all(&directory).expect("remove drop fixture directory");
     }
 
     #[test]
