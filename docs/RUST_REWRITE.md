@@ -493,7 +493,17 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   WinDivert targeting, keybind capture, and the Bunnyhop/HHJ/Floor Bounce/Freeze/Item Desync/Item Clip/
   Item Unequip/Laugh Clip/Press Key/Spam Key/Ledge Bounce/Speedglitch/Wall Walk/Walless LHJ/Wallhop
   controllers. Their settings are refreshed from the shell every frame and every controller is stopped
-  explicitly at app shutdown. Windows startup now also mirrors the C++ process-wide timing policy: an RAII
+  explicitly at app shutdown. The Windows global Lag Switch overlay is live again rather than profile-only:
+  a UI-thread-owned layered `WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`
+  popup renders the C++ `Lagswitch ON/OFF` text and hide-inactive/background/color/size/position settings. The
+  Windows Lag Switch panel derives both position sliders from `SM_XVIRTUALSCREEN`/`SM_YVIRTUALSCREEN` plus the
+  full virtual-desktop width/height and, like C++, resolves `overlay_x = -1` to virtual-min-X + 80% of the virtual
+  desktop when that panel is rendered, so negative-origin and wide multi-monitor layouts persist correctly. If the
+  overlay becomes visible before that panel ever renders, the renderer also keeps C++'s separate runtime sentinel
+  fallback of 80% of the primary-screen width and writes that resolved X back into live state for later saves.
+  The renderer privately registers the same packaged `LSANS.TTF` file with GDI, updates from the shared WinDivert
+  enabled/blocking state each frame, and destroys both its window and private font registration during Lag Switch
+  shutdown. Windows startup now also mirrors the C++ process-wide timing policy: an RAII
   guard clamps a 1 ms WinMM timer request to `timeGetDevCaps`, balances successful `timeBeginPeriod` with
   `timeEndPeriod` on every exit path, disables EcoQoS execution-speed throttling plus Windows 11's
   ignore-timer-resolution policy through `SetProcessInformation`, and falls back to the older

@@ -337,6 +337,91 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(feature, windows_sys["features"])
 
+    def test_windows_lag_switch_overlay_matches_cpp_layered_window_contract(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        overlay = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "windows_lag_overlay.rs"
+        ).read_text(encoding="utf-8")
+        lag_switch = (
+            ROOT / "rust" / "crates" / "smu-app" / "src" / "lag_switch.rs"
+        ).read_text(encoding="utf-8")
+        shell = (ROOT / "rust" / "crates" / "smu-app" / "src" / "shell.rs").read_text(
+            encoding="utf-8"
+        )
+        manifest = tomllib.loads(
+            (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        windows_sys = manifest["target"]["cfg(target_os = \"windows\")"]["dependencies"][
+            "windows-sys"
+        ]
+
+        for expected in (
+            "WS_EX_TOPMOST",
+            "WS_EX_LAYERED",
+            "WS_EX_TRANSPARENT",
+            "WS_EX_TOOLWINDOW",
+            "WS_EX_NOACTIVATE",
+            "WS_POPUP",
+            "UpdateLayeredWindow",
+            "ULW_ALPHA",
+            "Lagswitch ON",
+            "Lagswitch OFF",
+            "AddFontResourceExW",
+            "RemoveFontResourceExW",
+            "crate::theme::font_path()",
+            "settings.shown && backend_enabled",
+            "settings.hide_inactive",
+            "SM_CXSCREEN",
+            "primary_screen_default_x",
+            "SM_XVIRTUALSCREEN",
+            "SM_YVIRTUALSCREEN",
+            "SM_CXVIRTUALSCREEN",
+            "SM_CYVIRTUALSCREEN",
+            "pub fn virtual_desktop_bounds() -> VirtualDesktopBounds",
+            "self.min_x.saturating_add(self.width.saturating_mul(4) / 5)",
+            "pub fn shutdown(&mut self)",
+        ):
+            self.assertIn(expected, overlay)
+        for expected in (
+            "show_lag_overlay",
+            "overlay_hide_inactive",
+            "overlay_use_bg",
+            "overlay_x",
+            "overlay_y",
+            "overlay_size",
+            "overlay_bg_r",
+            "overlay_bg_g",
+            "overlay_bg_b",
+            "windows_overlay_settings",
+            "let virtual_desktop = crate::windows_lag_overlay::virtual_desktop_bounds()",
+            "if state.x == -1",
+            "state.x = virtual_desktop.default_overlay_x()",
+            "virtual_desktop.min_x",
+            "virtual_desktop.max_x()",
+            "virtual_desktop.min_y",
+            "virtual_desktop.max_y()",
+            "set_overlay_x",
+        ):
+            self.assertIn(expected, lag_switch)
+        for expected in (
+            "windows_lag_overlay_settings",
+            "set_windows_lag_overlay_x",
+        ):
+            self.assertIn(expected, shell)
+        for expected in (
+            "overlay: windows_lag_overlay::WindowsLagOverlay",
+            "self.overlay.update(overlay_settings, backend_enabled, actively_lagging)",
+            "shell_state.set_windows_lag_overlay_x(resolved_x)",
+            "self.overlay.shutdown()",
+            "lag_switch: &mut WindowsLagSwitchServices",
+            "windows_lag_switch: &mut windows_lag_switch",
+        ):
+            self.assertIn(expected, main)
+        for feature in ("Win32_Graphics_Gdi", "Win32_System_LibraryLoader"):
+            self.assertIn(feature, windows_sys["features"])
+
     def test_windows_process_timing_policy_matches_cpp_timer_and_power_throttling_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

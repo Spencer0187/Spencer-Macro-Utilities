@@ -276,7 +276,7 @@ fn load_lsans(context: &Context) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn font_path() -> PathBuf {
+pub fn font_path() -> PathBuf {
     let executable_directory =
         env::current_exe().ok().and_then(|path| path.parent().map(Path::to_path_buf));
     let app_directories = ["SMU_APPDIR", "APPDIR"]

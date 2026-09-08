@@ -145,6 +145,8 @@ mod warning_toast;
 #[cfg(target_os = "windows")]
 mod windows_elevation;
 #[cfg(any(target_os = "windows", test))]
+mod windows_lag_overlay;
+#[cfg(any(target_os = "windows", test))]
 mod windows_timing;
 
 const WINDOW_TITLE: &str = "Spencer Macro Utilities";
@@ -1656,7 +1658,7 @@ fn start_windows_script_app(
     shell_state: &shell::ShellState,
     parity_case: Option<&str>,
     platform: &WindowsMacroPlatformServices,
-    lag_switch: &WindowsLagSwitchServices,
+    lag_switch: &mut WindowsLagSwitchServices,
 ) -> ScriptAppServices {
     let (selector, take_all_process_ids) = shell_state.script_process_target();
     let mut config = ScriptManagerConfig::new(app_version());
@@ -1809,6 +1811,7 @@ struct WindowsLagSwitchServices {
     enabled: Arc<AtomicBool>,
     control: Arc<dyn LagSwitchControl>,
     controller: lag_switch_runtime::LagSwitchController,
+    overlay: windows_lag_overlay::WindowsLagOverlay,
 }
 
 #[cfg(target_os = "windows")]
@@ -1832,19 +1835,28 @@ impl WindowsLagSwitchServices {
             Arc::clone(&enabled),
             shell_state.lag_switch_controller_settings(),
         );
-        Self { backend, enabled, control, controller }
+        let overlay = windows_lag_overlay::WindowsLagOverlay::new();
+        Self { backend, enabled, control, controller, overlay }
     }
 
     fn script_network(&self) -> Arc<dyn LagSwitchControl> {
         Arc::clone(&self.control)
     }
 
-    fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
+    fn prepare_shell(&mut self, shell_state: &mut shell::ShellState) {
+        let backend_enabled = self.enabled.load(Ordering::Acquire);
+        let actively_lagging = self.backend.is_blocking_active();
         shell_state.set_lag_switch_backend(lag_switch::BackendState {
-            enabled: self.enabled.load(Ordering::Acquire),
+            enabled: backend_enabled,
             available: self.backend.is_available(),
-            actively_lagging: self.backend.is_blocking_active(),
+            actively_lagging,
         });
+        let overlay_settings = shell_state.windows_lag_overlay_settings();
+        if let Some(resolved_x) =
+            self.overlay.update(overlay_settings, backend_enabled, actively_lagging)
+        {
+            shell_state.set_windows_lag_overlay_x(resolved_x);
+        }
         if self.controller.take_helper_prompt_request() {
             self.report_init_failure(shell_state);
         }
@@ -1894,7 +1906,8 @@ impl WindowsLagSwitchServices {
         }
     }
 
-    fn shutdown(&self) {
+    fn shutdown(&mut self) {
+        self.overlay.shutdown();
         self.controller.stop();
         self.backend.shutdown();
         self.enabled.store(false, Ordering::Release);
@@ -3165,7 +3178,7 @@ struct UiLoopContext<'a> {
     #[cfg(target_os = "macos")]
     macos_builtin_runtime: Option<&'a MacosBuiltinRuntimeServices>,
     #[cfg(target_os = "windows")]
-    windows_lag_switch: &'a WindowsLagSwitchServices,
+    windows_lag_switch: &'a mut WindowsLagSwitchServices,
     #[cfg(target_os = "windows")]
     windows_builtin_runtime: &'a WindowsBuiltinRuntimeServices,
 }
@@ -3473,7 +3486,7 @@ fn start_linux_runtime_services(
 fn shutdown_portable_services(
     script_runtime: Option<&script_runtime::ScriptRuntimeController>,
     builtin_runtime: &WindowsBuiltinRuntimeServices,
-    lag_switch: &WindowsLagSwitchServices,
+    lag_switch: &mut WindowsLagSwitchServices,
     script_app: &ScriptAppServices,
 ) {
     if let Some(controller) = script_runtime {
@@ -3553,7 +3566,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     let script_app = linux_services.script_app();
     #[cfg(target_os = "windows")]
-    let windows_lag_switch = WindowsLagSwitchServices::new(&shell_state, &windows_platform);
+    let mut windows_lag_switch = WindowsLagSwitchServices::new(&shell_state, &windows_platform);
     #[cfg(target_os = "windows")]
     let windows_builtin_runtime =
         WindowsBuiltinRuntimeServices::new(&shell_state, &windows_platform, parity_case.is_none());
@@ -3607,7 +3620,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(target_os = "macos")]
         macos_builtin_runtime: macos_builtin_runtime.as_ref(),
         #[cfg(target_os = "windows")]
-        windows_lag_switch: &windows_lag_switch,
+        windows_lag_switch: &mut windows_lag_switch,
         #[cfg(target_os = "windows")]
         windows_builtin_runtime: &windows_builtin_runtime,
     })?;
@@ -3629,7 +3642,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     shutdown_portable_services(
         portable_script_runtime.as_ref(),
         &windows_builtin_runtime,
-        &windows_lag_switch,
+        &mut windows_lag_switch,
         script_app,
     );
     #[cfg(target_os = "macos")]

@@ -951,6 +951,19 @@ impl ShellState {
         self.lag_switch.backend = backend;
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn windows_lag_overlay_settings(
+        &self,
+    ) -> crate::windows_lag_overlay::WindowsLagOverlaySettings {
+        self.lag_switch.windows_overlay_settings()
+    }
+
+    #[cfg(target_os = "windows")]
+    pub const fn set_windows_lag_overlay_x(&mut self, x: i32) {
+        self.lag_switch.set_overlay_x(x);
+    }
+
     #[cfg(target_os = "linux")]
     pub fn request_lag_switch_helper_popup(&mut self) {
         if self.admin_warning_suppressed() {

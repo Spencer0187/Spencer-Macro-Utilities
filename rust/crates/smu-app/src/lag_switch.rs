@@ -285,6 +285,27 @@ impl LagSwitchUiState {
         crate::profile_adapter::insert_bool(overlay, "show_lag_overlay", self.overlay.shown);
     }
 
+    #[cfg(target_os = "windows")]
+    #[must_use]
+    pub const fn windows_overlay_settings(
+        &self,
+    ) -> crate::windows_lag_overlay::WindowsLagOverlaySettings {
+        crate::windows_lag_overlay::WindowsLagOverlaySettings {
+            shown: self.overlay.shown,
+            hide_inactive: self.overlay.hide_inactive,
+            use_background: self.overlay.use_background,
+            x: self.overlay.x,
+            y: self.overlay.y,
+            text_size: self.overlay.text_size,
+            background: self.overlay.background,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    pub const fn set_overlay_x(&mut self, x: i32) {
+        self.overlay.x = x;
+    }
+
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[must_use]
     pub fn controller_settings(
@@ -550,10 +571,14 @@ fn render_overlay(ui: &Ui, state: &mut OverlayState) {
     let _disabled = ui.begin_disabled_with_cond(!state.shown);
     let _indent = ui.begin_indent();
     ui.checkbox("Hide When Not Actively Lagswitching", &mut state.hide_inactive);
+    let virtual_desktop = crate::windows_lag_overlay::virtual_desktop_bounds();
+    if state.x == -1 {
+        state.x = virtual_desktop.default_overlay_x();
+    }
     ui.set_next_item_width(OVERLAY_ITEM_WIDTH);
-    ui.slider_i32("Overlay X", &mut state.x, -1920, 3840);
+    ui.slider_i32("Overlay X", &mut state.x, virtual_desktop.min_x, virtual_desktop.max_x());
     ui.set_next_item_width(OVERLAY_ITEM_WIDTH);
-    ui.slider_i32("Overlay Y", &mut state.y, -1080, 2160);
+    ui.slider_i32("Overlay Y", &mut state.y, virtual_desktop.min_y, virtual_desktop.max_y());
     ui.set_next_item_width(OVERLAY_ITEM_WIDTH);
     ui.slider_i32("Text Size", &mut state.text_size, 10, 100);
     ui.checkbox("Add Background", &mut state.use_background);
