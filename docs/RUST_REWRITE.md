@@ -274,7 +274,12 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   startup settings now also queue the same C++ launch warning while keeping the source bytes untouched. Default-profile
   promotion now persists the promoted payload and the live theme/global/notification metadata in one
   metadata-aware save, matching C++ `SaveSettings`; a subsequent profile load therefore cannot reapply stale
-  metadata that predated the promotion. Legacy
+  metadata that predated the promotion. Profile UI failures now also follow the C++ notification path instead of
+  silently returning: Save To/load/duplicate aborts queue their warning messages, missing-vs-invalid loads are
+  distinguished, selection autosave failures surface as critical errors, and failed rename/delete persistence
+  mutations enter the critical modal queue. Explicit loads now also apply `_metadata` immediately after the settings
+  document is read, before a requested profile is accepted or rejected, matching C++ `LoadMetadata(root)` ordering;
+  unreadable, missing, and invalid profile failures stay distinct. Legacy
   conversion materializes the complete known serializer surface but intentionally drops unknown legacy
   root keys, matching C++ deserialization/serialization. The live `ShellState` adapter is checked
   against every generated C++ payload-oracle case: all 19 one-shot apply cases and all 6 stateful

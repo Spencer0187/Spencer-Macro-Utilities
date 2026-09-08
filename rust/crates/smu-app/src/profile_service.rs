@@ -9,6 +9,13 @@ use smu_profile::{
 };
 use std::path::{Path, PathBuf};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProfileLoadFailure {
+    Unreadable,
+    Missing,
+    Invalid,
+}
+
 #[derive(Debug)]
 pub struct ProfileBrowserService {
     path: Option<PathBuf>,
@@ -66,6 +73,29 @@ impl ProfileBrowserService {
     #[must_use]
     pub fn load_payload(&self, name: &str) -> Option<PreservedProfilePayload> {
         self.path.as_deref().and_then(|path| profile_payload_from_file(path, name))
+    }
+
+    pub fn load_payload_result(
+        &self,
+        name: &str,
+    ) -> Result<PreservedProfilePayload, ProfileLoadFailure> {
+        let Some(path) = self.path.as_deref() else {
+            return Err(ProfileLoadFailure::Unreadable);
+        };
+        let Some(catalog) = profile_catalog_from_file(path) else {
+            return Err(ProfileLoadFailure::Unreadable);
+        };
+        if !catalog.names.iter().any(|candidate| candidate == name) {
+            return Err(ProfileLoadFailure::Missing);
+        }
+        profile_payload_from_file(path, name).ok_or(ProfileLoadFailure::Invalid)
+    }
+
+    #[must_use]
+    pub fn path_display(&self) -> String {
+        self.path
+            .as_deref()
+            .map_or_else(|| "settings file".to_owned(), |path| path.display().to_string())
     }
 
     #[must_use]
@@ -150,38 +180,45 @@ impl ProfileBrowserService {
         duplicate_profile_in_file(path, source, &new_name).then_some(new_name)
     }
 
-    pub fn handle_action(&mut self, action: &ProfileAction, state: &mut ProfileBrowserState) {
+    #[must_use]
+    pub fn handle_action(
+        &mut self,
+        action: &ProfileAction,
+        state: &mut ProfileBrowserState,
+    ) -> bool {
         let Some(path) = self.path.as_deref() else {
             self.refresh(state, None);
-            return;
+            return false;
         };
-        let selected_after = match action {
-            ProfileAction::SaveTo { .. } | ProfileAction::Load { .. } => return,
+        let (selected_after, succeeded) = match action {
+            ProfileAction::SaveTo { .. } | ProfileAction::Load { .. } => return false,
             ProfileAction::Duplicate { source } if source != smu_profile::DEFAULT_PROFILE_NAME => {
                 let Some(catalog) = profile_catalog_from_file(path) else {
                     self.refresh(state, None);
-                    return;
+                    return false;
                 };
                 let new_name = generate_unique_profile_name(source, &catalog.names);
-                duplicate_profile_in_file(path, source, &new_name).then_some(new_name)
+                let duplicated = duplicate_profile_in_file(path, source, &new_name);
+                (duplicated.then_some(new_name), duplicated)
             }
             ProfileAction::Rename { old_name, new_name } => {
                 let renamed = rename_profile_in_file(path, old_name, new_name);
                 if renamed && self.current_name.as_deref() == Some(old_name.as_str()) {
                     self.current_name = Some(new_name.clone());
                 }
-                renamed.then(|| new_name.clone())
+                (renamed.then(|| new_name.clone()), renamed)
             }
             ProfileAction::Delete { name } => {
                 let deleted = delete_profile_from_file(path, name);
                 if deleted && self.current_name.as_deref() == Some(name.as_str()) {
                     self.clear_loaded();
                 }
-                None
+                (None, deleted)
             }
-            ProfileAction::Duplicate { .. } => None,
+            ProfileAction::Duplicate { .. } => (None, false),
         };
         self.refresh(state, selected_after.as_deref());
+        succeeded
     }
 
     fn refresh(&self, state: &mut ProfileBrowserState, select_name: Option<&str>) {
@@ -293,24 +330,27 @@ mod tests {
         let mut state = ProfileBrowserState::default();
         service.refresh(&mut state, None);
 
-        service.handle_action(
+        assert!(service.handle_action(
             &ProfileAction::Duplicate { source: "Profile 1".to_owned() },
             &mut state,
-        );
+        ));
         let catalog = profile_catalog_from_file(&path).expect("catalog after duplicate");
         assert!(catalog.names.contains(&"Profile 1 (Copy)".to_owned()));
 
-        service.handle_action(
+        assert!(service.handle_action(
             &ProfileAction::Rename {
                 old_name: "Profile 1 (Copy)".to_owned(),
                 new_name: "Renamed".to_owned(),
             },
             &mut state,
-        );
+        ));
         let catalog = profile_catalog_from_file(&path).expect("catalog after rename");
         assert!(catalog.names.contains(&"Renamed".to_owned()));
 
-        service.handle_action(&ProfileAction::Delete { name: "Renamed".to_owned() }, &mut state);
+        assert!(
+            service
+                .handle_action(&ProfileAction::Delete { name: "Renamed".to_owned() }, &mut state,)
+        );
         let catalog = profile_catalog_from_file(&path).expect("catalog after delete");
         assert!(!catalog.names.contains(&"Renamed".to_owned()));
     }
@@ -343,6 +383,27 @@ mod tests {
             }
             other => panic!("expected preferred structured profile, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn load_result_distinguishes_unreadable_missing_and_invalid_profiles() {
+        let temporary = TestDirectory::new();
+        let path = temporary.path.join("settings.json");
+        fs::write(&path, b"{ broken").expect("unreadable fixture should write");
+        let service = ProfileBrowserService::from_path_for_testing(path.clone());
+        assert_eq!(service.load_payload_result("Profile 1"), Err(ProfileLoadFailure::Unreadable));
+
+        fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "_metadata": {},
+                "Invalid": {"section_toggles": 5}
+            }))
+            .expect("load-result fixture should serialize"),
+        )
+        .expect("load-result fixture should write");
+        assert_eq!(service.load_payload_result("Missing"), Err(ProfileLoadFailure::Missing));
+        assert_eq!(service.load_payload_result("Invalid"), Err(ProfileLoadFailure::Invalid));
     }
 
     #[test]
@@ -384,19 +445,43 @@ mod tests {
         service.mark_loaded("Profile 1".to_owned(), payload);
         let mut state = ProfileBrowserState::default();
 
-        service.handle_action(
+        assert!(service.handle_action(
             &ProfileAction::Rename {
                 old_name: "Profile 1".to_owned(),
                 new_name: "Renamed".to_owned(),
             },
             &mut state,
-        );
+        ));
         assert_eq!(service.current_name(), Some("Renamed"));
         assert!(service.current_payload().is_some());
 
-        service.handle_action(&ProfileAction::Delete { name: "Renamed".to_owned() }, &mut state);
+        assert!(
+            service
+                .handle_action(&ProfileAction::Delete { name: "Renamed".to_owned() }, &mut state,)
+        );
         assert_eq!(service.current_name(), None);
         assert!(service.current_payload().is_none());
+    }
+
+    #[test]
+    fn mutation_result_reports_persistence_failure() {
+        let temporary = TestDirectory::new();
+        let path = temporary.path.join("settings.json");
+        fs::create_dir_all(&path).expect("directory-shaped settings target should be created");
+        let mut service = ProfileBrowserService::from_path_for_testing(path);
+        let mut state = ProfileBrowserState::default();
+
+        assert!(!service.handle_action(
+            &ProfileAction::Rename {
+                old_name: "Profile 1".to_owned(),
+                new_name: "Renamed".to_owned(),
+            },
+            &mut state,
+        ));
+        assert!(!service.handle_action(
+            &ProfileAction::Delete { name: "Profile 1".to_owned() },
+            &mut state,
+        ));
     }
 
     #[test]

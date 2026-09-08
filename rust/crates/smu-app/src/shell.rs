@@ -644,6 +644,11 @@ impl ShellState {
         self.warning_toast.front()
     }
 
+    #[cfg(test)]
+    pub(crate) fn first_critical_for_testing(&self) -> Option<&str> {
+        self.critical_modal.front()
+    }
+
     pub fn push_critical(&mut self, message: impl Into<String>) {
         self.critical_modal.push(message);
     }

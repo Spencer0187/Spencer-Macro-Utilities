@@ -269,20 +269,42 @@ fn save_live_profile(
 fn save_promoted_default_profile(
     service: &mut profile_service::ProfileBrowserService,
     shell_state: &shell::ShellState,
+    promoted_name: &str,
     live_payload: PreservedProfilePayload,
 ) -> bool {
-    let promoted_name = service.next_profile_name();
     let metadata = shell_state.profile_metadata_overlay();
-    if !service.save_payload_with_metadata(&promoted_name, &live_payload, &metadata) {
+    if !service.save_payload_with_metadata(promoted_name, &live_payload, &metadata) {
         return false;
     }
-    service.mark_loaded(promoted_name, live_payload);
+    service.mark_loaded(promoted_name.to_owned(), live_payload);
     true
+}
+
+fn notify_profile_save_failure(
+    shell_state: &mut shell::ShellState,
+    service: &profile_service::ProfileBrowserService,
+    profile_name: &str,
+) {
+    shell_state.push_critical(format!(
+        "Failed to save settings profile '{profile_name}' to {}.",
+        service.path_display()
+    ));
+}
+
+fn notify_default_promotion_failure(
+    shell_state: &mut shell::ShellState,
+    service: &profile_service::ProfileBrowserService,
+    promoted_name: &str,
+) {
+    notify_profile_save_failure(shell_state, service, promoted_name);
+    shell_state.push_warning(
+        "Could not promote '(default)' edits because the settings file could not be saved.",
+    );
 }
 
 fn save_current_profile_before_replacement(
     service: &mut profile_service::ProfileBrowserService,
-    shell_state: &shell::ShellState,
+    shell_state: &mut shell::ShellState,
     window: &Window,
     imported_scripts: Option<Value>,
 ) -> bool {
@@ -293,16 +315,27 @@ fn save_current_profile_before_replacement(
         return true;
     };
     if current_name != smu_profile::DEFAULT_PROFILE_NAME {
-        return save_live_profile(service, shell_state, window, &current_name, imported_scripts)
-            .is_some();
+        let saved =
+            save_live_profile(service, shell_state, window, &current_name, imported_scripts)
+                .is_some();
+        if !saved {
+            notify_profile_save_failure(shell_state, service, &current_name);
+        }
+        return saved;
     }
 
+    let promoted_name = service.next_profile_name();
     let Some(live_payload) =
         live_profile_payload(shell_state, &current_payload, window, imported_scripts)
     else {
+        notify_default_promotion_failure(shell_state, service, &promoted_name);
         return false;
     };
-    save_promoted_default_profile(service, shell_state, live_payload)
+    if !save_promoted_default_profile(service, shell_state, &promoted_name, live_payload) {
+        notify_default_promotion_failure(shell_state, service, &promoted_name);
+        return false;
+    }
+    true
 }
 
 fn save_profiles_now(
@@ -320,7 +353,8 @@ fn save_profiles_now(
         else {
             return false;
         };
-        if !save_promoted_default_profile(service, shell_state, live_payload) {
+        let promoted_name = service.next_profile_name();
+        if !save_promoted_default_profile(service, shell_state, &promoted_name, live_payload) {
             return false;
         }
     }
@@ -359,6 +393,53 @@ fn save_before_privileged_shell_action(
     let _ = save_profiles_now(service, shell_state, window, Some(script_app.serialize_scripts()));
 }
 
+fn profile_load_failure_message(
+    service: &profile_service::ProfileBrowserService,
+    name: &str,
+    failure: profile_service::ProfileLoadFailure,
+) -> String {
+    match failure {
+        profile_service::ProfileLoadFailure::Unreadable => format!(
+            "Settings load skipped for {} because the settings source could not be read. Using in-memory defaults.",
+            service.path_display()
+        ),
+        profile_service::ProfileLoadFailure::Missing => {
+            format!("Profile '{name}' was not found in {}.", service.path_display())
+        }
+        profile_service::ProfileLoadFailure::Invalid => {
+            format!("Profile '{name}' was rejected because its data is invalid.")
+        }
+    }
+}
+
+fn load_profile_payload_for_action(
+    service: &profile_service::ProfileBrowserService,
+    shell_state: &mut shell::ShellState,
+    name: &str,
+) -> Result<PreservedProfilePayload, profile_service::ProfileLoadFailure> {
+    if let Some(metadata) = service.metadata_snapshot() {
+        shell_state.apply_profile_metadata(&metadata);
+    }
+    service.load_payload_result(name)
+}
+
+fn notify_profile_mutation_failure(
+    shell_state: &mut shell::ShellState,
+    action: &profile_browser::ProfileAction,
+) {
+    match action {
+        profile_browser::ProfileAction::Rename { old_name, new_name } => {
+            shell_state.push_critical(format!(
+                "Failed to rename settings profile '{old_name}' to '{new_name}'."
+            ));
+        }
+        profile_browser::ProfileAction::Delete { name } => {
+            shell_state.push_critical(format!("Failed to delete settings profile '{name}'."));
+        }
+        _ => {}
+    }
+}
+
 #[derive(Clone, Debug)]
 enum ProfileActionOutcome {
     None,
@@ -379,6 +460,9 @@ fn handle_profile_action(
                 save_live_profile(service, shell_state, window, name, imported_scripts)
             else {
                 shell_state.push_critical(format!("Failed to save settings profile '{name}'."));
+                shell_state.push_warning(
+                    "Save To aborted because the settings file could not be updated.",
+                );
                 return ProfileActionOutcome::None;
             };
             service.refresh_selected(shell_state.profile_browser_mut(), Some(name));
@@ -391,15 +475,19 @@ fn handle_profile_action(
                 window,
                 imported_scripts,
             ) {
+                shell_state.push_warning(
+                    "Profile load aborted because the current profile could not be saved.",
+                );
                 return ProfileActionOutcome::None;
             }
-            let Some(payload) = service.load_payload(name) else {
-                return ProfileActionOutcome::None;
+            let payload = match load_profile_payload_for_action(service, shell_state, name) {
+                Ok(payload) => payload,
+                Err(failure) => {
+                    shell_state.push_warning(profile_load_failure_message(service, name, failure));
+                    return ProfileActionOutcome::None;
+                }
             };
             shell_state.apply_profile_payload(&payload);
-            if let Some(metadata) = service.metadata_snapshot() {
-                shell_state.apply_profile_metadata(&metadata);
-            }
             service.mark_loaded(name.clone(), payload.clone());
             service.refresh_selected(shell_state.profile_browser_mut(), Some(name));
             ProfileActionOutcome::Loaded(payload)
@@ -411,6 +499,10 @@ fn handle_profile_action(
             let Some(payload) =
                 save_live_profile(service, shell_state, window, &new_name, imported_scripts)
             else {
+                shell_state.push_critical(format!("Failed to save settings profile '{new_name}'."));
+                shell_state.push_warning(
+                    "Profile duplication aborted because the settings file could not be updated.",
+                );
                 return ProfileActionOutcome::None;
             };
             service.refresh_selected(shell_state.profile_browser_mut(), Some(&new_name));
@@ -423,24 +515,33 @@ fn handle_profile_action(
                 window,
                 imported_scripts,
             ) {
+                shell_state.push_warning(
+                    "Profile duplication aborted because the current profile could not be saved.",
+                );
                 return ProfileActionOutcome::None;
             }
             let Some(new_name) = service.duplicate_profile(source) else {
+                shell_state
+                    .push_critical(format!("Failed to duplicate settings profile '{source}'."));
                 return ProfileActionOutcome::None;
             };
-            let Some(payload) = service.load_payload(&new_name) else {
-                return ProfileActionOutcome::None;
+            let payload = match load_profile_payload_for_action(service, shell_state, &new_name) {
+                Ok(payload) => payload,
+                Err(failure) => {
+                    shell_state
+                        .push_warning(profile_load_failure_message(service, &new_name, failure));
+                    return ProfileActionOutcome::None;
+                }
             };
             shell_state.apply_profile_payload(&payload);
-            if let Some(metadata) = service.metadata_snapshot() {
-                shell_state.apply_profile_metadata(&metadata);
-            }
             service.mark_loaded(new_name.clone(), payload.clone());
             service.refresh_selected(shell_state.profile_browser_mut(), Some(&new_name));
             ProfileActionOutcome::Loaded(payload)
         }
         _ => {
-            service.handle_action(action, shell_state.profile_browser_mut());
+            if !service.handle_action(action, shell_state.profile_browser_mut()) {
+                notify_profile_mutation_failure(shell_state, action);
+            }
             ProfileActionOutcome::None
         }
     }
@@ -499,6 +600,125 @@ mod profile_orchestration_tests {
         assert!(root_launch_refused(0, false));
         assert!(!root_launch_refused(0, true));
         assert!(!root_launch_refused(1000, false));
+    }
+
+    #[test]
+    fn profile_load_failure_message_distinguishes_missing_and_invalid_profiles() {
+        let temporary = TestDirectory::new("profile-load-failure-message");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "_metadata": {},
+                "Invalid": {"section_toggles": 5}
+            }))
+            .expect("failure fixture should serialize"),
+        )
+        .expect("failure fixture should write");
+        let service = profile_service::ProfileBrowserService::from_path_for_testing(path.clone());
+
+        assert_eq!(
+            profile_load_failure_message(
+                &service,
+                "Invalid",
+                profile_service::ProfileLoadFailure::Invalid,
+            ),
+            "Profile 'Invalid' was rejected because its data is invalid."
+        );
+        assert_eq!(
+            profile_load_failure_message(
+                &service,
+                "Missing",
+                profile_service::ProfileLoadFailure::Missing,
+            ),
+            format!("Profile 'Missing' was not found in {}.", path.display())
+        );
+    }
+
+    #[test]
+    fn failed_profile_load_still_applies_global_metadata_before_rejection() {
+        let temporary = TestDirectory::new("failed-profile-load-metadata");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "_metadata": {
+                    "shortdescriptions": true,
+                    "current_theme_index": 1,
+                    "suppressed_notifications": ["admin_elevation_warning"]
+                },
+                "Invalid": {"section_toggles": 5}
+            }))
+            .expect("failure metadata fixture should serialize"),
+        )
+        .expect("failure metadata fixture should write");
+        let service = profile_service::ProfileBrowserService::from_path_for_testing(path);
+        let mut shell_state = shell::ShellState::default();
+
+        assert_eq!(
+            load_profile_payload_for_action(&service, &mut shell_state, "Invalid"),
+            Err(profile_service::ProfileLoadFailure::Invalid)
+        );
+        let metadata = shell_state.profile_metadata_overlay();
+        assert_eq!(metadata["shortdescriptions"], json!(true));
+        assert_eq!(metadata["current_theme_index"], json!(1));
+        assert_eq!(metadata["suppressed_notifications"], json!(["admin_elevation_warning"]));
+    }
+
+    #[test]
+    fn pre_replacement_save_failure_queues_underlying_critical_and_promotion_warning() {
+        let temporary = TestDirectory::new("pre-replacement-save-failure");
+        let path = temporary.path.join("settings.json");
+        let service = profile_service::ProfileBrowserService::from_path_for_testing(path.clone());
+
+        let mut normal_shell = shell::ShellState::default();
+        notify_profile_save_failure(&mut normal_shell, &service, "Profile 7");
+        assert!(normal_shell.first_critical_for_testing().is_some_and(|message| {
+            message.starts_with(
+                format!("Failed to save settings profile 'Profile 7' to {}.", path.display())
+                    .as_str(),
+            )
+        }));
+        assert!(normal_shell.first_warning_for_testing().is_none());
+
+        let mut default_shell = shell::ShellState::default();
+        notify_default_promotion_failure(&mut default_shell, &service, "Profile 8");
+        assert!(default_shell.first_critical_for_testing().is_some_and(|message| {
+            message.starts_with(
+                format!("Failed to save settings profile 'Profile 8' to {}.", path.display())
+                    .as_str(),
+            )
+        }));
+        assert_eq!(
+            default_shell.first_warning_for_testing(),
+            Some(
+                "Could not promote '(default)' edits because the settings file could not be saved."
+            )
+        );
+    }
+
+    #[test]
+    fn failed_profile_mutations_queue_critical_feedback() {
+        let mut shell_state = shell::ShellState::default();
+        notify_profile_mutation_failure(
+            &mut shell_state,
+            &profile_browser::ProfileAction::Rename {
+                old_name: "Profile 1".to_owned(),
+                new_name: "Profile 2".to_owned(),
+            },
+        );
+        assert!(shell_state.first_critical_for_testing().is_some_and(|message| {
+            message.starts_with("Failed to rename settings profile 'Profile 1' to 'Profile 2'.")
+        }));
+
+        let mut shell_state = shell::ShellState::default();
+        notify_profile_mutation_failure(
+            &mut shell_state,
+            &profile_browser::ProfileAction::Delete { name: "Profile 3".to_owned() },
+        );
+        assert!(shell_state.first_critical_for_testing().is_some_and(|message| {
+            message.starts_with("Failed to delete settings profile 'Profile 3'.")
+        }));
     }
 
     #[test]
@@ -702,7 +922,12 @@ mod profile_orchestration_tests {
             ("suppressed_notifications".to_owned(), json!(["admin_elevation_warning"])),
         ]));
 
-        assert!(save_promoted_default_profile(&mut service, &live_shell, default_payload));
+        assert!(save_promoted_default_profile(
+            &mut service,
+            &live_shell,
+            "Profile 1",
+            default_payload
+        ));
         assert_eq!(service.current_name(), Some("Profile 1"));
 
         let metadata = service.metadata_snapshot().expect("metadata should remain readable");
@@ -2720,6 +2945,8 @@ fn maybe_autosave_profile_selection(
         Some(script_app.serialize_scripts()),
     ) {
         script_app.update_saved_settings(&payload);
+    } else {
+        shell_state.push_critical(format!("Failed to save settings profile '{current_name}'."));
     }
 }
 
