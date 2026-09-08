@@ -616,6 +616,11 @@ impl ShellState {
         self.warning_toast.push(message);
     }
 
+    #[cfg(test)]
+    pub(crate) fn first_warning_for_testing(&self) -> Option<&str> {
+        self.warning_toast.front()
+    }
+
     pub fn push_critical(&mut self, message: impl Into<String>) {
         self.critical_modal.push(message);
     }

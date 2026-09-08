@@ -270,7 +270,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   real script arrays while exposing C++-normalized values for live state; app saves batch-overlay the
   Rust-owned settings onto that preservation baseline so untouched data survives round trips. Startup
   mirrors C++ missing-file creation, legacy-flat conversion into `Profile 1`, preferred-profile load,
-  immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Default-profile
+  immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Unreadable or unsupported
+  startup settings now also queue the same C++ launch warning while keeping the source bytes untouched. Default-profile
   promotion now persists the promoted payload and the live theme/global/notification metadata in one
   metadata-aware save, matching C++ `SaveSettings`; a subsequent profile load therefore cannot reapply stale
   metadata that predated the promotion. Legacy

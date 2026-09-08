@@ -612,15 +612,40 @@ mod profile_orchestration_tests {
     }
 
     #[test]
+    fn unsupported_startup_root_queues_cpp_load_failure_warning_without_overwrite() {
+        let temporary = TestDirectory::new("unsupported");
+        let path = temporary.path.join("settings.json");
+        std::fs::write(&path, b"42").expect("unsupported fixture should write");
+        let before = std::fs::read(&path).expect("unsupported fixture bytes");
+
+        let (state, service) = initialize_at(path.clone());
+        assert_eq!(service.current_name(), Some("Profile 1"));
+        assert!(service.current_payload().is_none());
+        assert_eq!(
+            state.first_warning_for_testing(),
+            Some(
+                "Continuing with in-memory default settings because the settings file could not be loaded."
+            )
+        );
+        assert_eq!(std::fs::read(&path).expect("unsupported fixture should remain"), before);
+    }
+
+    #[test]
     fn unreadable_startup_keeps_bytes_and_only_sets_in_memory_profile1_name() {
         let temporary = TestDirectory::new("unreadable");
         let path = temporary.path.join("settings.json");
         std::fs::write(&path, b"{ broken").expect("unreadable fixture should write");
         let before = std::fs::read(&path).expect("unreadable fixture bytes");
 
-        let (_state, service) = initialize_at(path.clone());
+        let (state, service) = initialize_at(path.clone());
         assert_eq!(service.current_name(), Some("Profile 1"));
         assert!(service.current_payload().is_none());
+        assert_eq!(
+            state.first_warning_for_testing(),
+            Some(
+                "Continuing with in-memory default settings because the settings file could not be loaded."
+            )
+        );
         assert_eq!(std::fs::read(&path).expect("unreadable fixture should remain"), before);
     }
 
@@ -2627,6 +2652,9 @@ fn initialize_profile_state_with_service(
         | smu_profile::StartupProfileSource::Unreadable
         | smu_profile::StartupProfileSource::Unsupported { .. } => {
             profile_service.mark_current_name_only("Profile 1".to_owned());
+            shell_state.push_warning(
+                "Continuing with in-memory default settings because the settings file could not be loaded.",
+            );
         }
     }
     if let Some(metadata) = profile_service.metadata_snapshot() {
