@@ -20,12 +20,10 @@ use std::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        ERROR_INSUFFICIENT_BUFFER, ERROR_INVALID_PARAMETER, FreeLibrary, GetLastError, HANDLE,
-        HMODULE, INVALID_HANDLE_VALUE, NO_ERROR,
+        ERROR_ACCESS_DENIED, ERROR_INSUFFICIENT_BUFFER, ERROR_INVALID_PARAMETER, FreeLibrary,
+        GetLastError, HANDLE, HMODULE, INVALID_HANDLE_VALUE, NO_ERROR,
     },
-    NetworkManagement::IpHelper::{
-        GetExtendedUdpTable, MIB_UDPROW_OWNER_PID, MIB_UDPTABLE_OWNER_PID, UDP_TABLE_OWNER_PID,
-    },
+    NetworkManagement::IpHelper::{GetExtendedUdpTable, MIB_UDPROW_OWNER_PID, UDP_TABLE_OWNER_PID},
     Security::{AllocateAndInitializeSid, CheckTokenMembership, FreeSid, SECURITY_NT_AUTHORITY},
     System::{
         LibraryLoader::{GetProcAddress, LoadLibraryW},
@@ -290,6 +288,17 @@ impl std::fmt::Display for WinDivertLoadError {
                 )
             }
         }
+    }
+}
+
+impl WinDivertLoadError {
+    #[must_use]
+    const fn requires_administrator(&self) -> bool {
+        matches!(
+            self,
+            Self::LoadLibrary { win32_error, .. } | Self::ProbeOpen { win32_error }
+                if *win32_error == ERROR_ACCESS_DENIED
+        )
     }
 }
 
@@ -750,6 +759,7 @@ struct WindowsBackendState {
     policy: LagSwitchState,
     driver_enabled: bool,
     last_error: String,
+    last_error_requires_administrator: bool,
     packet_worker: Option<Arc<WinDivertPacketWorker>>,
     dynamic_targets: WindowsDynamicTargetState,
     process_selector: String,
@@ -823,19 +833,35 @@ impl WindowsLagSwitchBackend {
         let paths = match WinDivertPaths::current() {
             Ok(paths) => paths,
             Err(error) => {
-                error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+                let mut state = lock_mutex(&self.inner.state);
+                state.last_error_requires_administrator = false;
+                error.to_string().clone_into(&mut state.last_error);
                 return false;
             }
         };
         let api = match WinDivertApi::load(&paths) {
             Ok(api) => Arc::new(api),
             Err(error) => {
-                error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+                let requires_administrator = error.requires_administrator();
+                let mut state = lock_mutex(&self.inner.state);
+                state.last_error_requires_administrator = requires_administrator;
+                if requires_administrator {
+                    state.last_error.clear();
+                } else {
+                    error.to_string().clone_into(&mut state.last_error);
+                }
                 return false;
             }
         };
         if let Err(error) = api.probe() {
-            error.to_string().clone_into(&mut lock_mutex(&self.inner.state).last_error);
+            let requires_administrator = error.requires_administrator();
+            let mut state = lock_mutex(&self.inner.state);
+            state.last_error_requires_administrator = requires_administrator;
+            if requires_administrator {
+                state.last_error.clear();
+            } else {
+                error.to_string().clone_into(&mut state.last_error);
+            }
             return false;
         }
         let mut dynamic_targets = lock_mutex(&self.inner.state).dynamic_targets.clone();
@@ -856,6 +882,7 @@ impl WindowsLagSwitchBackend {
             state.packet_worker = Some(packet_worker);
             state.driver_enabled = true;
             state.last_error.clear();
+            state.last_error_requires_administrator = false;
             update_capture_locked(&state);
         }
         self.start_refresh_worker();
@@ -1057,16 +1084,16 @@ impl LagSwitchControl for WindowsLagSwitchBackend {
     }
 
     fn initialization_failure(&self) -> LagSwitchInitializationFailure {
-        if !is_running_as_admin() {
+        let state = lock_mutex(&self.inner.state);
+        if state.last_error_requires_administrator {
             return LagSwitchInitializationFailure::RequiresAdministrator;
         }
-        let message = lock_mutex(&self.inner.state).last_error.clone();
-        if message.is_empty() {
+        if state.last_error.is_empty() {
             LagSwitchInitializationFailure::Error(
                 "Lag switch backend could not be initialized.".to_owned(),
             )
         } else {
-            LagSwitchInitializationFailure::Error(message)
+            LagSwitchInitializationFailure::Error(state.last_error.clone())
         }
     }
 
@@ -1290,6 +1317,22 @@ mod tests {
         assert!(!WinDivertAddress::default().outbound());
         assert!(WinDivertAddress::with_flags(1 << 17).outbound());
         assert!(!WinDivertAddress::with_flags(1 << 16).outbound());
+    }
+
+    #[test]
+    fn only_access_denied_load_failures_require_administrator() {
+        let denied_load = WinDivertLoadError::LoadLibrary {
+            path: PathBuf::from("SMCWinDivert.dll"),
+            win32_error: ERROR_ACCESS_DENIED,
+        };
+        let denied_probe = WinDivertLoadError::ProbeOpen { win32_error: ERROR_ACCESS_DENIED };
+        let broken_runtime = WinDivertLoadError::MissingAsset(PathBuf::from("SMCWinDivert.dll"));
+        let invalid_probe = WinDivertLoadError::ProbeOpen { win32_error: 577 };
+
+        assert!(denied_load.requires_administrator());
+        assert!(denied_probe.requires_administrator());
+        assert!(!broken_runtime.requires_administrator());
+        assert!(!invalid_probe.requires_administrator());
     }
 
     #[test]

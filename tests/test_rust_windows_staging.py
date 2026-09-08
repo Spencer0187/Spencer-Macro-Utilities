@@ -252,6 +252,41 @@ class RustWindowsStagingTest(unittest.TestCase):
         ):
             self.assertIn(expected, build_script)
 
+    def test_windows_windivert_failure_keeps_real_error_and_offers_admin_independently(self) -> None:
+        main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
+            encoding="utf-8"
+        )
+        network = (
+            ROOT / "rust" / "crates" / "smu-network" / "src" / "windows.rs"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "ERROR_ACCESS_DENIED",
+            "last_error_requires_administrator",
+            "error.requires_administrator()",
+            "state.last_error_requires_administrator = requires_administrator",
+            "if state.last_error_requires_administrator",
+            "LagSwitchInitializationFailure::RequiresAdministrator",
+            "LagSwitchInitializationFailure::Error(state.last_error.clone())",
+            "only_access_denied_load_failures_require_administrator",
+        ):
+            self.assertIn(expected, network)
+        self.assertNotIn(
+            "if !is_running_as_admin() {\n            return LagSwitchInitializationFailure::RequiresAdministrator;",
+            network,
+        )
+        for expected in (
+            "shell_state.push_critical(reason);",
+            "if !smu_network::windows::is_running_as_admin()",
+            "shell_state.request_admin_restart_popup();",
+            "fn script_lag_switch_initialization_failure(",
+            "smu_network::LagSwitchInitializationFailure::RequiresAdministrator",
+            "script_lag_switch_initialization_failure(",
+            "smu_network::windows::is_running_as_admin(),",
+            "smu_network::LagSwitchInitializationFailure::Error(String::new())",
+        ):
+            self.assertIn(expected, main)
+
     def test_windows_admin_relaunch_preserves_cpp_modal_save_and_runas_contract(self) -> None:
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"

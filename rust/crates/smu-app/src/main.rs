@@ -1680,6 +1680,57 @@ fn start_windows_script_app(
     )
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn script_lag_switch_initialization_failure(
+    running_as_admin: bool,
+    backend_failure: smu_network::LagSwitchInitializationFailure,
+) -> smu_network::LagSwitchInitializationFailure {
+    if !running_as_admin {
+        return smu_network::LagSwitchInitializationFailure::RequiresAdministrator;
+    }
+    match backend_failure {
+        smu_network::LagSwitchInitializationFailure::RequiresAdministrator => {
+            smu_network::LagSwitchInitializationFailure::Error(String::new())
+        }
+        failure => failure,
+    }
+}
+
+#[cfg(test)]
+mod windows_lag_switch_adapter_tests {
+    use super::*;
+
+    #[test]
+    fn non_admin_script_failure_masks_backend_error_like_cpp() {
+        let failure = script_lag_switch_initialization_failure(
+            false,
+            smu_network::LagSwitchInitializationFailure::Error(
+                "WinDivert runtime asset is missing".to_owned(),
+            ),
+        );
+        assert_eq!(failure, smu_network::LagSwitchInitializationFailure::RequiresAdministrator);
+    }
+
+    #[test]
+    fn elevated_access_denied_uses_generic_backend_error_like_cpp() {
+        assert_eq!(
+            script_lag_switch_initialization_failure(
+                true,
+                smu_network::LagSwitchInitializationFailure::RequiresAdministrator,
+            ),
+            smu_network::LagSwitchInitializationFailure::Error(String::new())
+        );
+    }
+
+    #[test]
+    fn elevated_script_failure_preserves_backend_error() {
+        let expected = smu_network::LagSwitchInitializationFailure::Error(
+            "WinDivert runtime asset is missing".to_owned(),
+        );
+        assert_eq!(script_lag_switch_initialization_failure(true, expected.clone()), expected);
+    }
+}
+
 #[cfg(target_os = "windows")]
 struct WindowsLagSwitchControlAdapter {
     backend: Arc<WindowsLagSwitchBackend>,
@@ -1701,7 +1752,10 @@ impl LagSwitchControl for WindowsLagSwitchControlAdapter {
     }
 
     fn initialization_failure(&self) -> smu_network::LagSwitchInitializationFailure {
-        self.backend.initialization_failure()
+        script_lag_switch_initialization_failure(
+            smu_network::windows::is_running_as_admin(),
+            self.backend.initialization_failure(),
+        )
     }
 
     fn is_available(&self) -> bool {
@@ -1825,20 +1879,18 @@ impl WindowsLagSwitchServices {
 
     fn report_init_failure(&self, shell_state: &mut shell::ShellState) {
         match self.backend.initialization_failure() {
-            smu_network::LagSwitchInitializationFailure::RequiresAdministrator => {
-                shell_state.request_admin_restart_popup();
-            }
+            smu_network::LagSwitchInitializationFailure::RequiresAdministrator => {}
             smu_network::LagSwitchInitializationFailure::RequiresHelper => {
                 shell_state.push_warning("WinDivert could not be initialized.");
             }
             smu_network::LagSwitchInitializationFailure::Error(reason) => {
-                let message = if reason.is_empty() {
-                    "WinDivert could not be initialized.".to_owned()
-                } else {
-                    format!("WinDivert could not be initialized: {reason}")
-                };
-                shell_state.push_warning(message);
+                if !reason.is_empty() {
+                    shell_state.push_critical(reason);
+                }
             }
+        }
+        if !smu_network::windows::is_running_as_admin() {
+            shell_state.request_admin_restart_popup();
         }
     }
 

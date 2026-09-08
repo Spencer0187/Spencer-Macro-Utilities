@@ -476,7 +476,15 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   platform support from initialized transport explicitly and cold-initializes before `lagSwitch(true)`
   takes script blocking ownership; a failed cold init leaves the script running without claiming the
   block, matching C++. Initialization failures now carry explicit `RequiresAdministrator`,
-  `RequiresHelper`, or backend-error diagnostics. Windows checks effective-token administrator
+  `RequiresHelper`, or backend-error diagnostics. Windows now classifies only real Win32
+  `ERROR_ACCESS_DENIED` DLL/probe failures as `RequiresAdministrator`; missing/corrupt assets, missing exports,
+  signature/capability-probe errors, and other failures keep their concrete backend message. The Windows app
+  surfaces those messages as critical errors and independently offers the Administrator flow whenever the process
+  is not elevated, so a broken runtime cannot be masked by a non-admin launch. Imported-script cold initialization
+  preserves the C++-specific diagnostic rule separately: any failed Windows cold init while the process is non-admin
+  becomes the Administrator warning and skips script blocking, while elevated scripts keep concrete backend errors;
+  if an elevated process still receives Win32 access denied, the script uses the C++ generic initialization error rather
+  than incorrectly claiming that SMU is not Administrator. Windows checks effective-token administrator
   membership with the same SID/membership API family as C++, Linux reports the helper requirement, and
   the scripting execution context publishes the matching warning/error onto each script instance without
   throwing into Lua. Windows app composition now also owns the migrated built-in macro runtime rather
