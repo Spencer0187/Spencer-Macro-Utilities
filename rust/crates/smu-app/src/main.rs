@@ -262,6 +262,20 @@ fn save_live_profile(
     Some(payload)
 }
 
+fn save_promoted_default_profile(
+    service: &mut profile_service::ProfileBrowserService,
+    shell_state: &shell::ShellState,
+    live_payload: PreservedProfilePayload,
+) -> bool {
+    let promoted_name = service.next_profile_name();
+    let metadata = shell_state.profile_metadata_overlay();
+    if !service.save_payload_with_metadata(&promoted_name, &live_payload, &metadata) {
+        return false;
+    }
+    service.mark_loaded(promoted_name, live_payload);
+    true
+}
+
 fn save_current_profile_before_replacement(
     service: &mut profile_service::ProfileBrowserService,
     shell_state: &shell::ShellState,
@@ -284,12 +298,7 @@ fn save_current_profile_before_replacement(
     else {
         return false;
     };
-    let promoted_name = service.next_profile_name();
-    if !service.save_payload(&promoted_name, &live_payload) {
-        return false;
-    }
-    service.mark_loaded(promoted_name, live_payload);
-    true
+    save_promoted_default_profile(service, shell_state, live_payload)
 }
 
 fn save_profiles_now(
@@ -307,11 +316,9 @@ fn save_profiles_now(
         else {
             return false;
         };
-        let promoted_name = service.next_profile_name();
-        if !service.save_payload(&promoted_name, &live_payload) {
+        if !save_promoted_default_profile(service, shell_state, live_payload) {
             return false;
         }
-        service.mark_loaded(promoted_name, live_payload);
     }
     let Some(current_name) = service.current_name().map(str::to_owned) else {
         return false;
@@ -633,6 +640,57 @@ mod profile_orchestration_tests {
         let scripts = json!([{"path":"new.lua","enabled":true}]);
         overlay_imported_scripts(&mut overlay, Some(scripts.clone()));
         assert_eq!(overlay.get("imported_scripts"), Some(&scripts));
+    }
+
+    #[test]
+    fn default_promotion_persists_live_metadata_before_subsequent_profile_load() {
+        let temporary = TestDirectory::new("default-promotion-metadata");
+        let path = temporary.path.join("settings.json");
+        let default_payload = PreservedProfilePayload::cpp_default();
+        std::fs::write(
+            &path,
+            serde_json::to_vec(&json!({
+                "_metadata": {
+                    "last_active_profile": smu_profile::DEFAULT_PROFILE_NAME,
+                    "shortdescriptions": false,
+                    "current_theme_index": 0,
+                    "suppressed_notifications": [],
+                    "future_meta": {"keep": true}
+                },
+                smu_profile::DEFAULT_PROFILE_NAME: default_payload.raw_snapshot(),
+                "Profile 2": {"vk_f5": 0x70}
+            }))
+            .expect("promotion fixture should serialize"),
+        )
+        .expect("promotion fixture should write");
+
+        let mut service = profile_service::ProfileBrowserService::from_path_for_testing(path);
+        service.mark_loaded(smu_profile::DEFAULT_PROFILE_NAME.to_owned(), default_payload.clone());
+        let mut live_shell = shell::ShellState::default();
+        live_shell.apply_profile_metadata(&Map::from_iter([
+            ("shortdescriptions".to_owned(), json!(true)),
+            ("current_theme_index".to_owned(), json!(1)),
+            ("suppressed_notifications".to_owned(), json!(["admin_elevation_warning"])),
+        ]));
+
+        assert!(save_promoted_default_profile(&mut service, &live_shell, default_payload));
+        assert_eq!(service.current_name(), Some("Profile 1"));
+
+        let metadata = service.metadata_snapshot().expect("metadata should remain readable");
+        assert_eq!(metadata[smu_profile::LAST_ACTIVE_PROFILE_KEY], json!("Profile 1"));
+        assert_eq!(metadata["shortdescriptions"], json!(true));
+        assert_eq!(metadata["current_theme_index"], json!(1));
+        assert_eq!(metadata["suppressed_notifications"], json!(["admin_elevation_warning"]));
+        assert_eq!(metadata["future_meta"], json!({"keep": true}));
+
+        let profile_two = service.load_payload("Profile 2").expect("Profile 2 should load");
+        let mut loaded_shell = shell::ShellState::default();
+        loaded_shell.apply_profile_payload(&profile_two);
+        loaded_shell.apply_profile_metadata(&metadata);
+        let reapplied = loaded_shell.profile_metadata_overlay();
+        assert_eq!(reapplied["shortdescriptions"], json!(true));
+        assert_eq!(reapplied["current_theme_index"], json!(1));
+        assert_eq!(reapplied["suppressed_notifications"], json!(["admin_elevation_warning"]));
     }
 
     #[test]

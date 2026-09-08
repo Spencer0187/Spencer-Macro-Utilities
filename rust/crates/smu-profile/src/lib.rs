@@ -271,11 +271,13 @@ pub fn upsert_profile_payload_with_metadata_in_file(
     let Ok(metadata) = metadata_mut(&mut root) else {
         return false;
     };
-    if make_active {
-        metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
-    }
     for (key, value) in metadata_overlay {
         metadata.insert(key.clone(), value.clone());
+    }
+    if make_active {
+        // Match C++ SaveMetadata: the profile being saved as active is authoritative even if a caller's
+        // preservation overlay happens to contain a stale last_active_profile value.
+        metadata.insert(LAST_ACTIVE_PROFILE_KEY.to_owned(), Value::String(profile_name.to_owned()));
     }
     write_json_file(path, &root, false)
 }
@@ -1157,7 +1159,10 @@ mod tests {
             }),
         );
         let payload = crate::payload::ProfilePayloadState::default().snapshot();
-        let overlay = Map::from_iter([("current_theme_index".to_owned(), json!(2))]);
+        let overlay = Map::from_iter([
+            ("current_theme_index".to_owned(), json!(2)),
+            (LAST_ACTIVE_PROFILE_KEY.to_owned(), json!("Stale Profile")),
+        ]);
         assert!(upsert_profile_payload_with_metadata_in_file(
             &path,
             "Profile 1",

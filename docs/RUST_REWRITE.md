@@ -270,7 +270,10 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   real script arrays while exposing C++-normalized values for live state; app saves batch-overlay the
   Rust-owned settings onto that preservation baseline so untouched data survives round trips. Startup
   mirrors C++ missing-file creation, legacy-flat conversion into `Profile 1`, preferred-profile load,
-  immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Legacy
+  immutable `(default)` refresh, `(default)` promotion, and unreadable-source refusal. Default-profile
+  promotion now persists the promoted payload and the live theme/global/notification metadata in one
+  metadata-aware save, matching C++ `SaveSettings`; a subsequent profile load therefore cannot reapply stale
+  metadata that predated the promotion. Legacy
   conversion materializes the complete known serializer surface but intentionally drops unknown legacy
   root keys, matching C++ deserialization/serialization. The live `ShellState` adapter is checked
   against every generated C++ payload-oracle case: all 19 one-shot apply cases and all 6 stateful
