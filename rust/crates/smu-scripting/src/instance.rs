@@ -34,6 +34,8 @@ const BINARY_CHUNK_ERROR: &str =
     "Precompiled Lua chunks are not supported. Please provide a plain-text Lua script.";
 const MISSING_EXECUTE_ERROR: &str = "Script does not define onExecute().";
 
+pub type RobloxLogSourceFactory = Arc<dyn Fn() -> Arc<dyn RobloxLogSource> + Send + Sync + 'static>;
+
 #[derive(Clone, Default)]
 pub struct ScriptServices {
     pub input: Option<Arc<dyn InputDevice>>,
@@ -41,7 +43,8 @@ pub struct ScriptServices {
     pub process_discovery: Option<Arc<dyn ProcessDiscovery>>,
     pub process_control: Option<Arc<dyn ProcessControl>>,
     pub network: Option<Arc<dyn LagSwitchControl>>,
-    pub roblox_log: Option<Arc<dyn RobloxLogSource>>,
+    /// Creates one stateful Roblox log source per script instance, matching C++ `ScriptInstance` ownership.
+    pub roblox_log_factory: Option<RobloxLogSourceFactory>,
     pub saved_settings: Option<Arc<dyn SavedSettingSource>>,
     pub logger: Option<Arc<dyn ScriptLogSink>>,
 }
@@ -55,7 +58,7 @@ impl fmt::Debug for ScriptServices {
             .field("process_discovery", &self.process_discovery.is_some())
             .field("process_control", &self.process_control.is_some())
             .field("network", &self.network.is_some())
-            .field("roblox_log", &self.roblox_log.is_some())
+            .field("roblox_log_factory", &self.roblox_log_factory.is_some())
             .field("saved_settings", &self.saved_settings.is_some())
             .field("logger", &self.logger.is_some())
             .finish()
@@ -206,6 +209,7 @@ impl LuaScriptInstance {
         let process_context = ScriptProcessContext::default();
         process_context.set_target_selector(config.process_selector, config.take_all_process_ids);
         let roblox_log_context = ScriptRobloxLogContext::default();
+        let roblox_log = services.roblox_log_factory.as_ref().map(|factory| factory());
         let settings_ui_context = ScriptSettingsUiContext::from_ui_state(&config.initial_ui_state);
 
         install_core_api(
@@ -254,7 +258,7 @@ impl LuaScriptInstance {
             &vm,
             execution_context.clone(),
             roblox_log_context.clone(),
-            services.roblox_log.clone(),
+            roblox_log,
         )
         .map_err(initialization_error)?;
         install_settings_ui_api(&vm, &execution_context, &settings_ui_context)
@@ -550,7 +554,7 @@ mod tests {
     use smu_process::ProcessRecord;
     use std::io;
     use std::sync::Mutex;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -746,6 +750,51 @@ mod tests {
     fn instance_with_services()
     -> (LuaScriptInstance, Arc<FakeInput>, Arc<FakeNetwork>, Arc<FakeProcessControl>) {
         instance_with_network(Arc::new(FakeNetwork::default()))
+    }
+
+    #[derive(Debug)]
+    struct IdentifiedLogSource(usize);
+
+    impl RobloxLogSource for IdentifiedLogSource {
+        fn read_log(&self, _include_existing: bool) -> smu_roblox::RobloxLogSnapshot {
+            smu_roblox::RobloxLogSnapshot {
+                available: true,
+                path: format!("source-{}", self.0).into(),
+                ..smu_roblox::RobloxLogSnapshot::default()
+            }
+        }
+    }
+
+    #[test]
+    fn roblox_log_factory_creates_independent_source_per_script_instance() {
+        let next_id = Arc::new(AtomicUsize::new(0));
+        let factory_counter = Arc::clone(&next_id);
+        let factory: RobloxLogSourceFactory = Arc::new(move || {
+            let id = factory_counter.fetch_add(1, Ordering::Relaxed);
+            Arc::new(IdentifiedLogSource(id))
+        });
+        let services =
+            ScriptServices { roblox_log_factory: Some(factory), ..ScriptServices::default() };
+        let first = LuaScriptInstance::new(ScriptInstanceConfig::new("3.4.0"), services.clone())
+            .expect("first instance should initialize");
+        let second = LuaScriptInstance::new(ScriptInstanceConfig::new("3.4.0"), services)
+            .expect("second instance should initialize");
+
+        assert_eq!(next_id.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            first
+                .vm()
+                .eval::<String>("return readRobloxLog().path", Duration::from_secs(1))
+                .expect("first log source path should be readable"),
+            "source-0"
+        );
+        assert_eq!(
+            second
+                .vm()
+                .eval::<String>("return readRobloxLog().path", Duration::from_secs(1))
+                .expect("second log source path should be readable"),
+            "source-1"
+        );
     }
 
     #[test]

@@ -503,8 +503,8 @@ fn wait_for_ready(child: &mut Child, read: &mut File) -> Result<(), MacosUpdateL
 /// Launch a detached, signed copy of the embedded macOS update helper and wait until it has completed all
 /// network/trust/staging work and signaled the process-handoff readiness boundary.
 ///
-/// This primitive remains deliberately unwired from `smu-app` automatic apply. A future caller may request app
-/// shutdown only after this function succeeds.
+/// `smu-app` composes this primitive behind its guarded apply/restart path and requests app shutdown only after
+/// this function succeeds. Production automatic apply remains disabled by the app-side updater capability gate.
 ///
 /// # Errors
 ///

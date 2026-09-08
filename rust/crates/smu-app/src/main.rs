@@ -48,9 +48,9 @@ use smu_process::linux::{
 };
 #[cfg(target_os = "macos")]
 use smu_process::macos::MacosProcessService;
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use smu_roblox::{RobloxLogSource, SharedRobloxLogReader};
-use smu_scripting::{ScriptManager, ScriptManagerConfig, ScriptServices};
+use smu_scripting::{RobloxLogSourceFactory, ScriptManager, ScriptManagerConfig, ScriptServices};
 
 #[cfg(target_os = "windows")]
 mod anti_afk_runtime;
@@ -150,6 +150,11 @@ const APP_VERSION_TEXT: &str = include_str!("../../../../version");
 
 fn app_version() -> String {
     APP_VERSION_TEXT.trim().to_owned()
+}
+
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+fn roblox_log_source_factory() -> RobloxLogSourceFactory {
+    Arc::new(|| -> Arc<dyn RobloxLogSource> { Arc::new(SharedRobloxLogReader::default()) })
 }
 #[cfg(target_os = "macos")]
 const GLSL_VERSION: &str = "#version 150";
@@ -1178,7 +1183,6 @@ fn start_walless_lhj_controller(
 fn start_script_services(
     platform: &LinuxPlatformServices,
     lag_switch_backend: &Arc<LinuxLagSwitchBackend>,
-    roblox_log: Arc<dyn RobloxLogSource>,
     saved_settings: Arc<profile_adapter::LiveSavedSettings>,
     shell_state: &shell::ShellState,
 ) -> (Arc<ScriptManager>, Option<script_runtime::ScriptRuntimeController>) {
@@ -1188,7 +1192,7 @@ fn start_script_services(
         process_discovery: Some(platform.process_discovery.clone()),
         process_control: Some(platform.process_control.clone()),
         network: Some(lag_switch_backend.clone()),
-        roblox_log: Some(roblox_log),
+        roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings),
         logger: None,
     };
@@ -1269,6 +1273,7 @@ fn start_macos_script_app(
         display: Some(display),
         process_discovery: Some(discovery),
         process_control: Some(control),
+        roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
         ..ScriptServices::default()
     };
@@ -1323,7 +1328,7 @@ fn start_windows_script_app(
         process_discovery: Some(Arc::clone(&platform.discovery)),
         process_control: Some(Arc::clone(&platform.control)),
         network: Some(lag_switch.script_network()),
-        roblox_log: Some(lag_switch.roblox_log()),
+        roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
         ..ScriptServices::default()
     };
@@ -1408,7 +1413,6 @@ struct WindowsLagSwitchServices {
     backend: Arc<WindowsLagSwitchBackend>,
     enabled: Arc<AtomicBool>,
     control: Arc<dyn LagSwitchControl>,
-    roblox_log: Arc<dyn RobloxLogSource>,
     controller: lag_switch_runtime::LagSwitchController,
 }
 
@@ -1433,15 +1437,11 @@ impl WindowsLagSwitchServices {
             Arc::clone(&enabled),
             shell_state.lag_switch_controller_settings(),
         );
-        Self { backend, enabled, control, roblox_log, controller }
+        Self { backend, enabled, control, controller }
     }
 
     fn script_network(&self) -> Arc<dyn LagSwitchControl> {
         Arc::clone(&self.control)
-    }
-
-    fn roblox_log(&self) -> Arc<dyn RobloxLogSource> {
-        Arc::clone(&self.roblox_log)
     }
 
     fn prepare_shell(&self, shell_state: &mut shell::ShellState) {
@@ -2039,7 +2039,6 @@ impl LinuxRuntimeServices {
         let (script_manager, script_runtime_controller) = start_script_services(
             &platform,
             &lag_switch_backend,
-            roblox_log,
             Arc::clone(&saved_settings),
             shell_state,
         );

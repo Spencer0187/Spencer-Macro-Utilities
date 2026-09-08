@@ -501,13 +501,15 @@ class RustLinuxStagingTest(unittest.TestCase):
             "self.enabled.store(true, Ordering::Release);",
             "Arc::clone(&self.control)",
             "Some(lag_switch.script_network())",
-            "Some(lag_switch.roblox_log())",
+            "roblox_log_factory: Some(roblox_log_source_factory())",
             "windows_lag_switch.prepare_shell(shell_state);",
             "windows_lag_switch.finish_shell(shell_action.as_ref(), shell_state);",
             "lag_switch.shutdown();",
             "self.backend.set_process_target(selector, take_all_process_ids);",
         ):
             self.assertIn(expected, main)
+        self.assertNotIn("Some(lag_switch.roblox_log())", main)
+        self.assertNotIn("fn roblox_log(&self)", main)
         self.assertIn(
             '#[cfg(any(target_os = "linux", target_os = "windows"))]\n    #[must_use]\n    pub fn controller_settings(',
             lag_switch,

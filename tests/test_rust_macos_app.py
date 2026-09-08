@@ -132,7 +132,7 @@ class RustMacosAppCompositionTests(unittest.TestCase):
             shell,
         )
 
-    def test_macos_app_keeps_network_backend_and_windows_only_runtime_unavailable(self) -> None:
+    def test_macos_app_keeps_lag_switch_unavailable_but_composes_roblox_log_service(self) -> None:
         manifest = tomllib.loads(
             (ROOT / "rust" / "crates" / "smu-app" / "Cargo.toml").read_text(
                 encoding="utf-8"
@@ -141,13 +141,27 @@ class RustMacosAppCompositionTests(unittest.TestCase):
         macos = manifest.get("target", {}).get('cfg(target_os = "macos")', {})
         dependencies = macos.get("dependencies", {})
         self.assertIn("smu-network", dependencies)
+        self.assertIn("smu-roblox", dependencies)
         self.assertIn("smu-runtime", dependencies)
         self.assertIn("smu-updater", dependencies)
-        self.assertNotIn("smu-roblox", dependencies)
 
         main = (ROOT / "rust" / "crates" / "smu-app" / "src" / "main.rs").read_text(
             encoding="utf-8"
         )
+        roblox_log = (
+            ROOT / "rust" / "crates" / "smu-roblox" / "src" / "log.rs"
+        ).read_text(encoding="utf-8")
+        for expected in (
+            '#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]\nuse smu_roblox::{RobloxLogSource, SharedRobloxLogReader};',
+            "fn roblox_log_source_factory() -> RobloxLogSourceFactory",
+            "roblox_log_factory: Some(roblox_log_source_factory())",
+        ):
+            self.assertIn(expected, main)
+        for expected in (
+            'home.join("Library/Logs/Roblox")',
+            'home.join("Library/Application Support/Roblox/logs")',
+        ):
+            self.assertIn(expected, roblox_log)
         self.assertNotIn("MacosLagSwitch", main)
         self.assertNotIn("start_lag_switch_controller(&macos", main)
         self.assertNotIn("WindowsBuiltinRuntimeServices::new(&shell_state, &macos", main)

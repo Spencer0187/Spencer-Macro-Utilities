@@ -40,8 +40,8 @@ pub use input_callbacks::{
     ScriptInputCallbackContext, install_input_callback_api,
 };
 pub use instance::{
-    LuaScriptInstance, ScriptCleanupReason, ScriptInstanceConfig, ScriptInstanceDiagnostics,
-    ScriptLoadError, ScriptServices,
+    LuaScriptInstance, RobloxLogSourceFactory, ScriptCleanupReason, ScriptInstanceConfig,
+    ScriptInstanceDiagnostics, ScriptLoadError, ScriptServices,
 };
 pub use lua_runtime::{
     DEFAULT_SHOULD_YIELD_MICROS, LUA_HOOK_INSTRUCTION_COUNT, LuaExecutionError,
