@@ -263,6 +263,8 @@ fn acquire_wheel_hook() {
     lifecycle.users = lifecycle.users.saturating_add(1);
 }
 
+// Keep the lifecycle lock through the final hook-thread shutdown so concurrent acquire cannot race teardown.
+#[allow(clippy::significant_drop_tightening)]
 fn release_wheel_hook() {
     let mut lifecycle = lock_lifecycle();
     if lifecycle.users == 0 {
