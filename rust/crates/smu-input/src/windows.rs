@@ -70,6 +70,7 @@ pub fn set_display_scale_percent(scale: i32) {
     DISPLAY_SCALE_PERCENT.store(scale.clamp(10, 500), Ordering::Release);
 }
 
+#[must_use]
 pub fn set_cursor_position_direct(x: i32, y: i32) -> bool {
     // SAFETY: SetCursorPos takes value coordinates and retains no Rust memory.
     unsafe { SetCursorPos(x, y) != 0 }
@@ -94,6 +95,7 @@ fn gui_window_is_foreground() -> bool {
     foreground == gui || unsafe { GetAncestor(foreground, GA_ROOT) } == gui
 }
 
+#[allow(clippy::significant_drop_tightening)]
 fn acquire_input_budget(input_count: usize) {
     if !gui_window_is_foreground() {
         return;
@@ -138,12 +140,12 @@ fn lock_lifecycle() -> std::sync::MutexGuard<'static, WheelHookLifecycle> {
     }
 }
 
-fn keyboard_event_is_injected(event: &KBDLLHOOKSTRUCT) -> bool {
+const fn keyboard_event_is_injected(event: &KBDLLHOOKSTRUCT) -> bool {
     event.flags & (LLKHF_INJECTED | LLKHF_LOWER_IL_INJECTED) != 0
         || event.dwExtraInfo == INJECTED_INPUT_TAG
 }
 
-fn mouse_event_is_injected(event: &MSLLHOOKSTRUCT) -> bool {
+const fn mouse_event_is_injected(event: &MSLLHOOKSTRUCT) -> bool {
     event.flags & (LLMHF_INJECTED | LLMHF_LOWER_IL_INJECTED) != 0
         || event.dwExtraInfo == INJECTED_INPUT_TAG
 }
@@ -192,7 +194,7 @@ unsafe extern "system" fn binding_mouse_wheel_hook(
         // SAFETY: WH_MOUSE_LL supplies an MSLLHOOKSTRUCT pointer for HC_ACTION mouse messages.
         let event = unsafe { &*(lparam as *const MSLLHOOKSTRUCT) };
         if !mouse_event_is_injected(event) {
-            let delta = ((event.mouseData >> 16) as u16) as i16;
+            let delta = u16::try_from(event.mouseData >> 16).unwrap_or_default().cast_signed();
             if let Some(key) = windows_wheel_direction(delta) {
                 PENDING_BINDING_INPUT.store(key.raw(), Ordering::Release);
             }
@@ -208,7 +210,7 @@ fn wheel_hook_thread() {
     unsafe {
         WHEEL_HOOK_THREAD_ID.store(GetCurrentThreadId(), Ordering::Release);
         let mut message = MSG::default();
-        let _ = PeekMessageW(&mut message, std::ptr::null_mut(), WM_USER, WM_USER, PM_NOREMOVE);
+        let _ = PeekMessageW(&raw mut message, std::ptr::null_mut(), WM_USER, WM_USER, PM_NOREMOVE);
         let module = GetModuleHandleW(std::ptr::null());
         let keyboard_hook =
             SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_activity_hook), module, 0);
@@ -219,12 +221,12 @@ fn wheel_hook_thread() {
         WHEEL_HOOK_READY.store(true, Ordering::Release);
 
         while WHEEL_HOOK_RUNNING.load(Ordering::Acquire) {
-            let result = GetMessageW(&mut message, std::ptr::null_mut(), 0, 0);
+            let result = GetMessageW(&raw mut message, std::ptr::null_mut(), 0, 0);
             if result <= 0 {
                 break;
             }
-            let _ = TranslateMessage(&message);
-            let _ = DispatchMessageW(&message);
+            let _ = TranslateMessage(&raw const message);
+            let _ = DispatchMessageW(&raw const message);
         }
 
         if !hook.is_null() {
@@ -241,6 +243,7 @@ fn wheel_hook_thread() {
     WHEEL_HOOK_READY.store(false, Ordering::Release);
 }
 
+#[allow(clippy::significant_drop_tightening)]
 fn acquire_wheel_hook() {
     let mut lifecycle = lock_lifecycle();
     if lifecycle.users == 0 {
@@ -334,12 +337,15 @@ fn scan_code_for_virtual_key(vk: u16) -> u16 {
     // SAFETY: the keyboard-layout handle comes from Win32 and the function has no pointer
     // arguments. The low byte matches C++ `ScanCodeForVirtualKey`.
     unsafe {
-        (MapVirtualKeyExW(u32::from(vk), MAPVK_VK_TO_VSC_EX, foreground_keyboard_layout()) & 0xFF)
-            as u16
+        u16::try_from(
+            MapVirtualKeyExW(u32::from(vk), MAPVK_VK_TO_VSC_EX, foreground_keyboard_layout())
+                & 0xFF,
+        )
+        .unwrap_or_default()
     }
 }
 
-fn keyboard_input(scan_code: u16, extended: bool, key_up: bool) -> INPUT {
+const fn keyboard_input(scan_code: u16, extended: bool, key_up: bool) -> INPUT {
     let mut flags = KEYEVENTF_SCANCODE;
     if key_up {
         flags |= KEYEVENTF_KEYUP;
@@ -361,7 +367,7 @@ fn keyboard_input(scan_code: u16, extended: bool, key_up: bool) -> INPUT {
     }
 }
 
-fn mouse_input(flags: u32, mouse_data: u32, dx: i32, dy: i32) -> INPUT {
+const fn mouse_input(flags: u32, mouse_data: u32, dx: i32, dy: i32) -> INPUT {
     INPUT {
         r#type: INPUT_MOUSE,
         Anonymous: INPUT_0 {
@@ -423,7 +429,7 @@ fn dispatch(input: &INPUT) {
     dispatch_inputs(std::slice::from_ref(input));
 }
 
-fn unicode_keyboard_input(code_unit: u16, key_up: bool) -> INPUT {
+const fn unicode_keyboard_input(code_unit: u16, key_up: bool) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
@@ -470,7 +476,11 @@ fn layout_scan_input(
     if mapped == 0 {
         return None;
     }
-    Some(keyboard_input((mapped & 0xFF) as u16, (mapped & 0xFF00) == 0xE000, key_up))
+    Some(keyboard_input(
+        u16::try_from(mapped & 0xFF).unwrap_or_default(),
+        (mapped & 0xFF00) == 0xE000,
+        key_up,
+    ))
 }
 
 fn press_character_native(character: u8, delay_ms: i32) -> bool {
@@ -481,7 +491,7 @@ fn press_character_native(character: u8, delay_ms: i32) -> bool {
         return type_unicode_byte_native(character, delay_ms);
     }
 
-    let encoded = encoded as u16;
+    let encoded = encoded.cast_unsigned();
     let virtual_key = encoded & 0x00FF;
     let modifiers = ((encoded >> 8) & 0x00FF) as u8;
     if virtual_key == 0 || (modifiers & 0xF8) != 0 {
@@ -510,10 +520,10 @@ fn press_character_native(character: u8, delay_ms: i32) -> bool {
         key_ups.push(input);
     }
     for (mask, modifier) in [(0x01, VK_SHIFT), (0x02, VK_CONTROL), (0x04, VK_MENU)] {
-        if modifiers & mask != 0 {
-            if let Some(input) = layout_scan_input(modifier, layout, true) {
-                key_ups.push(input);
-            }
+        if modifiers & mask != 0
+            && let Some(input) = layout_scan_input(modifier, layout, true)
+        {
+            key_ups.push(input);
         }
     }
     dispatch_inputs(&key_ups);
@@ -534,7 +544,9 @@ fn mouse_button_input(vk: u16, down: bool) -> INPUT {
 }
 
 fn inject_virtual_key(key: KeyCode, extended: bool, down: bool) {
-    let vk = key.raw() as u16;
+    let Ok(vk) = u16::try_from(key.raw()) else {
+        return;
+    };
     if windows_is_mouse_button_virtual_key(vk) {
         dispatch(&mouse_button_input(vk, down));
         return;
@@ -552,7 +564,7 @@ impl KeyState for WindowsKeyState {
             return false;
         };
         // SAFETY: GetAsyncKeyState accepts a Win32 virtual-key code and has no pointer arguments.
-        (unsafe { GetAsyncKeyState(vkey) } as u16 & 0x8000) != 0
+        (unsafe { GetAsyncKeyState(vkey) }.cast_unsigned() & 0x8000) != 0
     }
 
     fn current_pressed_key(&self) -> Option<KeyCode> {
@@ -618,7 +630,7 @@ impl InputInjector for WindowsKeyState {
     }
 
     fn mouse_wheel(&self, delta: i32) {
-        dispatch(&mouse_input(MOUSEEVENTF_WHEEL, delta as u32, 0, 0));
+        dispatch(&mouse_input(MOUSEEVENTF_WHEEL, delta.cast_unsigned(), 0, 0));
     }
 
     fn press_character(&self, character: u8, delay_ms: i32) -> bool {
