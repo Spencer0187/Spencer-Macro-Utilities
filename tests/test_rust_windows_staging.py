@@ -876,6 +876,8 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("Win32_System_Threading", windows_features)
         for expected in (
             "WINDOWS_RELEASE_SIGNER_FILES",
+            "WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES",
+            "require_unchanged_windows_upstream_library",
             '"Spencer-Macro-Utilities.exe"',
             '"SMU-Update-Helper.exe"',
             '"SDL3.dll"',
@@ -887,6 +889,9 @@ class RustWindowsStagingTest(unittest.TestCase):
         for expected in (
             "for relative in WINDOWS_RELEASE_SIGNER_FILES",
             "require_matching_authenticode_signer(&installed_app, &staged)",
+            "for relative in WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES",
+            "require_unchanged_windows_upstream_library(&installed, &staged)",
+            "Windows update upstream library digest validation failed",
             "for relative in WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES",
             "require_matching_authenticode_signer(&installed, &staged)",
         ):
@@ -938,6 +943,8 @@ class RustWindowsStagingTest(unittest.TestCase):
             "prepare_windows_bundle_tree",
             "require_matching_authenticode_signer",
             "WINDOWS_RELEASE_SIGNER_FILES",
+            "WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES",
+            "require_unchanged_windows_upstream_library",
             "WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES",
             "Windows update runtime signer validation failed",
             "Windows update upstream signer continuity failed",

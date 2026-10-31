@@ -22,8 +22,10 @@ class WindowsSignPathInputTest(unittest.TestCase):
                          ("Spencer-Macro-Utilities.exe", "SMU-Update-Helper.exe"))
         self.assertTrue(set(MODULE.RELEASE_SIGNER_FILES).isdisjoint(
             MODULE.THIRD_PARTY_WINDOWS_FILES))
-        # The old four-file updater trust contract is still active: signing
-        # these two binaries is NOT sufficient to enable automatic replacement.
+        # The release signer covers only owned code; unsigned upstream DLLs
+        # must match the hashes of their already-installed counterparts.
+        self.assertIn('WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES', source)
+        self.assertIn('require_unchanged_windows_upstream_library', source)
         for name in (*MODULE.RELEASE_SIGNER_FILES, "SDL3.dll", "SMCWinDivert.dll"):
             self.assertIn(f'"{name}"', source)
 

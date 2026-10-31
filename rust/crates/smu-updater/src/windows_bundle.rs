@@ -8,12 +8,17 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 pub const WINDOWS_BUNDLE_ROOT: &str = "Spencer-Macro-Utilities";
-/// User-mode PE files that production Windows releases must sign with the same release certificate as SMU.
+/// Only SMU-owned executable images may receive our `SignPath` Foundation certificate.
 ///
-/// The helper enforces this against the installed app before the parent is allowed to exit, preventing a
-/// manifest/package compromise from substituting a differently signed DLL that the authenticated app would load.
+/// The helper checks these against the installed app's release signer before parent exit.
 pub const WINDOWS_RELEASE_SIGNER_FILES: &[&str] =
-    &["Spencer-Macro-Utilities.exe", "SMU-Update-Helper.exe", "SDL3.dll", "SMCWinDivert.dll"];
+    &["Spencer-Macro-Utilities.exe", "SMU-Update-Helper.exe"];
+/// Unsigned third-party DLLs may not be re-signed with SMU's Foundation certificate.
+///
+/// The strict interim trust policy allows automatic replacement only if these DLLs have
+/// the **same SHA-256 digest** as their already-installed, trusted counterparts. New
+/// upstream dependency versions therefore require a separately authorized manual update.
+pub const WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES: &[&str] = &["SDL3.dll", "SMCWinDivert.dll"];
 /// PE files whose upstream signer must remain continuous across an automatic update.
 ///
 /// `WinDivert`'s kernel driver keeps its upstream kernel-compatible signature rather than being re-signed with the
@@ -219,6 +224,78 @@ pub fn windows_bundle_file_sha256(
         ));
     }
     Ok(digests)
+}
+
+/// Reject replacements of upstream DLLs until a signed dependency-update policy exists.
+///
+/// # Errors
+///
+/// Returns an error for missing, empty, symbolic-link, overlarge, unreadable or changed
+/// external libraries. Both files are hashed in bounded-memory chunks. The Windows
+/// helper additionally validates their paths for NTFS reparse points before calling.
+pub fn require_unchanged_windows_upstream_library(
+    installed: &Path,
+    staged: &Path,
+) -> Result<(), WindowsBundleError> {
+    fn sha256_regular_file(path: &Path) -> Result<[u8; 32], WindowsBundleError> {
+        let metadata = fs::symlink_metadata(path).map_err(|error| {
+            WindowsBundleError::new(format!(
+                "Could not inspect an external Windows runtime library: {error}"
+            ))
+        })?;
+        if !metadata.is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() == 0
+            || metadata.len() > MAXIMUM_UPDATE_BYTES
+        {
+            return Err(WindowsBundleError::new(
+                "External Windows runtime library must be a non-empty regular file within the update-size limit.",
+            ));
+        }
+        let mut file = File::open(path).map_err(|error| {
+            WindowsBundleError::new(format!(
+                "Could not open an external Windows runtime library: {error}"
+            ))
+        })?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 16 * 1024];
+        let mut total_bytes = 0_u64;
+        loop {
+            let count = file.read(&mut buffer).map_err(|error| {
+                WindowsBundleError::new(format!(
+                    "Could not hash an external Windows runtime library: {error}"
+                ))
+            })?;
+            if count == 0 {
+                break;
+            }
+            total_bytes =
+                total_bytes.checked_add(u64::try_from(count).unwrap_or(u64::MAX)).ok_or_else(
+                    || WindowsBundleError::new("External Windows runtime library size overflowed."),
+                )?;
+            if total_bytes > MAXIMUM_UPDATE_BYTES {
+                return Err(WindowsBundleError::new(
+                    "External Windows runtime library exceeds the update-size limit.",
+                ));
+            }
+            hasher.update(&buffer[..count]);
+        }
+        if total_bytes != metadata.len() {
+            return Err(WindowsBundleError::new(
+                "External Windows runtime library changed while hashing.",
+            ));
+        }
+        Ok(hasher.finalize().into())
+    }
+
+    let installed_digest = sha256_regular_file(installed)?;
+    let staged_digest = sha256_regular_file(staged)?;
+    if installed_digest != staged_digest {
+        return Err(WindowsBundleError::new(
+            "External Windows runtime DLL differs from the installed version; a manual update is required.",
+        ));
+    }
+    Ok(())
 }
 
 pub fn destination_path(root: &Path, relative: &str) -> PathBuf {
@@ -467,14 +544,55 @@ mod tests {
         let release = WINDOWS_RELEASE_SIGNER_FILES.iter().copied().collect::<BTreeSet<_>>();
         let upstream =
             WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES.iter().copied().collect::<BTreeSet<_>>();
+        let unchanged =
+            WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES.iter().copied().collect::<BTreeSet<_>>();
         assert!(release.is_disjoint(&upstream));
-        let covered = release.union(&upstream).copied().collect::<BTreeSet<_>>();
+        assert!(release.is_disjoint(&unchanged));
+        assert!(upstream.is_disjoint(&unchanged));
+        let covered = release
+            .union(&upstream)
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .union(&unchanged)
+            .copied()
+            .collect::<BTreeSet<_>>();
         let expected = REQUIRED_FILES
             .iter()
             .copied()
             .filter(|relative| !relative.starts_with("assets/"))
             .collect::<BTreeSet<_>>();
         assert_eq!(covered, expected);
+    }
+
+    #[test]
+    fn unchanged_upstream_library_gate_rejects_missing_or_modified_dlls() {
+        let temp = TestDirectory::new("external-dependencies");
+        let installed = temp.0.join("installed.dll");
+        let staged = temp.0.join("staged.dll");
+        fs::write(&installed, b"trusted-upstream-dll").expect("installed DLL fixture");
+        fs::write(&staged, b"trusted-upstream-dll").expect("staged DLL fixture");
+        assert!(require_unchanged_windows_upstream_library(&installed, &staged).is_ok());
+
+        fs::write(&staged, b"attacker-changed-dll").expect("modified DLL fixture");
+        let error = require_unchanged_windows_upstream_library(&installed, &staged)
+            .expect_err("changed DLL must be rejected");
+        assert!(error.to_string().contains("manual update is required"));
+
+        fs::write(&staged, b"").expect("empty DLL fixture");
+        assert!(require_unchanged_windows_upstream_library(&installed, &staged).is_err());
+        fs::remove_file(&staged).expect("remove DLL fixture");
+        assert!(require_unchanged_windows_upstream_library(&installed, &staged).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unchanged_upstream_library_gate_rejects_symbolic_links() {
+        let temp = TestDirectory::new("external-dependencies-symlink");
+        let installed = temp.0.join("installed.dll");
+        let staged = temp.0.join("staged.dll");
+        fs::write(&installed, b"trusted-upstream-dll").expect("installed DLL fixture");
+        std::os::unix::fs::symlink(&installed, &staged).expect("staged symbolic-link fixture");
+        assert!(require_unchanged_windows_upstream_library(&installed, &staged).is_err());
     }
 
     #[test]

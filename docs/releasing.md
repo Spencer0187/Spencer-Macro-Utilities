@@ -46,11 +46,14 @@ No code was pushed to the public/production repository.
 The SignPath candidate `scripts/signpath/rust-windows-bundle.xml` covers only the
 project-owned Rust app and update helper, as required by SignPath Foundation's
 [OSS signing conditions](https://signpath.org/terms.html). It deliberately omits
-upstream `SDL3.dll`, `SMCWinDivert.dll`, and `SMCWinDivert64.sys`. This does **not**
-yet satisfy the current updater helper's four-user-mode-file same-signer trust
-policy. Never turn on Windows auto-apply or replace the C++ release packaging
-until the external-DLL authentication strategy is implemented, adversarially
-reviewed, and tested on native Windows. The standalone C++ direct-EXE download
+upstream `SDL3.dll`, `SMCWinDivert.dll`, and `SMCWinDivert64.sys`. The updater
+now requires both upstream DLLs to be byte-for-byte identical to installed
+versions (SHA-256), checks both project EXE signers, and preserves WinDivert's
+separate kernel-driver signer. New upstream DLL versions therefore require a
+manual update. Never turn on Windows auto-apply or replace the C++ release
+packaging until this conservative interim trust policy, installation bootstrap,
+local race/path security, and rollback have been adversarially reviewed and
+verified on native Windows. The standalone C++ direct-EXE download
 contract also remains unresolved for the multi-file Rust bundle.
 
 ## Prepare a release

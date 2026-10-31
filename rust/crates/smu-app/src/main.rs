@@ -1645,6 +1645,7 @@ fn start_macos_script_app(
         display: Some(display),
         process_discovery: Some(discovery),
         process_control: Some(control),
+        network: None,
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
         logger: Some(script_log_sink()),

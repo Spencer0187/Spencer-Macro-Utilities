@@ -1,10 +1,11 @@
 use smu_updater::{
     UpdateChecker, UpdatePlatform, WINDOWS_RELEASE_SIGNER_FILES,
-    WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES, WinInetUpdateTransport, WindowsFileVersion,
-    WindowsReplacementTransaction, extract_windows_bundle, is_canonical_manifest_version,
-    is_updater_version_allowed, prepare_windows_bundle_tree, read_verified_update_asset,
-    replace_windows_bundle_tree, require_matching_authenticode_signer, select_update_asset,
-    windows_bundle_file_sha256, windows_file_version,
+    WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES, WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES,
+    WinInetUpdateTransport, WindowsFileVersion, WindowsReplacementTransaction,
+    extract_windows_bundle, is_canonical_manifest_version, is_updater_version_allowed,
+    prepare_windows_bundle_tree, read_verified_update_asset, replace_windows_bundle_tree,
+    require_matching_authenticode_signer, require_unchanged_windows_upstream_library,
+    select_update_asset, windows_bundle_file_sha256, windows_file_version,
 };
 use std::ffi::{OsStr, OsString};
 use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
@@ -404,10 +405,9 @@ fn validate_versions_and_signers(
     let staged_app = canonical_file(&staged_root.join(PRODUCT_EXE), "the staged SMU executable")?;
     let staged_helper = canonical_file(&staged_root.join(HELPER_EXE), "the staged update helper")?;
 
-    // The detached helper must still be the installed SMU release signer's code. Then require every user-mode
-    // executable image the new app can load from its package root to use that same release signer. The manifest
-    // authenticates bytes, while signer continuity keeps a compromised release/package channel from substituting
-    // attacker-signed code beside an otherwise authentic SMU executable.
+    // The detached helper must still be trusted under the installed SMU release signer.
+    // Require signer continuity for our own executable images, but never re-sign upstream DLLs.
+    // Instead, the interim policy strictly pins their hashes to the installed libraries.
     require_matching_authenticode_signer(&installed_app, current_helper)
         .map_err(|error| error.to_string())?;
     for relative in WINDOWS_RELEASE_SIGNER_FILES {
@@ -417,6 +417,26 @@ fn validate_versions_and_signers(
         )?;
         require_matching_authenticode_signer(&installed_app, &staged).map_err(|error| {
             format!("Windows update runtime signer validation failed for {relative}: {error}")
+        })?;
+    }
+
+    // SignPath Foundation does not permit us to re-sign upstream DLLs. Until a signed
+    // library-update policy exists, accept only exact-byte matches to installed DLLs.
+    // Both paths are canonicalized as regular, non-reparse files before hashing.
+    // These checks run before readiness.signal() and replacement.
+    for relative in WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES {
+        let installed = canonical_file(
+            &install_root.join(relative),
+            &format!("the installed upstream runtime library {relative}"),
+        )?;
+        let staged = canonical_file(
+            &staged_root.join(relative),
+            &format!("the staged upstream runtime library {relative}"),
+        )?;
+        require_unchanged_windows_upstream_library(&installed, &staged).map_err(|error| {
+            format!(
+                "Windows update upstream library digest validation failed for {relative}: {error}"
+            )
         })?;
     }
 

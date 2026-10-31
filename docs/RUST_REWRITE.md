@@ -974,13 +974,12 @@ self-update at the same time.
    runtime assets. Before production promotion, either make the direct executable genuinely self-contained,
    retire/change the standalone-EXE release contract, or provide another self-contained installer/bootstrapper.
 4. Promote Windows as a signed runtime bundle, not merely a different build command. Production SignPath
-   currently signs one `Spencer-Macro-Utilities.exe`; Rust updater trust requires the app, `SMU-Update-Helper.exe`,
-   `SDL3.dll`, and `SMCWinDivert.dll` to share the production release signer while preserving the separate
-   upstream signer on `SMCWinDivert64.sys`. **This trust contract cannot be deployed as written with a SignPath
-   Foundation OSS certificate**: the Foundation permits signing only the project's own binaries, not third-party
-   SDL3 and WinDivert DLLs (https://signpath.org/terms.html). Before a production cutover, redesign updater trust
-   so it verifies our own signed app/helper while authenticating external libraries without re-signing them, or
-   pursue a separately authorized signing policy. Do not enable Windows updater apply in the interim.
+   currently signs one `Spencer-Macro-Utilities.exe`; the Rust candidate requires signing both the SMU app and
+   `SMU-Update-Helper.exe`. Foundation OSS policy permits signing only our own binaries and forbids re-signing
+   third-party SDL3 and WinDivert DLLs (https://signpath.org/terms.html). The strict interim updater trust
+   policy pins third-party DLL bytes to the already-installed SHA-256 hashes and preserves the WinDivert
+   kernel-driver signer. Dependency upgrades require manual installation. The new policy, with native Windows
+   acceptance and adversarial security review, must be approved before auto-apply can be enabled.
 5. The Rust macOS production packaging path is now wired into `.github/workflows/build.yml`.
    `scripts/package_rust_macos_release.sh` builds the universal `.app`, updater ZIP, and a
    certificate-free ad-hoc-signed DMG. Native Apple Silicon verification passed all 280
@@ -1008,13 +1007,18 @@ self-update at the same time.
    signatures for **only the two SMU-owned EXEs**, which is compatible with the
    Foundation's restriction against re-signing upstream SDL3/WinDivert binaries.
    The ZIP creation code and offline tests enforce that upstream DLLs and the
-   WinDivert driver are excluded. **This is not an auto-update solution**: the
-   current updater helper requires all four user-mode PEs to share SMU's signer.
-   A separate reviewed trust design must authenticate both upstream DLLs while
-   preserving signature continuity for SMU's app and helper and WinDivert's upstream
-   kernel driver. Do not enable auto-apply or promote the Rust Windows production
-   release before that security review, SignPath policy approval, Windows GUI and
-   driver smoke tests, and verified rollback on a real Windows machine.
+   WinDivert driver are excluded. The updater helper now enforces this interim
+   **fail-closed** trust policy before releasing its parent: both SMU-owned executables
+   must maintain release-signer continuity; both upstream user-mode DLLs must have
+   SHA-256 digests exactly equal to the existing installed DLLs; and the WinDivert
+   kernel driver must maintain its separate upstream Authenticode signer. An update
+   containing new or modified upstream DLL bytes must be installed manually until a
+   signed dependency-update mechanism is reviewed. Portable negative tests cover
+   missing, empty, symlinked, and modified DLLs. **This is still not approval to
+   enable automatic replacement**: a security review must assess any remaining local
+   TOCTOU/NTFS path issues, trust continuity and bootstrap/release migration; native
+   Windows driver, GUI, and rollback tests and SignPath approval remain required.
+   Automatic update apply remains explicitly disabled until those gates pass.
 7. Both macOS and Windows automatic installer apply must remain disabled at this stage.
    In particular, ad-hoc macOS signatures have no stable signer identity, and automatic
    updater trust must not be weakened to accommodate them. User-initiated manual updates
