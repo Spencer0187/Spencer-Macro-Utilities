@@ -202,7 +202,7 @@ impl DetachedLaunchDirectory {
         ))
     }
 
-    fn retain(&mut self) {
+    const fn retain(&mut self) {
         self.retain = true;
     }
 }
@@ -372,10 +372,11 @@ fn stage_detached_helper(
     Ok((detached, detached_handle))
 }
 
-/// Download the exact official Windows package and launch a detached, pinned copy of the installed
-/// signed update helper. The app composes this primitive behind an updater capability that remains false until
-/// production bundle-wide signing/trust is deliberately promoted; the parent/helper readiness handoff is already
-/// implemented by duplicating a private unnamed event from the validated parent process.
+/// Download the official Windows package and launch the detached, pinned update helper.
+///
+/// The app keeps this capability disabled until production bundle signing/trust is deliberately
+/// promoted. The readiness handoff duplicates a private unnamed event from the validated parent
+/// process and requires the trusted helper to acknowledge it before the parent exits.
 ///
 /// # Errors
 ///

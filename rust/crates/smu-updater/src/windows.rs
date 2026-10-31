@@ -206,7 +206,7 @@ pub fn windows_file_version(path: &Path) -> Result<WindowsFileVersion, WindowsUp
 ///
 /// # Errors
 ///
-/// Returns an error when the file is missing or WinTrust rejects the signature/chain/revocation state.
+/// Returns an error when the file is missing or `WinTrust` rejects the signature/chain/revocation state.
 pub fn verify_authenticode_signature(path: &Path) -> Result<(), WindowsUpdateTrustError> {
     if !path.is_file() {
         return Err(WindowsUpdateTrustError::new(
@@ -341,9 +341,11 @@ pub fn authenticode_signer_sha256(path: &Path) -> Result<Vec<u8>, WindowsUpdateT
     let signer_buffer = signer_info_buffer(&message)?;
     // SAFETY: signer_info_buffer allocates with usize alignment and retains the buffer for this scope.
     let signer = unsafe { &*signer_buffer.as_ptr().cast::<CMSG_SIGNER_INFO>() };
-    let mut certificate_info = CERT_INFO::default();
-    certificate_info.Issuer = signer.Issuer;
-    certificate_info.SerialNumber = signer.SerialNumber;
+    let certificate_info = CERT_INFO {
+        Issuer: signer.Issuer,
+        SerialNumber: signer.SerialNumber,
+        ..CERT_INFO::default()
+    };
     // SAFETY: signer-owned Issuer/Serial pointers remain valid while signer_buffer is live. The returned
     // certificate context receives its own store-managed lifetime and is wrapped immediately.
     let certificate = unsafe {
