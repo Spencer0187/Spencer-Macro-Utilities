@@ -361,7 +361,7 @@ impl std::fmt::Debug for WinDivertApi {
 
 impl WinDivertApi {
     /// # Errors
-    /// Returns an error when required assets, DLL loading, or WinDivert exports are missing.
+    /// Returns an error when required assets, DLL loading, or `WinDivert` exports are missing.
     pub fn load(paths: &WinDivertPaths) -> Result<Self, WinDivertLoadError> {
         paths.validate()?;
         let wide =
@@ -440,7 +440,7 @@ impl WinDivertApi {
         let mut received = 0_u32;
         // SAFETY: packet/address point to writable caller-owned storage and all lengths match it.
         let ok = unsafe {
-            (self.recv)(handle, packet.as_mut_ptr().cast(), capacity, &mut received, address)
+            (self.recv)(handle, packet.as_mut_ptr().cast(), capacity, &raw mut received, address)
         };
         (ok != 0).then(|| usize::try_from(received).unwrap_or(0))
     }
