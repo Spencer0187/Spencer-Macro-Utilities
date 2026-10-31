@@ -67,10 +67,12 @@ fn process_rows() -> Vec<NativeProcessRow> {
         return Vec::new();
     };
 
-    let mut entry = PROCESSENTRY32W::default();
-    entry.dwSize = u32::try_from(size_of::<PROCESSENTRY32W>()).unwrap_or_default();
+    let mut entry = PROCESSENTRY32W {
+        dwSize: u32::try_from(size_of::<PROCESSENTRY32W>()).unwrap_or_default(),
+        ..PROCESSENTRY32W::default()
+    };
     // SAFETY: `entry` points to writable storage with the required `dwSize` initialized.
-    if unsafe { Process32FirstW(snapshot.0, &mut entry) } == 0 {
+    if unsafe { Process32FirstW(snapshot.0, &raw mut entry) } == 0 {
         return Vec::new();
     }
 
@@ -82,7 +84,7 @@ fn process_rows() -> Vec<NativeProcessRow> {
             executable_name: executable_name(&entry),
         });
         // SAFETY: `entry` remains valid writable storage for the same Toolhelp snapshot.
-        if unsafe { Process32NextW(snapshot.0, &mut entry) } == 0 {
+        if unsafe { Process32NextW(snapshot.0, &raw mut entry) } == 0 {
             break;
         }
     }
@@ -101,7 +103,9 @@ fn process_creation_time(pid: u32) -> Option<u64> {
     let mut kernel = FILETIME::default();
     let mut user = FILETIME::default();
     // SAFETY: all FILETIME pointers are valid writable values for the lifetime of the call.
-    if unsafe { GetProcessTimes(process.0, &mut creation, &mut exit, &mut kernel, &mut user) } == 0
+    if unsafe {
+        GetProcessTimes(process.0, &raw mut creation, &raw mut exit, &raw mut kernel, &raw mut user)
+    } == 0
     {
         return None;
     }
@@ -120,7 +124,7 @@ pub struct WindowsWindowRect {
 pub struct WindowsWindowHandle(HWND);
 
 impl WindowsWindowHandle {
-    fn raw(self) -> HWND {
+    const fn raw(self) -> HWND {
         self.0
     }
 
@@ -128,7 +132,7 @@ impl WindowsWindowHandle {
     pub fn rect(self) -> Option<WindowsWindowRect> {
         let mut rect = RECT::default();
         // SAFETY: `rect` is valid writable storage and the HWND is only passed back to Win32.
-        (unsafe { GetWindowRect(self.raw(), &mut rect) } != 0).then_some(WindowsWindowRect {
+        (unsafe { GetWindowRect(self.raw(), &raw mut rect) } != 0).then_some(WindowsWindowRect {
             left: rect.left,
             top: rect.top,
             right: rect.right,
@@ -181,7 +185,7 @@ unsafe extern "system" fn find_newest_process_window_callback(hwnd: HWND, lparam
     let mut window_pid = 0_u32;
     // SAFETY: `window_pid` is valid writable storage for the duration of the call.
     unsafe {
-        GetWindowThreadProcessId(hwnd, &mut window_pid);
+        GetWindowThreadProcessId(hwnd, &raw mut window_pid);
     }
     if !pids.contains(&window_pid) {
         return 1;
@@ -228,7 +232,7 @@ type NtProcessFn = unsafe extern "system" fn(HANDLE) -> i32;
 
 fn load_nt_process_fn(name: &'static [u8]) -> Option<NtProcessFn> {
     // SAFETY: both strings are static NUL-terminated byte strings and Windows owns the module handle.
-    let module = unsafe { GetModuleHandleA(b"ntdll.dll\0".as_ptr()) };
+    let module = unsafe { GetModuleHandleA(c"ntdll.dll".as_ptr().cast()) };
     if module.is_null() {
         return None;
     }
@@ -333,7 +337,7 @@ impl ProcessForeground for WindowsProcessBackend {
         let mut foreground_pid = 0_u32;
         // SAFETY: `foreground_pid` is valid writable storage for the duration of the call.
         unsafe {
-            GetWindowThreadProcessId(window, &mut foreground_pid);
+            GetWindowThreadProcessId(window, &raw mut foreground_pid);
         }
         foreground_pid == pid
     }
