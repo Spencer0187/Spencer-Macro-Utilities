@@ -566,10 +566,11 @@ mod tests {
 
     #[test]
     fn rejects_non_https_before_touching_wininet() {
-        assert_eq!(
-            WinInetUpdateTransport.get("http://example.invalid/update").unwrap_err().to_string(),
-            "Updater refused a non-HTTPS URL."
-        );
+        let response = WinInetUpdateTransport.get("http://example.invalid/update");
+        assert!(matches!(
+            response,
+            Err(error) if error.to_string() == "Updater refused a non-HTTPS URL."
+        ));
     }
 
     #[test]
