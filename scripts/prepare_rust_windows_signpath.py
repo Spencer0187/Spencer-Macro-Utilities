@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""Prepare the exact four-file Rust Windows SignPath signing input.
+"""Prepare the two SMU-owned PE binaries for Windows SignPath signing.
 
-RESEARCH ONLY: do not submit this ZIP to SignPath Foundation. Its certificate
-policy forbids signing third-party SDL3/WinDivert DLLs. The current updater's
-four-file same-signer requirement must be redesigned before production.
+The request intentionally excludes third-party SDL3 and WinDivert DLLs and the
+upstream-signed WinDivert driver, as required by the SignPath Foundation OSS
+certificate terms. The current Rust updater still requires a four-PE same-
+signer contract and MUST NOT auto-apply a bundle signed with this input until
+that runtime trust contract has been redesigned and reviewed.
 
-Intentionally excludes the kernel driver and assets. The signed output is NOT
-suitable for direct publication: production Windows CI must verify Authenticode
-signer continuity, add the original upstream-signed driver and resources, and
-build the complete runtime bundle before enabling automatic updates.
+This is a signing-input candidate, not a published or auto-updatable release.
 """
 
 from __future__ import annotations
@@ -21,9 +20,8 @@ import xml.etree.ElementTree as ET
 RELEASE_SIGNER_FILES = (
     "Spencer-Macro-Utilities.exe",
     "SMU-Update-Helper.exe",
-    "SDL3.dll",
-    "SMCWinDivert.dll",
 )
+THIRD_PARTY_WINDOWS_FILES = ("SDL3.dll", "SMCWinDivert.dll", "SMCWinDivert64.sys")
 SIGNPATH_CONFIG = Path(__file__).resolve().parent / "signpath" / "rust-windows-bundle.xml"
 NAMESPACE = "http://signpath.io/artifact-configuration/v1"
 MAX_FILE_BYTES = 256 * 1024 * 1024
@@ -47,11 +45,13 @@ def verify_signpath_config(path: Path = SIGNPATH_CONFIG) -> None:
             raise ValueError("SignPath ZIP uses unexpected signing parameters")
         observed.append(child.attrib["path"])
     if tuple(observed) != RELEASE_SIGNER_FILES:
-        raise ValueError("SignPath signer file set differs from the Rust updater contract")
+        raise ValueError("SignPath signer file set must contain only SMU-owned executables")
 
 
 def prepare(stage: Path, output: Path) -> None:
     verify_signpath_config()
+    if set(RELEASE_SIGNER_FILES).intersection(THIRD_PARTY_WINDOWS_FILES):
+        raise ValueError("SignPath request must not sign upstream Windows binaries")
     for name in RELEASE_SIGNER_FILES:
         candidate = stage / name
         if candidate.is_symlink() or not candidate.is_file():
@@ -78,7 +78,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     prepare(args.stage_dir.resolve(), args.output.absolute())
-    print(f"Prepared four-user-mode-file signing request: {args.output}")
+    print(f"Prepared two-SMU-executable signing request: {args.output}")
 
 
 if __name__ == "__main__":

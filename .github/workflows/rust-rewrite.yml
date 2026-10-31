@@ -229,11 +229,11 @@ jobs:
       - name: Clippy Windows Rust application and updater
         if: ${{ !cancelled() && steps.windows-rust-tests.outcome != 'skipped' }}
         run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings
-      - name: Prepare unsigned four-file SignPath candidate request (never submitted)
+      - name: Prepare two SMU-owned binaries for SignPath candidate (never submitted)
         run: >-
           python scripts/prepare_rust_windows_signpath.py
           --stage-dir build/rust-windows-app
-          --output build/rust-windows-release/signpath-rust-user-mode-unsigned.zip
+          --output build/rust-windows-release/signpath-rust-owned-pe-unsigned.zip
       - name: Validate staged runtime siblings and PE metadata
         shell: pwsh
         run: |

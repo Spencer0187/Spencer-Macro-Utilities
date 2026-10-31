@@ -33,6 +33,26 @@ Set `SMU_MACOS_DMG_LAYOUT=finder` when a logged-in Finder desktop is available a
 custom window decoration is desired. The legacy C++ build and its original Finder DMG
 script remain available for comparison.
 
+## Rust Windows private validation (not yet a production release)
+
+The full Rust Windows x64 application now builds on a private, isolated GitHub Actions
+`windows-latest` MSVC runner. The first all-green run was
+[`41221449971`](https://github.com/Spencer0187/smu-rust-windows-ci/actions/runs/41221449971):
+strict Rust 1.98.0 Clippy, runtime staging and PE version checks, unsigned ZIP and
+SHA-256 manifest, then all 271 native Windows application/updater/helper tests.
+The unsigned bundle is available in that run's private, short-retention artifact.
+No code was pushed to the public/production repository.
+
+The SignPath candidate `scripts/signpath/rust-windows-bundle.xml` covers only the
+project-owned Rust app and update helper, as required by SignPath Foundation's
+[OSS signing conditions](https://signpath.org/terms.html). It deliberately omits
+upstream `SDL3.dll`, `SMCWinDivert.dll`, and `SMCWinDivert64.sys`. This does **not**
+yet satisfy the current updater helper's four-user-mode-file same-signer trust
+policy. Never turn on Windows auto-apply or replace the C++ release packaging
+until the external-DLL authentication strategy is implemented, adversarially
+reviewed, and tested on native Windows. The standalone C++ direct-EXE download
+contract also remains unresolved for the multi-file Rust bundle.
+
 ## Prepare a release
 
 1. Bump the version:

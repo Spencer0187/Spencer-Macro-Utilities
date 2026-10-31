@@ -15,25 +15,33 @@ SPEC.loader.exec_module(MODULE)
 
 
 class WindowsSignPathInputTest(unittest.TestCase):
-    def test_exact_signer_set_matches_updater_and_excludes_kernel_driver(self) -> None:
+    def test_only_project_owned_pe_files_are_requested_for_signing(self) -> None:
         MODULE.verify_signpath_config()
         source = (ROOT / "rust/crates/smu-updater/src/windows_bundle.rs").read_text()
-        for name in MODULE.RELEASE_SIGNER_FILES:
+        self.assertEqual(MODULE.RELEASE_SIGNER_FILES,
+                         ("Spencer-Macro-Utilities.exe", "SMU-Update-Helper.exe"))
+        self.assertTrue(set(MODULE.RELEASE_SIGNER_FILES).isdisjoint(
+            MODULE.THIRD_PARTY_WINDOWS_FILES))
+        # The old four-file updater trust contract is still active: signing
+        # these two binaries is NOT sufficient to enable automatic replacement.
+        for name in (*MODULE.RELEASE_SIGNER_FILES, "SDL3.dll", "SMCWinDivert.dll"):
             self.assertIn(f'"{name}"', source)
-        self.assertNotIn("SMCWinDivert64.sys", MODULE.RELEASE_SIGNER_FILES)
 
-    def test_prepares_four_pe_files_only(self) -> None:
+    def test_prepares_two_owned_pe_files_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             stage = Path(directory) / "stage"
             stage.mkdir()
             for name in MODULE.RELEASE_SIGNER_FILES:
                 (stage / name).write_bytes(b"MZ" + bytes(100))
-            (stage / "SMCWinDivert64.sys").write_bytes(b"MZ" + bytes(100))
+            for third_party in MODULE.THIRD_PARTY_WINDOWS_FILES:
+                (stage / third_party).write_bytes(b"MZ" + bytes(100))
             output = Path(directory) / "request.zip"
             MODULE.prepare(stage, output)
             with zipfile.ZipFile(output) as archive:
                 self.assertEqual(tuple(archive.namelist()), MODULE.RELEASE_SIGNER_FILES)
-                self.assertEqual(archive.read("SDL3.dll"), b"MZ" + bytes(100))
+                self.assertEqual(archive.read("Spencer-Macro-Utilities.exe"), b"MZ" + bytes(100))
+                self.assertTrue(set(archive.namelist()).isdisjoint(
+                    MODULE.THIRD_PARTY_WINDOWS_FILES))
 
     def test_rejects_missing_invalid_and_symlinked_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

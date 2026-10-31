@@ -989,22 +989,32 @@ self-update at the same time.
    Finder DMG layout cannot be scripted on the SSH/headless Mac; the release path uses
    a plain drag-to-Applications image instead. GUI launch and permission flows still need
    validation with an unlocked graphical session before publication.
-6. Windows remains on the C++ production path. A candidate four-PE SignPath artifact
-   configuration and unsigned request packer are in `scripts/signpath/` and
-   `scripts/prepare_rust_windows_signpath.py`, with offline tests. Upload the candidate
-   configuration against the updater's existing four-file trust expectations. **Do not submit this candidate**
-   with the SignPath Foundation credential: signing third-party SDL3/WinDivert DLLs is outside its stated policy.
-   This candidate is only a local model of the old trust contract and must be replaced before production.
-   Never replace/re-sign the WinDivert kernel driver's upstream signature. On Fedora,
-   Windows GNU cross-compilation built the updater helper successfully. Under isolated
-   Wine 11.20, 3 Windows helper tests and 41 Windows updater tests passed. The Windows
-   updater test suite now distinguishes Unix-only file-tampering fixtures from Windows
-   mandatory file-sharing protection and verifies locked-source/backup behavior on
-   Windows. The GNU full-app build remains blocked by the third-party
-   `dear-imgui-sys` `static:-bundle=stdc++` Windows-GNU linker modifier; the existing
-   Windows MSVC CI path is the intended full-app build. A real Windows machine is
-   still needed for GUI, kernel-driver, production-signature, and updater-rollback
-   acceptance tests; Wine cannot replace these checks.
+6. Windows still uses C++ in the **production release** workflow, but the Rust Windows
+   **native build and verification pipeline is now green** on October 31, 2026. The isolated
+   *private* test repo `Spencer0187/smu-rust-windows-ci` ran MSVC Rust 1.98.0 on
+   `windows-latest` (Actions run `41221449971`). All steps passed: 31 applicable Python
+   contracts, `-D warnings` Clippy, native release compilation of the app and helper,
+   PE version resources, runtime staging, unsigned ZIP, manifest checksum, candidate
+   signing input, artifact upload, and native Windows Rust tests (app 227, updater 41,
+   helper 3). No signing credentials, production releases, or public source pushes
+   were involved. The complete Windows unsigned ZIP was downloaded to Fedora and
+   `unzip -t` verified its contents and SHA-256 against the generated release manifest.
+   The Windows GUI also opened and remained active under isolated Wine 11.20 with a
+   virtual desktop; this is a startup smoke test, not native GUI, timing, kernel
+   driver, or input-injection acceptance testing. The unrelated MinGW/full-app
+   `dear-imgui-sys` C++ linker mismatch can be bypassed by the supported MSVC path.
+
+   The SignPath candidate in `scripts/signpath/rust-windows-bundle.xml` now requests
+   signatures for **only the two SMU-owned EXEs**, which is compatible with the
+   Foundation's restriction against re-signing upstream SDL3/WinDivert binaries.
+   The ZIP creation code and offline tests enforce that upstream DLLs and the
+   WinDivert driver are excluded. **This is not an auto-update solution**: the
+   current updater helper requires all four user-mode PEs to share SMU's signer.
+   A separate reviewed trust design must authenticate both upstream DLLs while
+   preserving signature continuity for SMU's app and helper and WinDivert's upstream
+   kernel driver. Do not enable auto-apply or promote the Rust Windows production
+   release before that security review, SignPath policy approval, Windows GUI and
+   driver smoke tests, and verified rollback on a real Windows machine.
 7. Both macOS and Windows automatic installer apply must remain disabled at this stage.
    In particular, ad-hoc macOS signatures have no stable signer identity, and automatic
    updater trust must not be weakened to accommodate them. User-initiated manual updates

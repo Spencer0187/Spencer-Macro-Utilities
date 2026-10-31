@@ -1,18 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- RESEARCH-ONLY LEGACY TRUST MODEL; DO NOT SUBMIT TO SIGNPATH FOUNDATION.
-     SignPath Foundation's free OSS certificate may only sign the project's own
-     binaries, not upstream SDL3.dll or WinDivert DLLs (signpath.org/terms.html).
-     Redesign the automatic-update runtime trust contract before promotion.
-     Candidate SignPath artifact configuration for the four Rust user-mode PE files.
-     Configure this as a NEW SignPath artifact-configuration slug and verify it
-     against the actual production signing policy before a release cutover.
-     SMCWinDivert64.sys is intentionally NOT re-signed: it retains WinDivert's
-     independently trusted upstream kernel signature. -->
+<!-- SignPath Foundation candidate: sign only binaries built from SMU-owned source.
+     The vendor SDL3.dll, SMCWinDivert.dll and upstream-signed SMCWinDivert64.sys
+     are deliberately excluded. The current Windows updater still requires all
+     four user-mode binaries to share the SMU signer; that trust check must be
+     redesigned, reviewed and independently verified before enabling auto-apply.
+     DO NOT activate Windows automatic update replacement with this candidate. -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
     <pe-file path="Spencer-Macro-Utilities.exe"><authenticode-sign/></pe-file>
     <pe-file path="SMU-Update-Helper.exe"><authenticode-sign/></pe-file>
-    <pe-file path="SDL3.dll"><authenticode-sign/></pe-file>
-    <pe-file path="SMCWinDivert.dll"><authenticode-sign/></pe-file>
   </zip-file>
 </artifact-configuration>
