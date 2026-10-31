@@ -51,26 +51,29 @@ fn monitor_info(monitor: HMONITOR) -> Option<MONITORINFOEXA> {
     if monitor.is_null() {
         return None;
     }
-    let mut info = MONITORINFOEXA::default();
-    info.monitorInfo.cbSize = u32::try_from(size_of::<MONITORINFOEXA>()).ok()?;
-    // SAFETY: MONITORINFOEXA starts with MONITORINFO and cbSize advertises the full structure size.
-    let ok = unsafe {
-        GetMonitorInfoA(monitor, (&mut info as *mut MONITORINFOEXA).cast::<MONITORINFO>())
+    let mut info = MONITORINFOEXA {
+        monitorInfo: MONITORINFO {
+            cbSize: u32::try_from(size_of::<MONITORINFOEXA>()).ok()?,
+            ..MONITORINFO::default()
+        },
+        ..MONITORINFOEXA::default()
     };
+    // SAFETY: MONITORINFOEXA starts with MONITORINFO and cbSize advertises the full structure size.
+    let ok = unsafe { GetMonitorInfoA(monitor, (&raw mut info).cast::<MONITORINFO>()) };
     (ok != 0).then_some(info)
 }
 
 fn monitor_refresh_rate(monitor: HMONITOR) -> Option<i32> {
     if let Some(info) = monitor_info(monitor) {
-        let mut mode = DEVMODEA::default();
-        mode.dmSize = u16::try_from(size_of::<DEVMODEA>()).ok()?;
+        let mut mode =
+            DEVMODEA { dmSize: u16::try_from(size_of::<DEVMODEA>()).ok()?, ..DEVMODEA::default() };
         // SAFETY: szDevice is NUL-terminated Win32 device storage returned by GetMonitorInfoA and
         // mode points to writable DEVMODEA storage for this call.
         let ok = unsafe {
             EnumDisplaySettingsA(
                 info.szDevice.as_ptr().cast::<u8>(),
                 ENUM_CURRENT_SETTINGS,
-                &mut mode,
+                &raw mut mode,
             )
         };
         if ok != 0 && mode.dmDisplayFrequency > 1 {
@@ -80,7 +83,7 @@ fn monitor_refresh_rate(monitor: HMONITOR) -> Option<i32> {
 
     let dc = ScreenDc::acquire()?;
     // SAFETY: GetDeviceCaps reads the desktop DC only.
-    let refresh = unsafe { GetDeviceCaps(dc.0, VREFRESH as i32) };
+    let refresh = unsafe { GetDeviceCaps(dc.0, i32::try_from(VREFRESH).unwrap_or_default()) };
     (refresh > 1).then_some(refresh)
 }
 
@@ -203,20 +206,29 @@ impl ScreenPixelSampler {
         }
         self.mem_dc = mem_dc as usize;
 
-        let mut bitmap_info = BITMAPINFO::default();
-        bitmap_info.bmiHeader = BITMAPINFOHEADER {
-            biSize: u32::try_from(size_of::<BITMAPINFOHEADER>()).unwrap_or_default(),
-            biWidth: info.bounds.width,
-            biHeight: -info.bounds.height,
-            biPlanes: 1,
-            biBitCount: 32,
-            biCompression: BI_RGB,
-            ..BITMAPINFOHEADER::default()
+        let bitmap_info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: u32::try_from(size_of::<BITMAPINFOHEADER>()).unwrap_or_default(),
+                biWidth: info.bounds.width,
+                biHeight: -info.bounds.height,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB,
+                ..BITMAPINFOHEADER::default()
+            },
+            ..BITMAPINFO::default()
         };
         let mut bits: *mut c_void = ptr::null_mut();
         // SAFETY: bitmap_info and bits are valid for the duration of the call; no section handle is used.
         let bitmap = unsafe {
-            CreateDIBSection(screen.0, &bitmap_info, DIB_RGB_COLORS, &mut bits, ptr::null_mut(), 0)
+            CreateDIBSection(
+                screen.0,
+                &raw const bitmap_info,
+                DIB_RGB_COLORS,
+                &raw mut bits,
+                ptr::null_mut(),
+                0,
+            )
         };
         self.bitmap = bitmap as usize;
         self.pixel_bits = bits as usize;
@@ -354,7 +366,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 fn active_monitor() -> Option<(HMONITOR, MONITORINFOEXA)> {
     let mut point = POINT::default();
     // SAFETY: point is valid writable storage and MonitorFromPoint retains no pointers.
-    if unsafe { GetCursorPos(&mut point) } == 0 {
+    if unsafe { GetCursorPos(&raw mut point) } == 0 {
         return None;
     }
     let monitor = unsafe { MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST) };
@@ -381,7 +393,7 @@ impl DisplayCapture for WindowsDisplayCapture {
     fn cursor_position(&self) -> Option<CursorPosition> {
         let mut point = POINT::default();
         // SAFETY: point is valid writable storage.
-        (unsafe { GetCursorPos(&mut point) } != 0)
+        (unsafe { GetCursorPos(&raw mut point) } != 0)
             .then_some(CursorPosition { x: point.x, y: point.y })
     }
 
