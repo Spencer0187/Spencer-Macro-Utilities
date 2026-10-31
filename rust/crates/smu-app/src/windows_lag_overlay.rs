@@ -235,7 +235,7 @@ mod platform {
                     0,
                     0,
                     0,
-                    FW_BOLD as i32,
+                    FW_BOLD.cast_signed(),
                     0,
                     0,
                     0,
@@ -330,7 +330,7 @@ mod platform {
             }
             // SAFETY: mem_dc is valid; mode and COLORREF values are valid.
             unsafe {
-                let _ = SetBkMode(mem_dc, TRANSPARENT as i32);
+                let _ = SetBkMode(mem_dc, TRANSPARENT.cast_signed());
                 let text_color = if settings.use_background && active {
                     rgb(0, 255, 0)
                 } else {

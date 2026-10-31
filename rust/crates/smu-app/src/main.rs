@@ -1703,7 +1703,6 @@ fn start_windows_script_app(
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
         logger: Some(script_log_sink()),
-        ..ScriptServices::default()
     };
     ScriptAppServices::new(
         Arc::new(ScriptManager::new(config, services)),

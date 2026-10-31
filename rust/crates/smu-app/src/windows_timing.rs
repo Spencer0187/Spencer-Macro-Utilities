@@ -1,6 +1,3 @@
-#[cfg(target_os = "windows")]
-use smu_scripting::ScriptLogSink;
-
 fn requested_timer_period(period_min: u32, period_max: u32) -> u32 {
     let mut requested = 1_u32.max(period_min);
     if period_max > 0 {
@@ -43,14 +40,15 @@ mod platform {
 
     fn configure_timer_period() -> Option<u32> {
         let mut caps = TIMECAPS::default();
-        let mut requested = 1_u32;
         // SAFETY: `caps` is valid writable storage for TIMECAPS and the byte size matches the struct.
-        if unsafe {
+        let requested = if unsafe {
             timeGetDevCaps(&raw mut caps, u32::try_from(size_of::<TIMECAPS>()).unwrap_or_default())
         } == MMSYSERR_NOERROR
         {
-            requested = requested_timer_period(caps.wPeriodMin, caps.wPeriodMax);
-        }
+            requested_timer_period(caps.wPeriodMin, caps.wPeriodMax)
+        } else {
+            1_u32
+        };
 
         // SAFETY: timeBeginPeriod accepts any UINT period and owns no borrowed memory.
         if unsafe { timeBeginPeriod(requested) } == TIMERR_NOERROR {

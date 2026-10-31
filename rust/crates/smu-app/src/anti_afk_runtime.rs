@@ -212,8 +212,8 @@ fn controller_loop(
         if target_foreground {
             state.last_keyboard_serial_seen = keyboard_serial;
         }
-        let worker_input = Arc::clone(&input);
-        let worker_display = Arc::clone(&display);
+        let worker_input = Arc::clone(input);
+        let worker_display = Arc::clone(display);
         let worker_settings = Arc::clone(settings);
         let afk_key = current.afk_key;
         state.action_worker = Some(std::thread::spawn(move || {
