@@ -384,7 +384,8 @@ mod tests {
 
     #[test]
     fn v340_tripwire_and_public_filename_match_release_contract() {
-        assert_eq!(VERSION_BYTES, b"3.4.0\n");
+        // GitHub's Windows checkout may normalize the version file to CRLF.
+        assert!(VERSION_BYTES == b"3.4.0\n" || VERSION_BYTES == b"3.4.0\r\n");
         assert_eq!(V340_TARGET_FILENAME, "Spencer-Macro-Utilities-V3.4.0-Windows.exe");
         assert_eq!(MIGRATION_TITLE, "Spencer Macro Utilities filename migration");
     }
