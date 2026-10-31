@@ -532,7 +532,7 @@ fn require_startup_survival(child: &mut Child) -> Result<(), String> {
 fn rollback_and_relaunch_previous(
     transaction: WindowsReplacementTransaction,
     install_root: &Path,
-    primary_error: String,
+    primary_error: &str,
 ) -> String {
     if let Err(rollback) = transaction.rollback() {
         return format!("{primary_error} Rollback also failed: {rollback}");
@@ -594,7 +594,7 @@ fn apply(args: &ApplyUpdateArgs) -> Result<(), String> {
     let result = (|| {
         let mut prepared = prepare_windows_bundle_tree(&staged_root, &authenticated_hashes)
             .map_err(|error| error.to_string())?;
-        validate_versions_and_signers(&args, prepared.root(), &install_root, &current_helper)?;
+        validate_versions_and_signers(args, prepared.root(), &install_root, &current_helper)?;
         // Final parent handoff boundary: the old process object is already pinned and every authenticated
         // package/staging/signer/version check is complete. Only now may the parent safely exit.
         readiness.signal()?;
@@ -605,14 +605,14 @@ fn apply(args: &ApplyUpdateArgs) -> Result<(), String> {
         let mut child = match launch_updated_app(&install_root) {
             Ok(child) => child,
             Err(error) => {
-                return Err(rollback_and_relaunch_previous(transaction, &install_root, error));
+                return Err(rollback_and_relaunch_previous(transaction, &install_root, &error));
             }
         };
         if let Err(error) = require_startup_survival(&mut child) {
             // If try_wait itself failed, the new process may still be live; stop it before restoring files.
             let _ = child.kill();
             let _ = child.wait();
-            return Err(rollback_and_relaunch_previous(transaction, &install_root, error));
+            return Err(rollback_and_relaunch_previous(transaction, &install_root, &error));
         }
         transaction.commit().map_err(|error| error.to_string())
     })();
