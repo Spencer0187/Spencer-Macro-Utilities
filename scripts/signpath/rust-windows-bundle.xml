@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Candidate SignPath artifact configuration for the four Rust user-mode PE files.
+<!-- RESEARCH-ONLY LEGACY TRUST MODEL; DO NOT SUBMIT TO SIGNPATH FOUNDATION.
+     SignPath Foundation's free OSS certificate may only sign the project's own
+     binaries, not upstream SDL3.dll or WinDivert DLLs (signpath.org/terms.html).
+     Redesign the automatic-update runtime trust contract before promotion.
+     Candidate SignPath artifact configuration for the four Rust user-mode PE files.
      Configure this as a NEW SignPath artifact-configuration slug and verify it
      against the actual production signing policy before a release cutover.
      SMCWinDivert64.sys is intentionally NOT re-signed: it retains WinDivert's

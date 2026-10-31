@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Prepare the exact four-file Rust Windows SignPath signing input.
 
+RESEARCH ONLY: do not submit this ZIP to SignPath Foundation. Its certificate
+policy forbids signing third-party SDL3/WinDivert DLLs. The current updater's
+four-file same-signer requirement must be redesigned before production.
+
 Intentionally excludes the kernel driver and assets. The signed output is NOT
 suitable for direct publication: production Windows CI must verify Authenticode
 signer continuity, add the original upstream-signed driver and resources, and

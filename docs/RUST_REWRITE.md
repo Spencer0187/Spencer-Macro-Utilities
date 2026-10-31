@@ -976,8 +976,11 @@ self-update at the same time.
 4. Promote Windows as a signed runtime bundle, not merely a different build command. Production SignPath
    currently signs one `Spencer-Macro-Utilities.exe`; Rust updater trust requires the app, `SMU-Update-Helper.exe`,
    `SDL3.dll`, and `SMCWinDivert.dll` to share the production release signer while preserving the separate
-   upstream signer on `SMCWinDivert64.sys`. Confirm the SignPath artifact configuration can accept and return
-   that file set before changing `.github/workflows/build.yml`.
+   upstream signer on `SMCWinDivert64.sys`. **This trust contract cannot be deployed as written with a SignPath
+   Foundation OSS certificate**: the Foundation permits signing only the project's own binaries, not third-party
+   SDL3 and WinDivert DLLs (https://signpath.org/terms.html). Before a production cutover, redesign updater trust
+   so it verifies our own signed app/helper while authenticating external libraries without re-signing them, or
+   pursue a separately authorized signing policy. Do not enable Windows updater apply in the interim.
 5. The Rust macOS production packaging path is now wired into `.github/workflows/build.yml`.
    `scripts/package_rust_macos_release.sh` builds the universal `.app`, updater ZIP, and a
    certificate-free ad-hoc-signed DMG. Native Apple Silicon verification passed all 280
@@ -989,8 +992,9 @@ self-update at the same time.
 6. Windows remains on the C++ production path. A candidate four-PE SignPath artifact
    configuration and unsigned request packer are in `scripts/signpath/` and
    `scripts/prepare_rust_windows_signpath.py`, with offline tests. Upload the candidate
-   configuration to the real SignPath project and verify production signing of the app,
-   helper, SDL3 and WinDivert user-mode DLL together before considering the Rust cutover.
+   configuration against the updater's existing four-file trust expectations. **Do not submit this candidate**
+   with the SignPath Foundation credential: signing third-party SDL3/WinDivert DLLs is outside its stated policy.
+   This candidate is only a local model of the old trust contract and must be replaced before production.
    Never replace/re-sign the WinDivert kernel driver's upstream signature. On Fedora,
    Windows GNU cross-compilation built the updater helper successfully. Under isolated
    Wine 11.20, 3 Windows helper tests and 41 Windows updater tests passed. The Windows
