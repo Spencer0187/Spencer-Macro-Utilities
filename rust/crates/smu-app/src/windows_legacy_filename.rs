@@ -10,13 +10,19 @@ const MIGRATION_TITLE: &str = "Spencer Macro Utilities filename migration";
 // This intentionally fails compilation as soon as the repository version changes. Delete this module and its
 // startup call before V3.4.1 or later, matching the C++ static_assert tripwire.
 const _: () = {
-    assert!(VERSION_BYTES.len() == 6);
+    // Git checkouts may use LF or CRLF depending on the host's autocrlf setting.
+    // Keep the exact 3.4.0-only migration tripwire without depending on that setting.
+    assert!(VERSION_BYTES.len() == 6 || VERSION_BYTES.len() == 7);
     assert!(VERSION_BYTES[0] == b'3');
     assert!(VERSION_BYTES[1] == b'.');
     assert!(VERSION_BYTES[2] == b'4');
     assert!(VERSION_BYTES[3] == b'.');
     assert!(VERSION_BYTES[4] == b'0');
-    assert!(VERSION_BYTES[5] == b'\n');
+    assert!(if VERSION_BYTES.len() == 6 {
+        VERSION_BYTES[5] == b'\n'
+    } else {
+        VERSION_BYTES[5] == b'\r' && VERSION_BYTES[6] == b'\n'
+    });
 };
 
 #[must_use]

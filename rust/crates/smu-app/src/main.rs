@@ -1689,7 +1689,7 @@ fn start_windows_script_app(
     shell_state: &shell::ShellState,
     parity_case: Option<&str>,
     platform: &WindowsMacroPlatformServices,
-    lag_switch: &mut WindowsLagSwitchServices,
+    lag_switch: &WindowsLagSwitchServices,
 ) -> ScriptAppServices {
     let (selector, take_all_process_ids) = shell_state.script_process_target();
     let mut config = ScriptManagerConfig::new(app_version());

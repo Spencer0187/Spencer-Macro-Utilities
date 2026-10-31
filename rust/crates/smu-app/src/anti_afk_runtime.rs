@@ -5,7 +5,7 @@
 
 use smu_core::Hotkey;
 use smu_display::DisplayCapture;
-use smu_input::{InputDevice, InputInjector};
+use smu_input::InputDevice;
 use smu_process::windows::{find_newest_process_window, foreground_window};
 use smu_process::{ProcessDiscovery, ProcessForeground};
 use smu_runtime::anti_afk::evaluate_anti_afk_timer_step;
