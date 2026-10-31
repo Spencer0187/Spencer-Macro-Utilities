@@ -112,7 +112,6 @@ fn path_has_extended_acl(path: &Path) -> Result<bool, String> {
 
 #[derive(Debug)]
 struct DetachedCurrentHelper {
-    path: PathBuf,
     directory: File,
 }
 
@@ -193,7 +192,7 @@ fn detached_current_helper(
                 .to_owned(),
         );
     }
-    Ok(DetachedCurrentHelper { path: helper, directory })
+    Ok(DetachedCurrentHelper { directory })
 }
 
 #[derive(Debug)]
@@ -279,17 +278,15 @@ fn process_executable_path(pid: libc::pid_t) -> Result<PathBuf, String> {
 }
 
 fn old_process_is_gone_or_reused(pid: libc::pid_t, expected_executable: &Path) -> bool {
-    match process_executable_path(pid) {
-        Ok(actual_executable) => actual_executable != expected_executable,
-        Err(_) => {
-            // SAFETY: signal 0 performs existence/permission checking without delivering a signal.
-            let result = unsafe { libc::kill(pid, 0) };
-            if result == 0 {
-                return false;
-            }
-            std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
-        }
+    if let Ok(actual_executable) = process_executable_path(pid) {
+        return actual_executable != expected_executable;
     }
+    // SAFETY: signal 0 performs existence/permission checking without delivering a signal.
+    let result = unsafe { libc::kill(pid, 0) };
+    if result == 0 {
+        return false;
+    }
+    std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
 }
 
 #[derive(Debug)]
@@ -379,7 +376,7 @@ impl PinnedOldProcess {
             let event_data = event.data;
             let event_filter = event.filter;
             let event_ident = event.ident;
-            let event_fflags = event.fflags;
+            let event_filter_flags = event.fflags;
             if event_flags & libc::EV_ERROR != 0 && event_data != 0 {
                 return Err(format!(
                     "macOS process monitor reported error {event_data} for PID {}.",
@@ -388,7 +385,7 @@ impl PinnedOldProcess {
             }
             if event_filter == libc::EVFILT_PROC
                 && event_ident == usize::try_from(self.pid).unwrap_or(usize::MAX)
-                && event_fflags & libc::NOTE_EXIT != 0
+                && event_filter_flags & libc::NOTE_EXIT != 0
             {
                 return Ok(());
             }
@@ -618,7 +615,7 @@ pub fn run() -> Result<(), String> {
     let installed_bundle = macos_update_bundle_if_replaceable_at(&args.installed_bundle)
         .map_err(|error| error.to_string())?;
     let helper = detached_current_helper(&installed_bundle, args.old_pid)?;
-    let DetachedCurrentHelper { path: _, directory } = helper;
+    let DetachedCurrentHelper { directory } = helper;
     let _cleanup = DetachedCleanup { directory };
     let installed_executable = installed_executable(&installed_bundle)?;
     let old_process = PinnedOldProcess::register(args.old_pid, &installed_executable)?;

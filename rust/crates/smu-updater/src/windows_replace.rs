@@ -901,6 +901,8 @@ mod tests {
         assert!(!backup.exists());
     }
 
+    // This fixture relies on Unix allowing mutation/unlink of open file handles.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn rollback_uses_pinned_original_even_if_backup_path_is_removed() {
         let temp = TestDirectory::new("unlinked-backup");
@@ -925,6 +927,8 @@ mod tests {
         assert!(!backup.exists());
     }
 
+    // This fixture relies on Unix allowing mutation/unlink of open file handles.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn rollback_refuses_modified_backup_bytes() {
         let temp = TestDirectory::new("modified-backup");
@@ -990,6 +994,8 @@ mod tests {
         assert!(error.to_string().contains("did not match the authenticated bundle"));
     }
 
+    // This fixture relies on Unix allowing mutation/unlink of open file handles.
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn staged_mutation_after_preparation_is_detected_before_activation() {
         let temp = TestDirectory::new("prepared-mutation");
@@ -1015,6 +1021,40 @@ mod tests {
             b"old-sdl"
         );
         assert!(!backup.exists());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn prepared_sources_and_backup_are_pinned_against_windows_file_mutation() {
+        let temp = TestDirectory::new("windows-sharing");
+        let staged = staged_tree(&temp.0);
+        let install = temp.0.join("install");
+        fs::create_dir_all(&install).expect("install root should exist");
+        write_file(&install, "Spencer-Macro-Utilities.exe", b"old-exe");
+        let backup = install.join(".smu-update-backup-test");
+        let mut prepared = prepared_tree(&staged);
+
+        // On Windows, the authenticated source is pinned with FILE_SHARE_READ.
+        // Attempts to modify or delete it must fail with sharing violations.
+        let mutation = fs::write(staged.join("SDL3.dll"), b"tampered")
+            .expect_err("a pinned source must not be writable");
+        assert_eq!(mutation.raw_os_error(), Some(32)); // ERROR_SHARING_VIOLATION
+
+        let transaction = replace_windows_bundle_tree(&mut prepared, &install, &backup)
+            .expect("replacement should succeed");
+        let backup_path = backup.join("Spencer-Macro-Utilities.exe");
+        let mutation = fs::write(&backup_path, b"tampered")
+            .expect_err("pinned rollback backup must not be writable");
+        assert_eq!(mutation.raw_os_error(), Some(32));
+        let deletion =
+            fs::remove_file(&backup_path).expect_err("pinned rollback backup must not be unlinked");
+        assert_eq!(deletion.raw_os_error(), Some(32));
+        transaction.rollback().expect("untampered rollback should succeed");
+        assert_eq!(
+            fs::read(install.join("Spencer-Macro-Utilities.exe"))
+                .expect("restored original should be readable"),
+            b"old-exe"
+        );
     }
 
     #[cfg(unix)]

@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       release_mode:
-        description: Require release signing credentials and produce signed packages.
+        description: Require Windows SignPath credentials; macOS uses certificate-free ad-hoc signing.
         required: false
         default: false
         type: boolean
@@ -17,12 +17,6 @@ on:
         required: false
       SIGNPATH_SIGNING_POLICY:
         required: false
-      SMU_MACOS_RELEASE_CERTIFICATE_BASE64:
-        required: false
-      SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD:
-        required: false
-      SMU_MACOS_RELEASE_SIGN_IDENTITY:
-        required: false
     outputs:
       app_version:
         description: Application version from the canonical version file.
@@ -30,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       release_mode:
-        description: Require SignPath and the stable macOS release certificate.
+        description: Require Windows SignPath credentials; macOS is ad-hoc signed.
         required: true
         default: false
         type: boolean
@@ -492,52 +486,17 @@ jobs:
         with:
           ref: ${{ github.sha }}
 
-      - name: Configure macOS signing identity
-        shell: bash
-        env:
-          SMU_MACOS_RELEASE_CERTIFICATE_BASE64: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_CERTIFICATE_BASE64 || '' }}
-          SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD || '' }}
-          SMU_MACOS_RELEASE_SIGN_IDENTITY: ${{ inputs.release_mode && secrets.SMU_MACOS_RELEASE_SIGN_IDENTITY || '' }}
+      - name: Install pinned Rust toolchain and universal macOS targets
         run: |
-          if [[ "${{ inputs.release_mode }}" != "true" ]]; then
-            echo "Using ad-hoc signing for this validation artifact."
-            echo "SMU_MACOS_SIGN_IDENTITY=-" >> "$GITHUB_ENV"
-            exit 0
-          fi
+          rustup toolchain install 1.98.0 --profile minimal
+          rustup target add --toolchain 1.98.0 aarch64-apple-darwin x86_64-apple-darwin
 
-          if [[ -z "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" ||
-                -z "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" ]]; then
-            echo "The stable macOS release certificate secrets are required." >&2
-            exit 1
-          fi
+      - name: Build Rust universal app, ZIP, and DMG without a release certificate
+        env:
+          SMU_MACOS_SIGN_IDENTITY: '-'
+        run: bash scripts/package_rust_macos_release.sh
 
-          keychain_password="$(openssl rand -hex 24)"
-          keychain_path="$RUNNER_TEMP/smu-macos-release.keychain-db"
-          certificate_path="$RUNNER_TEMP/smu-macos-release.p12"
-          echo "$SMU_MACOS_RELEASE_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
-          security create-keychain -p "$keychain_password" "$keychain_path"
-          security set-keychain-settings -lut 21600 "$keychain_path"
-          security unlock-keychain -p "$keychain_password" "$keychain_path"
-          security import "$certificate_path" \
-            -k "$keychain_path" \
-            -P "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          # This is a self-signed identity used only for codesign. It does
-          # not need to be added to macOS trust settings, and add-trusted-cert
-          # can block on GitHub-hosted runners while updating trust settings.
-          security list-keychains -d user -s "$keychain_path"
-          security default-keychain -s "$keychain_path"
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s \
-            -k "$keychain_password" \
-            "$keychain_path"
-          echo "SMU_MACOS_SIGN_IDENTITY=${SMU_MACOS_RELEASE_SIGN_IDENTITY:-SMU macOS Release}" >> "$GITHUB_ENV"
-
-      - name: Build universal macOS package
-        run: bash scripts/package_macos.sh
-
-      - name: Verify universal signed app
+      - name: Verify universal ad-hoc-signed Rust app
         shell: bash
         run: |
           app="out/build/macos-universal-release/package-macos/Spencer Macro Utilities.app"
@@ -553,8 +512,20 @@ jobs:
           [[ "$(plutil -extract CFBundleShortVersionString raw -o - "$plist")" == "${{ needs.prepare.outputs.app_version }}" ]]
           [[ "$(plutil -extract CFBundleVersion raw -o - "$plist")" == "${{ needs.prepare.outputs.app_version }}" ]]
           test ! -e "$app/Contents/MacOS/suspend"
-          test ! -d "out/build/macos-universal-release/suspend.app"
+          test -x "$app/Contents/MacOS/SMU-Update-Helper"
+          test -f "$app/Contents/MacOS/assets/LSANS.TTF"
+          test -f "$app/Contents/MacOS/assets/macro_tutorials/wallhop.jpg"
+          test -f "$app/Contents/Resources/smu_icon.icns"
+          sdl="$(find "$app/Contents/Frameworks" -maxdepth 1 -type f -name 'libSDL3*.dylib' -print -quit)"
+          test -n "$sdl"
+          for code in "$binary" "$app/Contents/MacOS/SMU-Update-Helper" "$sdl"; do
+            code_archs="$(lipo -archs "$code")"
+            grep -qw arm64 <<<"$code_archs"
+            grep -qw x86_64 <<<"$code_archs"
+          done
+          otool -L "$binary" | grep -F -q '@rpath/libSDL3'
           codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dvv "$app" 2>&1 | grep -F -q 'Signature=adhoc'
           test -f "$app/Contents/Resources/LICENSE"
           test -f "$app/Contents/Resources/PRIVACY.md"
           test -f "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
@@ -576,7 +547,7 @@ jobs:
               "$dmg_path" \
               "release-files/Spencer-Macro-Utilities-V${{ needs.prepare.outputs.app_version }}-macOS-universal.dmg"
           elif [[ "${{ inputs.release_mode }}" == "true" ]]; then
-            echo "The macOS DMG is required for a signed release, but packaging did not produce it." >&2
+            echo "The macOS DMG is required for release, but packaging did not produce it." >&2
             exit 1
           else
             echo "The macOS DMG was unavailable; continuing with the ZIP validation artifact."
@@ -589,7 +560,7 @@ jobs:
           if [[ -f "$dmg" ]]; then
             hdiutil verify "$dmg"
           elif [[ "${{ inputs.release_mode }}" == "true" ]]; then
-            echo "The signed macOS release has no DMG to verify." >&2
+            echo "The macOS release has no DMG to verify." >&2
             exit 1
           fi
 

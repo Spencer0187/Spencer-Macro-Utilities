@@ -38,7 +38,8 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 fn active_displays() -> Vec<CGDirectDisplayID> {
     let mut count = 0_u32;
     // SAFETY: a zero-sized first query permits a null output buffer and writes only display_count.
-    if unsafe { CGGetActiveDisplayList(0, std::ptr::null_mut(), &mut count) } != CGError::Success
+    if unsafe { CGGetActiveDisplayList(0, std::ptr::null_mut(), &raw mut count) }
+        != CGError::Success
         || count == 0
     {
         return Vec::new();
@@ -49,7 +50,7 @@ fn active_displays() -> Vec<CGDirectDisplayID> {
     };
     let mut displays = vec![0_u32; capacity];
     // SAFETY: displays has room for count CGDirectDisplayID values and count is writable.
-    if unsafe { CGGetActiveDisplayList(count, displays.as_mut_ptr(), &mut count) }
+    if unsafe { CGGetActiveDisplayList(count, displays.as_mut_ptr(), &raw mut count) }
         != CGError::Success
     {
         return Vec::new();

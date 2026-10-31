@@ -82,8 +82,12 @@ mod item_unequip;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod item_unequip_runtime;
 mod keybind;
+// These cross-platform modules retain Windows/Linux-only actions for parity tests.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 mod lag_switch;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
+// These cross-platform modules retain Windows/Linux-only actions for parity tests.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 mod lag_switch_runtime;
 mod laugh_clip;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -103,6 +107,8 @@ mod linux_privileged_helper;
 mod macos_permission_setup;
 mod macro_text;
 mod multi_instance;
+// These cross-platform modules retain Windows/Linux-only actions for parity tests.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 mod notification_suppression;
 mod parity;
 mod press_key;
@@ -141,6 +147,8 @@ mod walless_lhj_runtime;
 mod wallhop;
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 mod wallhop_runtime;
+// These cross-platform modules retain Windows/Linux-only actions for parity tests.
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 mod warning_toast;
 #[cfg(target_os = "windows")]
 mod windows_drop_filter;
@@ -1140,14 +1148,14 @@ impl MacosPlatformServices {
                 self.permission_setup.restart_and_check();
             }
             Some(shell::ShellAction::CheckUpdatesFromSettings) => {
-                self.update_service.start_check(true)
+                self.update_service.start_check(true);
             }
             Some(shell::ShellAction::RequestInstallUpdateFromSettings) => {
                 self.update_service.request_apply();
             }
             Some(shell::ShellAction::ConfirmInstallUpdate) => self.update_service.confirm_apply(),
             Some(shell::ShellAction::SkipUpdate) => {
-                self.update_service.dismiss_update("Update skipped.")
+                self.update_service.dismiss_update("Update skipped.");
             }
             Some(shell::ShellAction::CancelUpdate) => {
                 self.update_service.dismiss_update("Update cancelled.");
@@ -2177,14 +2185,14 @@ impl WindowsBuiltinRuntimeServices {
     fn handle_action(&self, action: Option<&shell::ShellAction>) {
         match action {
             Some(shell::ShellAction::CheckUpdatesFromSettings) => {
-                self.update_service.start_check(true)
+                self.update_service.start_check(true);
             }
             Some(shell::ShellAction::RequestInstallUpdateFromSettings) => {
                 self.update_service.request_apply();
             }
             Some(shell::ShellAction::ConfirmInstallUpdate) => self.update_service.confirm_apply(),
             Some(shell::ShellAction::SkipUpdate) => {
-                self.update_service.dismiss_update("Update skipped.")
+                self.update_service.dismiss_update("Update skipped.");
             }
             Some(shell::ShellAction::CancelUpdate) => {
                 self.update_service.dismiss_update("Update cancelled.");
@@ -2231,6 +2239,7 @@ impl WindowsBuiltinRuntimeServices {
 }
 
 #[cfg(target_os = "macos")]
+#[allow(clippy::struct_field_names)] // Controller suffix distinguishes every runtime service.
 struct MacosBuiltinRuntimeServices {
     bunnyhop_controller: bunnyhop_runtime::BunnyhopController,
     hhj_controller: hhj_runtime::HhjController,
@@ -2251,6 +2260,7 @@ struct MacosBuiltinRuntimeServices {
 
 #[cfg(target_os = "macos")]
 impl MacosBuiltinRuntimeServices {
+    #[allow(clippy::too_many_lines)] // Cross-module dependency composition is intentionally centralized.
     fn new(shell_state: &shell::ShellState, platform: &MacosPlatformServices) -> Option<Self> {
         if !platform.input_ready {
             return None;

@@ -74,7 +74,7 @@ struct MouseButtonDescription {
     button_number: i64,
 }
 
-fn mouse_button_description(mac_key: u16) -> Option<MouseButtonDescription> {
+const fn mouse_button_description(mac_key: u16) -> Option<MouseButtonDescription> {
     match mac_key {
         MACOS_MOUSE_LEFT => Some(MouseButtonDescription {
             down_type: CGEventType::LeftMouseDown,
@@ -183,9 +183,9 @@ fn resolve_character_key(character: u8) -> Option<MacCharacterKey> {
                     (modifier_state >> 8) & 0xFF,
                     keyboard_type,
                     UC_KEY_TRANSLATE_NO_DEAD_KEYS_MASK,
-                    &mut dead_key_state,
+                    &raw mut dead_key_state,
                     output.len(),
-                    &mut output_length,
+                    &raw mut output_length,
                     output.as_mut_ptr(),
                 )
             };
@@ -221,7 +221,7 @@ fn mouse_event_key(event_type: CGEventType, event: &CGEvent) -> Option<KeyCode> 
     }
 }
 
-fn modifier_down_for_flags_changed(key: KeyCode, flags: CGEventFlags) -> bool {
+const fn modifier_down_for_flags_changed(key: KeyCode, flags: CGEventFlags) -> bool {
     match key {
         KeyCode::SHIFT | KeyCode::LSHIFT | KeyCode::RSHIFT => {
             flags.contains(CGEventFlags::MaskShift)
@@ -365,7 +365,7 @@ unsafe extern "C-unwind" fn event_tap_callback(
     event_pointer
 }
 
-fn event_tap_run_loop(shared: Arc<MacosInputStateShared>, started: mpsc::SyncSender<bool>) {
+fn event_tap_run_loop(shared: &Arc<MacosInputStateShared>, started: &mpsc::SyncSender<bool>) {
     let mask = event_mask(CGEventType::KeyDown)
         | event_mask(CGEventType::KeyUp)
         | event_mask(CGEventType::FlagsChanged)
@@ -378,7 +378,7 @@ fn event_tap_run_loop(shared: Arc<MacosInputStateShared>, started: mpsc::SyncSen
         | event_mask(CGEventType::ScrollWheel);
 
     let mut context =
-        Box::new(EventTapContext { shared: Arc::clone(&shared), tap: std::ptr::null() });
+        Box::new(EventTapContext { shared: Arc::clone(shared), tap: std::ptr::null() });
     // SAFETY: callback and user_info remain valid until the retained tap is invalidated and dropped below.
     let Some(tap) = (unsafe {
         CGEvent::tap_create(
@@ -469,7 +469,7 @@ impl MacosInputState {
         let shared = Arc::clone(&self.shared);
         let thread = thread::Builder::new()
             .name("smu-macos-input-tap".to_owned())
-            .spawn(move || event_tap_run_loop(shared, started_tx))
+            .spawn(move || event_tap_run_loop(&shared, &started_tx))
             .map_err(|error| {
                 self.shared.running.store(false, Ordering::Release);
                 InputError::new(format!("macOS input event-tap thread could not start: {error}"))
@@ -477,14 +477,13 @@ impl MacosInputState {
         *thread_slot = Some(thread);
         drop(thread_slot);
 
-        match started_rx.recv() {
-            Ok(true) => Ok(()),
-            Ok(false) | Err(_) => {
-                self.shutdown();
-                Err(InputError::new(
-                    "macOS could not create the global input event tap. Check Accessibility permission, then restart SMU.",
-                ))
-            }
+        if started_rx.recv() == Ok(true) {
+            Ok(())
+        } else {
+            self.shutdown();
+            Err(InputError::new(
+                "macOS could not create the global input event tap. Check Accessibility permission, then restart SMU.",
+            ))
         }
     }
 
@@ -598,7 +597,7 @@ impl MacosInputInjector {
         };
         // SAFETY: unicode_character points to one valid UTF-16 code unit for the duration of the call.
         unsafe {
-            CGEvent::keyboard_set_unicode_string(Some(&key_down), 1, &unicode_character);
+            CGEvent::keyboard_set_unicode_string(Some(&key_down), 1, &raw const unicode_character);
         }
         post_tagged_event(&key_down);
 
@@ -609,7 +608,7 @@ impl MacosInputInjector {
         };
         // SAFETY: unicode_character points to one valid UTF-16 code unit for the duration of the call.
         unsafe {
-            CGEvent::keyboard_set_unicode_string(Some(&key_up), 1, &unicode_character);
+            CGEvent::keyboard_set_unicode_string(Some(&key_up), 1, &raw const unicode_character);
         }
         post_tagged_event(&key_up);
         true
@@ -770,11 +769,11 @@ impl InputInjector for MacosInputInjector {
     }
 
     fn set_direct_cursor_movement(&self, enabled: bool) -> bool {
-        MacosInputInjector::set_direct_cursor_movement(self, enabled)
+        Self::set_direct_cursor_movement(self, enabled)
     }
 
     fn direct_cursor_movement(&self) -> bool {
-        MacosInputInjector::direct_cursor_movement(self)
+        Self::direct_cursor_movement(self)
     }
 
     fn absolute_pointer_unavailable_reason(&self) -> String {

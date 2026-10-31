@@ -978,23 +978,41 @@ self-update at the same time.
    `SDL3.dll`, and `SMCWinDivert.dll` to share the production release signer while preserving the separate
    upstream signer on `SMCWinDivert64.sys`. Confirm the SignPath artifact configuration can accept and return
    that file set before changing `.github/workflows/build.yml`.
-5. Promote the Rust macOS staging path with the existing stable release certificate, then connect the staged
-   universal `.app` to both updater-ZIP generation and the existing DMG creation/verification path. The rewrite
-   workflow already proves the universal app/helper/SDL layout and certificate continuity, but production still
-   packages the legacy C++ app and the Rust validation job currently stops at the signed ZIP.
-6. Validate the actual production-signed Windows and macOS artifacts on their native operating systems before
-   enabling replacement. Check runtime startup, signer continuity, helper launch/readiness, replacement,
-   rollback, relaunch, package layout, and the release manifest generated from the exact uploaded bytes.
-7. Enable updater apply only after those signed artifacts are the production packages. Windows currently passes
-   `auto_apply=false` deliberately. macOS should switch from the hard-coded false capability to the existing
-   `macos_auto_apply_supported()` eligibility check rather than an unconditional true value, so DMG/read-only or
-   otherwise non-replaceable launches remain manual-update-only.
+5. The Rust macOS production packaging path is now wired into `.github/workflows/build.yml`.
+   `scripts/package_rust_macos_release.sh` builds the universal `.app`, updater ZIP, and a
+   certificate-free ad-hoc-signed DMG. Native Apple Silicon verification passed all 280
+   Rust app/updater/helper tests, universal linking, strict `codesign` verification, ZIP
+   integrity, and `hdiutil verify` on the headless DMG (October 31, 2026). The custom
+   Finder DMG layout cannot be scripted on the SSH/headless Mac; the release path uses
+   a plain drag-to-Applications image instead. GUI launch and permission flows still need
+   validation with an unlocked graphical session before publication.
+6. Windows remains on the C++ production path. A candidate four-PE SignPath artifact
+   configuration and unsigned request packer are in `scripts/signpath/` and
+   `scripts/prepare_rust_windows_signpath.py`, with offline tests. Upload the candidate
+   configuration to the real SignPath project and verify production signing of the app,
+   helper, SDL3 and WinDivert user-mode DLL together before considering the Rust cutover.
+   Never replace/re-sign the WinDivert kernel driver's upstream signature. On Fedora,
+   Windows GNU cross-compilation built the updater helper successfully. Under isolated
+   Wine 11.20, 3 Windows helper tests and 41 Windows updater tests passed. The Windows
+   updater test suite now distinguishes Unix-only file-tampering fixtures from Windows
+   mandatory file-sharing protection and verifies locked-source/backup behavior on
+   Windows. The GNU full-app build remains blocked by the third-party
+   `dear-imgui-sys` `static:-bundle=stdc++` Windows-GNU linker modifier; the existing
+   Windows MSVC CI path is the intended full-app build. A real Windows machine is
+   still needed for GUI, kernel-driver, production-signature, and updater-rollback
+   acceptance tests; Wine cannot replace these checks.
+7. Both macOS and Windows automatic installer apply must remain disabled at this stage.
+   In particular, ad-hoc macOS signatures have no stable signer identity, and automatic
+   updater trust must not be weakened to accommodate them. User-initiated manual updates
+   remain available. A future certificate-backed release may separately evaluate the
+   existing `macos_auto_apply_supported()` eligibility check.
 8. Keep the C++ compatibility oracles through the production promotion. They are no longer release binaries on
    Linux and do not block a Rust Windows/macOS cutover; removing the C++ oracle tree is a separate follow-up once
    the production Rust releases have accumulated enough confidence.
 
-The production workflow, updater capability flags, and C++ oracle are intentionally unchanged until those
-release decisions are explicitly authorized.
+The macOS release workflow now packages Rust without a certificate. The Windows production
+workflow, both updater capability flags, and the C++ oracle remain unchanged. No artifacts
+have been published as part of this preparation.
 
 ## Branch/cutover policy
 

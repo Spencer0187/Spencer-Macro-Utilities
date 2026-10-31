@@ -15,7 +15,8 @@ mod macos;
 mod macos_bundle;
 #[cfg(target_os = "macos")]
 mod macos_launch;
-#[cfg(any(target_os = "macos", test))]
+// Uses Unix descriptor-relative syscalls; its tests must only compile on macOS.
+#[cfg(target_os = "macos")]
 mod macos_replace;
 #[cfg(target_os = "windows")]
 mod windows;

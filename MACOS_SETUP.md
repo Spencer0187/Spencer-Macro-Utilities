@@ -1,6 +1,6 @@
 # macOS Setup
 
-SMU builds a normal macOS app bundle without an App Store sandbox. Public GitHub macOS releases are not Apple Developer ID signed and are not notarized. They are signed with one stable self-signed project certificate so macOS privacy permissions can survive updates more reliably than ad-hoc signatures.
+SMU builds a normal macOS app bundle without an App Store sandbox. Rust macOS releases are ad-hoc-signed without a developer certificate or notarization. They have no stable signing identity, so macOS privacy permissions may need reapproval after updates.
 
 ## Build
 
@@ -74,23 +74,21 @@ bash scripts/package_macos.sh
 
 Ad-hoc signing is enough for packaging validation, but macOS TCC can bind privacy permissions to the changing code hash. If you rebuild or update from ad-hoc artifacts, Accessibility and Screen Recording may need to be reset and re-approved even when System Settings still shows an enabled stale SMU entry.
 
-Official unsigned GitHub macOS releases should use one long-lived self-signed code-signing identity named `SMU macOS Release`:
+The Rust release path uses **no signing certificate** and builds a universal `.app`, ZIP,
+and DMG through:
 
 ```bash
-export SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD="choose-a-strong-password"
-SMU_IMPORT_MACOS_RELEASE_CERT=ON bash scripts/create_macos_release_certificate.sh
-SMU_MACOS_SIGN_IDENTITY="SMU macOS Release" bash scripts/package_macos.sh
+SMU_MACOS_SIGN_IDENTITY=- bash scripts/package_rust_macos_release.sh
 ```
 
-Store the generated `.p12` contents and password in GitHub Actions secrets:
+The Rust release DMG uses a headless layout unless `SMU_MACOS_DMG_LAYOUT=finder` is
+explicitly selected for a desktop session. It contains the app and an Applications
+shortcut. Automatic installation is deliberately unavailable without certificate-backed
+publisher continuity; obtain newer builds manually from GitHub.
 
-```text
-SMU_MACOS_RELEASE_CERTIFICATE_BASE64
-SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD
-SMU_MACOS_RELEASE_SIGN_IDENTITY
-```
-
-The release workflow imports this certificate and runs `scripts/package_macos.sh` with `SMU_MACOS_SIGN_IDENTITY="SMU macOS Release"`. Keep the private key stable; replacing it creates a new macOS privacy identity and may require users to approve permissions again.
+The older `scripts/package_macos.sh` still builds the C++ compatibility application.
+The former stable self-signed certificate helper is retained for reference, but the
+Rust release workflow does not import or require any certificate secrets.
 
 For stable local permission testing with another local certificate:
 

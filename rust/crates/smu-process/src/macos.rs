@@ -91,10 +91,10 @@ impl MacosProcessService {
                         continue;
                     }
                     let pid = app.processIdentifier();
-                    if let Ok(pid) = u32::try_from(pid) {
-                        if pid != 0 {
-                            pids.push(pid);
-                        }
+                    if let Ok(pid) = u32::try_from(pid)
+                        && pid != 0
+                    {
+                        pids.push(pid);
                     }
                 }
             }

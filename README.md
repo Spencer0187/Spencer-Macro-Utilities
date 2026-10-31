@@ -73,7 +73,7 @@ SMU checks the official GitHub repository over HTTPS and only accepts release as
 | Windows official ZIP | Downloads the Windows ZIP and installs only a valid trusted signed executable. |
 | Linux AppImage in a writable folder | Downloads the all-in-one Linux ZIP and replaces the AppImage in place. |
 | Linux `.deb`, `.rpm`, portable, or Nix | Shows the new version when `curl` is available; reinstall with the same package method. |
-| macOS app installed in a writable folder | Replaces the app only when the new bundle is valid and signed by the same release certificate. |
+| macOS app installed in a writable folder | Displays available releases; manual replacement is required for certificate-free Rust macOS builds. |
 | macOS app opened from the DMG | Shows the new version; copy the app to Applications before updating. |
 
 See each release’s **Important Platform Notes** before installing. Downgrading across settings-format changes is not supported; if an old build cannot load a newer profile, back up and remove its settings file.
@@ -135,7 +135,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io/), certifi
 
 Every Windows release signing request requires approval through SignPath. The release workflow builds from the selected repository commit, verifies the returned Authenticode signature, and only then packages the executable.
 
-macOS releases use a stable project self-signed certificate so permission identity survives updates, but they are not Apple Developer ID-signed or notarized. First launch therefore requires **Open Anyway**; SMU never asks users to disable Gatekeeper.
+Rust macOS releases are ad-hoc-signed without a persistent certificate and are not Apple Developer ID-signed or notarized. First launch therefore requires **Open Anyway**; SMU never asks users to disable Gatekeeper.
 
 SMU has no telemetry or user accounts. It makes a once-per-session HTTPS request to GitHub's public release API to check for updates and downloads an official release asset only after the user confirms installation. See the [privacy policy](PRIVACY.md).
 

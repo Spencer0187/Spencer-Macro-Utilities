@@ -21,7 +21,7 @@ impl ScriptProfileBridge {
         self.manager.as_ref()
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn manager_arc(&self) -> Arc<ScriptManager> {
         Arc::clone(&self.manager)
@@ -105,7 +105,8 @@ mod tests {
         let serialized = bridge.serialize_scripts();
 
         assert_eq!(serialized.as_array().map(Vec::len), Some(1));
-        assert_eq!(serialized[0]["path"], "/tmp/missing.lua");
+        let expected = ScriptManager::normalize_path(std::path::Path::new("/tmp/missing.lua"));
+        assert_eq!(serialized[0]["path"], expected.to_string_lossy().as_ref());
         bridge.shutdown();
     }
 }

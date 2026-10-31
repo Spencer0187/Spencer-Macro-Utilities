@@ -61,7 +61,7 @@ impl ScriptAppServices {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     #[must_use]
     pub fn manager(&self) -> Arc<ScriptManager> {
         self.profile.manager_arc()

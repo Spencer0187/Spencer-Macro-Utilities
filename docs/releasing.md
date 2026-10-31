@@ -12,19 +12,26 @@ Configure these GitHub Actions secrets:
 | `SIGNPATH_ORGANIZATION_ID` | Select the SignPath organization |
 | `SIGNPATH_PROJECT_SLUG` | Select the SMU SignPath project |
 | `SIGNPATH_SIGNING_POLICY` | Select the release signing policy |
-| `SMU_MACOS_RELEASE_CERTIFICATE_BASE64` | Stable macOS release certificate in PKCS#12 format |
-| `SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD` | Password for that PKCS#12 file |
-| `SMU_MACOS_RELEASE_SIGN_IDENTITY` | Optional identity override; defaults to `SMU macOS Release` |
 
 The SignPath project's `initial` artifact configuration must accept `Spencer-Macro-Utilities.exe`. The release workflow grants the SignPath action read-only access to the source Actions artifact and verifies the returned Authenticode signature before packaging it. Release staging renames the signed binary to `Spencer-Macro-Utilities-V<version>-Windows.exe` without modifying its bytes.
 
-Create the stable macOS certificate with:
+The production Rust macOS ZIP and DMG are **ad-hoc-signed without a certificate**, via
+`scripts/package_rust_macos_release.sh`. They are not Apple Developer ID signed or notarized.
+Ad-hoc signing seals the app contents but provides no persistent publisher certificate;
+macOS users must update manually, and Accessibility/Screen Recording permissions may need
+reapproval after replacing the app. The macOS updater's automatic apply capability stays
+intentionally disabled; do not bypass the certificate-backed signer check.
+
+On a Mac with Rust 1.98.0 and both Apple targets installed, validate locally:
 
 ```bash
-bash scripts/create_macos_release_certificate.sh
+SMU_MACOS_SIGN_IDENTITY=- bash scripts/package_rust_macos_release.sh
 ```
 
-Keep the exported certificate and password private. macOS automatic updates compare the new app's signing certificate with the currently installed app, so rotating this certificate requires a deliberate migration plan.
+The Rust macOS release uses a headless, plain drag-to-Applications DMG by default.
+Set `SMU_MACOS_DMG_LAYOUT=finder` when a logged-in Finder desktop is available and
+custom window decoration is desired. The legacy C++ build and its original Finder DMG
+script remain available for comparison.
 
 ## Prepare a release
 
@@ -133,8 +140,8 @@ Verify all of the following:
 - For V3.4.0 only, `Spencer-Macro-Utilities-Windows.zip` is the **only** release asset whose filename ends with exact lowercase `.zip`; the Linux/macOS updater archives must end in uppercase `.ZIP`. This makes stock V3.2 select Windows independently of GitHub asset ordering. The Windows ZIP must contain signed root-level `suspend.exe`, and launching it must migrate/relaunch as `Spencer-Macro-Utilities-V3.4.0-Windows.exe` before the GUI appears.
 - For V3.4.0 only, end-to-end test copies of V3.0/V3.1 (where practical), V3.2.1, and V3.3.x can cross to V3.4.0. At minimum, validate a stock V3.2.1 client and a stock V3.3.0/V3.3.1 Windows client against a controlled test release before publishing the production release.
 - Before building V3.4.1, delete the V3.4.0-only migration block from `app/main_windows.cpp`; its compile-time tripwire is supposed to fail the Windows build until this happens. Verify the V3.4.1+ Windows ZIP uses `Spencer-Macro-Utilities/Spencer-Macro-Utilities-V<version>-Windows.exe` and contains no `suspend.exe`.
-- The macOS app contains both `arm64` and `x86_64` slices, is named `Spencer Macro Utilities.app` in the public package, and uses the stable release certificate.
-- The mounted DMG has the intended Finder layout and the app refuses normal execution from a read-only DMG/App Translocation while continuing to work from `/Applications` and writable external volumes.
+- The Rust macOS app contains both `arm64` and `x86_64` slices (including the updater helper and SDL3), is named `Spencer Macro Utilities.app`, and passes `codesign --verify --deep --strict` with an ad-hoc signature. Automatic installation must stay disabled without a stable signer.
+- Verify the DMG checksum and mount it to inspect the app and `/Applications` shortcut. The headless Rust DMG has a plain Finder layout; if `SMU_MACOS_DMG_LAYOUT=finder` is selected, also verify the decorated icon placement. Confirm the app does not attempt automatic replacement from a read-only DMG/App Translocation.
 - `nix flake check --no-update-lock-file` passes, and a trusted aarch64 builder validates the native aarch64 output when that build is part of the release process.
 - The Linux ZIP contains exactly the documented package choices, `THIRD_PARTY_NOTICES.md`, and matching `SHA256SUMS`.
 - Package-manager installation modes that cannot safely self-update direct the user to their package manager instead.

@@ -833,7 +833,8 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("New-SelfSignedCertificate", rewrite)
         self.assertIn("Get-AuthenticodeSignature", rewrite)
         self.assertIn("SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT", rewrite)
-        self.assertNotIn("SignPath", rewrite)
+        self.assertNotIn("signpath/github-action-submit-signing-request", rewrite)
+        self.assertIn("scripts/prepare_rust_windows_signpath.py", rewrite)
 
         self.assertIn(
             "UpdateChecker::new(WinInetUpdateTransport, current_platform(), false)",
@@ -1034,7 +1035,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("rust-windows-release-contract-test-signed", workflow)
         self.assertNotIn("rust-windows-app-unsigned", workflow)
         self.assertNotIn("rust-windows-release-contract-unsigned", workflow)
-        self.assertNotIn("SignPath", workflow)
+        self.assertNotIn("signpath/github-action-submit-signing-request", workflow)
 
 
 if __name__ == "__main__":

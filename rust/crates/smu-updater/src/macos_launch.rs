@@ -251,7 +251,7 @@ impl DetachedLaunchDirectory {
         Err(MacosUpdateLaunchError::new("Could not allocate a detached macOS update directory."))
     }
 
-    fn retain(&mut self) {
+    const fn retain(&mut self) {
         self.retain = true;
     }
 }
@@ -525,10 +525,10 @@ pub fn launch_macos_update_helper(
         MacosUpdateLaunchError::new("Running SMU process id did not fit the macOS helper contract.")
     })?;
     let mut launch_directory = DetachedLaunchDirectory::create(old_pid)?;
-    let (detached_helper, _helper_guard) =
+    let (detached_helper, helper_guard) =
         stage_detached_helper(&installed_bundle, &installed_helper, &launch_directory)?;
     require_directory_path_identity(&launch_directory.path, &launch_directory.guard)?;
-    if path_identity(&detached_helper)? != file_identity(&_helper_guard)? {
+    if path_identity(&detached_helper)? != file_identity(&helper_guard)? {
         return Err(MacosUpdateLaunchError::new(
             "Detached macOS update helper changed identity before process launch.",
         ));

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Candidate SignPath artifact configuration for the four Rust user-mode PE files.
+     Configure this as a NEW SignPath artifact-configuration slug and verify it
+     against the actual production signing policy before a release cutover.
+     SMCWinDivert64.sys is intentionally NOT re-signed: it retains WinDivert's
+     independently trusted upstream kernel signature. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="Spencer-Macro-Utilities.exe"><authenticode-sign/></pe-file>
+    <pe-file path="SMU-Update-Helper.exe"><authenticode-sign/></pe-file>
+    <pe-file path="SDL3.dll"><authenticode-sign/></pe-file>
+    <pe-file path="SMCWinDivert.dll"><authenticode-sign/></pe-file>
+  </zip-file>
+</artifact-configuration>

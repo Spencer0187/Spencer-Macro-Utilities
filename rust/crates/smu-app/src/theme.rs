@@ -85,7 +85,6 @@ impl ThemeState {
         imgui_theme(self.active()).apply_to_context(context);
     }
 
-    #[cfg(target_os = "linux")]
     pub fn select_named_for_parity(&mut self, name: &str) {
         if let Some(index) = self.themes.iter().position(|theme| theme.name == name) {
             self.current_index = index;

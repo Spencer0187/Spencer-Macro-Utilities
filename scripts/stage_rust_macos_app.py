@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build and stage an experimental signed Rust macOS SMU app bundle.
+"""Build and stage a universal Rust macOS SMU app bundle.
 
-This remains a rewrite-validation path. It does not replace the legacy C++ macOS
-release packaging or enable Rust updater auto-apply.
+Ad-hoc signing (identity "-") is the certificate-free release default.
+It satisfies macOS code integrity, but does not establish release-signer trust:
+updater automatic replacement must remain disabled for ad-hoc releases.
 """
 
 from __future__ import annotations
@@ -272,9 +273,11 @@ def stage_bundle(
     assets = root / "assets"
     if not assets.is_dir():
         raise RuntimeError(f"required Rust app assets are missing: {assets}")
-    shutil.copytree(assets, macos / "assets")
-    # Keep a Resources copy for parity with the legacy bundle and Finder-facing content.
+    # Bundle resources belong under Contents/Resources for macOS code signing.
+    # Keep the executable-relative lookup contract via an internal, relative symlink:
+    # copying assets into Contents/MacOS causes codesign to treat PNGs as nested code.
     shutil.copytree(assets, resources / "assets")
+    (macos / "assets").symlink_to("../Resources/assets", target_is_directory=True)
     icon = assets / "smu_icon.icns"
     if not icon.is_file():
         raise RuntimeError(f"required macOS app icon is missing: {icon}")
@@ -302,8 +305,8 @@ def staged_sdl_dylib(bundle: Path) -> Path:
 
 
 def sign_bundle(bundle: Path, identity: str) -> None:
-    if not identity or identity == "-":
-        raise ValueError("macOS Rust staging requires a certificate-backed signing identity")
+    if not identity:
+        raise ValueError("macOS Rust staging requires a nonempty signing identity (use - for ad-hoc)")
     staged_sdl = staged_sdl_dylib(bundle)
     helper = bundle / "Contents" / "MacOS" / HELPER_EXECUTABLE_NAME
     app = bundle / "Contents" / "MacOS" / APP_EXECUTABLE_NAME
@@ -329,6 +332,8 @@ def validate_bundle(bundle: Path, version: str) -> None:
         bundle / "Contents" / "Resources" / "PRIVACY.md",
         bundle / "Contents" / "Resources" / "THIRD_PARTY_NOTICES.md",
     )
+    if not assets.is_symlink() or os.readlink(assets) != "../Resources/assets":
+        raise RuntimeError("macOS executable asset path must link to bundled Resources/assets")
     missing = [path for path in required if not path.exists()]
     if missing:
         raise RuntimeError(
@@ -398,7 +403,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--profile", choices=("debug", "release"), default="release")
     parser.add_argument("--cargo", default="cargo")
-    parser.add_argument("--sign-identity", required=True)
+    parser.add_argument("--sign-identity", default="-", help="codesign identity; - uses certificate-free ad-hoc signing")
     return parser.parse_args()
 
 

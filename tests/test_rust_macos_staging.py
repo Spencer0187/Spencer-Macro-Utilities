@@ -141,6 +141,8 @@ class RustMacosStagingTest(unittest.TestCase):
             self.assertEqual(staged_app, bundle / "Contents/MacOS/Spencer-Macro-Utilities")
             self.assertEqual(staged_helper, bundle / "Contents/MacOS/SMU-Update-Helper")
             self.assertEqual(staged_sdl, bundle / "Contents/Frameworks/libSDL3.0.dylib")
+            self.assertTrue((bundle / "Contents/MacOS/assets").is_symlink())
+            self.assertEqual((bundle / "Contents/MacOS/assets").readlink().as_posix(), "../Resources/assets")
             self.assertTrue((bundle / "Contents/MacOS/assets/LSANS.TTF").is_file())
             self.assertTrue((bundle / "Contents/MacOS/assets/macro_tutorials/wallhop.jpg").is_file())
             self.assertTrue((bundle / "Contents/Resources/assets/LSANS.TTF").is_file())
@@ -154,9 +156,10 @@ class RustMacosStagingTest(unittest.TestCase):
             macos = bundle / "Contents/MacOS"
             frameworks = bundle / "Contents/Frameworks"
             resources = bundle / "Contents/Resources"
-            (macos / "assets/macro_tutorials").mkdir(parents=True)
+            (resources / "assets/macro_tutorials").mkdir(parents=True)
+            macos.mkdir(parents=True)
+            (macos / "assets").symlink_to("../Resources/assets", target_is_directory=True)
             frameworks.mkdir(parents=True)
-            resources.mkdir(parents=True)
             app = macos / MODULE.APP_EXECUTABLE_NAME
             helper = macos / MODULE.HELPER_EXECUTABLE_NAME
             sdl = frameworks / "libSDL3.0.dylib"
@@ -197,7 +200,7 @@ class RustMacosStagingTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "helper must remain SDL-free"):
                     MODULE.validate_bundle(bundle, "3.4.0")
 
-    def test_signing_rejects_empty_and_adhoc_identities(self) -> None:
+    def test_ad_hoc_signing_stages_all_code_objects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             bundle = Path(directory) / MODULE.APP_BUNDLE_NAME
             frameworks = bundle / "Contents/Frameworks"
@@ -207,9 +210,16 @@ class RustMacosStagingTest(unittest.TestCase):
             (frameworks / "libSDL3.0.dylib").write_bytes(b"sdl")
             (macos / MODULE.APP_EXECUTABLE_NAME).write_bytes(b"app")
             (macos / MODULE.HELPER_EXECUTABLE_NAME).write_bytes(b"helper")
-            for identity in ("", "-"):
-                with self.assertRaises(ValueError):
-                    MODULE.sign_bundle(bundle, identity)
+            with self.assertRaises(ValueError):
+                MODULE.sign_bundle(bundle, "")
+            with mock.patch.object(MODULE, "run") as command:
+                MODULE.sign_bundle(bundle, "-")
+            self.assertEqual(command.call_count, 5)
+            for call in command.call_args_list[:4]:
+                self.assertIn("--sign", call.args[0])
+                self.assertIn("-", call.args[0])
+            self.assertEqual(command.call_args_list[-1].args[0][1:4],
+                             ["--verify", "--deep", "--strict"])
 
     def test_rewrite_ci_builds_signs_validates_and_packages_universal_bundle(self) -> None:
         workflow = (ROOT / ".github/workflows/rust-rewrite.yml").read_text(encoding="utf-8")
@@ -217,32 +227,23 @@ class RustMacosStagingTest(unittest.TestCase):
             '"assets/**"',
             '"version"',
             '"third_party/**"',
-            '"scripts/create_macos_release_certificate.sh"',
             '"scripts/stage_rust_macos_app.py"',
             '"tests/test_rust_macos_staging.py"',
             'rustup target add --toolchain 1.98.0 aarch64-apple-darwin x86_64-apple-darwin',
             'python3 -m unittest tests.test_rust_macos_staging tests.test_rust_macos_updater',
-            'scripts/create_macos_release_certificate.sh',
-            'SMU_MACOS_RELEASE_SIGN_IDENTITY: SMU Rust Rewrite Test',
             'scripts/stage_rust_macos_app.py',
             '--bundle "build/rust-macos-app/Spencer Macro Utilities.app"',
-            '--sign-identity "$SMU_RUST_MACOS_SIGN_IDENTITY"',
+            '--sign-identity -',
             'lipo -archs "$code"',
             'grep -qw arm64',
             'grep -qw x86_64',
             'codesign --verify --deep --strict --verbose=2 "$app"',
-            'codesign -d --extract-certificates="$cert_dir/app-" "$app"',
-            'codesign -d --extract-certificates="$cert_dir/helper-" "$helper"',
-            'codesign -d --extract-certificates="$cert_dir/sdl-" "$sdl"',
-            'cmp "$cert_dir/app-0" "$cert_dir/helper-0"',
-            'cmp "$cert_dir/app-0" "$cert_dir/sdl-0"',
             "official_update_assets(sys.argv[1])[\"macos-universal\"]",
             'ditto -c -k --sequesterRsrc --keepParent',
             '--only-platform macos-universal',
             'unzip -t "$release_dir/$asset"',
             "Spencer Macro Utilities.app/Contents/Info.plist",
-            'name: rust-macos-universal-test-signed',
-            'security delete-keychain "$RUNNER_TEMP/smu-rust-rewrite.keychain-db"',
+            'name: rust-macos-universal-test-adhoc',
         ):
             self.assertIn(expected, workflow)
         self.assertNotIn(
@@ -258,8 +259,8 @@ class RustMacosStagingTest(unittest.TestCase):
             ROOT / "rust" / "crates" / "smu-app" / "src" / "updater_service.rs"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("run: bash scripts/package_macos.sh", production)
-        self.assertNotIn("scripts/stage_rust_macos_app.py", production)
+        self.assertIn("run: bash scripts/package_rust_macos_release.sh", production)
+        self.assertIn("SMU_MACOS_SIGN_IDENTITY: '-'", production)
         self.assertIn("scripts/stage_rust_macos_app.py", rewrite)
         self.assertIn(
             "UpdateChecker::new(CurlUpdateTransport::macos(), current_platform(), false)",
@@ -298,7 +299,6 @@ class RustMacosStagingTest(unittest.TestCase):
             '"/usr/bin/otool"',
             '"/usr/bin/codesign"',
             '"--deep", "--strict"',
-            "certificate-backed signing identity",
             'macos / "assets"',
             'macos / HELPER_EXECUTABLE_NAME',
             'frameworks / next(iter(sdl_names))',

@@ -1,12 +1,16 @@
 use std::ffi::{CStr, CString, OsStr, OsString};
 use std::fmt;
-use std::fs::{self, File, OpenOptions};
+#[cfg(test)]
+use std::fs;
+use std::fs::{File, OpenOptions};
 use std::io;
 use std::mem::MaybeUninit;
 use std::os::fd::{AsRawFd as _, FromRawFd as _};
 use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
 use std::os::unix::fs::{MetadataExt as _, OpenOptionsExt as _};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct DirectoryIdentity {
@@ -133,8 +137,9 @@ fn child_metadata(dir: &File, name: &OsStr) -> Result<Option<ChildMetadata>, Mac
     // SAFETY: successful fstatat initialized the entire stat structure.
     let stat = unsafe { stat.assume_init() };
     // st_dev/st_ino widths differ across Unix targets; normalize both to the identity type used here.
-    #[allow(clippy::unnecessary_cast)]
-    let identity = DirectoryIdentity { device: stat.st_dev as u64, inode: stat.st_ino as u64 };
+    // macOS dev_t is signed; preserve its raw bits for stable identity comparison.
+    let device = u64::from(u32::from_ne_bytes(stat.st_dev.to_ne_bytes()));
+    let identity = DirectoryIdentity { device, inode: stat.st_ino };
     Ok(Some(ChildMetadata { identity, mode: stat.st_mode }))
 }
 

@@ -13,12 +13,15 @@ on:
       - "PRIVACY.md"
       - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
-      - "scripts/create_macos_release_certificate.sh"
+      - "scripts/package_rust_macos_release.sh"
       - "scripts/stage_rust_windows_app.py"
       - "scripts/stage_rust_macos_app.py"
       - "scripts/package_rust_windows_bundle.py"
+      - "scripts/prepare_rust_windows_signpath.py"
+      - "scripts/signpath/rust-windows-bundle.xml"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_windows_signpath.py"
       - "tests/test_rust_macos_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
@@ -38,12 +41,15 @@ on:
       - "PRIVACY.md"
       - "THIRD_PARTY_NOTICES.md"
       - "third_party/**"
-      - "scripts/create_macos_release_certificate.sh"
+      - "scripts/package_rust_macos_release.sh"
       - "scripts/stage_rust_windows_app.py"
       - "scripts/stage_rust_macos_app.py"
       - "scripts/package_rust_windows_bundle.py"
+      - "scripts/prepare_rust_windows_signpath.py"
+      - "scripts/signpath/rust-windows-bundle.xml"
       - "scripts/generate_update_manifest.py"
       - "tests/test_rust_windows_staging.py"
+      - "tests/test_rust_windows_signpath.py"
       - "tests/test_rust_macos_staging.py"
       - "tests/test_rust_macos_process.py"
       - "tests/test_rust_macos_input.py"
@@ -107,33 +113,7 @@ jobs:
         run: cargo test -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app
       - name: Clippy native macOS process/input/display/updater adapters, helper, and app composition
         run: cargo clippy -p smu-process -p smu-input -p smu-display -p smu-updater -p smu-macos-updater-helper -p smu-app --all-targets -- -D warnings
-      - name: Configure certificate-backed Rust macOS test signing identity
-        working-directory: .
-        shell: bash
-        env:
-          SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD: rust-rewrite-test-password
-          SMU_MACOS_RELEASE_SIGN_IDENTITY: SMU Rust Rewrite Test
-        run: |
-          cert_dir="$RUNNER_TEMP/smu-rust-macos-cert"
-          keychain_path="$RUNNER_TEMP/smu-rust-rewrite.keychain-db"
-          keychain_password="$(openssl rand -hex 24)"
-          bash scripts/create_macos_release_certificate.sh "$cert_dir"
-          security create-keychain -p "$keychain_password" "$keychain_path"
-          security set-keychain-settings -lut 21600 "$keychain_path"
-          security unlock-keychain -p "$keychain_password" "$keychain_path"
-          security import "$cert_dir/smu-macos-release.p12" \
-            -k "$keychain_path" \
-            -P "$SMU_MACOS_RELEASE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          security list-keychains -d user -s "$keychain_path"
-          security default-keychain -s "$keychain_path"
-          security set-key-partition-list \
-            -S apple-tool:,apple: \
-            -s \
-            -k "$keychain_password" \
-            "$keychain_path"
-          echo "SMU_RUST_MACOS_SIGN_IDENTITY=$SMU_MACOS_RELEASE_SIGN_IDENTITY" >> "$GITHUB_ENV"
-      - name: Stage certificate-signed universal Rust macOS app
+      - name: Stage certificate-free universal Rust macOS app
         working-directory: .
         shell: bash
         run: |
@@ -142,7 +122,7 @@ jobs:
             --target-dir build/rust-macos-target \
             --bundle "build/rust-macos-app/Spencer Macro Utilities.app" \
             --profile release \
-            --sign-identity "$SMU_RUST_MACOS_SIGN_IDENTITY"
+            --sign-identity -
       - name: Validate universal Rust macOS app signer and runtime layout
         working-directory: .
         shell: bash
@@ -178,17 +158,7 @@ jobs:
           test -f "$app/Contents/Resources/LICENSE"
           test -f "$app/Contents/Resources/PRIVACY.md"
           test -f "$app/Contents/Resources/THIRD_PARTY_NOTICES.md"
-          cert_dir="$RUNNER_TEMP/smu-rust-macos-signers"
-          rm -rf "$cert_dir"
-          mkdir -p "$cert_dir"
-          codesign -d --extract-certificates="$cert_dir/app-" "$app"
-          codesign -d --extract-certificates="$cert_dir/helper-" "$helper"
-          codesign -d --extract-certificates="$cert_dir/sdl-" "$sdl"
-          test -s "$cert_dir/app-0"
-          test -s "$cert_dir/helper-0"
-          test -s "$cert_dir/sdl-0"
-          cmp "$cert_dir/app-0" "$cert_dir/helper-0"
-          cmp "$cert_dir/app-0" "$cert_dir/sdl-0"
+          codesign -dvv "$app" 2>&1 | grep -F -q 'Signature=adhoc'
       - name: Package Rust macOS updater ZIP and validation manifest
         working-directory: .
         shell: bash
@@ -222,19 +192,14 @@ jobs:
           PY
           unzip -t "$release_dir/$asset"
           unzip -Z1 "$release_dir/$asset" | grep -F -q 'Spencer Macro Utilities.app/Contents/Info.plist'
-      - name: Upload signed Rust macOS validation artifact
+      - name: Upload ad-hoc Rust macOS validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rust-macos-universal-test-signed
+          name: rust-macos-universal-test-adhoc
           path: |
             build/rust-macos-release/Spencer-Macro-Utilities-V*-macOS-universal.*
             build/rust-macos-release/update-manifest.json
           if-no-files-found: error
-      - name: Remove Rust macOS test keychain
-        if: always()
-        working-directory: .
-        shell: bash
-        run: security delete-keychain "$RUNNER_TEMP/smu-rust-rewrite.keychain-db" 2>/dev/null || true
 
   windows-rust-app:
     runs-on: windows-latest
@@ -245,7 +210,7 @@ jobs:
       - name: Select pinned Rust toolchain
         run: rustup override set 1.98.0
       - name: Windows Rust packaging/manifest unit tests
-        run: python -m unittest tests.test_rust_windows_staging tests.test_update_manifest
+        run: python -m unittest tests.test_rust_windows_staging tests.test_rust_windows_signpath tests.test_update_manifest
       - name: Test Windows Rust application and updater
         run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper
       - name: Clippy Windows Rust application and updater
@@ -257,6 +222,11 @@ jobs:
           --target-dir build/rust-windows-target
           --stage-dir build/rust-windows-app
           --profile release
+      - name: Prepare unsigned four-file SignPath candidate request (never submitted)
+        run: >-
+          python scripts/prepare_rust_windows_signpath.py
+          --stage-dir build/rust-windows-app
+          --output build/rust-windows-release/signpath-rust-user-mode-unsigned.zip
       - name: Validate staged runtime siblings and PE metadata
         shell: pwsh
         run: |

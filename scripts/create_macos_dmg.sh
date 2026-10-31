@@ -164,6 +164,26 @@ detach_volume() {
 
 test -d "$APP_PATH"
 command -v hdiutil >/dev/null 2>&1
+
+# Headless release/SSH builds cannot rely on AppleEvents or Finder responding.
+# This produces a fully functional drag-to-Applications DMG without custom
+# Finder icon positions. Keep the historical styled Finder path as default.
+if [[ "${SMU_MACOS_DMG_LAYOUT:-finder}" == "headless" ]]; then
+  rm -f "$DMG_PATH" "$RW_DMG_PATH"
+  rm -rf "$STAGE_DIR"
+  mkdir -p "$STAGE_DIR"
+  ditto "$APP_PATH" "$STAGE_DIR/$PUBLIC_APP_NAME"
+  ln -s /Applications "$STAGE_DIR/Applications"
+  hdiutil create -volname "$VOLUME_NAME" -srcfolder "$STAGE_DIR" \
+    -ov -format UDZO -imagekey zlib-level=9 "$DMG_PATH" >/dev/null
+  hdiutil verify "$DMG_PATH" >/dev/null
+  echo "Created headless macOS DMG (default Finder layout; no custom background): $DMG_PATH"
+  exit 0
+fi
+if [[ "${SMU_MACOS_DMG_LAYOUT:-finder}" != "finder" ]]; then
+  echo "Unsupported macOS DMG layout: ${SMU_MACOS_DMG_LAYOUT}" >&2
+  exit 1
+fi
 test -x /usr/bin/osascript
 
 rm -f "$DMG_PATH" "$RW_DMG_PATH"

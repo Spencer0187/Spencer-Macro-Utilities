@@ -566,7 +566,7 @@ fn render_fake_lag(
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-fn render_fake_lag(
+const fn render_fake_lag(
     _ui: &Ui,
     _state: &mut FakeLagState,
     _hard_block: DirectionPair,
@@ -603,7 +603,7 @@ fn render_overlay(ui: &Ui, state: &mut OverlayState) {
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-fn render_overlay(_ui: &Ui, _state: &mut OverlayState) {}
+const fn render_overlay(_ui: &Ui, _state: &mut OverlayState) {}
 
 #[cfg(not(target_os = "macos"))]
 fn render_backend_status(ui: &Ui, state: BackendState, theme: &ThemeDefinition) -> bool {

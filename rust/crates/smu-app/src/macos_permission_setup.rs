@@ -71,7 +71,10 @@ fn app_bundle_from_executable(executable: &Path) -> Option<PathBuf> {
 
 #[cfg(target_os = "macos")]
 mod platform {
-    use super::*;
+    use super::{
+        MacosPermissionSetupStatus, Path, PathBuf, SMU_BUNDLE_IDENTIFIER,
+        app_bundle_from_executable, permission_repair_marker_path, status_from_permissions,
+    };
     use smu_display::macos::{
         accessibility_trusted, request_accessibility_permission,
         request_screen_recording_permission, screen_recording_trusted,

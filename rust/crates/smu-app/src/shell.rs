@@ -1,4 +1,4 @@
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use dear_imgui_rs::sys;
 use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
 use serde_json::{Map, Value};
@@ -72,6 +72,7 @@ pub enum ShellAction {
     ResetMacosPermissionEntries,
     #[cfg(target_os = "macos")]
     RestartMacosAndCheckPermissions,
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     PersistNotificationSuppression,
     #[cfg(target_os = "linux")]
     StartFreezeHelper,
@@ -698,10 +699,12 @@ impl ShellState {
     }
 
     #[must_use]
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     pub fn admin_warning_suppressed(&self) -> bool {
         self.notifications.is_suppressed(ADMIN_ELEVATION_WARNING_ID)
     }
 
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     pub fn set_admin_warning_suppressed(&mut self, suppressed: bool) -> bool {
         self.notifications.set_suppressed(ADMIN_ELEVATION_WARNING_ID, suppressed)
     }
@@ -1920,7 +1923,9 @@ mod profile_adapter_tests {
     #[cfg(target_os = "linux")]
     use super::LinuxModal;
     use super::ShellState;
-    use crate::{critical_modal, script_ui, warning_toast};
+    #[cfg(target_os = "linux")]
+    use crate::script_ui;
+    use crate::{critical_modal, warning_toast};
     use serde_json::{Map, json};
     use smu_profile::payload::PreservedProfilePayload;
 
