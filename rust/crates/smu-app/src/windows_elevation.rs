@@ -29,7 +29,7 @@ pub fn restart_as_admin() -> Result<(), String> {
         lpClass: std::ptr::null(),
         hkeyClass: std::ptr::null_mut(),
         dwHotKey: 0,
-        Anonymous: Default::default(),
+        Anonymous: windows_sys::Win32::UI::Shell::SHELLEXECUTEINFOW_0::default(),
         hProcess: std::ptr::null_mut(),
     };
     // SAFETY: all string buffers remain alive for the synchronous ShellExecuteExW call and the

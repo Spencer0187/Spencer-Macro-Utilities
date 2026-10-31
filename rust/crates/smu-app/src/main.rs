@@ -1648,7 +1648,6 @@ fn start_macos_script_app(
         roblox_log_factory: Some(roblox_log_source_factory()),
         saved_settings: Some(saved_settings.clone()),
         logger: Some(script_log_sink()),
-        ..ScriptServices::default()
     };
     ScriptAppServices::new(
         Arc::new(ScriptManager::new(config, services)),
@@ -1997,6 +1996,8 @@ struct WindowsBuiltinRuntimeServices {
 
 #[cfg(target_os = "windows")]
 impl WindowsBuiltinRuntimeServices {
+    // Mirrors the complete C++ built-in controller initialization order.
+    #[allow(clippy::too_many_lines)]
     fn new(
         shell_state: &shell::ShellState,
         platform: &WindowsMacroPlatformServices,
@@ -2413,6 +2414,8 @@ impl MacosBuiltinRuntimeServices {
 }
 
 #[cfg(target_os = "windows")]
+// Keep the cross-platform runtime initialization contract Option-shaped for uniform call-site behavior.
+#[allow(clippy::unnecessary_wraps)]
 fn start_portable_script_runtime(
     script_app: &ScriptAppServices,
     shell_state: &shell::ShellState,

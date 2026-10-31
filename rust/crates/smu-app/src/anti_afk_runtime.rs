@@ -107,10 +107,10 @@ impl AntiAfkController {
             controller_loop(
                 controller_running.as_ref(),
                 &controller_settings,
-                input,
-                display,
-                discovery,
-                foreground,
+                &input,
+                &display,
+                &discovery,
+                &foreground,
             );
         });
         Self { running, settings, controller: Mutex::new(Some(controller)) }
@@ -122,7 +122,8 @@ impl AntiAfkController {
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
-        if let Some(controller) = lock(&self.controller).take() {
+        let controller = { lock(&self.controller).take() };
+        if let Some(controller) = controller {
             let _ = controller.join();
         }
     }
@@ -134,7 +135,7 @@ impl Drop for AntiAfkController {
     }
 }
 
-fn reset_timer_state(state: &mut ControllerState) {
+const fn reset_timer_state(state: &mut ControllerState) {
     state.armed = false;
     state.last_keyboard_serial_seen = 0;
 }
@@ -156,10 +157,10 @@ fn join_completed_action(state: &mut ControllerState, now: Instant) -> bool {
 fn controller_loop(
     running: &AtomicBool,
     settings: &Arc<Mutex<AntiAfkControllerSettings>>,
-    input: Arc<dyn InputDevice>,
-    display: Arc<dyn DisplayCapture>,
-    discovery: Arc<dyn ProcessDiscovery>,
-    foreground: Arc<dyn ProcessForeground>,
+    input: &Arc<dyn InputDevice>,
+    display: &Arc<dyn DisplayCapture>,
+    discovery: &Arc<dyn ProcessDiscovery>,
+    foreground: &Arc<dyn ProcessForeground>,
 ) {
     let mut state = ControllerState::default();
     while running.load(Ordering::Acquire) {

@@ -62,10 +62,11 @@ const MIGRATION_SCRIPT: &str = concat!(
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::*;
+    use super::{MIGRATION_SCRIPT, MIGRATION_TITLE, is_legacy_filename, migration_target_path};
     use std::ffi::OsStr;
     use std::mem::size_of;
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::path::{Path, PathBuf};
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::Foundation::{
         CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
@@ -166,8 +167,8 @@ mod platform {
             return false;
         }
 
-        let mut lhs_buffer = [0_u8; 64 * 1024];
-        let mut rhs_buffer = [0_u8; 64 * 1024];
+        let mut lhs_buffer = vec![0_u8; 64 * 1024];
+        let mut rhs_buffer = vec![0_u8; 64 * 1024];
         loop {
             let mut lhs_read = 0_u32;
             let mut rhs_read = 0_u32;
@@ -176,7 +177,7 @@ mod platform {
                 ReadFile(
                     lhs.0,
                     lhs_buffer.as_mut_ptr(),
-                    lhs_buffer.len() as u32,
+                    u32::try_from(lhs_buffer.len()).unwrap_or_default(),
                     &raw mut lhs_read,
                     null_mut(),
                 )
@@ -186,7 +187,7 @@ mod platform {
                 ReadFile(
                     rhs.0,
                     rhs_buffer.as_mut_ptr(),
-                    rhs_buffer.len() as u32,
+                    u32::try_from(rhs_buffer.len()).unwrap_or_default(),
                     &raw mut rhs_read,
                     null_mut(),
                 )
@@ -238,7 +239,8 @@ mod platform {
     fn system_directory() -> Option<PathBuf> {
         let mut buffer = [0_u16; MAX_SYSTEM_PATH];
         // SAFETY: buffer is writable for MAX_SYSTEM_PATH UTF-16 code units.
-        let length = unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), buffer.len() as u32) };
+        let length =
+            unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), u32::try_from(buffer.len()).ok()?) };
         let length = usize::try_from(length).ok()?;
         if length == 0 || length >= buffer.len() {
             return None;
@@ -335,8 +337,10 @@ mod platform {
         let directory_wide = wide(directory.as_os_str());
         let mut command_line =
             helper_command_line(&script_path, &current_path, &target_path, &system_directory);
-        let mut startup_info =
-            STARTUPINFOW { cb: size_of::<STARTUPINFOW>() as u32, ..STARTUPINFOW::default() };
+        let mut startup_info = STARTUPINFOW {
+            cb: u32::try_from(size_of::<STARTUPINFOW>()).unwrap_or_default(),
+            ..STARTUPINFOW::default()
+        };
         let mut process_info = PROCESS_INFORMATION::default();
         // SAFETY: application/current-directory strings and mutable command line are NUL-terminated; startup and
         // process-info pointers are valid for this synchronous creation call.

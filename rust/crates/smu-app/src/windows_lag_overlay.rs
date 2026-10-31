@@ -49,8 +49,12 @@ const fn primary_screen_default_x(screen_width: i32) -> i32 {
 }
 
 #[cfg(target_os = "windows")]
+// Color and geometry narrowing is deliberate: pixel parity follows the legacy C++ GDI implementation.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
 mod platform {
-    use super::*;
+    use super::{
+        VirtualDesktopBounds, WindowsLagOverlaySettings, primary_screen_default_x, should_exist,
+    };
     use std::ffi::c_void;
     use std::mem::size_of;
     use std::os::windows::ffi::OsStrExt;
@@ -85,7 +89,7 @@ mod platform {
         u32::from(red) | (u32::from(green) << 8) | (u32::from(blue) << 16)
     }
 
-    fn background_channel(value: f32) -> u8 {
+    const fn background_channel(value: f32) -> u8 {
         (value.clamp(0.0, 1.0) * 255.0) as u8
     }
 
@@ -110,7 +114,7 @@ mod platform {
 
     impl WindowsLagOverlay {
         #[must_use]
-        pub fn new() -> Self {
+        pub const fn new() -> Self {
             Self { hwnd: null_mut(), registered_font_path: None }
         }
 
@@ -202,6 +206,8 @@ mod platform {
             resolved_default
         }
 
+        // Long-lived GDI resources must be cleaned up along each error path before return.
+        #[allow(clippy::too_many_lines)]
         fn render(&self, settings: WindowsLagOverlaySettings, x: i32, active: bool) {
             // SAFETY: self.hwnd is a live window while this method runs.
             let hdc = unsafe { GetDC(self.hwnd) };
@@ -358,13 +364,13 @@ mod platform {
                         )
                     };
                     if settings.use_background {
-                        for pixel in pixels.chunks_exact_mut(4) {
+                        for pixel in pixels.as_chunks_mut::<4>().0 {
                             pixel[3] = 255;
                         }
                     } else {
                         let (target_red, target_green, target_blue) =
                             if active { (0_u8, 255_u8, 0_u8) } else { (255, 255, 255) };
-                        for pixel in pixels.chunks_exact_mut(4) {
+                        for pixel in pixels.as_chunks_mut::<4>().0 {
                             let intensity = pixel[2];
                             if intensity > 0 {
                                 pixel[0] =

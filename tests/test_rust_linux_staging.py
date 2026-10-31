@@ -421,7 +421,11 @@ class RustLinuxStagingTest(unittest.TestCase):
             "WinDivertClose",
         ):
             self.assertIn(export, windows)
-        self.assertIn('b"false\\0".as_ptr()', windows)
+        self.assertTrue(
+            'b"false\\0".as_ptr()' in windows
+            or 'c"false".as_ptr().cast()' in windows,
+            "the WinDivert probe must pass a NUL-terminated false filter",
+        )
         self.assertIn("WINDIVERT_FLAG_SNIFF", windows)
 
     def test_lag_switch_controller_uses_shared_network_contract(self) -> None:

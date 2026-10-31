@@ -591,6 +591,7 @@ fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme:
         ui.set_tooltip(ANTI_AFK_TOOLTIP);
     }
     ui.same_line();
+    #[cfg(not(target_os = "windows"))]
     normalize_anti_afk_for_platform(enabled);
     #[cfg(not(target_os = "windows"))]
     let disabled = ui.begin_disabled();
@@ -599,13 +600,9 @@ fn render_anti_afk_toggle(ui: &Ui, window_width: f32, enabled: &mut bool, theme:
     drop(disabled);
 }
 
+#[cfg(not(target_os = "windows"))]
 const fn normalize_anti_afk_for_platform(enabled: &mut bool) {
-    #[cfg(not(target_os = "windows"))]
-    {
-        *enabled = false;
-    }
-    #[cfg(target_os = "windows")]
-    let _ = enabled;
+    *enabled = false;
 }
 
 fn render_global_window_buttons(

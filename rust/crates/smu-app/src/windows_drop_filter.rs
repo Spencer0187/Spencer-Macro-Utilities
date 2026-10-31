@@ -1,6 +1,6 @@
 //! Windows elevated-process drag-and-drop compatibility.
 //!
-//! Explorer runs unelevated by default. When SMU is elevated for WinDivert, UIPI can therefore block SDL's
+//! Explorer runs unelevated by default. When SMU is elevated for `WinDivert`, UIPI can therefore block SDL's
 //! normal file-drop messages unless the live window explicitly allows the same three messages as the C++ app.
 
 use std::{ffi::c_void, mem::transmute, ptr::null_mut};

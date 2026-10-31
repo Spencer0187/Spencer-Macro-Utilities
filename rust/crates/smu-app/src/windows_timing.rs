@@ -11,7 +11,8 @@ fn requested_timer_period(period_min: u32, period_max: u32) -> u32 {
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::*;
+    use super::requested_timer_period;
+    use smu_scripting::ScriptLogSink;
     use std::ffi::c_void;
     use std::mem::size_of;
     use windows_sys::Win32::Foundation::GetLastError;
@@ -44,8 +45,9 @@ mod platform {
         let mut caps = TIMECAPS::default();
         let mut requested = 1_u32;
         // SAFETY: `caps` is valid writable storage for TIMECAPS and the byte size matches the struct.
-        if unsafe { timeGetDevCaps(&raw mut caps, size_of::<TIMECAPS>() as u32) }
-            == MMSYSERR_NOERROR
+        if unsafe {
+            timeGetDevCaps(&raw mut caps, u32::try_from(size_of::<TIMECAPS>()).unwrap_or_default())
+        } == MMSYSERR_NOERROR
         {
             requested = requested_timer_period(caps.wPeriodMin, caps.wPeriodMax);
         }
@@ -75,7 +77,7 @@ mod platform {
                 GetCurrentProcess(),
                 ProcessPowerThrottling,
                 (&raw const state).cast::<c_void>(),
-                size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+                u32::try_from(size_of::<PROCESS_POWER_THROTTLING_STATE>()).unwrap_or_default(),
             )
         };
         if result != 0 {
