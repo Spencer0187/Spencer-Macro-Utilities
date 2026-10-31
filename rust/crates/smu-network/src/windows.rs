@@ -1,3 +1,7 @@
+// WinDivert state mutations deliberately retain mutex guards through policy updates and capture
+// synchronization. Changing their scope solely for this heuristic can alter synchronization ordering.
+#![allow(clippy::significant_drop_tightening)]
+
 use crate::{
     LagSwitchConfig, LagSwitchControl, LagSwitchInitializationFailure, LagSwitchState,
     LagSwitchTargetMode, WindowsDynamicTargetState, WindowsPacketAction,
@@ -59,7 +63,7 @@ pub fn is_running_as_admin() -> bool {
     // subauthority count matches the two populated RID arguments.
     let allocated = unsafe {
         AllocateAndInitializeSid(
-            &authority,
+            &raw const authority,
             2,
             SECURITY_BUILTIN_DOMAIN_RID.unsigned_abs(),
             DOMAIN_ALIAS_RID_ADMINS.unsigned_abs(),
@@ -69,7 +73,7 @@ pub fn is_running_as_admin() -> bool {
             0,
             0,
             0,
-            &mut admin_sid,
+            &raw mut admin_sid,
         )
     };
     if allocated == 0 {
@@ -79,7 +83,8 @@ pub fn is_running_as_admin() -> bool {
     let mut is_member = 0;
     // SAFETY: `admin_sid` was allocated successfully above; a null token handle asks Windows to
     // inspect the effective token for the current thread/process, matching the C++ implementation.
-    let checked = unsafe { CheckTokenMembership(std::ptr::null_mut(), admin_sid, &mut is_member) };
+    let checked =
+        unsafe { CheckTokenMembership(std::ptr::null_mut(), admin_sid, &raw mut is_member) };
     // SAFETY: `admin_sid` is owned by this function after a successful allocation.
     unsafe {
         let _ = FreeSid(admin_sid);
@@ -93,7 +98,7 @@ fn query_udp_table_buffer(address_family: u32) -> Option<(Vec<u32>, usize)> {
     let first = unsafe {
         GetExtendedUdpTable(
             std::ptr::null_mut(),
-            &mut byte_len,
+            &raw mut byte_len,
             0,
             address_family,
             UDP_TABLE_OWNER_PID,
@@ -111,7 +116,7 @@ fn query_udp_table_buffer(address_family: u32) -> Option<(Vec<u32>, usize)> {
     let second = unsafe {
         GetExtendedUdpTable(
             buffer.as_mut_ptr().cast(),
-            &mut byte_len,
+            &raw mut byte_len,
             0,
             address_family,
             UDP_TABLE_OWNER_PID,
@@ -139,8 +144,11 @@ fn udp4_owner_rows() -> Vec<(u32, u32)> {
     (0..count)
         .map(|index| {
             // SAFETY: the table size was validated above and DWORD storage is suitably aligned.
-            let row =
-                unsafe { &*base.add(header + index * row_size).cast::<MIB_UDPROW_OWNER_PID>() };
+            let row = unsafe {
+                std::ptr::read_unaligned(
+                    base.add(header + index * row_size).cast::<MIB_UDPROW_OWNER_PID>(),
+                )
+            };
             (row.dwOwningPid, row.dwLocalPort)
         })
         .collect()
@@ -164,7 +172,11 @@ fn udp6_owner_rows() -> Vec<(u32, u32)> {
     (0..count)
         .map(|index| {
             // SAFETY: the table size was validated above and DWORD storage is suitably aligned.
-            let row = unsafe { &*base.add(header + index * row_size).cast::<Udp6RowOwnerPid>() };
+            let row = unsafe {
+                std::ptr::read_unaligned(
+                    base.add(header + index * row_size).cast::<Udp6RowOwnerPid>(),
+                )
+            };
             (row.owning_pid, row.local_port)
         })
         .collect()
@@ -241,11 +253,15 @@ impl WinDivertPaths {
         }
     }
 
+    /// # Errors
+    /// Returns the current-executable lookup failure if the running image cannot be located.
     pub fn current() -> Result<Self, WinDivertLoadError> {
         let executable = env::current_exe().map_err(WinDivertLoadError::CurrentExecutable)?;
         Ok(Self::beside_executable(&executable))
     }
 
+    /// # Errors
+    /// Returns the missing DLL or driver path if the runtime layout is incomplete.
     pub fn validate(&self) -> Result<(), WinDivertLoadError> {
         if !self.dll.is_file() {
             return Err(WinDivertLoadError::MissingAsset(self.dll.clone()));
@@ -344,6 +360,8 @@ impl std::fmt::Debug for WinDivertApi {
 }
 
 impl WinDivertApi {
+    /// # Errors
+    /// Returns an error when required assets, DLL loading, or WinDivert exports are missing.
     pub fn load(paths: &WinDivertPaths) -> Result<Self, WinDivertLoadError> {
         paths.validate()?;
         let wide =
@@ -379,11 +397,13 @@ impl WinDivertApi {
         Ok(Self { module: module as usize, open, recv, send, parse_packet, shutdown, close })
     }
 
+    /// # Errors
+    /// Returns the Win32 probe error if the driver cannot open a disabled capture filter.
     pub fn probe(&self) -> Result<(), WinDivertLoadError> {
         // SAFETY: the function pointer comes from the loaded WinDivert module and the filter is a
         // static NUL-terminated C string.
         let handle = unsafe {
-            (self.open)(b"false\0".as_ptr(), WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF)
+            (self.open)(c"false".as_ptr().cast(), WINDIVERT_LAYER_NETWORK, 0, WINDIVERT_FLAG_SNIFF)
         };
         let Some(handle) = OwnedWinDivertHandle::new(self, handle) else {
             // SAFETY: GetLastError has no preconditions and WinDivertOpen sets it on failure.
@@ -410,7 +430,7 @@ impl WinDivertApi {
         SharedWinDivertHandle::new(Arc::clone(self), handle)
     }
 
-    pub fn recv(
+    fn recv(
         &self,
         handle: HANDLE,
         packet: &mut [u8],
@@ -425,7 +445,7 @@ impl WinDivertApi {
         (ok != 0).then(|| usize::try_from(received).unwrap_or(0))
     }
 
-    pub fn send(&self, handle: HANDLE, packet: &[u8], address: &WinDivertAddress) -> bool {
+    fn send(&self, handle: HANDLE, packet: &[u8], address: &WinDivertAddress) -> bool {
         let Ok(length) = u32::try_from(packet.len()) else {
             return false;
         };
@@ -453,8 +473,8 @@ impl WinDivertApi {
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
-                &mut payload,
-                &mut payload_len,
+                &raw mut payload,
+                &raw mut payload_len,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
             )
@@ -550,7 +570,7 @@ impl SharedWinDivertHandle {
     }
 
     #[must_use]
-    pub fn raw(&self) -> HANDLE {
+    pub const fn raw(&self) -> HANDLE {
         self.raw as HANDLE
     }
 
@@ -558,6 +578,7 @@ impl SharedWinDivertHandle {
         self.api.shutdown_handle(self.raw());
     }
 
+    #[must_use]
     pub fn send(&self, packet: &[u8], address: &WinDivertAddress) -> bool {
         self.api.send(self.raw(), packet, address)
     }
@@ -642,25 +663,13 @@ impl WinDivertDelayedPacketSender {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct WinDivertCaptureSnapshot {
     pub config: LagSwitchConfig,
     pub roblox_dynamic_ips: Vec<String>,
     pub process_udp_ports: Vec<i32>,
     pub target_process_present: bool,
     pub is_rcc: bool,
-}
-
-impl Default for WinDivertCaptureSnapshot {
-    fn default() -> Self {
-        Self {
-            config: LagSwitchConfig::default(),
-            roblox_dynamic_ips: Vec::new(),
-            process_udp_ports: Vec::new(),
-            target_process_present: false,
-            is_rcc: false,
-        }
-    }
 }
 
 impl WinDivertCaptureSnapshot {
@@ -708,11 +717,11 @@ impl WinDivertPacketWorker {
             handle_slot,
             invalid_dynamic_ips_reset: AtomicBool::new(false),
         });
-        let worker_api = Arc::clone(&api);
+        let worker_api = api;
         let worker_shared = Arc::clone(&shared);
         let worker_sender = Arc::clone(&delayed_sender);
         let worker = std::thread::spawn(move || {
-            packet_worker_loop(worker_api, worker_shared, worker_sender);
+            packet_worker_loop(&worker_api, &worker_shared, &worker_sender);
         });
         Self { shared, delayed_sender, worker: Mutex::new(Some(worker)) }
     }
@@ -979,7 +988,8 @@ impl WindowsLagSwitchBackend {
             state.stop = true;
         }
         self.refresh.wake.notify_all();
-        if let Some(worker) = lock_mutex(&self.refresh_worker).take() {
+        let worker = { lock_mutex(&self.refresh_worker).take() };
+        if let Some(worker) = worker {
             let _ = worker.join();
         }
     }
@@ -1114,11 +1124,11 @@ impl LagSwitchControl for WindowsLagSwitchBackend {
     }
 
     fn set_base_blocking_active(&self, active: bool) {
-        WindowsLagSwitchBackend::set_base_blocking(self, active);
+        Self::set_base_blocking(self, active);
     }
 
     fn set_base_config(&self, config: LagSwitchConfig) {
-        WindowsLagSwitchBackend::set_base_config(self, config);
+        Self::set_base_config(self, config);
     }
 
     fn unsupported_reason(&self) -> String {
@@ -1168,9 +1178,9 @@ impl LagSwitchControl for WindowsLagSwitchBackend {
 }
 
 fn packet_worker_loop(
-    api: Arc<WinDivertApi>,
-    shared: Arc<WinDivertPacketWorkerShared>,
-    delayed_sender: Arc<WinDivertDelayedPacketSender>,
+    api: &Arc<WinDivertApi>,
+    shared: &Arc<WinDivertPacketWorkerShared>,
+    delayed_sender: &Arc<WinDivertDelayedPacketSender>,
 ) {
     while shared.running.load(Ordering::Acquire) {
         let filter = lock_mutex(&shared.capture).filter();
@@ -1189,11 +1199,11 @@ fn packet_worker_loop(
         };
         let installed = {
             let current = lock_mutex(&shared.capture);
-            if current.filter() != filter {
-                false
-            } else {
+            if current.filter() == filter {
                 shared.handle_slot.install(Arc::clone(&handle));
                 true
+            } else {
+                false
             }
         };
         if !installed {
