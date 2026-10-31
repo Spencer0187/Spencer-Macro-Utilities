@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 const MAX_LOG_ENTRIES: usize = 512;
 const DEFAULT_LOG_FILENAME: &str = "SMC.log";
+#[cfg(not(target_os = "windows"))]
 const FALLBACK_TIMESTAMP: &str = "1970-01-01 00:00:00";
 
 static APP_SCRIPT_LOGGER: OnceLock<Arc<AppScriptLogger>> = OnceLock::new();

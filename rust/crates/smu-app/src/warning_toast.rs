@@ -5,6 +5,7 @@ use dear_imgui_rs::{
 };
 
 pub const PARITY_WARNING_MESSAGE: &str = "Deterministic platform warning parity fixture.";
+#[cfg_attr(target_os = "windows", allow(dead_code))] // Foreground warning is emitted only by non-Windows backends.
 pub const FOREGROUND_FALLBACK_WARNING: &str = "Foreground-detection-dependent macros are in always-active mode because foreground Roblox window detection is unavailable on Wayland or this specific display server.";
 
 #[derive(Debug, Default)]

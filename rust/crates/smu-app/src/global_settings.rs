@@ -644,10 +644,11 @@ fn parse_cpp_fps_buffer(value: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(target_os = "windows"))]
+    use super::normalize_anti_afk_for_platform;
     use super::{
-        ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL,
-        normalize_anti_afk_for_platform, parse_cpp_fps_buffer, settings_button_label,
-        theme_editor_button_label,
+        ANTI_AFK_TOOLTIP, GlobalSettingsState, OFFICIAL_SOURCE_URL, parse_cpp_fps_buffer,
+        settings_button_label, theme_editor_button_label,
     };
     use serde_json::{Map, json};
 

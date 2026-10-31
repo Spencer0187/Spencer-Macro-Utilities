@@ -70,6 +70,8 @@ pub struct OverlayState;
 #[derive(Clone, Copy, Debug)]
 pub struct BackendState {
     pub enabled: bool,
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
+    // Windows uses WinDivert running state instead of helper availability.
     pub available: bool,
     pub actively_lagging: bool,
 }

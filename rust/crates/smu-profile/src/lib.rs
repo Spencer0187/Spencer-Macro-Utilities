@@ -681,6 +681,9 @@ fn replace_settings_file(source: &Path, destination: &Path) -> bool {
 }
 
 fn flush_directory(path: &Path) {
+    // Windows does not provide the directory fsync semantics used by Unix.
+    #[cfg(not(unix))]
+    let _ = path;
     #[cfg(unix)]
     if let Ok(directory) = File::open(path) {
         let _ = directory.sync_all();

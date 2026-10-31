@@ -211,10 +211,6 @@ jobs:
         run: rustup override set 1.98.0
       - name: Windows Rust packaging/manifest unit tests
         run: python -m unittest tests.test_rust_windows_staging tests.test_rust_windows_signpath tests.test_update_manifest
-      - name: Test Windows Rust application and updater
-        run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper
-      - name: Clippy Windows Rust application and updater
-        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings
       - name: Stage experimental Windows Rust application
         run: >-
           python scripts/stage_rust_windows_app.py
@@ -222,6 +218,17 @@ jobs:
           --target-dir build/rust-windows-target
           --stage-dir build/rust-windows-app
           --profile release
+      - name: Expose staged runtime DLLs to Windows test executables
+        shell: pwsh
+        run: |
+          $runtime = (Resolve-Path -LiteralPath 'build/rust-windows-app').Path
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $runtime
+      - name: Test Windows Rust application and updater
+        id: windows-rust-tests
+        run: cargo test --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper
+      - name: Clippy Windows Rust application and updater
+        if: ${{ !cancelled() && steps.windows-rust-tests.outcome != 'skipped' }}
+        run: cargo clippy --manifest-path rust/Cargo.toml -p smu-app -p smu-updater -p smu-windows-updater-helper --all-targets -- -D warnings
       - name: Prepare unsigned four-file SignPath candidate request (never submitted)
         run: >-
           python scripts/prepare_rust_windows_signpath.py

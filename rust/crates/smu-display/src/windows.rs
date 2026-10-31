@@ -14,9 +14,9 @@ use windows_sys::Win32::{
     Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CAPTUREBLT, CreateCompatibleDC,
         CreateDIBSection, DEVMODEA, DIB_RGB_COLORS, DeleteDC, DeleteObject, ENUM_CURRENT_SETTINGS,
-        EnumDisplaySettingsA, GetDC, GetDeviceCaps, GetMonitorInfoA, HBITMAP, HDC, HGDIOBJ,
-        HMONITOR, MONITOR_DEFAULTTONEAREST, MONITORINFO, MONITORINFOEXA, MonitorFromPoint,
-        ReleaseDC, SRCCOPY, SelectObject, VREFRESH,
+        EnumDisplaySettingsA, GetDC, GetDeviceCaps, GetMonitorInfoA, HDC, HGDIOBJ, HMONITOR,
+        MONITOR_DEFAULTTONEAREST, MONITORINFO, MONITORINFOEXA, MonitorFromPoint, ReleaseDC,
+        SRCCOPY, SelectObject, VREFRESH,
     },
     UI::WindowsAndMessaging::GetCursorPos,
 };
