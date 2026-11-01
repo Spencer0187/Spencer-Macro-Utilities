@@ -20,8 +20,7 @@ use std::thread::JoinHandle;
 use dear_imgui_rs::Context;
 use dear_imgui_sdl3::{Sdl3OpenGl3Backend, enable_native_ime_ui};
 use sdl3::{
-    event::{Event, EventType},
-    keyboard::Keycode,
+    event::{Event, EventType, WindowEvent},
     video::{GLProfile, Window, WindowPos},
 };
 use serde_json::{Map, Value};
@@ -3249,6 +3248,9 @@ fn prepare_shared_shell_frame(
     script_app: &ScriptAppServices,
     shell_state: &mut shell::ShellState,
 ) {
+    for warning in smu_input::diagnostics::drain_warnings() {
+        script_logging::shared().log_warning(warning.as_bytes());
+    }
     for warning in script_logging::drain_warnings() {
         shell_state.push_warning(warning);
     }
@@ -3391,6 +3393,47 @@ impl UiFramePacer {
     }
 }
 
+// Only explicit OS/application close requests terminate SMU. Escape belongs to ImGui's
+// navigation, popups, text inputs, and ordinary keyboard handling.
+const fn is_quit_event(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Quit { .. } | Event::Window { win_event: WindowEvent::CloseRequested, .. }
+    )
+}
+
+#[cfg(test)]
+mod quit_event_tests {
+    use super::{Event, WindowEvent, is_quit_event};
+    use sdl3::keyboard::{Keycode, Mod};
+
+    #[test]
+    fn escape_is_ui_input_and_only_explicit_close_events_exit() {
+        let escape = Event::KeyDown {
+            timestamp: 0,
+            window_id: 1,
+            keycode: Some(Keycode::Escape),
+            scancode: None,
+            keymod: Mod::NOMOD,
+            repeat: false,
+            which: 0,
+            raw: 0,
+        };
+        assert!(!is_quit_event(&escape));
+        assert!(is_quit_event(&Event::Quit { timestamp: 0 }));
+        assert!(is_quit_event(&Event::Window {
+            timestamp: 0,
+            window_id: 1,
+            win_event: WindowEvent::CloseRequested,
+        }));
+        assert!(!is_quit_event(&Event::Window {
+            timestamp: 0,
+            window_id: 1,
+            win_event: WindowEvent::FocusLost,
+        }));
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
@@ -3439,10 +3482,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
                     );
                 }
             }
-            let should_quit = matches!(event, Event::Quit { .. })
-                || (matches!(event, Event::KeyDown { keycode: Some(Keycode::Escape), .. })
-                    && !shell_state.input_capture_active());
-            if should_quit {
+            if is_quit_event(&event) {
                 break 'main;
             }
         }

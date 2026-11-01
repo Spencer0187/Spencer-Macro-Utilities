@@ -610,11 +610,6 @@ impl ShellState {
         self.keybind_capture.capture_active()
     }
 
-    #[must_use]
-    pub const fn input_capture_active(&self) -> bool {
-        self.keybind_capture.input_capture_active()
-    }
-
     pub const fn set_external_input_capture(&mut self, active: bool) {
         self.keybind_capture.set_external_capture(active);
     }
