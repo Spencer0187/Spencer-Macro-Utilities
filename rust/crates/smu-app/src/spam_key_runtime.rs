@@ -73,6 +73,7 @@ impl RuntimeSlot {
         self.active.store(false, Ordering::Release);
         self.alive.store(false, Ordering::Release);
         if let Some(worker) = self.worker.take() {
+            worker.thread().unpark();
             let _ = worker.join();
         }
     }
@@ -126,13 +127,22 @@ impl SpamKeyController {
     }
 
     pub fn update_settings(&self, settings: SpamKeyControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        if let Some(controller) = lock(&self.controller).as_ref() {
+            controller.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
         let controller = lock(&self.controller).take();
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
     }
@@ -161,8 +171,16 @@ fn controller_loop(
         if !current.macro_enabled {
             for slot in &slots {
                 slot.active.store(false, Ordering::Release);
+                let mut worker_settings = lock(&slot.settings);
+                if worker_settings.section_enabled {
+                    worker_settings.section_enabled = false;
+                    drop(worker_settings);
+                    if let Some(worker) = slot.worker.as_ref() {
+                        worker.thread().unpark();
+                    }
+                }
             }
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
         if was_pressed.len() != current.instances.len() {
@@ -170,7 +188,14 @@ fn controller_loop(
         }
 
         for (index, instance) in current.instances.iter().enumerate() {
-            *lock(&slots[index].settings) = instance.clone();
+            let mut worker_settings = lock(&slots[index].settings);
+            if *worker_settings != *instance {
+                *worker_settings = instance.clone();
+                drop(worker_settings);
+                if let Some(worker) = slots[index].worker.as_ref() {
+                    worker.thread().unpark();
+                }
+            }
             let allowed = instance.section_enabled
                 && targets.foreground_allowed(instance.disable_outside_target, foreground.as_ref());
             let pressed =
@@ -185,7 +210,14 @@ fn controller_loop(
             was_pressed[index] = decision.next_was_pressed;
             apply_thread_action(decision.thread_action, slots[index].active.as_ref());
         }
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        if current.macro_enabled
+            && current.instances.iter().any(|instance| instance.section_enabled)
+        {
+            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        } else {
+            // Park inactive instances; update_settings wakes this thread synchronously.
+            std::thread::park_timeout(Duration::from_secs(1));
+        }
     }
     for slot in &mut slots {
         slot.stop();
@@ -230,6 +262,8 @@ fn worker_loop(
         let current = lock(settings).clone();
         if active.load(Ordering::Acquire) && current.section_enabled {
             execute_iteration(settings, input, std::thread::sleep);
+        } else if !current.section_enabled {
+            std::thread::park_timeout(Duration::from_secs(1));
         } else {
             std::thread::sleep(IDLE_WORKER_POLL_INTERVAL);
         }

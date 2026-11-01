@@ -1,6 +1,7 @@
 //! Physical key-state and hotkey matching.
 
 use smu_core::{Hotkey, KeyCode};
+use std::time::Duration;
 
 /// Read-only physical key state. Wheel directions remain transient and are not represented here.
 pub trait KeyState: Send + Sync {
@@ -13,6 +14,19 @@ pub trait KeyState: Send + Sync {
     fn consume_next_transient_input(&self) -> Option<KeyCode> {
         None
     }
+
+    // Linux evdev can notify hotkey controllers instead of requiring periodic key reads.
+    // Sample this sequence BEFORE evaluating the hotkey so no events can be lost before waiting.
+    fn input_change_sequence(&self) -> Option<u64> {
+        None
+    }
+
+    fn wait_for_input_change(&self, _since: u64, max_wait: Duration) {
+        // Preserve the existing 2 ms cadence on platforms without an event notifier.
+        std::thread::sleep(max_wait.min(Duration::from_millis(2)));
+    }
+
+    fn wake_input_waiters(&self) {}
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

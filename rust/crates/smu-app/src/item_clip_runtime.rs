@@ -130,7 +130,19 @@ impl ItemClipController {
     }
 
     pub fn update_settings(&self, settings: ItemClipControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        // Wake an inactive controller immediately when the user enables or changes its module.
+        if let Some(handle) = lock(&self.controller).as_ref() {
+            handle.thread().unpark();
+        }
+        if let Some(handle) = lock(&self.worker).as_ref() {
+            handle.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
@@ -138,10 +150,12 @@ impl ItemClipController {
         self.worker_allowed.store(false, Ordering::Release);
         let controller = lock(&self.controller).take();
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
         let worker = lock(&self.worker).take();
         if let Some(worker) = worker {
+            worker.thread().unpark();
             let _ = worker.join();
         }
     }
@@ -170,7 +184,7 @@ fn controller_loop(
         targets.refresh_if_due(&current.process_selector, false, discovery);
         if !current.macro_enabled {
             worker_allowed.store(false, Ordering::Release);
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
         let foreground_allowed =
@@ -191,7 +205,13 @@ fn controller_loop(
             apply_toggle_loop_state_action(edge.state_action, active.load(Ordering::Acquire));
         active.store(next_active, Ordering::Release);
         was_pressed = edge.next_was_pressed;
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        if current.macro_enabled && current.section_enabled {
+            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        } else {
+            // No hotkeys can fire while disabled. Avoid a 2 ms polling loop entirely.
+            // update_settings unparks this thread immediately upon any settings change.
+            std::thread::park_timeout(Duration::from_secs(1));
+        }
     }
     worker_allowed.store(false, Ordering::Release);
 }
@@ -211,6 +231,9 @@ fn worker_loop(
             && active.load(Ordering::Acquire)
         {
             execute_cycle(current.delay_ms, current.slot, input, std::thread::sleep);
+        } else if !current.macro_enabled || !current.section_enabled {
+            // Park disabled worker lanes rather than waking 500 times per second.
+            std::thread::park_timeout(Duration::from_secs(1));
         } else {
             std::thread::sleep(IDLE_WORKER_POLL_INTERVAL);
         }

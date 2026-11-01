@@ -69,6 +69,7 @@ impl Default for ControllerState {
 }
 
 pub struct FreezeController {
+    input: Arc<dyn KeyState>,
     running: Arc<AtomicBool>,
     settings: Arc<Mutex<FreezeControllerSettings>>,
     suspended: Arc<AtomicBool>,
@@ -108,28 +109,41 @@ impl FreezeController {
         let worker_running = Arc::clone(&running);
         let worker_settings = Arc::clone(&settings);
         let worker_suspended = Arc::clone(&suspended);
+        let worker_input = Arc::clone(&input);
         let worker = std::thread::spawn(move || {
             controller_loop(
                 worker_running.as_ref(),
                 worker_settings.as_ref(),
                 worker_suspended.as_ref(),
-                input.as_ref(),
+                worker_input.as_ref(),
                 discovery.as_ref(),
                 foreground.as_ref(),
                 control.as_ref(),
             );
         });
-        Self { running, settings, suspended, worker: Mutex::new(Some(worker)) }
+        Self { input, running, settings, suspended, worker: Mutex::new(Some(worker)) }
     }
 
     pub fn update_settings(&self, settings: FreezeControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        self.input.wake_input_waiters();
+        // Wake an inactive controller immediately when the user enables or changes its module.
+        if let Some(handle) = lock(&self.worker).as_ref() {
+            handle.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
+        self.input.wake_input_waiters();
         let worker = lock(&self.worker).take();
         if let Some(worker) = worker {
+            worker.thread().unpark();
             let _ = worker.join();
         }
     }
@@ -153,6 +167,9 @@ fn controller_loop(
 ) {
     let mut state = ControllerState::default();
     while running.load(Ordering::Acquire) {
+        // Capture the serial before reading the key. If a physical event arrives during
+        // process_step, the subsequent wait returns immediately rather than losing the edge.
+        let input_sequence = input.input_change_sequence();
         let current = lock(settings).clone();
         state.targets.refresh_if_due(
             &current.process_selector,
@@ -168,13 +185,24 @@ fn controller_loop(
                 set_target_suspended(&current, discovery, control, &mut state, false);
             }
             suspended_flag.store(state.suspend.freeze_suspended, Ordering::Release);
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
 
         process_step(&current, running, input, discovery, foreground, control, &mut state);
         suspended_flag.store(state.suspend.freeze_suspended, Ordering::Release);
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        if current.macro_enabled && current.section_enabled {
+            if let Some(sequence) = input_sequence {
+                input.wait_for_input_change(sequence, freeze_event_wait_budget(&current, &state));
+            } else {
+                // Windows/macOS/mock backends preserve the original 2 ms timing.
+                std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+            }
+        } else {
+            // No hotkeys can fire while disabled. Avoid a 2 ms polling loop entirely.
+            // update_settings unparks this thread immediately upon any settings change.
+            std::thread::park_timeout(Duration::from_secs(1));
+        }
     }
 
     if state.suspend.freeze_suspended {
@@ -182,6 +210,24 @@ fn controller_loop(
         set_target_suspended(&current, discovery, control, &mut state, false);
         suspended_flag.store(state.suspend.freeze_suspended, Ordering::Release);
     }
+}
+
+const FOREGROUND_RECHECK_INTERVAL: Duration = Duration::from_millis(25);
+
+fn freeze_event_wait_budget(
+    settings: &FreezeControllerSettings,
+    state: &ControllerState,
+) -> Duration {
+    if !state.suspend.freeze_suspended {
+        return FOREGROUND_RECHECK_INTERVAL;
+    }
+    // Don't postpone auto-unfreeze to the next 25 ms foreground tick: wake at its
+    // precise millisecond threshold instead, matching the original timeout logic.
+    let remaining = freeze_timeout_threshold_ms(settings.max_seconds)
+        .saturating_sub(elapsed_ms(state.freeze_start))
+        .max(1);
+    Duration::from_millis(u64::try_from(remaining).unwrap_or(u64::MAX))
+        .min(FOREGROUND_RECHECK_INTERVAL)
 }
 
 fn process_step(
@@ -202,8 +248,11 @@ fn process_step(
     }
 
     let pressed = crate::runtime_input::hotkey_pressed(input, settings.hotkey);
+    // Foreground eligibility can only affect a newly pressed/held hotkey. Both toggle
+    // and hold modes ignore foreground when the physical key is released, so avoid
+    // querying X11 in that state without changing any suspend/resume decisions.
     let foreground_allowed =
-        state.targets.foreground_allowed(settings.disable_outside_target, foreground);
+        !pressed || state.targets.foreground_allowed(settings.disable_outside_target, foreground);
     let toggle = should_toggle_freeze(settings.configured_toggle, settings.hotkey.key().raw());
 
     if toggle {
@@ -293,6 +342,42 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Default)]
+    struct NotifyingInput {
+        pressed: AtomicBool,
+        serial: Mutex<u64>,
+        changed: std::sync::Condvar,
+    }
+
+    impl NotifyingInput {
+        fn set_pressed(&self, pressed: bool) {
+            self.pressed.store(pressed, Ordering::Release);
+            self.wake_input_waiters();
+        }
+    }
+
+    impl KeyState for NotifyingInput {
+        fn is_pressed(&self, key: smu_core::KeyCode) -> bool {
+            key == DEFAULT_FREEZE_HOTKEY.key() && self.pressed.load(Ordering::Acquire)
+        }
+
+        fn input_change_sequence(&self) -> Option<u64> {
+            Some(*lock(&self.serial))
+        }
+
+        fn wait_for_input_change(&self, since: u64, max_wait: Duration) {
+            let guard = lock(&self.serial);
+            let _ = self.changed.wait_timeout_while(guard, max_wait, |serial| *serial == since);
+        }
+
+        fn wake_input_waiters(&self) {
+            let mut serial = lock(&self.serial);
+            *serial += 1;
+            drop(serial);
+            self.changed.notify_all();
+        }
+    }
+
     #[derive(Debug)]
     struct FakeDiscovery(Vec<ProcessRecord>);
 
@@ -343,6 +428,53 @@ mod tests {
                 executable_name: Some("sober".to_owned()),
             },
         ]
+    }
+
+    #[test]
+    fn event_driven_freeze_reacts_to_press_release_and_cleanly_stops() {
+        let input = Arc::new(NotifyingInput::default());
+        let control = Arc::new(FakeControl::default());
+        let controller = FreezeController::start(
+            input.clone(),
+            Arc::new(FakeDiscovery(records())),
+            Arc::new(FakeForeground(true)),
+            control.clone(),
+            FreezeControllerSettings {
+                disable_outside_target: false,
+                ..FreezeControllerSettings::default()
+            },
+        );
+        let wait_for_event = |expected: (u32, bool)| {
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while !lock(&control.events).contains(&expected) && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                lock(&control.events).contains(&expected),
+                "missing expected event {expected:?}"
+            );
+        };
+        input.set_pressed(true);
+        wait_for_event((10, true));
+        input.set_pressed(false);
+        wait_for_event((10, false));
+        controller.stop();
+    }
+
+    #[test]
+    fn event_wait_does_not_delay_foreground_or_freeze_timeout() {
+        let mut state = ControllerState::default();
+        let settings = FreezeControllerSettings::default();
+        assert_eq!(freeze_event_wait_budget(&settings, &state), Duration::from_millis(25));
+        state.suspend.freeze_suspended = true;
+        state.freeze_start = Instant::now();
+        assert!(freeze_event_wait_budget(&settings, &state) <= Duration::from_millis(25));
+        state.freeze_start =
+            Instant::now().checked_sub(Duration::from_millis(8_999)).expect("valid test instant");
+        assert!(freeze_event_wait_budget(&settings, &state) <= Duration::from_millis(2));
+        state.freeze_start =
+            Instant::now().checked_sub(Duration::from_millis(10_000)).expect("valid test instant");
+        assert_eq!(freeze_event_wait_budget(&settings, &state), Duration::from_millis(1));
     }
 
     #[test]

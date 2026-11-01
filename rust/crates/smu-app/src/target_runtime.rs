@@ -112,11 +112,16 @@ pub fn discover_targets(
     take_all_process_ids: bool,
     discovery: &dyn ProcessDiscovery,
 ) -> (Vec<u32>, Vec<u32>) {
-    let all = discovery.find_all_processes(selector).unwrap_or_default();
+    // Both selections must come from the same process-table generation. Calling the discovery
+    // backend twice independently duplicates a potentially expensive /proc enumeration.
+    let Ok(records) = discovery.snapshot() else {
+        return (Vec::new(), Vec::new());
+    };
+    let all = smu_process::select_all_processes(selector, &records);
     let selected = if take_all_process_ids {
         all.clone()
     } else {
-        discovery.find_main_process(selector).ok().flatten().into_iter().collect()
+        smu_process::select_main_process(selector, &records).into_iter().collect()
     };
     (selected, all)
 }

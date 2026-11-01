@@ -104,13 +104,23 @@ impl FloorBounceController {
     }
 
     pub fn update_settings(&self, settings: FloorBounceControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        // Wake an inactive controller immediately when the user enables or changes its module.
+        if let Some(handle) = lock(&self.controller).as_ref() {
+            handle.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
         let controller = lock(&self.controller).take();
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
     }
@@ -144,7 +154,7 @@ fn controller_loop(
             discovery.as_ref(),
         );
         if !current.macro_enabled {
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
 
@@ -172,7 +182,13 @@ fn controller_loop(
                 );
             }));
         }
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        if current.macro_enabled && current.section_enabled {
+            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        } else {
+            // No hotkeys can fire while disabled. Avoid a 2 ms polling loop entirely.
+            // update_settings unparks this thread immediately upon any settings change.
+            std::thread::park_timeout(Duration::from_secs(1));
+        }
     }
     for worker in workers {
         let _ = worker.join();

@@ -13,12 +13,12 @@ use smu_runtime::macros::{
 };
 use std::fmt;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 const CONTROLLER_POLL_INTERVAL: Duration = Duration::from_millis(2);
-const IDLE_WORKER_POLL_INTERVAL: Duration = Duration::from_millis(2);
+const FOREGROUND_RECHECK_INTERVAL: Duration = Duration::from_millis(25);
 pub const DEFAULT_BUNNYHOP_HOTKEY: Hotkey = Hotkey::new(0x20);
 
 #[allow(clippy::struct_excessive_bools)]
@@ -50,6 +50,7 @@ impl Default for BunnyhopControllerSettings {
 }
 
 pub struct BunnyhopController {
+    input: Arc<dyn InputDevice>,
     running: Arc<AtomicBool>,
     settings: Arc<Mutex<BunnyhopControllerSettings>>,
     loop_active: Arc<AtomicBool>,
@@ -89,6 +90,7 @@ impl BunnyhopController {
         let settings = Arc::new(Mutex::new(initial_settings));
         let loop_active = Arc::new(AtomicBool::new(false));
         let worker_active = Arc::new(AtomicBool::new(false));
+        let worker_thread = Arc::new(OnceLock::new());
 
         let controller = {
             let running = Arc::clone(&running);
@@ -96,12 +98,14 @@ impl BunnyhopController {
             let loop_active = Arc::clone(&loop_active);
             let worker_active = Arc::clone(&worker_active);
             let input = Arc::clone(&input);
+            let worker_thread = Arc::clone(&worker_thread);
             std::thread::spawn(move || {
                 controller_loop(
                     running.as_ref(),
                     settings.as_ref(),
                     loop_active.as_ref(),
                     worker_active.as_ref(),
+                    worker_thread.as_ref(),
                     input.as_ref(),
                     discovery.as_ref(),
                     foreground.as_ref(),
@@ -114,18 +118,21 @@ impl BunnyhopController {
             let settings = Arc::clone(&settings);
             let loop_active = Arc::clone(&loop_active);
             let worker_active = Arc::clone(&worker_active);
+            let worker_input = Arc::clone(&input);
             std::thread::spawn(move || {
+                let _ = worker_thread.set(std::thread::current());
                 owned_worker_loop(
                     running.as_ref(),
                     settings.as_ref(),
                     loop_active.as_ref(),
                     worker_active.as_ref(),
-                    input.as_ref(),
+                    worker_input.as_ref(),
                 );
             })
         };
 
         Self {
+            input,
             running,
             settings,
             loop_active,
@@ -136,18 +143,34 @@ impl BunnyhopController {
     }
 
     pub fn update_settings(&self, settings: BunnyhopControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        self.input.wake_input_waiters();
+        // Wake an inactive controller immediately when the user enables or changes its module.
+        if let Some(handle) = lock(&self.controller).as_ref() {
+            handle.thread().unpark();
+        }
+        if let Some(handle) = lock(&self.worker).as_ref() {
+            handle.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
         self.loop_active.store(false, Ordering::Release);
+        self.input.wake_input_waiters();
         let controller = lock(&self.controller).take();
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
         let worker = lock(&self.worker).take();
         if let Some(worker) = worker {
+            worker.thread().unpark();
             let _ = worker.join();
         }
     }
@@ -165,6 +188,7 @@ fn controller_loop(
     settings: &Mutex<BunnyhopControllerSettings>,
     loop_active: &AtomicBool,
     worker_active: &AtomicBool,
+    worker_thread: &OnceLock<std::thread::Thread>,
     input: &dyn InputDevice,
     discovery: &dyn ProcessDiscovery,
     foreground: &dyn ProcessForeground,
@@ -172,19 +196,28 @@ fn controller_loop(
     let mut targets = crate::target_runtime::TargetProcessCache::default();
     let mut chat_locked = false;
     while running.load(Ordering::Acquire) {
+        // Capture the serial before evaluating physical keys to avoid missed transitions.
+        let input_sequence = input.input_change_sequence();
         let current = lock(settings).clone();
         targets.refresh_if_due(&current.process_selector, false, discovery);
         if !current.macro_enabled {
             loop_active.store(false, Ordering::Release);
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
 
+        if !current.section_enabled {
+            loop_active.store(false, Ordering::Release);
+            // There is no hotkey to observe while the module is disabled. update_settings()
+            // unparks us immediately when the module is re-enabled.
+            std::thread::park_timeout(Duration::from_secs(1));
+            continue;
+        }
         let foreground_allowed =
             targets.foreground_allowed(current.disable_outside_target, foreground);
-        if !foreground_allowed || !current.section_enabled {
+        if !foreground_allowed {
             loop_active.store(false, Ordering::Release);
-            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+            wait_for_bunnyhop_input(input, input_sequence);
             continue;
         }
 
@@ -197,13 +230,28 @@ fn controller_loop(
         let held = bunnyhop_physically_held(input, current.hotkey);
         let should_hop = held && (!current.smart || !chat_locked);
         loop_active.store(should_hop, Ordering::Release);
-        if should_hop {
-            let _ =
-                worker_active.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire);
+        if should_hop
+            && worker_active
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+        {
+            // This wakes the worker immediately, even if it was idle and parked.
+            if let Some(worker) = worker_thread.get() {
+                worker.unpark();
+            }
         }
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        wait_for_bunnyhop_input(input, input_sequence);
     }
     loop_active.store(false, Ordering::Release);
+}
+
+fn wait_for_bunnyhop_input(input: &dyn InputDevice, sequence: Option<u64>) {
+    if let Some(sequence) = sequence {
+        input.wait_for_input_change(sequence, FOREGROUND_RECHECK_INTERVAL);
+    } else {
+        // No native notifier: preserve the C++ 2 ms polling cadence.
+        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+    }
 }
 
 #[must_use]
@@ -233,7 +281,9 @@ fn owned_worker_loop(
             loop_active.store(false, Ordering::Release);
             worker_active.store(false, Ordering::Release);
         } else {
-            std::thread::sleep(IDLE_WORKER_POLL_INTERVAL);
+            // Controller unparks this worker as soon as a physical trigger is detected;
+            // no 2 ms idle worker polling or extra latency on activation is needed.
+            std::thread::park_timeout(Duration::from_secs(1));
         }
     }
     loop_active.store(false, Ordering::Release);
@@ -322,6 +372,108 @@ mod tests {
         fn mouse_wheel(&self, delta: i32) {
             lock(&self.events).push(format!("wheel:{delta}"));
         }
+    }
+
+    #[derive(Debug, Default)]
+    struct NotifyingInput {
+        space_pressed: AtomicBool,
+        serial: Mutex<u64>,
+        changed: std::sync::Condvar,
+        events: Mutex<Vec<(KeyCode, bool)>>,
+    }
+
+    impl NotifyingInput {
+        fn set_space(&self, pressed: bool) {
+            self.space_pressed.store(pressed, Ordering::Release);
+            self.wake_input_waiters();
+        }
+    }
+
+    impl KeyState for NotifyingInput {
+        fn is_pressed(&self, key: KeyCode) -> bool {
+            key == KeyCode::SPACE && self.space_pressed.load(Ordering::Acquire)
+        }
+
+        fn input_change_sequence(&self) -> Option<u64> {
+            Some(*lock(&self.serial))
+        }
+
+        fn wait_for_input_change(&self, since: u64, max_wait: Duration) {
+            let guard = lock(&self.serial);
+            let _ = self.changed.wait_timeout_while(guard, max_wait, |serial| *serial == since);
+        }
+
+        fn wake_input_waiters(&self) {
+            let mut serial = lock(&self.serial);
+            *serial += 1;
+            drop(serial);
+            self.changed.notify_all();
+        }
+    }
+
+    impl InputInjector for NotifyingInput {
+        fn hold_key(&self, key: KeyCode, _extended: bool) {
+            lock(&self.events).push((key, true));
+        }
+
+        fn release_key(&self, key: KeyCode, _extended: bool) {
+            lock(&self.events).push((key, false));
+        }
+
+        fn move_mouse(&self, _dx: i32, _dy: i32) {}
+        fn mouse_wheel(&self, _delta: i32) {}
+    }
+
+    #[derive(Debug)]
+    struct EmptyDiscovery;
+
+    impl ProcessDiscovery for EmptyDiscovery {
+        fn snapshot(&self) -> std::io::Result<Vec<smu_process::ProcessRecord>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[derive(Debug)]
+    struct NeverForeground;
+
+    impl ProcessForeground for NeverForeground {
+        fn is_foreground_process(&self, _pid: u32) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn event_driven_bunnyhop_wakes_worker_and_releases_on_key_up() {
+        let input = Arc::new(NotifyingInput::default());
+        let controller = BunnyhopController::start(
+            input.clone(),
+            Arc::new(EmptyDiscovery),
+            Arc::new(NeverForeground),
+            BunnyhopControllerSettings {
+                section_enabled: true,
+                disable_outside_target: false,
+                smart: false,
+                ..BunnyhopControllerSettings::default()
+            },
+        );
+        assert!(lock(&input.events).is_empty());
+        input.set_space(true);
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        while !lock(&input.events).contains(&(KeyCode::SPACE, true))
+            && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(lock(&input.events).contains(&(KeyCode::SPACE, true)));
+        input.set_space(false);
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        while controller.loop_active.load(Ordering::Acquire) && std::time::Instant::now() < deadline
+        {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(!controller.loop_active.load(Ordering::Acquire));
+        controller.stop();
+        assert!(lock(&input.events).contains(&(KeyCode::SPACE, false)));
     }
 
     #[test]

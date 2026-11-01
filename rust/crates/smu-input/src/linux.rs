@@ -13,9 +13,11 @@ use evdev::{
 use smu_core::KeyCode;
 use smu_display::linux::WaylandPortalCapture;
 use std::collections::BTreeSet;
+use std::io;
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 use x11rb::connection::Connection;
@@ -53,6 +55,30 @@ struct SharedInputState {
     running: AtomicBool,
     key_states: [AtomicBool; KEY_STATE_COUNT],
     pending_binding_input: AtomicU32,
+    change_sequence: AtomicU64,
+    change_mutex: Mutex<()>,
+    change_notify: Condvar,
+}
+
+impl SharedInputState {
+    fn signal_physical_change(&self) {
+        // Hold the same mutex as waiters while advancing the sequence, preventing lost wakeups.
+        let _guard = lock(&self.change_mutex);
+        self.change_sequence.fetch_add(1, Ordering::Release);
+        self.change_notify.notify_all();
+    }
+
+    fn wait_for_change(&self, since: u64, max_wait: Duration) {
+        if self.change_sequence.load(Ordering::Acquire) != since {
+            return;
+        }
+        let guard = lock(&self.change_mutex);
+        if self.change_sequence.load(Ordering::Acquire) == since {
+            let _ = self.change_notify.wait_timeout_while(guard, max_wait, |()| {
+                self.change_sequence.load(Ordering::Acquire) == since
+            });
+        }
+    }
 }
 
 impl Default for SharedInputState {
@@ -61,6 +87,9 @@ impl Default for SharedInputState {
             running: AtomicBool::new(false),
             key_states: std::array::from_fn(|_| AtomicBool::new(false)),
             pending_binding_input: AtomicU32::new(KeyCode::NONE.raw()),
+            change_sequence: AtomicU64::new(0),
+            change_mutex: Mutex::new(()),
+            change_notify: Condvar::new(),
         }
     }
 }
@@ -233,6 +262,22 @@ impl KeyState for EvdevUinputInputDevice {
 
     fn consume_next_transient_input(&self) -> Option<KeyCode> {
         Self::consume_next_transient_input(self)
+    }
+
+    fn input_change_sequence(&self) -> Option<u64> {
+        self.is_initialized().then(|| self.shared.change_sequence.load(Ordering::Acquire))
+    }
+
+    fn wait_for_input_change(&self, since: u64, max_wait: Duration) {
+        if self.is_initialized() {
+            self.shared.wait_for_change(since, max_wait);
+        } else {
+            std::thread::sleep(max_wait.min(Duration::from_millis(2)));
+        }
+    }
+
+    fn wake_input_waiters(&self) {
+        self.shared.signal_physical_change();
     }
 }
 
@@ -617,6 +662,23 @@ fn classify_interactive_event(event: &InputEvent) -> (bool, bool) {
     (keyboard, mouse_relative || mouse_key)
 }
 
+// Use readiness notification rather than waking every 50 ms to discover that nothing
+// happened. This also processes physical hotkeys immediately on kernel notification.
+// The bounded poll timeout retains the existing 50 ms shutdown/join bound.
+fn wait_for_evdev_readable(fd: RawFd, timeout: Duration) -> io::Result<bool> {
+    let mut descriptor = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
+    let millis = i32::try_from(timeout.as_millis()).unwrap_or(i32::MAX);
+    // SAFETY: descriptor is a valid writable pollfd and libc::poll never retains the pointer.
+    let ready = unsafe { libc::poll(&raw mut descriptor, 1, millis) };
+    if ready < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if descriptor.revents & (libc::POLLERR | libc::POLLHUP | libc::POLLNVAL) != 0 {
+        return Err(io::Error::new(io::ErrorKind::BrokenPipe, "evdev device disconnected"));
+    }
+    Ok(ready > 0 && descriptor.revents & libc::POLLIN != 0)
+}
+
 fn reader_thread(shared: &SharedInputState, path: &Path) {
     let Ok(mut device) = Device::open(path) else {
         return;
@@ -625,6 +687,12 @@ fn reader_thread(shared: &SharedInputState, path: &Path) {
         return;
     }
     while shared.running.load(Ordering::Acquire) {
+        match wait_for_evdev_readable(device.as_raw_fd(), READER_POLL_INTERVAL) {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
+        }
         match device.fetch_events() {
             Ok(events) => {
                 for event in events {
@@ -642,12 +710,12 @@ fn reader_thread(shared: &SharedInputState, path: &Path) {
                             },
                             Ordering::Release,
                         );
+                        shared.signal_physical_change();
                     }
                 }
             }
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(READER_POLL_INTERVAL);
-            }
+            // Another reader or an event-delivery race can empty the queue between poll and read.
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
             Err(_) => break,
         }
     }
@@ -657,8 +725,9 @@ fn set_key_state_from_evdev(shared: &SharedInputState, evdev_code: u16, pressed:
     let key = evdev_to_vk(evdev_code);
     if let Ok(index) = usize::try_from(key.raw())
         && let Some(state) = shared.key_states.get(index)
+        && state.swap(pressed, Ordering::AcqRel) != pressed
     {
-        state.store(pressed, Ordering::Release);
+        shared.signal_physical_change();
     }
 }
 
@@ -986,6 +1055,56 @@ mod tests {
 
     use super::*;
     use serde_json::Value;
+    use std::io::{Read, Write};
+    use std::os::unix::net::UnixStream;
+
+    #[test]
+    fn key_change_notifier_wakes_waiters_without_missing_early_events() {
+        use std::sync::mpsc;
+        let shared = Arc::new(SharedInputState::default());
+        let initial = shared.change_sequence.load(Ordering::Acquire);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let worker_state = Arc::clone(&shared);
+        let worker = std::thread::spawn(move || {
+            ready_tx.send(()).expect("announce waiter");
+            let start = Instant::now();
+            worker_state.wait_for_change(initial, Duration::from_secs(1));
+            start.elapsed()
+        });
+        ready_rx.recv_timeout(Duration::from_millis(200)).expect("waiter started");
+        set_key_state_from_evdev(&shared, EvKeyCode::KEY_A.0, true);
+        let elapsed = worker.join().expect("waiter joined");
+        assert!(elapsed < Duration::from_millis(200), "physical key wake should be immediate");
+        assert_eq!(shared.change_sequence.load(Ordering::Acquire), initial + 1);
+        // Autorepeat or duplicate states must not generate unnecessary wakeups.
+        set_key_state_from_evdev(&shared, EvKeyCode::KEY_A.0, true);
+        assert_eq!(shared.change_sequence.load(Ordering::Acquire), initial + 1);
+        set_key_state_from_evdev(&shared, EvKeyCode::KEY_A.0, false);
+        assert_eq!(shared.change_sequence.load(Ordering::Acquire), initial + 2);
+        // An event before wait_for_change is also visible via the serial.
+        shared.wait_for_change(initial, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn evdev_readiness_wait_wakes_on_input_and_detects_disconnect() {
+        let (mut receiver, mut sender) = UnixStream::pair().expect("test stream pair");
+        assert!(
+            !wait_for_evdev_readable(receiver.as_raw_fd(), Duration::ZERO)
+                .expect("empty stream should not be readable")
+        );
+        sender.write_all(&[42]).expect("write test event");
+        assert!(
+            wait_for_evdev_readable(receiver.as_raw_fd(), Duration::ZERO)
+                .expect("pending event should wake reader")
+        );
+        let mut data = [0];
+        receiver.read_exact(&mut data).expect("read event");
+        assert_eq!(data, [42]);
+        drop(sender);
+        let error = wait_for_evdev_readable(receiver.as_raw_fd(), Duration::ZERO)
+            .expect_err("disconnected event stream should stop reader");
+        assert_eq!(error.kind(), io::ErrorKind::BrokenPipe);
+    }
 
     const KEYMAP_FIXTURE: &str = include_str!("../../../../compat/input/linux_keymap.json");
 

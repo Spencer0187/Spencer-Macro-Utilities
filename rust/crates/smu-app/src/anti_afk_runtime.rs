@@ -117,13 +117,22 @@ impl AntiAfkController {
     }
 
     pub fn update_settings(&self, settings: AntiAfkControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        if let Some(controller) = lock(&self.controller).as_ref() {
+            controller.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
         let controller = { lock(&self.controller).take() };
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
     }
@@ -179,7 +188,8 @@ fn controller_loop(
         let pids = state.targets.selected_pids().to_vec();
         if !current.enabled || pids.is_empty() {
             reset_timer_state(&mut state);
-            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+            // Disabled: wake on config changes; missing target: use the 1 s process refresh.
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
 
@@ -200,7 +210,8 @@ fn controller_loop(
             state.last_activity = now;
         }
         if !timer.due {
-            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+            // The Anti-AFK timer is measured in minutes, not 2 ms hotkey intervals.
+            std::thread::sleep(Duration::from_millis(100));
             continue;
         }
         if !current.afk_key.is_bound() {

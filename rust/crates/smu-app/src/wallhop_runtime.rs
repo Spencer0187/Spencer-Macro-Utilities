@@ -88,13 +88,22 @@ impl WallhopController {
     }
 
     pub fn update_settings(&self, settings: WallhopControllerSettings) {
-        *lock(&self.settings) = settings;
+        let mut current = lock(&self.settings);
+        if *current == settings {
+            return;
+        }
+        *current = settings;
+        drop(current);
+        if let Some(controller) = lock(&self.controller).as_ref() {
+            controller.thread().unpark();
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::Release);
         let controller = lock(&self.controller).take();
         if let Some(controller) = controller {
+            controller.thread().unpark();
             let _ = controller.join();
         }
     }
@@ -121,7 +130,7 @@ fn controller_loop(
         let current = lock(settings).clone();
         targets.refresh_if_due(&current.process_selector, false, discovery.as_ref());
         if !current.macro_enabled {
-            std::thread::sleep(Duration::from_millis(5));
+            std::thread::park_timeout(Duration::from_secs(1));
             continue;
         }
         if was_pressed.len() != current.instances.len() {
@@ -157,7 +166,14 @@ fn controller_loop(
                 execute_worker(plan, input.as_ref(), std::thread::sleep);
             }));
         }
-        std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        if current.macro_enabled
+            && current.instances.iter().any(|instance| instance.section_enabled)
+        {
+            std::thread::sleep(CONTROLLER_POLL_INTERVAL);
+        } else {
+            // Park inactive instances; update_settings wakes this thread synchronously.
+            std::thread::park_timeout(Duration::from_secs(1));
+        }
     }
     for worker in workers {
         let _ = worker.join();

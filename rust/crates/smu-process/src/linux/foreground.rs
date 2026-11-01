@@ -1,11 +1,33 @@
 use super::ProcDiscovery;
-use crate::{ProcessDiscovery, ProcessForeground, ProcessRecord};
-use std::collections::BTreeSet;
+use crate::{ProcessForeground, ProcessRecord};
+use std::collections::{BTreeSet, HashMap};
 use std::env;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
+
+// The C++ controller shares one foreground refresh across all macros every 25 ms.
+const FOREGROUND_CACHE_INTERVAL: Duration = Duration::from_millis(25);
+const NAMESPACE_CACHE_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Debug, Default)]
+struct NamespaceCache {
+    checked_at: Option<Instant>,
+    results: HashMap<(u32, Vec<u32>), Option<u32>>,
+    cgroups: HashMap<u32, Option<PathBuf>>,
+    namespace_pids: HashMap<u32, Vec<u32>>,
+}
+
+#[derive(Debug, Default)]
+struct ForegroundCache {
+    checked_at: Option<Instant>,
+    // Distinguish an unqueried interval from an interval with no active X11 window.
+    active_pid_queried: bool,
+    active_pid: Option<u32>,
+    results: HashMap<u32, bool>,
+}
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
 
@@ -104,11 +126,15 @@ pub trait ForegroundPidSource: Send + Sync {
     fn foreground_pid(&self) -> Option<u32>;
 }
 
-#[derive(Debug, Default)]
-pub struct X11rbForegroundSource;
+struct X11ForegroundSession {
+    connection: x11rb::rust_connection::RustConnection,
+    root: u32,
+    active_atom: u32,
+    pid_atom: u32,
+}
 
-impl ForegroundPidSource for X11rbForegroundSource {
-    fn foreground_pid(&self) -> Option<u32> {
+impl X11ForegroundSession {
+    fn connect() -> Option<Self> {
         let (connection, screen_index) = x11rb::connect(None).ok()?;
         let root = connection.setup().roots.get(screen_index)?.root;
         let active_atom =
@@ -117,32 +143,68 @@ impl ForegroundPidSource for X11rbForegroundSource {
         if active_atom == x11rb::NONE || pid_atom == x11rb::NONE {
             return None;
         }
+        Some(Self { connection, root, active_atom, pid_atom })
+    }
 
-        let active_reply = connection
-            .get_property(false, root, active_atom, AtomEnum::WINDOW, 0, 1)
-            .ok()?
+    fn foreground_pid(&self) -> Result<Option<u32>, ()> {
+        let active_reply = self
+            .connection
+            .get_property(false, self.root, self.active_atom, AtomEnum::WINDOW, 0, 1)
+            .map_err(|_| ())?
             .reply()
-            .ok()?;
-        let active_window = active_reply.value32()?.next()?;
+            .map_err(|_| ())?;
+        let active_window =
+            active_reply.value32().and_then(|mut values| values.next()).unwrap_or(0);
         if active_window == x11rb::NONE {
-            return None;
+            return Ok(None);
         }
-
-        let pid_reply = connection
-            .get_property(false, active_window, pid_atom, AtomEnum::CARDINAL, 0, 1)
-            .ok()?
+        let pid_reply = self
+            .connection
+            .get_property(false, active_window, self.pid_atom, AtomEnum::CARDINAL, 0, 1)
+            .map_err(|_| ())?
             .reply()
-            .ok()?;
-        let pid = pid_reply.value32()?.next()?;
-        (pid != 0).then_some(pid)
+            .map_err(|_| ())?;
+        let pid = pid_reply.value32().and_then(|mut values| values.next()).unwrap_or(0);
+        Ok((pid != 0).then_some(pid))
+    }
+}
+
+#[derive(Default)]
+pub struct X11rbForegroundSource {
+    session: Mutex<Option<X11ForegroundSession>>,
+}
+
+impl fmt::Debug for X11rbForegroundSource {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("X11rbForegroundSource").finish_non_exhaustive()
+    }
+}
+
+impl ForegroundPidSource for X11rbForegroundSource {
+    fn foreground_pid(&self) -> Option<u32> {
+        let mut session = self.session.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if session.is_none() {
+            *session = X11ForegroundSession::connect();
+        }
+        let result = session.as_ref()?.foreground_pid();
+        let pid = result.unwrap_or_else(|()| {
+            // Reconnect after X server restart or an underlying transport failure.
+            *session = None;
+            None
+        });
+        drop(session);
+        pid
     }
 }
 
 pub struct ProcForegroundProcess {
     proc_root: PathBuf,
     cgroup_root: PathBuf,
+    discovery: Arc<ProcDiscovery>,
     display_server: Arc<dyn DisplayServerSource>,
     foreground: Arc<dyn ForegroundPidSource>,
+    cache: Mutex<ForegroundCache>,
+    namespace_cache: Mutex<NamespaceCache>,
 }
 
 impl fmt::Debug for ProcForegroundProcess {
@@ -160,8 +222,11 @@ impl Default for ProcForegroundProcess {
         Self {
             proc_root: PathBuf::from("/proc"),
             cgroup_root: PathBuf::from("/sys/fs/cgroup"),
+            discovery: Arc::new(ProcDiscovery::default()),
             display_server: Arc::new(EnvironmentDisplayServer),
-            foreground: Arc::new(X11rbForegroundSource),
+            foreground: Arc::new(X11rbForegroundSource::default()),
+            cache: Mutex::new(ForegroundCache::default()),
+            namespace_cache: Mutex::new(NamespaceCache::default()),
         }
     }
 }
@@ -169,7 +234,20 @@ impl Default for ProcForegroundProcess {
 impl ProcForegroundProcess {
     #[must_use]
     pub fn new(proc_root: impl Into<PathBuf>, cgroup_root: impl Into<PathBuf>) -> Self {
-        Self { proc_root: proc_root.into(), cgroup_root: cgroup_root.into(), ..Self::default() }
+        let proc_root = proc_root.into();
+        Self {
+            discovery: Arc::new(ProcDiscovery::new(&proc_root)),
+            proc_root,
+            cgroup_root: cgroup_root.into(),
+            ..Self::default()
+        }
+    }
+
+    #[must_use]
+    pub fn with_discovery(mut self, discovery: Arc<ProcDiscovery>) -> Self {
+        self.proc_root.clone_from(&discovery.proc_root);
+        self.discovery = discovery;
+        self
     }
 
     #[must_use]
@@ -215,8 +293,43 @@ impl ProcForegroundProcess {
         if namespace_pid == 0 {
             return None;
         }
-        let target_cgroups: BTreeSet<PathBuf> =
-            target_pids.iter().filter_map(|pid| self.cgroup_path(*pid)).collect();
+        let now = Instant::now();
+        let mut cache =
+            self.namespace_cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if cache
+            .checked_at
+            .is_none_or(|checked| now.duration_since(checked) >= NAMESPACE_CACHE_INTERVAL)
+        {
+            cache.results.clear();
+            cache.cgroups.clear();
+            cache.namespace_pids.clear();
+            cache.checked_at = Some(now);
+        }
+        let key = (namespace_pid, target_pids.to_vec());
+        if let Some(&result) = cache.results.get(&key) {
+            return result;
+        }
+        // A missing match is cached as well. Most native X11 foreground PIDs do not belong
+        // to the target's PID namespace; without negative caching each 25 ms foreground poll
+        // rereads every /proc/<pid>/cgroup and /proc/<pid>/status in the system.
+        let result = self.resolve_namespace_pid(namespace_pid, target_pids, records, &mut cache);
+        cache.results.insert(key, result);
+        result
+    }
+
+    fn resolve_namespace_pid(
+        &self,
+        namespace_pid: u32,
+        target_pids: &[u32],
+        records: &[ProcessRecord],
+        cache: &mut NamespaceCache,
+    ) -> Option<u32> {
+        let target_cgroups: BTreeSet<PathBuf> = target_pids
+            .iter()
+            .filter_map(|pid| {
+                cache.cgroups.entry(*pid).or_insert_with(|| self.cgroup_path(*pid)).clone()
+            })
+            .collect();
         if target_cgroups.is_empty() {
             return None;
         }
@@ -225,13 +338,20 @@ impl ProcForegroundProcess {
             if record.pid == namespace_pid {
                 continue;
             }
-            let Some(cgroup) = self.cgroup_path(record.pid) else {
+            let Some(cgroup) =
+                cache.cgroups.entry(record.pid).or_insert_with(|| self.cgroup_path(record.pid))
+            else {
                 continue;
             };
-            if !target_cgroups.contains(&cgroup) {
+            if !target_cgroups.contains(cgroup) {
                 continue;
             }
-            if self.namespace_pids(record.pid).contains(&namespace_pid) {
+            if cache
+                .namespace_pids
+                .entry(record.pid)
+                .or_insert_with(|| self.namespace_pids(record.pid))
+                .contains(&namespace_pid)
+            {
                 return Some(record.pid);
             }
         }
@@ -239,24 +359,52 @@ impl ProcForegroundProcess {
     }
 }
 
-impl ProcessForeground for ProcForegroundProcess {
-    fn is_foreground_process(&self, pid: u32) -> bool {
+impl ProcForegroundProcess {
+    fn evaluate_foreground(&self, pid: u32, foreground_pid: Option<u32>) -> bool {
         if self.display_server.display_server() != DisplayServer::X11 {
             return false;
         }
-        let records = ProcDiscovery::new(&self.proc_root).snapshot().unwrap_or_default();
+        let Some(foreground_pid) = foreground_pid else {
+            return false;
+        };
+        let Ok(records) = self.discovery.snapshot_shared() else {
+            return false;
+        };
         let candidates = process_tree_from_records(pid, &records);
         if candidates.is_empty() {
             return false;
         }
-        let Some(foreground_pid) = self.foreground.foreground_pid() else {
-            return false;
-        };
         if candidates.contains(&foreground_pid) {
             return true;
         }
         self.host_pid_for_namespace_pid(foreground_pid, &candidates, &records)
             .is_some_and(|host_pid| candidates.contains(&host_pid))
+    }
+}
+
+impl ProcessForeground for ProcForegroundProcess {
+    fn is_foreground_process(&self, pid: u32) -> bool {
+        let now = Instant::now();
+        let mut cache = self.cache.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if cache
+            .checked_at
+            .is_none_or(|checked| now.duration_since(checked) >= FOREGROUND_CACHE_INTERVAL)
+        {
+            cache.results.clear();
+            cache.active_pid = None;
+            cache.active_pid_queried = false;
+            cache.checked_at = Some(now);
+        }
+        if let Some(&result) = cache.results.get(&pid) {
+            return result;
+        }
+        if !cache.active_pid_queried {
+            cache.active_pid = self.foreground.foreground_pid();
+            cache.active_pid_queried = true;
+        }
+        let result = self.evaluate_foreground(pid, cache.active_pid);
+        cache.results.insert(pid, result);
+        result
     }
 }
 
@@ -283,6 +431,7 @@ mod tests {
 
     use super::*;
     use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[derive(Debug)]
@@ -301,6 +450,32 @@ mod tests {
         fn foreground_pid(&self) -> Option<u32> {
             self.0
         }
+    }
+
+    #[derive(Debug)]
+    struct CountingForeground {
+        pid: u32,
+        calls: AtomicUsize,
+    }
+
+    impl ForegroundPidSource for CountingForeground {
+        fn foreground_pid(&self) -> Option<u32> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Some(self.pid)
+        }
+    }
+
+    #[test]
+    fn shared_foreground_cache_reuses_result_within_25_ms() {
+        let (root, proc_root, cgroup_root) = temp_roots("cached");
+        write_proc(&proc_root, 20, 1, "app-test.scope", &[20]);
+        let source = Arc::new(CountingForeground { pid: 20, calls: AtomicUsize::new(0) });
+        let foreground = ProcForegroundProcess::new(&proc_root, &cgroup_root)
+            .with_sources(Arc::new(FixedServer(DisplayServer::X11)), source.clone());
+        assert!(foreground.is_foreground_process(20));
+        assert!(foreground.is_foreground_process(20));
+        assert_eq!(source.calls.load(Ordering::Relaxed), 1);
+        fs::remove_dir_all(root).expect("fixture should be removable");
     }
 
     fn temp_roots(name: &str) -> (PathBuf, PathBuf, PathBuf) {

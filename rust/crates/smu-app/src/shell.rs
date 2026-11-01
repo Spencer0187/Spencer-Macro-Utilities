@@ -1,6 +1,6 @@
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
 use dear_imgui_rs::sys;
-use dear_imgui_rs::{Condition, StyleVar, Ui, WindowFlags};
+use dear_imgui_rs::{Condition, StyleColor, StyleVar, Ui, WindowFlags};
 use serde_json::{Map, Value};
 use smu_profile::payload::{PreservedProfilePayload, ProfilePayloadState};
 
@@ -1710,6 +1710,9 @@ fn render_contents(
 
     let right_child_min = ui.item_rect_min();
     let right_child_size = ui.item_rect_size();
+    // The footer borders must be emitted after the child. The Rust ImGui backend submits the
+    // BottomControls child draw list after its parent: border strokes appended to the parent
+    // draw list here get covered by the child's opaque background.
     let window_size = ui.window_size();
     ui.set_cursor_pos_y(window_size[1] - FOOTER_HEIGHT - style.window_padding()[1]);
     ui.set_cursor_pos_x(right_child_min[0]);
@@ -1723,6 +1726,8 @@ fn render_contents(
             footer_action = render_footer(ui, right_child_size[0], state, theme);
         });
 
+    draw_footer_border(ui, right_child_min, right_child_size, style.child_rounding());
+
     global_shell_action
         .or(sidebar_shell_action)
         .or(script_pane_action)
@@ -1730,6 +1735,34 @@ fn render_contents(
             lag_action.map(|LagSwitchAction::ToggleBackend| ShellAction::ToggleLagSwitchBackend)
         })
         .or(footer_action)
+}
+
+// Match app/app_ui.cpp's rounded-corner fill and four border strokes. Draw on the viewport
+// foreground layer so the opaque footer child cannot occlude the strokes (unlike parent draw
+// commands, which get submitted beneath child windows by the Rust Dear ImGui backend).
+fn draw_footer_border(
+    ui: &Ui,
+    right_child_min: [f32; 2],
+    right_child_size: [f32; 2],
+    rounding: f32,
+) {
+    let background = ui.style_color(StyleColor::ChildBg);
+    let border = ui.style_color(StyleColor::Border);
+    let left = right_child_min[0];
+    let right = left + right_child_size[0];
+    let bottom = right_child_min[1] + right_child_size[1];
+    let draw = ui.get_foreground_draw_list();
+    draw.add_rect([left, bottom - rounding], [left + rounding, bottom], background)
+        .filled(true)
+        .build();
+    draw.add_rect([right - rounding, bottom - rounding], [right, bottom], background)
+        .filled(true)
+        .build();
+    draw.add_line([left, bottom - rounding - 1.0], [left, bottom + 29.0], border).build();
+    draw.add_line([right - 1.0, bottom - rounding - 1.0], [right - 1.0, bottom + 29.0], border)
+        .build();
+    draw.add_line([left + 1.0, bottom - 1.0], [right - 1.0, bottom - 1.0], background).build();
+    draw.add_line([left, bottom + 29.0], [right, bottom + 29.0], border).build();
 }
 
 fn render_right_section(

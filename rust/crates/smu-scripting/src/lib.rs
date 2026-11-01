@@ -50,7 +50,8 @@ pub use lua_runtime::{
 };
 pub use managed_hotkeys::{ManagedHotkeyResult, ManagedHotkeys, ManagedKeyAction};
 pub use manager::{
-    ScriptImportResult, ScriptManager, ScriptManagerConfig, ScriptRecord, ScriptRecordSnapshot,
+    ScriptHotkeySnapshot, ScriptImportResult, ScriptManager, ScriptManagerConfig, ScriptRecord,
+    ScriptRecordSnapshot,
 };
 pub use memory::{
     DEFAULT_SCRIPT_MEMORY_LIMIT_MB, LuaMemoryBudget, MAX_SCRIPT_MEMORY_LIMIT_MB,

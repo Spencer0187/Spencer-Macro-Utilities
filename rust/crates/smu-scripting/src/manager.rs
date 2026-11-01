@@ -56,6 +56,19 @@ impl ScriptManagerConfig {
     }
 }
 
+// Polling the script hotkeys must never clone Lua UI JSON, diagnostic strings, or metadata.
+// All hotkey fields are stored atomically and can be read without taking a script's Lua mutex.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScriptHotkeySnapshot {
+    pub hotkey: Hotkey,
+    pub enabled: bool,
+    pub disable_outside_roblox: bool,
+    pub loaded: bool,
+    pub missing: bool,
+    pub running: bool,
+}
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScriptRecordSnapshot {
@@ -217,6 +230,18 @@ impl ScriptRecord {
     }
 
     #[must_use]
+    pub fn hotkey_snapshot(&self) -> ScriptHotkeySnapshot {
+        ScriptHotkeySnapshot {
+            hotkey: self.hotkey(),
+            enabled: self.enabled(),
+            disable_outside_roblox: self.disable_outside_roblox(),
+            loaded: self.is_loaded(),
+            missing: self.is_missing(),
+            running: self.is_running(),
+        }
+    }
+
+    #[must_use]
     pub fn snapshot(&self) -> ScriptRecordSnapshot {
         ScriptRecordSnapshot {
             path: self.path.clone(),
@@ -300,6 +325,12 @@ impl ScriptManager {
     #[must_use]
     pub fn get(&self, index: usize) -> Option<Arc<ScriptRecord>> {
         lock(&self.scripts).get(index).cloned()
+    }
+
+    /// Snapshot just the hotkey-control fields without cloning Lua/UI state.
+    #[must_use]
+    pub fn hotkey_snapshots(&self) -> Vec<ScriptHotkeySnapshot> {
+        lock(&self.scripts).iter().map(|record| record.hotkey_snapshot()).collect()
     }
 
     #[must_use]
@@ -956,6 +987,35 @@ mod tests {
 
     fn manager() -> ScriptManager {
         ScriptManager::new(ScriptManagerConfig::new("3.4.0"), ScriptServices::default())
+    }
+
+    #[test]
+    fn hotkey_snapshot_matches_full_snapshot_without_waiting_for_ui_or_lua_locks() {
+        let manager = manager();
+        let record =
+            Arc::new(ScriptRecord::new(PathBuf::from("sample.lua"), Hotkey::new(0x77), true, true));
+        record.loaded.store(true, Ordering::Release);
+        record.running.store(true, Ordering::Release);
+        lock(&manager.scripts).push(Arc::clone(&record));
+        let full = manager.snapshot();
+        let hotkeys = manager.hotkey_snapshots();
+        assert_eq!(hotkeys.len(), 1);
+        let slim = hotkeys[0];
+        assert_eq!(slim.hotkey, full[0].hotkey);
+        assert_eq!(slim.enabled, full[0].enabled);
+        assert_eq!(slim.loaded, full[0].loaded);
+        assert_eq!(slim.missing, full[0].missing);
+        assert_eq!(slim.running, full[0].running);
+        assert_eq!(slim.disable_outside_roblox, full[0].disable_outside_roblox);
+
+        // Hotkey dispatch must never wait for UI state, Lua VM, or diagnostic locks.
+        let _ui_state = lock(&record.ui_state);
+        let _metadata = lock(&record.metadata);
+        let _instance = lock(&record.instance);
+        let _last_error = lock(&record.last_error);
+        assert_eq!(manager.hotkey_snapshots(), hotkeys);
+        record.enabled.store(false, Ordering::Release);
+        assert!(!manager.hotkey_snapshots()[0].enabled);
     }
 
     #[derive(Debug, Default)]

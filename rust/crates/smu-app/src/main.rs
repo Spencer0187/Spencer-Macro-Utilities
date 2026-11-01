@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     ptr,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
@@ -1025,7 +1026,9 @@ impl LinuxPlatformServices {
                 .with_helper(Arc::new(UnixFreezeHelper::default()), freeze_authorization),
         );
         let process_discovery = Arc::new(ProcDiscovery::default());
-        let process_foreground = Arc::new(ProcForegroundProcess::default());
+        let process_foreground = Arc::new(
+            ProcForegroundProcess::default().with_discovery(Arc::clone(&process_discovery)),
+        );
         let display_service = Arc::new(LinuxDisplayCapture::new());
         let wayland_portal = display_service.wayland_portal();
         let input_service = Arc::new(
@@ -3327,6 +3330,67 @@ fn handle_windows_privileged_shell_action(
     }
 }
 
+// Match the C++ event-driven UI: 8 FPS at rest and 60 FPS for a short input burst.
+// Capture/parity runs intentionally bypass the limiter to retain deterministic captures.
+const IDLE_FRAME_INTERVAL: Duration = Duration::from_millis(125);
+const ACTIVE_FRAME_INTERVAL: Duration = Duration::from_nanos(16_666_667);
+const INPUT_BURST_DURATION: Duration = Duration::from_millis(250);
+
+struct UiFramePacer {
+    active_until: Instant,
+    next_active: Instant,
+    next_idle: Instant,
+    redraw_requested: bool,
+}
+
+impl UiFramePacer {
+    fn new() -> Self {
+        let now = Instant::now();
+        Self { active_until: now, next_active: now, next_idle: now, redraw_requested: true }
+    }
+
+    fn request_redraw(&mut self, now: Instant) {
+        self.redraw_requested = true;
+        self.active_until = self.active_until.max(now + INPUT_BURST_DURATION);
+    }
+
+    fn should_render(&self, now: Instant) -> bool {
+        self.redraw_requested
+            || now >= self.next_idle
+            || (now < self.active_until && now >= self.next_active)
+    }
+
+    fn wait_duration(&self, now: Instant) -> Option<Duration> {
+        if self.should_render(now) {
+            return None;
+        }
+        let deadline = if now < self.active_until {
+            self.next_idle.min(self.next_active)
+        } else {
+            self.next_idle
+        };
+        // SDL3 uses integral milliseconds. Round up, as the C++ scheduler does, rather than
+        // spinning through sub-millisecond event waits.
+        let remaining = deadline.saturating_duration_since(now);
+        Some(
+            Duration::from_millis(
+                u64::try_from(remaining.as_millis()).unwrap_or(u64::MAX)
+                    + u64::from(remaining.subsec_nanos() % 1_000_000 != 0),
+            )
+            .clamp(Duration::from_millis(1), Duration::from_secs(1)),
+        )
+    }
+
+    fn frame_rendered(&mut self, now: Instant, interacting: bool) {
+        self.redraw_requested = false;
+        if interacting {
+            self.active_until = self.active_until.max(now + INPUT_BURST_DURATION);
+        }
+        self.next_active = now + ACTIVE_FRAME_INTERVAL;
+        self.next_idle = now + IDLE_FRAME_INTERVAL;
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Error>> {
     let UiLoopContext {
@@ -3354,8 +3418,18 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
     } = context;
 
     let mut rendered_frames = 0_u32;
+    let mut pacer = UiFramePacer::new();
     'main: loop {
-        for event in events.poll_iter() {
+        let first_event = if capture_path.is_none() {
+            pacer
+                .wait_duration(Instant::now())
+                .and_then(|duration| events.wait_event_timeout(duration))
+        } else {
+            None
+        };
+        let mut saw_event = false;
+        for event in first_event.into_iter().chain(events.poll_iter()) {
+            saw_event = true;
             backend.process_event(imgui, &event)?;
             if let Event::DropFile { filename, .. } = &event {
                 let path = PathBuf::from(filename);
@@ -3371,6 +3445,12 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             if should_quit {
                 break 'main;
             }
+        }
+        if saw_event {
+            pacer.request_redraw(Instant::now());
+        }
+        if capture_path.is_none() && !pacer.should_render(Instant::now()) {
+            continue;
         }
 
         shell_state.apply_theme_to_context(imgui);
@@ -3444,6 +3524,8 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             break 'main;
         }
 
+        let interacting =
+            ui.is_any_item_active() || (0..5).any(|button| ui.io().mouse_down_raw_index(button));
         let prepared = backend.prepare(frame, || window.gl_make_current(gl_context))?;
         // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
         // come from that context's SDL video subsystem.
@@ -3461,6 +3543,7 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
             break 'main;
         }
         window.gl_swap_window();
+        pacer.frame_rendered(Instant::now(), interacting);
     }
     Ok(())
 }
