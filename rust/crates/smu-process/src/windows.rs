@@ -2,7 +2,12 @@ use crate::{
     ProcessControl, ProcessDiscovery, ProcessForeground, ProcessRecord, newest_windows_process,
     windows_process_name_matches,
 };
-use std::{io, mem::size_of, sync::OnceLock};
+use std::{
+    io,
+    mem::size_of,
+    sync::{Arc, Mutex, MutexGuard, OnceLock},
+    time::{Duration, Instant},
+};
 use windows_sys::Win32::{
     Foundation::{CloseHandle, FILETIME, HANDLE, HWND, INVALID_HANDLE_VALUE, LPARAM, RECT},
     System::{
@@ -254,25 +259,59 @@ fn resume_process_fn() -> Option<NtProcessFn> {
     *FUNCTION.get_or_init(|| load_nt_process_fn(b"NtResumeProcess\0"))
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct WindowsProcessBackend;
+// All Windows controllers share the same ToolHelp process table. Each still applies its own
+// selector, but a hundred independent scans per second are never necessary at idle.
+const WINDOWS_PROCESS_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
+
+#[derive(Debug, Default)]
+struct WindowsProcessCache {
+    refreshed_at: Option<Instant>,
+    rows: Arc<Vec<NativeProcessRow>>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct WindowsProcessBackend {
+    cache: Arc<Mutex<WindowsProcessCache>>,
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
 
 impl WindowsProcessBackend {
     #[must_use]
-    pub const fn new() -> Self {
-        Self
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn cached_rows(&self) -> Arc<Vec<NativeProcessRow>> {
+        let mut cache = lock(&self.cache);
+        let now = Instant::now();
+        if cache
+            .refreshed_at
+            .is_some_and(|checked| now.duration_since(checked) < WINDOWS_PROCESS_REFRESH_INTERVAL)
+        {
+            return Arc::clone(&cache.rows);
+        }
+        cache.rows = Arc::new(process_rows());
+        cache.refreshed_at = Some(Instant::now());
+        Arc::clone(&cache.rows)
     }
 }
 
 impl ProcessDiscovery for WindowsProcessBackend {
     fn snapshot(&self) -> io::Result<Vec<ProcessRecord>> {
-        Ok(process_rows()
-            .into_iter()
+        Ok(self
+            .cached_rows()
+            .iter()
             .map(|row| ProcessRecord {
                 pid: row.pid,
                 parent_pid: row.parent_pid,
                 command_name: Some(row.executable_name.clone()),
-                executable_name: Some(row.executable_name),
+                executable_name: Some(row.executable_name.clone()),
             })
             .collect())
     }
@@ -282,16 +321,18 @@ impl ProcessDiscovery for WindowsProcessBackend {
     }
 
     fn find_all_processes(&self, selector: &str) -> io::Result<Vec<u32>> {
-        Ok(process_rows()
-            .into_iter()
+        Ok(self
+            .cached_rows()
+            .iter()
             .filter(|row| windows_process_name_matches(&row.executable_name, selector))
             .map(|row| row.pid)
             .collect())
     }
 
     fn find_main_process(&self, selector: &str) -> io::Result<Option<u32>> {
-        let candidates = process_rows()
-            .into_iter()
+        let candidates = self
+            .cached_rows()
+            .iter()
             .filter(|row| windows_process_name_matches(&row.executable_name, selector))
             .filter_map(|row| process_creation_time(row.pid).map(|creation| (row.pid, creation)))
             .collect::<Vec<_>>();
@@ -340,5 +381,27 @@ impl ProcessForeground for WindowsProcessBackend {
             GetWindowThreadProcessId(window, &raw mut foreground_pid);
         }
         foreground_pid == pid
+    }
+}
+
+#[cfg(test)]
+mod cache_tests {
+    use super::*;
+
+    #[test]
+    fn cloned_windows_backend_reuses_process_table_until_refresh_due() {
+        let backend = WindowsProcessBackend::new();
+        let clone = backend.clone();
+        let first = backend.cached_rows();
+        let reused = clone.cached_rows();
+        assert!(Arc::ptr_eq(&first, &reused));
+        assert!(!first.is_empty());
+
+        let mut cache = lock(&backend.cache);
+        cache.refreshed_at =
+            Instant::now().checked_sub(WINDOWS_PROCESS_REFRESH_INTERVAL + Duration::from_secs(1));
+        drop(cache);
+        let refreshed = clone.cached_rows();
+        assert!(!Arc::ptr_eq(&first, &refreshed));
     }
 }

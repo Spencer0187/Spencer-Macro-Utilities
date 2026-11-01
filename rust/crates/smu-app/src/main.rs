@@ -3526,6 +3526,15 @@ fn run_ui_loop(context: UiLoopContext<'_>) -> Result<(), Box<dyn std::error::Err
 
         let interacting =
             ui.is_any_item_active() || (0..5).any(|button| ui.io().mouse_down_raw_index(button));
+        if capture_path.is_none() && window.is_minimized() {
+            // Continue updating profiles, process status and macro controller settings while
+            // minimized, but never submit hidden ImGui frames to OpenGL. Software renderers
+            // (such as Mesa on a GPU-less VM) can otherwise consume substantial CPU here.
+            // Dropping the FrameToken ends the ImGui frame without touching the GPU.
+            drop(frame);
+            pacer.frame_rendered(Instant::now(), false);
+            continue;
+        }
         let prepared = backend.prepare(frame, || window.gl_make_current(gl_context))?;
         // SAFETY: the SDL OpenGL context is current on this thread and the loaded function pointers
         // come from that context's SDL video subsystem.
