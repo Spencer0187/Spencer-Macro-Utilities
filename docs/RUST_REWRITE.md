@@ -958,6 +958,25 @@ a mask must be narrow and reviewed.
 Named layout constants are preferred in Rust even when their numeric values must match existing
 magic constants. Pixel parity is the requirement, not preservation of the old implementation style.
 
+## November 1 parity audit repairs
+
+- The shared macro target cache retains the single-snapshot Linux procfs fast path, but on Windows
+  and macOS calls the native `ProcessDiscovery::find_all_processes` / `find_main_process` overrides.
+  A generic Linux-style snapshot selector previously bypassed Windows case-insensitive/newest-instance
+  selection and macOS bundle aliases/frontmost selection for built-in macros and script hotkeys.
+  Changes to the selector or main/all-process policy now invalidate the one-second target cache
+  immediately; ordinary unchanged-selector polling stays bounded at one second.
+- The Rust SDL loop now matches C++'s explicit quit/window-close behavior. Escape is ImGui input,
+  not an application-wide exit shortcut. A synthetic-event test covers both cases.
+- Linux uinput write failures and Windows `SendInput` short/failed sends now enter a bounded,
+  ten-second duplicate-suppressed input diagnostic queue. The UI forwards queued messages to the
+  existing warning/toast and optional `SMC.log` path. Linux character injection reports failure
+  if either the press or release emission failed while still attempting the release.
+- The new regression tests cover native discovery overrides, Linux snapshot reuse, immediate
+  target-cache invalidation, SDL quit event classification, and diagnostic queue bounds/rate limiting.
+  Native Windows/macOS GUI, driver, signing, and permission acceptance remain release gates;
+  portable and simulated tests do not replace them.
+
 ## Release cutover readiness
 
 Application-code parity is complete enough that the remaining work is release promotion rather than another

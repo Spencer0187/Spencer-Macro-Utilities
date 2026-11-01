@@ -15,6 +15,7 @@ pub mod macos;
 pub mod windows;
 #[cfg(target_os = "linux")]
 pub use linux_permissions::{LinuxInputPermissionStatus, linux_input_permission_status};
+pub mod diagnostics;
 pub mod state;
 pub mod text;
 

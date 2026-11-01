@@ -400,12 +400,18 @@ pub fn set_left_mouse_button_direct(down: bool) {
         },
     };
     // SAFETY: `input` points to one initialized Win32 INPUT record and remains valid for the call.
-    unsafe {
-        let _ = SendInput(
+    let sent = unsafe {
+        SendInput(
             1,
             &raw const input,
             i32::try_from(std::mem::size_of::<INPUT>()).unwrap_or_default(),
-        );
+        )
+    };
+    if sent != 1 {
+        crate::diagnostics::report_failure(format!(
+            "Windows direct mouse input failed (sent {sent}/1): {}",
+            std::io::Error::last_os_error()
+        ));
     }
 }
 
@@ -418,12 +424,18 @@ fn dispatch_inputs(inputs: &[INPUT]) {
         return;
     };
     // SAFETY: `inputs` is a contiguous initialized slice that remains valid for the duration of SendInput.
-    unsafe {
-        let _ = SendInput(
+    let sent = unsafe {
+        SendInput(
             count,
             inputs.as_ptr(),
             i32::try_from(std::mem::size_of::<INPUT>()).unwrap_or_default(),
-        );
+        )
+    };
+    if sent != count {
+        crate::diagnostics::report_failure(format!(
+            "Windows input injection failed (sent {sent}/{count} events): {}",
+            std::io::Error::last_os_error()
+        ));
     }
 }
 

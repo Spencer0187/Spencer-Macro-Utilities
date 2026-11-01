@@ -233,12 +233,20 @@ impl EvdevUinputInputDevice {
     }
 
     #[allow(clippy::significant_drop_tightening)] // uinput emit requires exclusive device access.
-    fn emit(&self, events: &[InputEvent]) {
+    fn emit(&self, events: &[InputEvent]) -> bool {
         let mut device = lock(&self.virtual_device);
         let Some(device) = device.as_mut() else {
-            return;
+            return false;
         };
-        let _ = device.emit(events);
+        match device.emit(events) {
+            Ok(()) => true,
+            Err(error) => {
+                crate::diagnostics::report_failure(format!(
+                    "Linux input backend failed to write uinput events: {error}"
+                ));
+                false
+            }
+        }
     }
 }
 
@@ -307,7 +315,7 @@ impl InputInjector for EvdevUinputInputDevice {
             .map(|key| InputEvent::new(EventType::KEY.0, key, 1))
             .collect::<Vec<_>>();
         down.push(InputEvent::new(EventType::KEY.0, resolved.evdev_key, 1));
-        self.emit(&down);
+        let pressed = self.emit(&down);
         std::thread::sleep(Duration::from_millis(
             u64::try_from(delay_ms.max(0)).unwrap_or_default(),
         ));
@@ -322,8 +330,8 @@ impl InputInjector for EvdevUinputInputDevice {
                 .copied()
                 .map(|key| InputEvent::new(EventType::KEY.0, key, 0)),
         );
-        self.emit(&up);
-        true
+        let released = self.emit(&up);
+        pressed && released
     }
 
     fn move_mouse(&self, dx: i32, dy: i32) {
