@@ -46,7 +46,8 @@ No code was pushed to the public/production repository.
 The SignPath candidate `scripts/signpath/rust-windows-bundle.xml` covers only the
 project-owned Rust app and update helper, as required by SignPath Foundation's
 [OSS signing conditions](https://signpath.org/terms.html). It deliberately omits
-upstream `SDL3.dll`, `SMCWinDivert.dll`, and `SMCWinDivert64.sys`. The updater
+upstream `SDL3.dll`, `SMCWinDivert.dll`, and both `SMCWinDivert64.sys` and
+byte-identical `WinDivert64.sys` (required by the vendor DLL). The updater
 now requires both upstream DLLs to be byte-for-byte identical to installed
 versions (SHA-256), checks both project EXE signers, and preserves WinDivert's
 separate kernel-driver signer. New upstream DLL versions therefore require a

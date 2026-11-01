@@ -245,6 +245,7 @@ jobs:
             "build/rust-windows-app/SDL3.dll",
             "build/rust-windows-app/SMCWinDivert.dll",
             "build/rust-windows-app/SMCWinDivert64.sys",
+            "build/rust-windows-app/WinDivert64.sys",
             "build/rust-windows-app/assets/LSANS.TTF"
           )
           foreach ($path in $required) {
@@ -381,6 +382,7 @@ jobs:
             "$root/SDL3.dll",
             "$root/SMCWinDivert.dll",
             "$root/SMCWinDivert64.sys",
+            "$root/WinDivert64.sys",
             "$root/assets/LSANS.TTF",
             "$root/README.md",
             "$root/LICENSE",
@@ -406,11 +408,17 @@ jobs:
               throw "Packaged Rust Windows release-signed runtime failed signer validation: $_"
             }
           }
-          $packagedDriverSignature = Get-AuthenticodeSignature -LiteralPath "$root/SMCWinDivert64.sys"
-          if ($packagedDriverSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
-              $null -eq $packagedDriverSignature.SignerCertificate -or
-              $packagedDriverSignature.SignerCertificate.Thumbprint -eq $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
-            throw "Packaged WinDivert driver did not preserve its valid upstream signer."
+          foreach ($driverName in @("SMCWinDivert64.sys", "WinDivert64.sys")) {
+            $packagedDriverSignature = Get-AuthenticodeSignature -LiteralPath "$root/$driverName"
+            if ($packagedDriverSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+                $null -eq $packagedDriverSignature.SignerCertificate -or
+                $packagedDriverSignature.SignerCertificate.Thumbprint -eq $env:SMU_RUST_WINDOWS_TEST_CERT_THUMBPRINT) {
+              throw "Packaged WinDivert driver $driverName did not preserve its valid upstream signer."
+            }
+          }
+          if ((Get-FileHash -Algorithm SHA256 "$root/SMCWinDivert64.sys").Hash -ne
+              (Get-FileHash -Algorithm SHA256 "$root/WinDivert64.sys").Hash) {
+            throw "Packaged WinDivert driver aliases are not byte-identical."
           }
           $manifest = Get-Content -Raw build/rust-windows-release/update-manifest-rust-windows.json | ConvertFrom-Json
           $artifact = $manifest.artifacts.'windows-x64'

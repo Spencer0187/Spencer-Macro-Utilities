@@ -159,6 +159,11 @@ class RustWindowsStagingTest(unittest.TestCase):
             self.assertEqual(
                 (stage / "SMCWinDivert64.sys").read_bytes(), b"windivert-driver"
             )
+            self.assertEqual((stage / "WinDivert64.sys").read_bytes(), b"windivert-driver")
+            self.assertEqual(
+                (stage / "WinDivert64.sys").read_bytes(),
+                (stage / "SMCWinDivert64.sys").read_bytes(),
+            )
             self.assertEqual((stage / "assets" / "LSANS.TTF").read_bytes(), b"font")
             self.assertEqual(
                 (stage / "assets" / "macro_tutorials" / "wallhop.jpg").read_bytes(),
@@ -166,6 +171,10 @@ class RustWindowsStagingTest(unittest.TestCase):
             )
             self.assertEqual((stage / "assets" / "smu_icon.bmp").read_bytes(), b"icon")
             self.assertFalse((stage / "stale.txt").exists())
+            PACKAGE_MODULE.validate_staged_runtime(stage)
+            (stage / "WinDivert64.sys").write_bytes(b"tampered-alias")
+            with self.assertRaisesRegex(RuntimeError, "byte-identical"):
+                PACKAGE_MODULE.validate_staged_runtime(stage)
 
     def test_stage_runtime_rejects_missing_required_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -192,7 +201,10 @@ class RustWindowsStagingTest(unittest.TestCase):
             assets = stage / "assets" / "macro_tutorials"
             assets.mkdir(parents=True)
             for name in PACKAGE_MODULE.RUNTIME_FILES:
-                (stage / name).write_bytes(name.encode())
+                (stage / name).write_bytes(
+                    b"signed-driver" if name in {"SMCWinDivert64.sys", "WinDivert64.sys"}
+                    else name.encode()
+                )
             (stage / "assets" / "LSANS.TTF").write_bytes(b"font")
             (assets / "wallhop.jpg").write_bytes(b"tutorial")
             output = temp / "rust-windows.zip"
@@ -1037,7 +1049,7 @@ class RustWindowsStagingTest(unittest.TestCase):
         self.assertIn("signtool.exe", workflow)
         self.assertIn("Get-AuthenticodeSignature", workflow)
         self.assertIn("Bundled WinDivert driver does not carry a valid upstream Authenticode signature", workflow)
-        self.assertIn("Packaged WinDivert driver did not preserve its valid upstream signer", workflow)
+        self.assertIn("did not preserve its valid upstream signer", workflow)
         self.assertIn("rust-windows-app-test-signed", workflow)
         self.assertIn("rust-windows-release-contract-test-signed", workflow)
         self.assertNotIn("rust-windows-app-unsigned", workflow)

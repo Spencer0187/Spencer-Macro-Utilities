@@ -20,6 +20,7 @@ HELPER_CARGO_BINARY_NAME = "smu-windows-updater-helper.exe"
 SDL_DLL_NAME = "SDL3.dll"
 WINDIVERT_DLL_NAME = "SMCWinDivert.dll"
 WINDIVERT_DRIVER_NAME = "SMCWinDivert64.sys"
+WINDIVERT_DLL_DRIVER_NAME = "WinDivert64.sys"
 WINDOWS_GUI_SUBSYSTEM = 2
 
 
@@ -131,6 +132,8 @@ def stage_runtime(
     shutil.copy2(sdl_dll, staged_sdl)
     shutil.copy2(windivert_dll, staged_windivert_dll)
     shutil.copy2(windivert_driver, staged_windivert_driver)
+    # The unmodified SMCWinDivert.dll creates the WinDivert service with this exact image path.
+    shutil.copy2(windivert_driver, stage_dir / WINDIVERT_DLL_DRIVER_NAME)
     shutil.copytree(assets, stage_dir / "assets")
 
     return (

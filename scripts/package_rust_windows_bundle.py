@@ -20,6 +20,7 @@ RUNTIME_FILES = (
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",
+    "WinDivert64.sys",
 )
 NOTICE_FILES = (
     ("README.md", "README.md"),
@@ -48,6 +49,8 @@ def validate_staged_runtime(stage_dir: Path) -> None:
     if missing:
         rendered = ", ".join(str(path) for path in missing)
         raise RuntimeError(f"staged Rust Windows runtime is incomplete: {rendered}")
+    if (stage_dir / "SMCWinDivert64.sys").read_bytes() != (stage_dir / "WinDivert64.sys").read_bytes():
+        raise RuntimeError("WinDivert driver aliases must be byte-identical upstream binaries")
 
 
 def copy_bundle_tree(root: Path, stage_dir: Path, bundle_root: Path) -> None:

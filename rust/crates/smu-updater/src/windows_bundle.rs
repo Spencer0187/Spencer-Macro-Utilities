@@ -24,7 +24,8 @@ pub const WINDOWS_UNCHANGED_UPSTREAM_LIBRARY_FILES: &[&str] = &["SDL3.dll", "SMC
 /// `WinDivert`'s kernel driver keeps its upstream kernel-compatible signature rather than being re-signed with the
 /// SMU release certificate. Automatic updates therefore require the staged driver to match the installed driver's
 /// Authenticode signer.
-pub const WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES: &[&str] = &["SMCWinDivert64.sys"];
+pub const WINDOWS_UPSTREAM_SIGNER_CONTINUITY_FILES: &[&str] =
+    &["SMCWinDivert64.sys", "WinDivert64.sys"];
 const MAXIMUM_BUNDLE_ENTRIES: usize = 4096;
 const REQUIRED_FILES: &[&str] = &[
     "Spencer-Macro-Utilities.exe",
@@ -32,6 +33,7 @@ const REQUIRED_FILES: &[&str] = &[
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",
+    "WinDivert64.sys",
     "assets/LSANS.TTF",
 ];
 const ALLOWED_TOP_LEVEL_FILES: &[&str] = &[
@@ -40,6 +42,7 @@ const ALLOWED_TOP_LEVEL_FILES: &[&str] = &[
     "SDL3.dll",
     "SMCWinDivert.dll",
     "SMCWinDivert64.sys",
+    "WinDivert64.sys",
     "README.md",
     "LICENSE",
     "PRIVACY.md",
@@ -124,8 +127,9 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
 
     let mut total_size = 0_u64;
     let mut files = BTreeSet::new();
+    let mut driver_hashes = BTreeMap::<String, [u8; 32]>::new();
     for index in 0..archive.len() {
-        let entry = archive.by_index(index).map_err(|_| {
+        let mut entry = archive.by_index(index).map_err(|_| {
             WindowsBundleError::new("Windows update bundle contains an unreadable ZIP entry.")
         })?;
         let relative = normalized_relative_name(entry.name())?;
@@ -147,10 +151,26 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
                 "Windows update bundle contains an unexpected file: {relative}"
             )));
         }
-        if !files.insert(relative) {
+        if !files.insert(relative.clone()) {
             return Err(WindowsBundleError::new(
                 "Windows update bundle contains a duplicate file path.",
             ));
+        }
+        if matches!(relative.as_str(), "SMCWinDivert64.sys" | "WinDivert64.sys") {
+            let mut hasher = Sha256::new();
+            let mut chunk = vec![0_u8; 64 * 1024].into_boxed_slice();
+            loop {
+                let count = entry.read(&mut chunk).map_err(|error| {
+                    WindowsBundleError::new(format!(
+                        "Could not read the signed WinDivert driver: {error}"
+                    ))
+                })?;
+                if count == 0 {
+                    break;
+                }
+                hasher.update(&chunk[..count]);
+            }
+            driver_hashes.insert(relative, hasher.finalize().into());
         }
         total_size = total_size.checked_add(entry.size()).ok_or_else(|| {
             WindowsBundleError::new("Windows update bundle expanded size overflowed.")
@@ -167,6 +187,11 @@ fn validate_bundle_archive(bytes: &[u8]) -> Result<BTreeSet<String>, WindowsBund
                 "Windows update bundle is missing required runtime file: {required}"
             )));
         }
+    }
+    if driver_hashes.get("SMCWinDivert64.sys") != driver_hashes.get("WinDivert64.sys") {
+        return Err(WindowsBundleError::new(
+            "The two upstream-signed WinDivert driver filenames must have byte-identical contents.",
+        ));
     }
     Ok(files)
 }
@@ -397,6 +422,15 @@ pub fn validate_windows_bundle_tree(
             )));
         }
     }
+    require_unchanged_windows_upstream_library(
+        &package_root.join("SMCWinDivert64.sys"),
+        &package_root.join("WinDivert64.sys"),
+    )
+    .map_err(|_| {
+        WindowsBundleError::new(
+            "The two upstream-signed WinDivert driver filenames must have byte-identical contents.",
+        )
+    })?;
     Ok(files.into_iter().collect())
 }
 
@@ -533,6 +567,7 @@ mod tests {
             ("Spencer-Macro-Utilities/SDL3.dll", b"sdl"),
             ("Spencer-Macro-Utilities/SMCWinDivert.dll", b"dll"),
             ("Spencer-Macro-Utilities/SMCWinDivert64.sys", b"driver"),
+            ("Spencer-Macro-Utilities/WinDivert64.sys", b"driver"),
             ("Spencer-Macro-Utilities/assets/LSANS.TTF", b"font"),
             ("Spencer-Macro-Utilities/assets/macro_tutorials/wallhop.jpg", b"image"),
             ("Spencer-Macro-Utilities/LICENSE", b"license"),
@@ -648,6 +683,31 @@ mod tests {
             .expect_err("missing runtime file must be rejected");
         assert!(error.to_string().contains("SMCWinDivert64.sys"));
         assert!(!staging.exists());
+    }
+
+    #[test]
+    fn signed_windivert_driver_alias_must_match_in_zip_and_staging() {
+        let temp = TestDirectory::new("driver-alias");
+        let mut entries = valid_entries();
+        let alias = entries
+            .iter_mut()
+            .find(|(name, _)| name.ends_with("/WinDivert64.sys"))
+            .expect("WinDivert alias fixture");
+        alias.1 = b"different-driver";
+        let destination = temp.0.join("mismatch");
+        let error = extract_windows_bundle(&bundle(&entries), &destination)
+            .expect_err("mismatched signed driver aliases must fail closed");
+        assert!(error.to_string().contains("byte-identical"));
+        assert!(!destination.exists());
+
+        let valid = temp.0.join("valid");
+        let extracted = extract_windows_bundle(&bundle(&valid_entries()), &valid)
+            .expect("matching signed driver aliases should extract");
+        fs::write(extracted.join("WinDivert64.sys"), b"changed-after-extract")
+            .expect("modify staging alias");
+        let error = validate_windows_bundle_tree(&extracted)
+            .expect_err("staging must reject modified driver alias");
+        assert!(error.to_string().contains("byte-identical"));
     }
 
     #[test]

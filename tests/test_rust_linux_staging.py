@@ -377,7 +377,7 @@ class RustLinuxStagingTest(unittest.TestCase):
             '#[cfg(any(target_os = "windows", test))]\npub(crate) mod windows_delay;', network
         )
         self.assertIn('WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll"', windows)
-        self.assertIn('WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys"', windows)
+        self.assertIn('WINDIVERT_DRIVER_NAME: &str = "WinDivert64.sys"', windows)
         self.assertIn("CheckTokenMembership", windows)
         self.assertIn("LagSwitchInitializationFailure::RequiresAdministrator", windows)
         self.assertIn("pub struct WinDivertAddress", windows)

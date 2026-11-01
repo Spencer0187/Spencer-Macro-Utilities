@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SignPath Foundation candidate: sign only binaries built from SMU-owned source.
-     The vendor SDL3.dll, SMCWinDivert.dll and upstream-signed SMCWinDivert64.sys
+     The vendor SDL3.dll, SMCWinDivert.dll and upstream-signed driver aliases
      are deliberately excluded. The current Windows updater still requires all
      four user-mode binaries to share the SMU signer; that trust check must be
      redesigned, reviewed and independently verified before enabling auto-apply.

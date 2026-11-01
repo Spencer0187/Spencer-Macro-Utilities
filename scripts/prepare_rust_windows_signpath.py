@@ -21,7 +21,7 @@ RELEASE_SIGNER_FILES = (
     "Spencer-Macro-Utilities.exe",
     "SMU-Update-Helper.exe",
 )
-THIRD_PARTY_WINDOWS_FILES = ("SDL3.dll", "SMCWinDivert.dll", "SMCWinDivert64.sys")
+THIRD_PARTY_WINDOWS_FILES = ("SDL3.dll", "SMCWinDivert.dll", "SMCWinDivert64.sys", "WinDivert64.sys")
 SIGNPATH_CONFIG = Path(__file__).resolve().parent / "signpath" / "rust-windows-bundle.xml"
 NAMESPACE = "http://signpath.io/artifact-configuration/v1"
 MAX_FILE_BYTES = 256 * 1024 * 1024

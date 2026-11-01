@@ -461,7 +461,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   base config, and base blocking, so `LagSwitchController` no longer depends on the Linux concrete
   backend and can drive a Windows transport through the same runtime path. `smu-network::windows` now
   provides the native loader/ABI foundation too: it requires `SMCWinDivert.dll` and
-  `SMCWinDivert64.sys` beside the executable, resolves `Open`/`Recv`/`Send`/`HelperParsePacket`/
+  `WinDivert64.sys` (an identical signed copy of `SMCWinDivert64.sys`) beside the executable, resolves `Open`/`Recv`/`Send`/`HelperParsePacket`/
   `Shutdown`/`Close`, models the bundled 80-byte `WINDIVERT_ADDRESS`, bounds-checks the parser-returned
   payload pointer before exposing it as a Rust slice, and probes driver availability with the C++
   `Open("false", NETWORK, 0, SNIFF)` call. This Fedora toolchain has neither a Windows stdlib nor
@@ -554,7 +554,8 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   without touching the signed C++ release:
   `scripts/stage_rust_windows_app.py` performs a locked Cargo build and creates a clean
   experimental directory containing a staged `Spencer-Macro-Utilities.exe`, Cargo's exact `SDL3.dll`,
-  the full file-based `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings.
+  the full file-based `assets/` tree, and repository `SMCWinDivert.dll` / `SMCWinDivert64.sys` siblings and its required
+  byte-identical `WinDivert64.sys` DLL-requested driver filename.
   The Rust binary itself now uses the Windows GUI subsystem like the legacy `WIN32` CMake target, and the
   staging helper parses the PE optional header to reject an accidental console-subsystem build. Cargo's
   internal binary target remains `smu-app.exe` so Linux naming/staging stays unchanged. Windows UAC
@@ -595,7 +596,7 @@ The rewrite may improve internals aggressively. Compatibility tests decide wheth
   same-signer operation first verifies both executables before comparing their signer fingerprints. The
   Windows bundle contract now also freezes the production trust classes: the staged app, update helper,
   `SDL3.dll`, and `SMCWinDivert.dll` must use the installed SMU app's release signer, while
-  `SMCWinDivert64.sys` preserves its upstream kernel-compatible signature and must keep the same signer as
+  Both `SMCWinDivert64.sys` and the byte-identical `WinDivert64.sys` alias preserve their upstream kernel-compatible signature and must keep the same signer as
   the already installed driver. This prevents a manifest/package-channel compromise from substituting a
   differently signed side-loaded DLL or driver beside an otherwise authentic SMU executable.
   The updater also now owns a platform-neutral multi-file replacement transaction for the validated staged
@@ -970,7 +971,8 @@ self-update at the same time.
    runtime beside it. A V3.4.1+ cutover instead uses the normal nested bundle and must first delete the
    V3.4.0-only Rust filename-migration module/startup call so its compile-time tripwire can no longer fire.
 3. Do not replace the current direct Windows EXE asset with the staged Rust EXE as-is. The Rust Windows app
-   currently requires sibling `SDL3.dll`, `SMCWinDivert.dll`, `SMCWinDivert64.sys`, the updater helper, and
+   currently requires sibling `SDL3.dll`, `SMCWinDivert.dll`, both `SMCWinDivert64.sys` and
+   `WinDivert64.sys` (identical driver bytes), the updater helper, and
    runtime assets. Before production promotion, either make the direct executable genuinely self-contained,
    retire/change the standalone-EXE release contract, or provide another self-contained installer/bootstrapper.
 4. Promote Windows as a signed runtime bundle, not merely a different build command. Production SignPath

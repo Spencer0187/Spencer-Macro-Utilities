@@ -815,6 +815,7 @@ mod tests {
         write_file(&root, "SDL3.dll", b"new-sdl");
         write_file(&root, "SMCWinDivert.dll", b"new-windivert");
         write_file(&root, "SMCWinDivert64.sys", b"new-driver");
+        write_file(&root, "WinDivert64.sys", b"new-driver");
         write_file(&root, "assets/LSANS.TTF", b"new-font");
         write_file(&root, "assets/macro_tutorials/wallhop.jpg", b"new-image");
         write_file(&root, "LICENSE", b"new-license");

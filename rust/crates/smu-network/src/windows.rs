@@ -53,7 +53,8 @@ struct Udp6RowOwnerPid {
 
 pub const WINDIVERT_MTU_MAX: usize = 40 + 0xFFFF;
 pub const WINDIVERT_DLL_NAME: &str = "SMCWinDivert.dll";
-pub const WINDIVERT_DRIVER_NAME: &str = "SMCWinDivert64.sys";
+// The vendor DLL requests WinDivert64.sys when installing its kernel service.
+pub const WINDIVERT_DRIVER_NAME: &str = "WinDivert64.sys";
 
 #[must_use]
 pub fn is_running_as_admin() -> bool {
@@ -1351,6 +1352,6 @@ mod tests {
             r"C:\Apps\SMU\Spencer-Macro-Utilities.exe",
         ));
         assert_eq!(paths.dll, PathBuf::from(r"C:\Apps\SMU\SMCWinDivert.dll"));
-        assert_eq!(paths.driver, PathBuf::from(r"C:\Apps\SMU\SMCWinDivert64.sys"));
+        assert_eq!(paths.driver, PathBuf::from(r"C:\Apps\SMU\WinDivert64.sys"));
     }
 }
